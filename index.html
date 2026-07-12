@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="谷子排单簿：定价、排单、推车图、收款统计与双端同步。">
+<meta name="description" content="谷子调排簿：调价、排单、推车图、收款统计与双端同步。">
 <meta name="theme-color" content="#d1466a">
 <title>谷子调排簿</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛒</text></svg>">
@@ -26,6 +26,11 @@
     <h1>谷子调排簿</h1>
     <p class="lead">调价、排单，数据自动累加。</p>
   </header>
+
+  <div class="mobile-view-switch">
+    <button type="button" id="mobileLiteBtn" class="active">清爽版</button>
+    <button type="button" id="mobileFullBtn">完整版</button>
+  </div>
 
   <div class="sheetbar">
     <div id="sheetTabs" class="sheet-tabs"></div>
@@ -222,6 +227,7 @@ class Component extends DCLogic {
 .wrap .eyebrow{ font-size:12px; letter-spacing:.2em; color:var(--accent); font-weight:700; }
 .wrap h1{ margin:3px 0 0; font-size:24px; font-weight:800; letter-spacing:.02em; }
 .wrap .lead{ margin:5px 0 0; color:var(--muted); font-size:12.5px; line-height:1.55; }
+.mobile-view-switch{ display:none; }
 .sheetbar{ position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:7px; margin:0 0 12px; padding:7px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:11px; box-shadow:0 4px 16px rgba(53,36,62,.06); backdrop-filter:blur(10px); }
 .cloudbar{ display:grid; grid-template-columns:150px repeat(3,auto) auto auto 1fr; align-items:center; gap:7px; margin:-5px 0 12px; padding:8px; border:1px solid var(--line); border-radius:11px; background:#fff; }
 .cloudbar .cloud-auto{ display:flex; align-items:center; gap:5px; margin:0; white-space:nowrap; }
@@ -309,6 +315,7 @@ class Component extends DCLogic {
 #matrixTable thead tr.header-row th{ background:var(--panel-2); font-weight:700; color:var(--text); font-size:13px; }
 #matrixTable tr.adj-row td{ font-size:12px; color:var(--muted); background:#faf9fb; }
 #matrixTable tr.price-row td{ font-size:12px; font-weight:700; }
+#matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child{ min-width:58px; width:58px; background:#f5f2f6; font-weight:900; z-index:9; }
 #matrixTable td.adj-pos{ color:var(--bad); }
 #matrixTable td.adj-neg{ color:var(--accent-2); }
 #matrixTable td.adj-fix{ color:var(--gold); }
@@ -381,13 +388,23 @@ class Component extends DCLogic {
   .wrap header{ margin-bottom:9px; }
   .wrap h1{ font-size:20px; }
   .desktop-setup{ display:none!important; }
+  body.mobile-full .desktop-setup{ display:block!important; }
+  .mobile-view-switch{ display:grid; grid-template-columns:1fr 1fr; gap:5px; margin:0 0 9px; padding:4px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+  .mobile-view-switch button{ background:transparent; color:var(--muted); border:1px solid transparent; }
+  .mobile-view-switch button.active{ color:var(--accent); background:#fff0f4; border-color:#efcad5; }
   .cloudbar{ grid-template-columns:1fr 1fr; gap:6px; }
   .cloudbar #syncCodeInput,.cloudbar #cloudStatus{ grid-column:1/-1; text-align:left; }
   .cloudbar .cloud-auto{ justify-content:center; }
   .wrap .panel{ padding:12px; margin-bottom:9px; }
   #matrixPanel .toolbar > *{ display:none!important; }
   #matrixPanel .toolbar #regenBtn,#matrixPanel .toolbar #exportPngBtn,#matrixPanel .toolbar #exportCurrentJsonBtn{ display:inline-flex!important; }
+  body.mobile-full #matrixPanel .toolbar > *{ display:inline-flex!important; }
   .matrix-tip,.matrix-options{ display:none; }
+  body.mobile-full .matrix-tip,body.mobile-full .matrix-options{ display:flex; }
+  .wrap input[type=text],.wrap input[type=number],.wrap textarea,.wrap select{ font-size:16px; }
+  #matrixTable [contenteditable=true],.payment-table [contenteditable=true]{ font-size:16px; }
+  #matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child{ min-width:62px; width:62px; background:#f5f2f6; }
+  #matrixTable thead td:first-child,#matrixTable thead th:first-child{ background:#f5f2f6; }
   .cart-controls{ overflow-x:auto; padding-bottom:3px; }
   .cart-editor-row{ flex-wrap:wrap; }
   .cart-editor-row textarea{ flex-basis:100%; }
@@ -1013,6 +1030,13 @@ class Component extends DCLogic {
     }));
     $('showPricingRow').addEventListener('click',()=>{ showPricingRow=!showPricingRow; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showUnitPriceRow').addEventListener('click',()=>{ showUnitPriceRow=!showUnitPriceRow; syncMatrixOptions(); saveState(); renderMatrix(); });
+    function setMobileView(full){
+      document.body.classList.toggle('mobile-full',full);
+      $('mobileLiteBtn').classList.toggle('active',!full);
+      $('mobileFullBtn').classList.toggle('active',full);
+    }
+    $('mobileLiteBtn').addEventListener('click',()=>setMobileView(false));
+    $('mobileFullBtn').addEventListener('click',()=>setMobileView(true));
     $('createSyncCodeBtn').addEventListener('click',()=>{
       const bytes=new Uint8Array(6); crypto.getRandomValues(bytes);
       syncCode=[...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
