@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="谷子排单簿：定价、评论解析、排单、推车图、收款统计与双端同步。">
+<meta name="description" content="谷子排单簿：定价、排单、推车图、收款统计与双端同步。">
 <meta name="theme-color" content="#d1466a">
-<title>谷子排单簿</title>
+<title>谷子调排簿</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛒</text></svg>">
 <script src="./support.js"></script>
 </head>
@@ -23,8 +23,8 @@
 
   <header>
     <div class="eyebrow">调价 · 排单</div>
-    <h1>谷子排单簿</h1>
-    <p class="lead">算价、排单，数据自动累加。</p>
+    <h1>谷子调排簿</h1>
+    <p class="lead">调价、排单，数据自动累加。</p>
   </header>
 
   <div class="sheetbar">
@@ -43,13 +43,13 @@
   </div>
 
   <div class="panel desktop-setup" id="costPanel">
-    <h2>① 价格设置</h2>
+    <h2>① 价格</h2>
     <div class="grid">
       <div>
         <label>原价类型</label>
         <select id="priceType">
           <option value="total">整套日元总价</option>
-          <option value="single">单个日元原价</option>
+          <option value="single">单领日元原价</option>
         </select>
       </div>
       <div><label>谷子数量（默认=列数）</label><input id="count" type="number" min="1"></div>
@@ -83,11 +83,11 @@
   </div>
 
   <div class="panel desktop-setup" id="columnPanel">
-    <h2>② 角色 / 谷子 列设置</h2>
+    <h2>② 谷子 / 种类 列</h2>
     <div id="columnList"></div>
     <div class="toolbar">
       <button class="btn-ghost" id="addColumnBtn">+ 手动添加一列</button>
-      <span class="hint">粘贴评论解析时，新角色名会自动追加为列；也可以先建好列、设置别名合并、选择定价方式。</span>
+      <span class="hint">粘贴文字时，新名字会自动追加为列；也可以先建好列、设置别名合并、选择定价方式。</span>
     </div>
   </div>
 
@@ -100,20 +100,20 @@
     </div>
     <div class="ocr-thumbs" id="ocrThumbs"></div>
     <div class="ocr-status" id="ocrStatus"></div>
-    <div class="hint">可选多张截图，识别后自动填入评论框。</div>
+    <div class="hint">可选多张截图，识别后自动填入粘贴框。</div>
   </div>
 
   <div class="panel mobile-core" id="commentPanel">
-    <h2>④ 批量粘贴评论</h2>
-    <textarea id="commentInput" placeholder="直接把评论区文字整段粘贴进来"></textarea>
+    <h2>④ 批量粘贴</h2>
+    <textarea id="commentInput" placeholder="直接把文字整段粘贴进来"></textarea>
     <div class="toolbar">
-      <button class="btn-primary" id="parseBtn">解析预览</button>
+      <button class="btn-primary" id="parseBtn">预览</button>
       <span class="hint">识别后可在预览中修改。</span>
     </div>
   </div>
 
   <div class="panel mobile-core" id="previewPanel" style="display:none;">
-    <h2>解析预览（可编辑，确认无误后再生成）</h2>
+    <h2>预览（可编辑，确认无误后再生成）</h2>
     <div class="table-scroll">
       <table id="previewTable">
         <thead><tr><th>#</th><th>评论人</th><th>识别到的需求（格式：角色数量，角色数量）</th><th>操作</th></tr></thead>
@@ -140,7 +140,7 @@
           <tbody id="matrixTableBody"></tbody>
         </table>
       </div>
-      <div id="matrixEmpty" class="empty">还没有生成配比表，先粘贴评论解析，或在上方添加列后点「重新生成」。</div>
+      <div id="matrixEmpty" class="empty">还没有生成配比表，先粘贴，或在上方添加列后点「重新生成」。</div>
     </div>
     <div class="toolbar">
       <button class="btn-ghost" id="regenBtn">刷新表格</button>
