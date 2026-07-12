@@ -141,7 +141,6 @@
         </table>
       </div>
       <div id="matrixEmpty" class="empty">还没有生成配比表，先粘贴评论解析，或在上方添加列后点「重新生成」。</div>
-      <div id="paymentSummary" class="payment-summary"></div>
     </div>
     <div class="toolbar">
       <button class="btn-ghost" id="regenBtn">刷新表格</button>
@@ -155,8 +154,18 @@
     </div>
   </div>
 
+  <div class="panel mobile-core" id="paymentPanel">
+    <h2>⑥ 收款统计</h2>
+    <div class="payment-heading-tools">
+      <input id="paymentTitleInput" type="text" placeholder="填写项目名称">
+      <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
+    </div>
+    <div id="paymentSummary" class="payment-summary"></div>
+    <div class="toolbar"><button class="btn-ghost" id="exportPaymentBtn">导出收款图</button><button class="btn-ghost" id="exportPaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn">复制表格</button></div>
+  </div>
+
   <div class="panel mobile-core" id="cartPanel">
-    <h2>⑥ 推车图</h2>
+    <h2>⑦ 推车图</h2>
     <div class="cart-editor-row">
       <textarea id="cartNote" placeholder="推车图备注"></textarea>
       <label class="qr-upload">上传群二维码<input type="file" id="cartQrInput" accept="image/*"></label>
@@ -315,12 +324,20 @@ class Component extends DCLogic {
 #matrixTable tbody tr.complete-row td{ background:#e4f6e9; color:#176b38; font-weight:800; }
 #matrixTable tbody tr.complete-row td.cell:focus{ background:#fff; color:var(--text); }
 .payment-summary{ margin-top:12px; }
-.payment-title{ font-size:14px; font-weight:900; margin:0 0 7px; color:var(--text); }
-.payment-table-wrap{ overflow:auto; max-height:360px; border:1px solid #d8eadc; border-radius:8px; }
+.payment-heading-tools{ display:grid; grid-template-columns:minmax(180px,1fr) auto; align-items:center; gap:10px; }
+.payment-heading-tools label{ display:flex; align-items:center; gap:7px; margin:0; white-space:nowrap; }
+.payment-heading-tools input[type=color]{ width:42px; height:34px; padding:3px; cursor:pointer; }
+.payment-project-title{ padding:11px 14px; border-radius:9px 9px 0 0; color:#fff; font-size:19px; font-weight:900; text-align:center; }
+.payment-table-wrap{ overflow:auto; max-height:480px; border:1px solid var(--line); border-radius:9px; }
 .payment-table{ width:100%; border-collapse:collapse; }
-.payment-table th{ position:sticky; top:0; z-index:2; padding:8px 10px; background:#eaf7ed; color:#176b38; font-weight:900; text-align:left; }
-.payment-table td{ padding:8px 10px; border-top:1px solid #dfeee2; background:#fff; text-align:left; }
-.payment-table td:last-child{ color:#16703a; font-weight:900; white-space:nowrap; }
+.payment-table{ font-size:14.5px; }
+.payment-table th{ position:sticky; top:0; z-index:2; padding:7px 8px; border:1px solid #cfc7d2; background:#f5f2f6; color:var(--text); font-size:14px; font-weight:900; text-align:center; white-space:nowrap; }
+.payment-table td{ padding:7px 8px; border:1px solid #d8d1db; background:#fff; text-align:center; line-height:1.35; vertical-align:middle; }
+.payment-table td.payment-cn{ font-weight:900; background:#faf8fb; }
+.payment-table td.payment-item-name{ text-align:center; }
+.payment-table td.payment-money{ color:#16703a; font-weight:900; white-space:nowrap; }
+.payment-table [contenteditable=true]{ cursor:text; }
+.payment-table [contenteditable=true]:focus{ outline:none; background:#fff7fa; box-shadow:inset 0 0 0 2px var(--accent); }
 #matrixTable tbody td.cell.has-name:active{ cursor:grabbing; }
 #matrixTable tbody td.cell.dragging{ opacity:.35; }
 #matrixTable tbody td.cell.drop-hover{ background:#fdeef2; outline:2px dashed var(--accent); outline-offset:-2px; }
@@ -401,6 +418,8 @@ class Component extends DCLogic {
     let previewRows=[];
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true;
+    let paymentTitle='', paymentColor='#d1466a';
+    let paymentEdits={};
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let cloudClient=null, cloudTimer=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='';
@@ -417,10 +436,10 @@ class Component extends DCLogic {
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,paymentTitle,paymentColor,paymentEdits};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,paymentTitle:'',paymentColor:'#d1466a',paymentEdits:{}};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -437,6 +456,8 @@ class Component extends DCLogic {
       cartTargetMode=sheet.cartTargetMode||'auto';
       cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
       cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
+      paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a';
+      paymentEdits=sheet.paymentEdits||{};
       showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false;
       previewRows=[];
       colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1;
@@ -444,6 +465,7 @@ class Component extends DCLogic {
       $('commentInput').value='';
       $('previewPanel').style.display='none';
       syncCartControls();
+      syncPaymentControls();
       syncMatrixOptions();
       renderColumnList(); recalc(); renderSheetTabs();
       isLoadingSheet=false;
@@ -489,6 +511,8 @@ class Component extends DCLogic {
             allocations=sheet.allocations||{}; cartNote=sheet.cartNote||'';
             cartTargetMode=sheet.cartTargetMode||'auto'; cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
             cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
+            paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a';
+            paymentEdits=sheet.paymentEdits||{};
             showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false;
             colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1; applyCost(sheet.cost);
           }else{
@@ -879,11 +903,26 @@ class Component extends DCLogic {
       }));
       const el=$('paymentSummary');
       if(!people.size){ el.innerHTML=''; return; }
-      const rows=[...people.entries()].map(([name,data])=>{
-        const items=[...data.items.entries()].map(([item,count])=>escapeHtml(item)+(count>1?` × ${count}`:'')).join('、');
-        return `<tr><td>${escapeHtml(name)}</td><td>${items}</td><td>${money(data.total)}</td></tr>`;
-      }).join('');
-      el.innerHTML=`<div class="payment-title">收款统计</div><div class="payment-table-wrap"><table class="payment-table"><thead><tr><th>谁</th><th>买了什么</th><th>一共多少钱</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      const feeAmount=total=>Math.ceil(((total<=100?total+0.1:total*1.001)-1e-9)*100)/100;
+      const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(paymentEdits,key)?paymentEdits[key]:value);
+      const editAttr=key=>`contenteditable="true" spellcheck="false" data-payment-key="${encodeURIComponent(key)}"`;
+      let rows='';
+      [...people.entries()].forEach(([name,data])=>{
+        const items=[...data.items.entries()], span=items.length, payable=feeAmount(data.total);
+        items.forEach(([item,count],index)=>{
+          rows+='<tr>';
+          if(index===0) rows+=`<td class="payment-cn" rowspan="${span}" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</td>`;
+          rows+=`<td class="payment-item-name" ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
+          if(index===0) rows+=`<td class="payment-money" rowspan="${span}" ${editAttr('alipay:'+name)}>${edited('alipay:'+name,data.total.toFixed(2))}</td><td class="payment-money" rowspan="${span}" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td>`;
+          rows+='</tr>';
+        });
+      });
+      const color=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
+      el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th ${editAttr('header:cn')}>${edited('header:cn','CN')}</th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+    function syncPaymentControls(){
+      $('paymentTitleInput').value=paymentTitle;
+      $('paymentColorInput').value=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
     }
 
     // ---------- cart ----------
@@ -1143,6 +1182,14 @@ class Component extends DCLogic {
     $('cartTargetNum').addEventListener('input',e=>{ const v=parseInt(e.target.value,10); cartTargetNum=Number.isFinite(v)?v:null; saveState(); renderCart(); });
     $('cartCountMode').addEventListener('change',e=>{ cartCountMode=e.target.value; saveState(); renderCart(); });
     $('cartColumns').addEventListener('change',e=>{ cartColumns=Math.max(2,parseInt(e.target.value,10)||4); saveState(); renderCart(); });
+    $('paymentTitleInput').addEventListener('input',e=>{ paymentTitle=e.target.value; saveState(); renderPaymentSummary(); });
+    $('paymentColorInput').addEventListener('input',e=>{ paymentColor=e.target.value; saveState(); renderPaymentSummary(); });
+    $('paymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
+    $('paymentSummary').addEventListener('blur',e=>{
+      const cell=e.target.closest('[data-payment-key]'); if(!cell) return;
+      const key=decodeURIComponent(cell.dataset.paymentKey), value=(cell.textContent||'').replace(/[\r\n]+/g,' ').trim();
+      paymentEdits[key]=value; saveState();
+    },true);
     $('cartQrInput').addEventListener('change',e=>{
       const file=e.target.files[0]; if(!file) return;
       compressImage(file,600,0.92).then(data=>{ cartQrImg=data; saveState(); syncCartControls(); renderCart(); }).catch(()=>alert('二维码图片处理失败'));
@@ -1155,6 +1202,31 @@ class Component extends DCLogic {
       const wrap=$('cartWrap'), oldWidth=wrap.style.width;
       wrap.style.width='1000px';
       html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:1000,height:wrap.scrollHeight,windowWidth:1040}).then(canvas=>{ const a=document.createElement('a'); a.download='推车图.png'; a.href=canvas.toDataURL('image/png'); a.click(); }).finally(()=>{ wrap.style.width=oldWidth; });
+    });
+    $('exportPaymentBtn').addEventListener('click',()=>{
+      if(typeof html2canvas==='undefined'||!$('paymentSummary').querySelector('table')){ alert('还没有收款数据'); return; }
+      const wrap=$('paymentSummary'), scroller=wrap.querySelector('.payment-table-wrap'), old=scroller.style.maxHeight;
+      scroller.style.maxHeight='none';
+      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight}).then(canvas=>{ const a=document.createElement('a'); a.download=(paymentTitle||'收款统计')+'.png'; a.href=canvas.toDataURL('image/png'); a.click(); }).finally(()=>{ scroller.style.maxHeight=old; });
+    });
+    $('exportPaymentExcelBtn').addEventListener('click',()=>{
+      const table=$('paymentSummary').querySelector('table');
+      if(!table){ alert('还没有收款数据'); return; }
+      if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
+      const exportTable=document.createElement('table'), body=document.createElement('tbody');
+      const titleRow=document.createElement('tr'), titleCell=document.createElement('td');
+      titleCell.colSpan=5; titleCell.textContent=paymentTitle||'未命名项目'; titleRow.appendChild(titleCell); body.appendChild(titleRow);
+      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); body.appendChild(copy); });
+      exportTable.appendChild(body);
+      const ws=XLSX.utils.table_to_sheet(exportTable,{raw:true});
+      ws['!cols']=[{wch:16},{wch:24},{wch:10},{wch:16},{wch:16}];
+      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'收款统计');
+      XLSX.writeFile(wb,(paymentTitle||'收款统计')+'.xlsx');
+    });
+    $('copyPaymentBtn').addEventListener('click',()=>{
+      const table=$('paymentSummary').querySelector('table'); if(!table){ alert('还没有收款数据'); return; }
+      const lines=[...table.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
+      navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const b=$('copyPaymentBtn'),old=b.textContent;b.textContent='已复制';setTimeout(()=>b.textContent=old,1200); });
     });
 
     // exports
@@ -1256,6 +1328,8 @@ class Component extends DCLogic {
             cartNote=d.cartNote||''; cartTargetMode=d.cartTargetMode||'auto';
             cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null; applyCost(d.cost);
             cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=d.cartQrImg||'';
+            paymentTitle=d.paymentTitle||''; paymentColor=d.paymentColor||'#d1466a';
+            paymentEdits=d.paymentEdits||{};
             showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false;
             syncMatrixOptions();
             syncCartControls(); saveState(); renderColumnList(); recalc();
@@ -1267,7 +1341,7 @@ class Component extends DCLogic {
     $('clearAllBtn').addEventListener('click',()=>{
       if(!confirm('确定要清空当前这张表吗？此操作无法撤销。')) return;
       columns=[]; allocations={}; previewRows=[];
-      cartNote=''; cartTargetMode='auto'; cartTargetNum=null; cartCountMode='short'; cartColumns=4; cartQrImg='';
+      cartNote=''; cartTargetMode='auto'; cartTargetNum=null; cartCountMode='short'; cartColumns=4; cartQrImg=''; paymentTitle=''; paymentColor='#d1466a'; paymentEdits={};
       applyCost(null);
       $('commentInput').value='';
       $('previewPanel').style.display='none';
@@ -1282,6 +1356,7 @@ class Component extends DCLogic {
     setInterval(()=>{ if(cloudAuto&&syncCode&&!cloudBusy) downloadCloud(true); },15000);
     loadState();
     syncCartControls();
+    syncPaymentControls();
     syncMatrixOptions();
     renderSheetTabs();
     renderColumnList();
