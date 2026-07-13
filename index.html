@@ -49,24 +49,29 @@
 
   <div class="panel desktop-setup" id="costPanel">
     <h2>① 价格</h2>
-    <div class="grid">
-      <div>
+    <div class="grid price-grid">
+      <div class="price-type-field">
         <label>原价类型</label>
         <select id="priceType">
           <option value="total">整套日元总价</option>
-          <option value="single">单领日元原价</option>
+          <option value="single">单个日元原价</option>
         </select>
       </div>
-      <div><label>谷子数量（默认=列数）</label><input id="count" type="number" min="1"></div>
-      <div><label>日元原价</label><input id="jpyPrice" type="number" min="0" step="1"></div>
-      <div><label>汇率</label><input id="exchangeRate" type="number" min="0" step="0.0001"></div>
-      <div>
+      <div class="count-field"><label>谷子数量（默认=列数）</label><input id="count" type="number" min="1"></div>
+      <div class="jpy-field"><label>日元原价</label><input id="jpyPrice" type="number" min="0" step="1"></div>
+      <div class="rate-field"><label>汇率</label><input id="exchangeRate" type="number" min="0" step="0.0001"></div>
+      <div class="average-mode-field">
+        <label>均价方式</label>
+        <select id="averageMode"><option value="auto">自动计算</option><option value="manual">手动填写</option></select>
+      </div>
+      <div id="manualAverageBox" class="manual-average-field is-hidden"><label>手动均价</label><input id="manualAveragePrice" type="number" min="0" step="0.01"></div>
+      <div class="fee-card ticket-field">
         <label>门票</label>
         <input id="ticketFee" type="number" min="0" step="0.01">
         <button type="button" class="fee-convert" data-fee="ticketFee">按日元 × 汇率换算</button>
         <div class="checkline"><input id="shareTicket" type="checkbox"><label for="shareTicket">分摊进成本</label></div>
       </div>
-      <div>
+      <div class="fee-card transport-field">
         <label>车马</label>
         <input id="transportFee" type="number" min="0" step="0.01">
         <button type="button" class="fee-convert" data-fee="transportFee">按日元 × 汇率换算</button>
@@ -92,7 +97,13 @@
     <div id="columnList"></div>
     <div class="toolbar">
       <button class="btn-ghost" id="addColumnBtn">+ 手动添加一列</button>
+      <button class="btn-ghost" id="saveColumnsToCatalogBtn">保存到常用谷子</button>
+      <button class="btn-ghost" id="toggleCatalogBtn">打开常用谷子库</button>
       <span class="hint">粘贴文字时，新名字会自动追加为列；也可以先建好列、设置别名合并、选择定价方式。</span>
+    </div>
+    <div id="catalogPanel" class="catalog-panel" style="display:none;">
+      <div class="catalog-head"><strong>常用谷子库</strong><input id="catalogSearch" type="text" placeholder="搜索谷子"></div>
+      <div id="catalogList"></div>
     </div>
   </div>
 
@@ -251,6 +262,17 @@ class Component extends DCLogic {
 #columnList{ max-height:480px; overflow:auto; padding-right:5px; scrollbar-gutter:stable; }
 .wrap .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 .wrap .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px 10px; }
+.price-grid{ grid-template-areas:"type count jpy" "rate average manual" "ticket transport empty"; align-items:start; }
+.price-type-field{ grid-area:type; }
+.count-field{ grid-area:count; }
+.jpy-field{ grid-area:jpy; }
+.rate-field{ grid-area:rate; }
+.average-mode-field{ grid-area:average; }
+.manual-average-field{ grid-area:manual; }
+.ticket-field{ grid-area:ticket; }
+.transport-field{ grid-area:transport; }
+.manual-average-field.is-hidden{ visibility:hidden; pointer-events:none; }
+.fee-card{ min-width:0; }
 .wrap label{ display:block; font-size:13px; color:var(--muted); margin:0 0 6px; }
 .wrap input[type=text], .wrap input[type=number], .wrap textarea, .wrap select{
   width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
@@ -300,6 +322,14 @@ class Component extends DCLogic {
 .wrap .col-media{ display:grid; grid-template-columns:38px 30px; gap:6px; align-items:center; width:76px; }
 .wrap .col-actions{ display:flex; gap:4px; justify-content:flex-end; width:108px; }
 .wrap .col-actions .btn-mini{ padding:4px 7px; }
+.catalog-panel{ margin-top:10px; padding:10px; border:1px solid var(--line); border-radius:10px; background:#faf8fb; }
+.catalog-head{ display:grid; grid-template-columns:auto minmax(150px,280px); justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; }
+.catalog-list-empty{ padding:14px; color:var(--muted); text-align:center; font-size:12px; }
+.catalog-item{ display:grid; grid-template-columns:42px minmax(100px,1fr) minmax(120px,1fr) auto auto; gap:8px; align-items:center; padding:7px; border-top:1px solid var(--line); }
+.catalog-item:first-child{ border-top:0; }
+.catalog-item img,.catalog-item .catalog-img-empty{ width:38px; height:38px; border-radius:6px; object-fit:cover; background:#eeeaf0; display:grid; place-items:center; color:var(--muted); font-size:10px; }
+.catalog-item .catalog-price{ color:var(--muted); font-size:12px; white-space:nowrap; }
+#catalogList{ max-height:380px; overflow:auto; scrollbar-gutter:stable; }
 .wrap .col-thumb{ width:38px; height:38px; border-radius:6px; object-fit:cover; border:1px solid var(--line); background:var(--panel-2); }
 .wrap .col-thumb-empty{ width:38px; height:38px; border-radius:6px; border:1px dashed var(--line); background:var(--panel-2); display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); text-align:center; line-height:1.1; }
 .wrap .img-label{ cursor:pointer; }
@@ -381,7 +411,11 @@ class Component extends DCLogic {
 .cart-count{ bottom:58px; right:9px; padding:12px 17px; font-size:28px; background:rgba(38,31,44,.84); }
 .cart-count.short{ background:#c0791f; }
 .cart-count.done{ background:#2f9e5c; }
-@media(max-width:900px){ .wrap .grid{ grid-template-columns:1fr 1fr; } .wrap .summary{ grid-template-columns:1fr 1fr; } }
+@media(max-width:900px){
+  .wrap .grid{ grid-template-columns:1fr 1fr; }
+  .price-grid{ grid-template-areas:"type count" "jpy rate" "average manual" "ticket transport"; }
+  .wrap .summary{ grid-template-columns:1fr 1fr; }
+}
 @media(max-width:1050px){ .wrap .col-card{ grid-template-columns:42px 76px minmax(125px,1fr) minmax(150px,1fr) 82px 125px 108px; overflow-x:auto; } }
 @media(max-width:620px){
   .wrap{ padding:12px 9px 28px; }
@@ -439,17 +473,19 @@ class Component extends DCLogic {
     let paymentEdits={};
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
+    let itemCatalog=[], catalogIdSeed=1;
     let cloudClient=null, cloudTimer=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='';
     let syncCode=localStorage.getItem('ggzSyncCode')||'', cloudAuto=localStorage.getItem('ggzCloudAuto')==='1';
     const SUPABASE_URL='https://fzxabmdnrkvpgraztcwi.supabase.co';
     const SUPABASE_KEY='sb_publishable_yU4Q1T2RuQfgwOW9Idtf9w__YssVHYe';
 
-    const COST_DEFAULTS={priceType:'total',count:'10',jpyPrice:'16500',exchangeRate:'0.0485',ticketFee:'45',transportFee:'18',shareTicket:false,shareTransport:true};
+    const COST_DEFAULTS={priceType:'total',count:'10',jpyPrice:'16500',exchangeRate:'0.0485',averageMode:'auto',manualAveragePrice:'0',ticketFee:'45',transportFee:'18',shareTicket:false,shareTransport:true};
 
     // ---------- persistence ----------
     function snapshotCost(){
       return {priceType:$('priceType').value,count:$('count').value,jpyPrice:$('jpyPrice').value,
         exchangeRate:$('exchangeRate').value,ticketFee:$('ticketFee').value,transportFee:$('transportFee').value,
+        averageMode:$('averageMode').value,manualAveragePrice:$('manualAveragePrice').value,
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
@@ -484,21 +520,22 @@ class Component extends DCLogic {
       syncCartControls();
       syncPaymentControls();
       syncMatrixOptions();
-      renderColumnList(); recalc(); renderSheetTabs();
+      renderColumnList(); if($('catalogPanel').style.display!=='none') renderCatalog(); recalc(); renderSheetTabs();
       isLoadingSheet=false;
     }
     function applyCost(c){
       c=c||{};
-      ['priceType','count','jpyPrice','exchangeRate','ticketFee','transportFee'].forEach(k=>{
+      ['priceType','count','jpyPrice','exchangeRate','averageMode','manualAveragePrice','ticketFee','transportFee'].forEach(k=>{
         $(k).value = (c[k]!==undefined && c[k]!=='') ? c[k] : COST_DEFAULTS[k];
       });
       $('shareTicket').checked = c.shareTicket!==undefined ? !!c.shareTicket : COST_DEFAULTS.shareTicket;
       $('shareTransport').checked = c.shareTransport!==undefined ? !!c.shareTransport : COST_DEFAULTS.shareTransport;
+      syncAverageMode();
     }
     function saveState(){
       if(isLoadingSheet) return;
       captureActiveSheet();
-      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({sheets,activeSheetId,sheetIdSeed})); }
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed})); }
       catch(e){ console.warn('保存失败',e); }
       if($('localStatus')) $('localStatus').textContent='已保存本地';
       if(cloudAuto&&!applyingCloud) scheduleCloudUpload();
@@ -511,6 +548,8 @@ class Component extends DCLogic {
       }
       if(c.priceAdj===undefined) c.priceAdj=0;
       if(c.fixedPrice===undefined) c.fixedPrice=0;
+      if(c.avgOverride===undefined) c.avgOverride=null;
+      if(c.sourceJpyPrice===undefined) c.sourceJpyPrice=0;
       if(!Array.isArray(c.aliases)) c.aliases=[];
       return c;
     }
@@ -521,6 +560,8 @@ class Component extends DCLogic {
           const d=JSON.parse(raw);
           if(Array.isArray(d.sheets)&&d.sheets.length){
             sheets=d.sheets;
+            itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[];
+            catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1));
             sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
             activeSheetId=sheets.some(s=>s.id===d.activeSheetId)?d.activeSheetId:sheets[0].id;
             const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -578,6 +619,7 @@ class Component extends DCLogic {
       try{
         captureActiveSheet(); const client=getCloudClient(code);
         const cloudSheets=JSON.parse(JSON.stringify(sheets));
+        const cloudCatalog=JSON.parse(JSON.stringify(itemCatalog));
         async function uploadImage(data,label){
           if(!data||!String(data).startsWith('data:image/')) return data||'';
           const blob=await fetch(data).then(r=>r.blob());
@@ -592,8 +634,9 @@ class Component extends DCLogic {
           for(const c of sheet.columns||[]) c.img=await uploadImage(c.img,`c${c.id}`);
           sheet.cartQrImg=await uploadImage(sheet.cartQrImg,'qr');
         }
+        for(const item of cloudCatalog) item.img=await uploadImage(item.img,`library${item.catalogId||item.id||0}`);
         const now=new Date().toISOString();
-        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,version:Date.now()};
+        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,version:Date.now()};
         const {error}=await client.from('ggz_sync_data').upsert({sync_code:code,payload,updated_at:now},{onConflict:'sync_code'});
         if(error) throw error;
         syncCode=code; lastCloudUpdatedAt=now; localStorage.setItem('ggzSyncCode',code);
@@ -611,7 +654,7 @@ class Component extends DCLogic {
         if(!data){ if(!silent) setCloudStatus('云端还没有数据'); return; }
         if(silent&&lastCloudUpdatedAt&&new Date(data.updated_at)<=new Date(lastCloudUpdatedAt)) return;
         const d=data.payload||{}; if(!Array.isArray(d.sheets)||!d.sheets.length) throw new Error('云端数据为空');
-        applyingCloud=true; sheets=d.sheets; activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
+        applyingCloud=true; sheets=d.sheets; itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[]; catalogIdSeed=d.catalogIdSeed||Math.max(1,...itemCatalog.map(x=>(x.catalogId||0)+1)); activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
         if(!sheets.some(s=>s.id===activeSheetId)) activeSheetId=sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
         lastCloudUpdatedAt=data.updated_at; syncCode=code; localStorage.setItem('ggzSyncCode',code);
@@ -665,10 +708,12 @@ class Component extends DCLogic {
       adjSum=0;
       columns.forEach(c=>{
         if(c.mode==='fixed'){ fixedSum+=num(c.fixedPrice); fixedCount++; }
+        else if(c.mode==='single'){ fixedSum+=Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value)); fixedCount++; }
         else if(c.mode==='adjust'){ adjSum+=num(c.priceAdj); }
       });
       const denom=N-fixedCount;
-      avgPrice = denom>0 ? (totalCost-fixedSum)/denom : 0;
+      const calculatedAverage=denom>0 ? (totalCost-fixedSum)/denom : 0;
+      avgPrice=$('averageMode').value==='manual'?Math.max(0,num($('manualAveragePrice').value)):calculatedAverage;
       $('avgPriceText').textContent=money(avgPrice);
       $('effCount').textContent=denom+' 项'+(fixedCount?`（固定${fixedCount}项另算）`:'');
       $('adjSumText').textContent=(adjSum>0?'+':'')+money(adjSum);
@@ -682,12 +727,15 @@ class Component extends DCLogic {
     function unitPrice(c){
       if(c.mode==='fixed') return num(c.fixedPrice);
       if(c.mode==='adjust') return avgPrice+num(c.priceAdj);
+      if(c.mode==='single') return Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value));
+      if(c.mode==='avg'&&c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))) return Math.max(0,Number(c.avgOverride));
       return avgPrice;
     }
+    function syncAverageMode(){ $('manualAverageBox').classList.toggle('is-hidden',$('averageMode').value!=='manual'); }
 
     // ---------- column list ----------
     function addColumn(name,aliases,mode,priceAdj,fixedPrice){
-      columns.push({id:colIdSeed++,name:(name||'新角色').trim(),aliases:aliases||[],mode:mode||'avg',priceAdj:priceAdj||0,fixedPrice:fixedPrice||0,img:null});
+      columns.push({id:colIdSeed++,name:(name||'新角色').trim(),aliases:aliases||[],mode:mode||'avg',priceAdj:priceAdj||0,fixedPrice:fixedPrice||0,avgOverride:null,sourceJpyPrice:0,img:null});
     }
     function findColumnByText(text){
       const t=text.trim().toLowerCase();
@@ -696,7 +744,8 @@ class Component extends DCLogic {
     function modeValueHtml(c){
       if(c.mode==='adjust') return `<label>调价 <input class="modeval" type="number" step="0.5" value="${c.priceAdj}" onchange="ggz.updateColumn(${c.id},'priceAdj',this.value)"></label>`;
       if(c.mode==='fixed') return `<label>固定 <input class="modeval" type="number" step="0.5" min="0" value="${c.fixedPrice}" onchange="ggz.updateColumn(${c.id},'fixedPrice',this.value)"></label>`;
-      return `<span class="pill">按均价</span>`;
+      if(c.mode==='single') return `<label>日元 <input class="modeval" type="number" step="1" min="0" value="${c.sourceJpyPrice||''}" onchange="ggz.updateColumn(${c.id},'sourceJpyPrice',this.value)"></label>`;
+      return `<label>均价 <input class="modeval" type="number" step="0.01" min="0" value="${c.avgOverride==null?'':c.avgOverride}" placeholder="自动" onchange="ggz.updateColumn(${c.id},'avgOverride',this.value)"></label>`;
     }
     function renderColumnList(){
       const el=$('columnList');
@@ -714,12 +763,38 @@ class Component extends DCLogic {
             <option value="avg" ${c.mode==='avg'?'selected':''}>入均</option>
             <option value="adjust" ${c.mode==='adjust'?'selected':''}>加减</option>
             <option value="fixed" ${c.mode==='fixed'?'selected':''}>固定</option>
+            <option value="single" ${c.mode==='single'?'selected':''}>原价换算</option>
           </select>
           <div class="mode-slot">${modeValueHtml(c)}</div>
           <div class="col-actions"><button class="btn-ghost btn-mini" onclick="ggz.moveColumn(${c.id},-1)">↑</button>
           <button class="btn-ghost btn-mini" onclick="ggz.moveColumn(${c.id},1)">↓</button>
           <button class="btn-danger btn-mini" onclick="ggz.removeColumn(${c.id})">删除</button></div>
         </div>`).join('');
+    }
+    function catalogPriceText(c){
+      if(c.mode==='single') return `${fmtNum(c.sourceJpyPrice)} 日元 → ${money(Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value)))}`;
+      if(c.mode==='fixed') return `固定 ${money(c.fixedPrice)}`;
+      if(c.mode==='adjust') return `均价 ${(num(c.priceAdj)>=0?'+':'')+fmtNum(c.priceAdj)}`;
+      if(c.avgOverride!==null&&c.avgOverride!=='') return `独立均价 ${money(c.avgOverride)}`;
+      return '跟随均价';
+    }
+    function renderCatalog(){
+      const q=($('catalogSearch').value||'').trim().toLowerCase();
+      const list=itemCatalog.filter(item=>!q||item.name.toLowerCase().includes(q)||(item.aliases||[]).some(a=>a.toLowerCase().includes(q)));
+      $('catalogList').innerHTML=list.length?list.map(item=>`<div class="catalog-item" data-catalog-id="${item.catalogId}">${item.img?`<img src="${item.img}">`:'<span class="catalog-img-empty">无图</span>'}<strong>${escapeHtml(item.name)}</strong><span class="catalog-price">${escapeHtml(catalogPriceText(item))}</span><button class="btn-primary btn-mini catalog-add">加入本表</button><button class="btn-danger btn-mini catalog-delete">删除</button></div>`).join(''):'<div class="catalog-list-empty">还没有常用谷子</div>';
+    }
+    function saveColumnsToCatalog(){
+      columns.forEach(c=>{
+        const found=itemCatalog.find(x=>x.name.trim().toLowerCase()===c.name.trim().toLowerCase());
+        const data={name:c.name,aliases:[...(c.aliases||[])],mode:c.mode,priceAdj:c.priceAdj||0,fixedPrice:c.fixedPrice||0,avgOverride:c.avgOverride??null,sourceJpyPrice:c.sourceJpyPrice||0,img:c.img||null};
+        if(found) Object.assign(found,data); else itemCatalog.push({catalogId:catalogIdSeed++,...data});
+      });
+      saveState(); renderCatalog();
+    }
+    function addCatalogItemToSheet(item){
+      if(findColumnByText(item.name)) return false;
+      const c={id:colIdSeed++,name:item.name,aliases:[...(item.aliases||[])],mode:item.mode||'avg',priceAdj:item.priceAdj||0,fixedPrice:item.fixedPrice||0,avgOverride:item.avgOverride??null,sourceJpyPrice:item.sourceJpyPrice||0,img:item.img||null};
+      columns.push(c); allocations[c.id]=[]; return true;
     }
 
     function compressImage(file,maxSide,quality){
@@ -761,6 +836,8 @@ class Component extends DCLogic {
       if(field==='aliases') c.aliases=value.split(/[，,]/).map(s=>s.trim()).filter(Boolean);
       else if(field==='priceAdj') c.priceAdj=parseFloat(value)||0;
       else if(field==='fixedPrice') c.fixedPrice=Math.max(0,parseFloat(value)||0);
+      else if(field==='avgOverride') c.avgOverride=value===''?null:Math.max(0,parseFloat(value)||0);
+      else if(field==='sourceJpyPrice') c.sourceJpyPrice=Math.max(0,parseFloat(value)||0);
       else c[field]=value;
       saveState();
       if(field==='mode') renderColumnList();
@@ -890,6 +967,7 @@ class Component extends DCLogic {
       if(showPricingRow) headHtml+='<tr class="adj-row"><td>调价</td>'+columns.map(c=>{
         if(c.mode==='avg') return `<td contenteditable="true" data-price-kind="pricing" data-col="${c.id}">入均</td>`;
         if(c.mode==='fixed') return `<td class="adj-fix" contenteditable="true" data-price-kind="pricing" data-col="${c.id}">固定 ${fmtNum(c.fixedPrice)}/1</td>`;
+        if(c.mode==='single') return `<td class="adj-fix" contenteditable="true" data-price-kind="pricing" data-col="${c.id}">原价 ${fmtNum(c.sourceJpyPrice)}日元</td>`;
         const adj=num(c.priceAdj);
         const cls=adj>0?'adj-pos':(adj<0?'adj-neg':'');
         const sign=adj>0?'+':'';
@@ -968,6 +1046,8 @@ class Component extends DCLogic {
         let priceHtml='';
         if(c.mode==='fixed'){
           priceHtml=`<span class="cart-badge cart-price fixed">${fmtNum(c.fixedPrice)}/1</span>`;
+        } else if(c.mode==='single'){
+          priceHtml=`<span class="cart-badge cart-price fixed">${fmtNum(unitPrice(c))}/1</span>`;
         } else if(c.mode==='avg'){
           priceHtml='<span class="cart-badge cart-price avg">均</span>';
         } else if(c.mode==='adjust'){
@@ -1018,9 +1098,9 @@ class Component extends DCLogic {
     }
 
     // ---------- wire static controls ----------
-    ['priceType','count','jpyPrice','exchangeRate','ticketFee','transportFee'].forEach(id=>{
+    ['priceType','count','jpyPrice','exchangeRate','averageMode','manualAveragePrice','ticketFee','transportFee'].forEach(id=>{
       $(id).addEventListener('input',recalc);
-      $(id).addEventListener('change',recalc);
+      $(id).addEventListener('change',()=>{ if(id==='averageMode') syncAverageMode(); recalc(); });
     });
     $('shareTicket').addEventListener('change',recalc);
     $('shareTransport').addEventListener('change',recalc);
@@ -1052,6 +1132,23 @@ class Component extends DCLogic {
     });
 
     $('addColumnBtn').addEventListener('click',()=>{ addColumn('新角色'+(columns.length+1),[], 'avg',0,0); saveState(); renderColumnList(); recalc(); });
+    $('saveColumnsToCatalogBtn').addEventListener('click',()=>{ saveColumnsToCatalog(); const b=$('saveColumnsToCatalogBtn'),old=b.textContent;b.textContent='已保存';setTimeout(()=>b.textContent=old,1200); });
+    $('toggleCatalogBtn').addEventListener('click',()=>{
+      const panel=$('catalogPanel'),open=panel.style.display!=='none'; panel.style.display=open?'none':'block';
+      $('toggleCatalogBtn').textContent=open?'打开常用谷子库':'收起常用谷子库'; if(!open) renderCatalog();
+    });
+    $('catalogSearch').addEventListener('input',renderCatalog);
+    $('catalogList').addEventListener('click',e=>{
+      const row=e.target.closest('[data-catalog-id]'); if(!row) return;
+      const id=parseInt(row.dataset.catalogId,10), item=itemCatalog.find(x=>x.catalogId===id); if(!item) return;
+      if(e.target.closest('.catalog-add')){
+        if(!addCatalogItemToSheet(item)){ alert('本表已经有这个谷子'); return; }
+        saveState(); renderColumnList(); recalc();
+      }else if(e.target.closest('.catalog-delete')){
+        if(!confirm('从常用谷子库删除这一项吗？')) return;
+        itemCatalog=itemCatalog.filter(x=>x.catalogId!==id); saveState(); renderCatalog();
+      }
+    });
 
     $('addSheetBtn').addEventListener('click',()=>{
       captureActiveSheet();
@@ -1134,6 +1231,8 @@ class Component extends DCLogic {
         c.mode='avg'; c.priceAdj=0;
       }else if(/固定|\/1/.test(text)){
         const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='fixed'; c.fixedPrice=Math.max(0,value||0);
+      }else if(/原价|单领|日元/.test(text)){
+        const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='single'; c.sourceJpyPrice=Math.max(0,value||0);
       }else{
         const value=parseFloat(text.replace(/[^\d.+-]/g,''));
         if(Number.isFinite(value)){ c.mode='adjust'; c.priceAdj=value; }
@@ -1274,7 +1373,7 @@ class Component extends DCLogic {
       const maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
       let lines=[];
       lines.push(['',...columns.map(c=>c.name)].join('\t'));
-      lines.push(['调价',...columns.map(c=> c.mode==='avg'?'入均':(c.mode==='fixed'?('固定'+fmtNum(c.fixedPrice)+'/1'):((num(c.priceAdj)>0?'+':'')+fmtNum(c.priceAdj))))].join('\t'));
+      lines.push(['调价',...columns.map(c=> c.mode==='avg'?'入均':(c.mode==='fixed'?('固定'+fmtNum(c.fixedPrice)+'/1'):(c.mode==='single'?('原价'+fmtNum(c.sourceJpyPrice)+'日元'):((num(c.priceAdj)>0?'+':'')+fmtNum(c.priceAdj)))))].join('\t'));
       lines.push(['单价',...columns.map(c=>unitPrice(c).toFixed(2))].join('\t'));
       for(let r=0;r<maxRows;r++) lines.push([r+1,...columns.map(c=>(allocations[c.id]||[])[r]||'')].join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const btn=$('copyTsvBtn'); const old=btn.textContent; btn.textContent='已复制 ✓'; setTimeout(()=>btn.textContent=old,1500); });
@@ -1292,7 +1391,7 @@ class Component extends DCLogic {
     });
     $('exportJsonBtn').addEventListener('click',()=>{
       captureActiveSheet();
-      downloadBackup({sheets,activeSheetId,sheetIdSeed},'全部排单备份.json');
+      downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed},'全部排单备份.json');
     });
     $('excelImportInput').addEventListener('change',e=>{
       const file=e.target.files[0]; if(!file) return;
@@ -1344,7 +1443,7 @@ class Component extends DCLogic {
         try{
           const d=JSON.parse(reader.result);
           if(Array.isArray(d.sheets)&&d.sheets.length){
-            sheets=d.sheets; sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
+            sheets=d.sheets; itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[]; catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
             activeSheetId=sheets.some(s=>s.id===d.activeSheetId)?d.activeSheetId:sheets[0].id;
             applySheet(sheets.find(s=>s.id===activeSheetId)); saveState();
           }else{
