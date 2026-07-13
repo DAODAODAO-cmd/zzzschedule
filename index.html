@@ -176,6 +176,10 @@
       <input id="paymentTitleInput" type="text" placeholder="填写项目名称">
       <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
     </div>
+    <div class="payment-qr-tools">
+      <label class="qr-upload">上传收款码<input type="file" id="paymentQrInput" accept="image/*"></label>
+      <button class="btn-ghost" id="clearPaymentQrBtn" style="display:none;">删除收款码</button>
+    </div>
     <div id="paymentSummary" class="payment-summary"></div>
     <div class="toolbar"><button class="btn-ghost" id="exportPaymentBtn">导出收款图</button><button class="btn-ghost" id="exportPaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn">复制表格</button></div>
   </div>
@@ -345,6 +349,11 @@ class Component extends DCLogic {
 #matrixTable thead tr.header-row th{ background:var(--panel-2); font-weight:700; color:var(--text); font-size:13px; }
 #matrixTable tr.adj-row td{ font-size:12px; color:var(--muted); background:#faf9fb; }
 #matrixTable tr.price-row td{ font-size:12px; font-weight:700; }
+.matrix-price-input{ width:100%; min-width:72px; padding:2px 3px!important; border:0!important; border-radius:4px!important; background:transparent!important; box-shadow:none!important; color:inherit!important; font:inherit!important; font-weight:inherit!important; text-align:center; }
+.matrix-price-input:focus{ background:#fff!important; box-shadow:inset 0 0 0 2px var(--accent)!important; }
+.matrix-price-editor{ display:flex; align-items:center; justify-content:center; gap:2px; white-space:nowrap; }
+.matrix-price-editor .matrix-price-input{ width:58px; min-width:0; flex:0 1 58px; }
+.matrix-price-suffix{ color:inherit; font-weight:800; }
 #matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child{ min-width:58px; width:58px; background:#f5f2f6; font-weight:900; z-index:9; }
 #matrixTable td.adj-pos{ color:var(--bad); }
 #matrixTable td.adj-neg{ color:var(--accent-2); }
@@ -364,6 +373,8 @@ class Component extends DCLogic {
 .payment-heading-tools{ display:grid; grid-template-columns:minmax(180px,1fr) auto; align-items:center; gap:10px; }
 .payment-heading-tools label{ display:flex; align-items:center; gap:7px; margin:0; white-space:nowrap; }
 .payment-heading-tools input[type=color]{ width:42px; height:34px; padding:3px; cursor:pointer; }
+.payment-qr-tools{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:9px; }
+.payment-qr-tools .qr-upload{ min-height:36px; }
 .payment-project-title{ padding:11px 14px; border-radius:9px 9px 0 0; color:#fff; font-size:19px; font-weight:900; text-align:center; }
 .payment-table-wrap{ overflow:auto; max-height:480px; border:1px solid var(--line); border-radius:9px; }
 .payment-table{ width:100%; border-collapse:collapse; }
@@ -373,6 +384,8 @@ class Component extends DCLogic {
 .payment-table td.payment-cn{ font-weight:900; background:#faf8fb; }
 .payment-table td.payment-item-name{ text-align:center; }
 .payment-table td.payment-money{ color:#16703a; font-weight:900; white-space:nowrap; }
+.payment-code-export{ width:100%; padding:0; border-top:1px solid var(--line); background:#fff; }
+.payment-code-export img{ display:block; width:100%; height:auto; object-fit:contain; image-rendering:auto; background:#fff; }
 .payment-table [contenteditable=true]{ cursor:text; }
 .payment-table [contenteditable=true]:focus{ outline:none; background:#fff7fa; box-shadow:inset 0 0 0 2px var(--accent); }
 #matrixTable tbody td.cell.has-name:active{ cursor:grabbing; }
@@ -437,6 +450,7 @@ class Component extends DCLogic {
   body.mobile-full .matrix-tip,body.mobile-full .matrix-options{ display:flex; }
   .wrap input[type=text],.wrap input[type=number],.wrap textarea,.wrap select{ font-size:16px; }
   #matrixTable [contenteditable=true],.payment-table [contenteditable=true]{ font-size:16px; }
+  .matrix-price-input{ font-size:16px!important; }
   #matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child{ min-width:62px; width:62px; background:#f5f2f6; }
   #matrixTable thead td:first-child,#matrixTable thead th:first-child{ background:#f5f2f6; }
   .cart-controls{ overflow-x:auto; padding-bottom:3px; }
@@ -471,6 +485,7 @@ class Component extends DCLogic {
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true;
     let paymentTitle='', paymentColor='#d1466a';
     let paymentEdits={};
+    let paymentQrImg='';
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let itemCatalog=[], catalogIdSeed=1;
@@ -489,10 +504,10 @@ class Component extends DCLogic {
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,paymentTitle,paymentColor,paymentEdits};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,paymentTitle,paymentColor,paymentEdits,paymentQrImg};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,paymentTitle:'',paymentColor:'#d1466a',paymentEdits:{}};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,paymentTitle:'',paymentColor:'#d1466a',paymentEdits:{},paymentQrImg:''};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -511,6 +526,7 @@ class Component extends DCLogic {
       cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
       paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a';
       paymentEdits=sheet.paymentEdits||{};
+      paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
       showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false;
       previewRows=[];
       colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1;
@@ -571,6 +587,7 @@ class Component extends DCLogic {
             cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
             paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a';
             paymentEdits=sheet.paymentEdits||{};
+            paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
             showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false;
             colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1; applyCost(sheet.cost);
           }else{
@@ -625,7 +642,8 @@ class Component extends DCLogic {
           const blob=await fetch(data).then(r=>r.blob());
           const hashBuf=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer());
           const hash=[...new Uint8Array(hashBuf)].map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,24);
-          const path=`${code}/${hash}-${label}.jpg`;
+          const ext=blob.type==='image/png'?'png':(blob.type==='image/webp'?'webp':'jpg');
+          const path=`${code}/${hash}-${label}.${ext}`;
           const {error}=await client.storage.from('zzzschedule').upload(path,blob,{contentType:blob.type||'image/jpeg',upsert:true,cacheControl:'31536000'});
           if(error) throw error;
           return client.storage.from('zzzschedule').getPublicUrl(path).data.publicUrl;
@@ -633,6 +651,7 @@ class Component extends DCLogic {
         for(const sheet of cloudSheets){
           for(const c of sheet.columns||[]) c.img=await uploadImage(c.img,`c${c.id}`);
           sheet.cartQrImg=await uploadImage(sheet.cartQrImg,'qr');
+          sheet.paymentQrImg=await uploadImage(sheet.paymentQrImg,'payment');
         }
         for(const item of cloudCatalog) item.img=await uploadImage(item.img,`library${item.catalogId||item.id||0}`);
         const now=new Date().toISOString();
@@ -818,6 +837,22 @@ class Component extends DCLogic {
         reader.onerror=reject; reader.readAsDataURL(file);
       });
     }
+    function compressQrPng(file,maxSide){
+      return new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>{
+          const img=new Image();
+          img.onload=()=>{
+            const scale=Math.min(1,maxSide/Math.max(img.width,img.height));
+            const canvas=document.createElement('canvas'); canvas.width=Math.round(img.width*scale); canvas.height=Math.round(img.height*scale);
+            const ctx=canvas.getContext('2d'); ctx.imageSmoothingEnabled=scale===1; ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,canvas.width,canvas.height);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror=reject; img.src=reader.result;
+        };
+        reader.onerror=reject; reader.readAsDataURL(file);
+      });
+    }
 
     function recalc(){ readCost(); computeAverage(); renderMatrix(); saveState(); }
 
@@ -965,15 +1000,15 @@ class Component extends DCLogic {
       const displayRows=maxRows+1;
       let headHtml='<tr class="header-row"><th></th>'+columns.map(c=>`<th>${c.img?`<img class="head-img" src="${c.img}">`:''}${escapeHtml(c.name)}</th>`).join('')+'</tr>';
       if(showPricingRow) headHtml+='<tr class="adj-row"><td>调价</td>'+columns.map(c=>{
-        if(c.mode==='avg') return `<td contenteditable="true" data-price-kind="pricing" data-col="${c.id}">入均</td>`;
-        if(c.mode==='fixed') return `<td class="adj-fix" contenteditable="true" data-price-kind="pricing" data-col="${c.id}">固定 ${fmtNum(c.fixedPrice)}/1</td>`;
-        if(c.mode==='single') return `<td class="adj-fix" contenteditable="true" data-price-kind="pricing" data-col="${c.id}">原价 ${fmtNum(c.sourceJpyPrice)}日元</td>`;
+        if(c.mode==='avg') return `<td><input class="matrix-price-input" data-price-kind="pricing" data-price-mode="avg" data-col="${c.id}" value="入均"></td>`;
+        if(c.mode==='fixed') return `<td class="adj-fix"><div class="matrix-price-editor"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="fixed" data-col="${c.id}" value="${fmtNum(c.fixedPrice)}"><span class="matrix-price-suffix">/1</span></div></td>`;
+        if(c.mode==='single') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">原价</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="single" data-col="${c.id}" value="${fmtNum(c.sourceJpyPrice)}"><span class="matrix-price-suffix">日元</span></div></td>`;
         const adj=num(c.priceAdj);
         const cls=adj>0?'adj-pos':(adj<0?'adj-neg':'');
         const sign=adj>0?'+':'';
-        return `<td class="${cls}" contenteditable="true" data-price-kind="pricing" data-col="${c.id}">${sign}${fmtNum(adj)}</td>`;
+        return `<td class="${cls}"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="adjust" data-col="${c.id}" value="${sign}${fmtNum(adj)}"></td>`;
       }).join('')+'</tr>';
-      if(showUnitPriceRow) headHtml+='<tr class="price-row"><td>单价</td>'+columns.map(c=>`<td contenteditable="true" data-price-kind="unit" data-col="${c.id}">${unitPrice(c).toFixed(2)}</td>`).join('')+'</tr>';
+      if(showUnitPriceRow) headHtml+='<tr class="price-row"><td>单价</td>'+columns.map(c=>`<td><input class="matrix-price-input" data-price-kind="unit" data-col="${c.id}" value="${unitPrice(c).toFixed(2)}"></td>`).join('')+'</tr>';
       thead.innerHTML=headHtml;
       let bodyHtml='';
       for(let r=0;r<displayRows;r++){
@@ -1013,11 +1048,13 @@ class Component extends DCLogic {
         });
       });
       const color=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
-      el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th ${editAttr('header:cn')}>${edited('header:cn','CN')}</th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      const qrHtml=paymentQrImg?`<div class="payment-code-export"><img src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
+      el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th ${editAttr('header:cn')}>${edited('header:cn','CN')}</th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody></table>${qrHtml}</div>`;
     }
     function syncPaymentControls(){
       $('paymentTitleInput').value=paymentTitle;
       $('paymentColorInput').value=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
+      $('clearPaymentQrBtn').style.display=paymentQrImg?'':'none';
     }
 
     // ---------- cart ----------
@@ -1219,14 +1256,38 @@ class Component extends DCLogic {
     let dragSrc=null;
     const mbody=$('matrixTableBody');
     const mhead=document.querySelector('#matrixTable thead');
+    $('columnList').addEventListener('mousedown',e=>{ if(e.target.matches('input.modeval')){ e.preventDefault(); e.target.focus(); e.target.select(); } });
+    $('columnList').addEventListener('click',e=>{ if(e.target.matches('input.modeval')) e.target.select(); });
+    $('columnList').addEventListener('focusin',e=>{ if(e.target.matches('input.modeval')){ e.target.dataset.replaceNext='1'; requestAnimationFrame(()=>e.target.select()); } });
+    $('columnList').addEventListener('beforeinput',e=>{
+      if(!e.target.matches('input.modeval')||e.target.dataset.replaceNext!=='1'||!String(e.inputType).startsWith('insert')||e.data==null) return;
+      e.preventDefault(); e.target.value=e.data; e.target.dataset.replaceNext='0';
+    });
+    mhead.addEventListener('click',e=>{ const input=e.target.closest('input[data-price-kind]'); if(input) input.select(); });
+    mhead.addEventListener('focusin',e=>{
+      const input=e.target.closest('input[data-price-kind]'); if(!input) return;
+      input.dataset.replaceNext='1';
+      setTimeout(()=>input.select(),0);
+    });
+    mhead.addEventListener('beforeinput',e=>{
+      const input=e.target.closest('input[data-price-kind]');
+      if(!input||input.dataset.replaceNext!=='1'||!String(e.inputType).startsWith('insert')||e.data==null) return;
+      e.preventDefault(); input.value=e.data; input.dataset.replaceNext='0';
+    });
     mhead.addEventListener('keydown',e=>{ if(e.target.matches('[data-price-kind]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     mhead.addEventListener('blur',e=>{
       const td=e.target.closest('[data-price-kind]'); if(!td) return;
       const c=columns.find(x=>x.id===parseInt(td.dataset.col,10)); if(!c) return;
-      const text=(td.textContent||'').trim();
+      const text=String(td.value||'').trim();
       if(td.dataset.priceKind==='unit'){
         const value=parseFloat(text.replace(/[^\d.-]/g,''));
         if(Number.isFinite(value)&&value>=0){ c.mode='fixed'; c.fixedPrice=value; }
+      }else if(td.dataset.priceMode==='fixed'){
+        const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='fixed'; c.fixedPrice=Math.max(0,value||0);
+      }else if(td.dataset.priceMode==='single'){
+        const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='single'; c.sourceJpyPrice=Math.max(0,value||0);
+      }else if(td.dataset.priceMode==='adjust'){
+        const value=parseFloat(text.replace(/[^\d.+-]/g,'')); if(Number.isFinite(value)){ c.mode='adjust'; c.priceAdj=value; }
       }else if(/入均|均价|^均$/.test(text)){
         c.mode='avg'; c.priceAdj=0;
       }else if(/固定|\/1/.test(text)){
@@ -1319,6 +1380,15 @@ class Component extends DCLogic {
       e.target.value='';
     });
     $('clearCartQrBtn').addEventListener('click',()=>{ cartQrImg=''; saveState(); syncCartControls(); renderCart(); });
+    function handlePaymentQr(file){
+      if(!file) return;
+      compressQrPng(file,1600).then(data=>{
+        paymentQrImg=data;
+        saveState(); syncPaymentControls(); renderPaymentSummary();
+      }).catch(()=>alert('收款码图片处理失败'));
+    }
+    $('paymentQrInput').addEventListener('change',e=>{ handlePaymentQr(e.target.files[0]); e.target.value=''; });
+    $('clearPaymentQrBtn').addEventListener('click',()=>{ paymentQrImg=''; saveState(); syncPaymentControls(); renderPaymentSummary(); });
     $('cartRefreshBtn').addEventListener('click',renderCart);
     $('cartExportPngBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
@@ -1373,7 +1443,7 @@ class Component extends DCLogic {
       const maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
       let lines=[];
       lines.push(['',...columns.map(c=>c.name)].join('\t'));
-      lines.push(['调价',...columns.map(c=> c.mode==='avg'?'入均':(c.mode==='fixed'?('固定'+fmtNum(c.fixedPrice)+'/1'):(c.mode==='single'?('原价'+fmtNum(c.sourceJpyPrice)+'日元'):((num(c.priceAdj)>0?'+':'')+fmtNum(c.priceAdj)))))].join('\t'));
+      lines.push(['调价',...columns.map(c=> c.mode==='avg'?'入均':(c.mode==='fixed'?(fmtNum(c.fixedPrice)+'/1'):(c.mode==='single'?('原价'+fmtNum(c.sourceJpyPrice)+'日元'):((num(c.priceAdj)>0?'+':'')+fmtNum(c.priceAdj)))))].join('\t'));
       lines.push(['单价',...columns.map(c=>unitPrice(c).toFixed(2))].join('\t'));
       for(let r=0;r<maxRows;r++) lines.push([r+1,...columns.map(c=>(allocations[c.id]||[])[r]||'')].join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const btn=$('copyTsvBtn'); const old=btn.textContent; btn.textContent='已复制 ✓'; setTimeout(()=>btn.textContent=old,1500); });
@@ -1453,6 +1523,7 @@ class Component extends DCLogic {
             cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=d.cartQrImg||'';
             paymentTitle=d.paymentTitle||''; paymentColor=d.paymentColor||'#d1466a';
             paymentEdits=d.paymentEdits||{};
+            paymentQrImg=d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false;
             syncMatrixOptions();
             syncCartControls(); saveState(); renderColumnList(); recalc();
@@ -1464,7 +1535,7 @@ class Component extends DCLogic {
     $('clearAllBtn').addEventListener('click',()=>{
       if(!confirm('确定要清空当前这张表吗？此操作无法撤销。')) return;
       columns=[]; allocations={}; previewRows=[];
-      cartNote=''; cartTargetMode='auto'; cartTargetNum=null; cartCountMode='short'; cartColumns=4; cartQrImg=''; paymentTitle=''; paymentColor='#d1466a'; paymentEdits={};
+      cartNote=''; cartTargetMode='auto'; cartTargetNum=null; cartCountMode='short'; cartColumns=4; cartQrImg=''; paymentTitle=''; paymentColor='#d1466a'; paymentEdits={}; paymentQrImg='';
       applyCost(null);
       $('commentInput').value='';
       $('previewPanel').style.display='none';
