@@ -1914,7 +1914,9 @@ class Component extends DCLogic {
     async function saveCanvasImage(canvas,filename){
       const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
       if(!blob) throw new Error('图片生成失败');
-      if(typeof File!=='undefined'&&navigator.share){
+      const ua=String(navigator.userAgent||'');
+      const isMobileDevice=/Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+      if(isMobileDevice&&typeof File!=='undefined'&&navigator.share){
         const file=new File([blob],filename,{type:'image/png'});
         try{
           if(!navigator.canShare||navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:filename}); return; }
