@@ -160,12 +160,17 @@
 
   <div class="panel mobile-core" id="matrixPanel">
     <h2>⑤ 排单表</h2>
+    <div class="payment-heading-tools matrix-heading-tools">
+      <input id="matrixTitleInput" type="text" placeholder="填写项目名称">
+      <label>标题颜色 <input id="matrixColorInput" type="color" value="#d1466a"></label>
+    </div>
     <div class="matrix-options">
       <button type="button" class="matrix-toggle" id="showPricingRow">隐藏调价</button>
       <button type="button" class="matrix-toggle" id="showUnitPriceRow">隐藏单价</button>
     </div>
     <div class="hint matrix-tip">点格子改字，拖动换位置。</div>
     <div id="matrixWrap">
+      <div id="matrixProjectTitle" class="matrix-project-title"></div>
       <div class="table-scroll">
         <table id="matrixTable">
           <thead></thead>
@@ -403,6 +408,8 @@ class Component extends DCLogic {
 #matrixTable tbody td.cell:hover{ background:#fff8fa; }
 #matrixTable tbody td.cell:focus{ background:#fff; outline:none; box-shadow:inset 0 0 0 2px var(--accent); }
 .matrix-tip{ margin-bottom:10px; padding:8px 11px; background:#faf7fb; border-radius:8px; }
+.matrix-heading-tools{ grid-template-columns:minmax(180px,1fr) auto; margin-bottom:10px; }
+.matrix-project-title{ padding:11px 14px; margin-bottom:6px; border-radius:9px 9px 0 0; color:#fff; font-size:19px; font-weight:900; text-align:center; }
 .matrix-options{ display:flex; gap:18px; align-items:center; margin:-4px 0 10px; }
 .matrix-options .matrix-toggle{ padding:7px 12px; border:1px solid #dfcbd2; border-radius:8px; background:#fff; color:var(--accent); }
 .matrix-options .matrix-toggle.off{ color:var(--muted); border-color:var(--line); background:var(--panel-2); }
@@ -548,7 +555,7 @@ class Component extends DCLogic {
   .cart-controls{ overflow-x:auto; padding-bottom:3px; }
   .cart-editor-row{ flex-wrap:wrap; }
   .payment-heading-tools{ grid-template-columns:1fr 1fr; }
-  .payment-heading-tools > #paymentTitleInput{ grid-column:1/-1; }
+  .payment-heading-tools > #paymentTitleInput,.payment-heading-tools > #matrixTitleInput{ grid-column:1/-1; }
   .transfer-row{ grid-template-columns:1fr auto; }
   .transfer-row .hint{ grid-column:1/-1; }
   .data-actions-pop{ position:fixed; left:10px; right:10px; bottom:70px; width:auto; max-width:none; grid-template-columns:1fr; }
@@ -580,6 +587,7 @@ class Component extends DCLogic {
     let previewRows=[], transferPreviewRows=[];
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true;
+    let matrixTitle='', matrixColor='#d1466a';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail';
     let paymentEdits={};
     let paymentQrImg='';
@@ -603,10 +611,10 @@ class Component extends DCLogic {
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,paymentTitle,paymentColor,paymentViewMode,paymentEdits,paymentQrImg,boxSize,groupSize,completeMultiple,quantityConfigured};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentEdits,paymentQrImg,boxSize,groupSize,completeMultiple,quantityConfigured};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentEdits:{},paymentQrImg:'',boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentEdits:{},paymentQrImg:'',boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -623,6 +631,7 @@ class Component extends DCLogic {
       cartTargetMode=sheet.cartTargetMode||'auto';
       cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
       cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
+      matrixTitle=sheet.matrixTitle||sheet.name||''; matrixColor=sheet.matrixColor||'#d1466a';
       paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
       paymentEdits=sheet.paymentEdits||{};
       paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
@@ -691,6 +700,7 @@ class Component extends DCLogic {
             allocations=sheet.allocations||{}; cartNote=sheet.cartNote||'';
             cartTargetMode=sheet.cartTargetMode||'auto'; cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
             cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
+            matrixTitle=sheet.matrixTitle||sheet.name||''; matrixColor=sheet.matrixColor||'#d1466a';
             paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
             paymentEdits=sheet.paymentEdits||{};
             paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
@@ -706,8 +716,9 @@ class Component extends DCLogic {
             first.columns=Array.isArray(d.columns)?d.columns.map(migrateColumn):[]; first.allocations=d.allocations||{};
             first.cost=d.cost||{...COST_DEFAULTS}; first.cartNote=d.cartNote||'';
             first.cartTargetMode=d.cartTargetMode||'auto'; first.cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null;
+            first.matrixTitle=d.matrixTitle||''; first.matrixColor=d.matrixColor||'#d1466a';
             sheets=[first]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; applyCost(first.cost);
           }
           return;
         }
@@ -724,6 +735,13 @@ class Component extends DCLogic {
       unit.textContent=showUnitPriceRow?'隐藏单价':'显示单价';
       pricing.classList.toggle('off',!showPricingRow);
       unit.classList.toggle('off',!showUnitPriceRow);
+      $('matrixTitleInput').value=matrixTitle;
+      $('matrixColorInput').value=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
+      renderMatrixHeading();
+    }
+    function renderMatrixHeading(){
+      const el=$('matrixProjectTitle'), color=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
+      el.textContent=matrixTitle||'未命名项目'; el.style.background=color;
     }
     function switchSheet(id){
       if(id===activeSheetId) return;
@@ -1073,9 +1091,9 @@ class Component extends DCLogic {
     function splitComments(raw){
       const blocks=[];
       const pending=[];
-      // 支持“今天19:37”“7月14日 19:37”“07-14 19:37”及带年份日期；
-      // 时间既可放在评论前，也可放在评论后，末尾 OCR 截成“今天19:”也能分段。
-      const timeLine=/^(?:(?:今天|昨天|前天)\s*\d{1,2}:\d{0,2}|(?:\d{4}[年\-\/]\s*)?\d{1,2}(?:月|[\-\/])\d{1,2}(?:日)?(?:[\s,，]+\d{1,2}:\d{0,2})?)\s*(?:[·・•‧∙|,，、]\s*)?(?:回复(?:\s*\d+)?)?\s*$/;
+      // 评论元信息只负责分段，永远不作为人物或谷子参与识别。
+      // 不限定某一种固定写法，并允许它粘在正文末尾（如“诺克斯1 今天19:37 回复”）。
+      const metaToken=/(?:今天|昨天|前天)(?:\s*\d{1,2}\s*[:：]\s*\d{0,2})?|(?:\d{4}\s*[年.\-\/]\s*)?\d{1,2}\s*(?:月|[.\-\/])\s*\d{1,2}\s*(?:日)?(?:[\s,，]+\d{1,2}\s*[:：]\s*\d{0,2})?|(?:\d+|[一二两三四五六七八九十]+)\s*(?:秒|分钟|小时|天|周|个月|月|年)前|刚刚|\d{1,2}\s*[:：]\s*\d{1,2}(?=\s*(?:回复|$))|回复(?:\s*\d+)?|IP(?:属地)?\s*[:：]?\s*[\u4e00-\u9fa5A-Za-z]+/i;
       function pushPending(){
         const lines=pending.splice(0).map(l=>l.trim()).filter(Boolean);
         if(lines.length===0) return;
@@ -1091,8 +1109,14 @@ class Component extends DCLogic {
       raw.replace(/\r/g,'').split('\n').forEach(rawLine=>{
         const line=rawLine.trim();
         if(!line) return;
-        if(/^回复(?:\s*\d+)?$/.test(line)) return;
-        if(timeLine.test(line)){ pushPending(); return; }
+        if(/^(?:展开\s*\d*\s*条?回复|收起回复|赞|点赞)$/.test(line)) return;
+        const meta=line.match(metaToken);
+        if(meta){
+          const content=line.slice(0,meta.index).replace(/[·・•‧∙|,，、；;\s]+$/,'').trim();
+          if(content) pending.push(content);
+          pushPending();
+          return;
+        }
         pending.push(line);
       });
       pushPending();
@@ -1326,6 +1350,8 @@ class Component extends DCLogic {
     }));
     $('showPricingRow').addEventListener('click',()=>{ showPricingRow=!showPricingRow; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showUnitPriceRow').addEventListener('click',()=>{ showUnitPriceRow=!showUnitPriceRow; syncMatrixOptions(); saveState(); renderMatrix(); });
+    $('matrixTitleInput').addEventListener('input',e=>{ matrixTitle=e.target.value; renderMatrixHeading(); saveState(); });
+    $('matrixColorInput').addEventListener('input',e=>{ matrixColor=e.target.value; renderMatrixHeading(); saveState(); });
     function setMobileView(full){
       document.body.classList.toggle('mobile-full',full);
       $('mobileLiteBtn').classList.toggle('active',!full);
@@ -1779,7 +1805,8 @@ class Component extends DCLogic {
       sticky.forEach(el=>{ if(el) el.style.position='static'; });
       scroll.style.maxHeight='none'; scroll.style.overflow='visible';
       wrap.style.width=Math.max(wrap.clientWidth,table.scrollWidth+12)+'px';
-      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,'排单表.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      const name=(matrixTitle||'排单表').replace(/[\\/:*?"<>|]/g,' ').trim()||'排单表';
+      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroll.style.maxHeight=old.maxHeight; scroll.style.overflow=old.overflow; wrap.style.width=old.width;
         sticky.forEach(el=>{ if(el) el.style.position=''; });
       });
@@ -1908,6 +1935,7 @@ class Component extends DCLogic {
             cartNote=d.cartNote||''; cartTargetMode=d.cartTargetMode||'auto';
             cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null; applyCost(d.cost);
             cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=d.cartQrImg||'';
+            matrixTitle=d.matrixTitle||''; matrixColor=d.matrixColor||'#d1466a';
             paymentTitle=d.paymentTitle||''; paymentColor=d.paymentColor||'#d1466a'; paymentViewMode=d.paymentViewMode==='merged'?'merged':'detail';
             paymentEdits=d.paymentEdits||{};
             paymentQrImg=d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
