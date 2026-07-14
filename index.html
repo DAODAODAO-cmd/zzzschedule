@@ -1061,6 +1061,8 @@ class Component extends DCLogic {
       return pairs;
     }
     function parseDemandText(text){
+      // “代小莫 诺克斯1”里的“代小莫”是备注，不应并入谷子名称。
+      text=String(text||'').replace(/(^|[，,、；;\s])代[^\s，,、；;]+(?=\s+)/g,'$1');
       text=collapseCjkSpaces((text||'').trim());
       const segments=text.split(/[，,、；;]+|\s+/).map(s=>s.trim()).filter(Boolean);
       const results=[];
@@ -1069,14 +1071,13 @@ class Component extends DCLogic {
     }
     function cleanPersonName(name){ return (name||'').split(/[（(【\[]/)[0].trim(); }
     function splitComments(raw){
-      const text=raw.replace(/\r/g,'');
-      const tsRe=/\d{1,2}[-\/]\d{1,2}[\s,，]+\d{1,2}:\d{2}\s*[·・•‧∙|,，、\s]*\s*(回复|回夏|回复\d*)?/g;
-      const DELIM='\u0001';
-      const flat=text.replace(tsRe,'\n'+DELIM+'\n');
-      const rawBlocks=flat.split(DELIM).map(b=>b.trim()).filter(Boolean);
       const blocks=[];
-      rawBlocks.forEach(block=>{
-        const lines=block.split('\n').map(l=>l.trim()).filter(Boolean);
+      const pending=[];
+      // 支持“今天19:37”“7月14日 19:37”“07-14 19:37”及带年份日期；
+      // 时间既可放在评论前，也可放在评论后，末尾 OCR 截成“今天19:”也能分段。
+      const timeLine=/^(?:(?:今天|昨天|前天)\s*\d{1,2}:\d{0,2}|(?:\d{4}[年\-\/]\s*)?\d{1,2}(?:月|[\-\/])\d{1,2}(?:日)?(?:[\s,，]+\d{1,2}:\d{0,2})?)\s*(?:[·・•‧∙|,，、]\s*)?(?:回复(?:\s*\d+)?)?\s*$/;
+      function pushPending(){
+        const lines=pending.splice(0).map(l=>l.trim()).filter(Boolean);
         if(lines.length===0) return;
         if(lines.length===1){
           const one=lines[0];
@@ -1086,7 +1087,15 @@ class Component extends DCLogic {
         } else {
           blocks.push({person:cleanPersonName(lines[0]),demandText:lines.slice(1).join(' ').trim()});
         }
+      }
+      raw.replace(/\r/g,'').split('\n').forEach(rawLine=>{
+        const line=rawLine.trim();
+        if(!line) return;
+        if(/^回复(?:\s*\d+)?$/.test(line)) return;
+        if(timeLine.test(line)){ pushPending(); return; }
+        pending.push(line);
       });
+      pushPending();
       return blocks.filter(b=>b.demandText);
     }
     function renderPreview(){
