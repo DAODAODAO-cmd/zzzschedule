@@ -120,11 +120,12 @@
   </div>
 
   <div class="panel mobile-core" id="commentPanel">
-    <h2>④ 批量粘贴 / 转单</h2>
+    <h2>④ 批量粘贴 / 排单 / 转单 / 撤单</h2>
     <textarea id="commentInput" placeholder="直接把文字整段粘贴进来"></textarea>
     <div class="toolbar">
       <button class="btn-primary" id="parseBtn">排单预览</button>
       <button class="btn-ghost" id="transferPreviewBtn">转单预览</button>
+      <button class="btn-ghost" id="cancelPreviewBtn">撤单预览</button>
       <button class="btn-ghost" id="clearCommentBtn">清空文字</button>
       <span class="hint">先预览，确认后再写入表格。</span>
     </div>
@@ -141,6 +142,20 @@
     <div class="toolbar">
       <button class="btn-primary" id="confirmTransferBtn">确认转单</button>
       <span class="hint" id="transferPreviewStatus">会从原 CN 最后一单开始向上修改。</span>
+    </div>
+  </div>
+
+  <div class="panel mobile-core" id="cancelPreviewPanel" style="display:none;">
+    <h2>撤单预览</h2>
+    <div class="table-scroll">
+      <table id="cancelPreviewTable">
+        <thead><tr><th>#</th><th>谁撤单</th><th>谷子</th><th>数量</th><th>检查</th><th>操作</th></tr></thead>
+        <tbody id="cancelPreviewTableBody"></tbody>
+      </table>
+    </div>
+    <div class="toolbar">
+      <button class="btn-primary" id="confirmCancelBtn">确认撤单</button>
+      <span class="hint" id="cancelPreviewStatus">会从这个人在对应谷子的最后一单开始向前删除。</span>
     </div>
   </div>
 
@@ -219,6 +234,12 @@
       <input id="paymentTitleInput" type="text" placeholder="填写项目名称">
       <label>显示方式 <select id="paymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
       <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
+    </div>
+    <div class="payment-range-tools">
+      <strong>统计排单行</strong>
+      <label>从第 <input id="paymentStartRow" type="number" min="1" step="1" value="1"> 行</label>
+      <label>到第 <input id="paymentEndRow" type="number" min="1" step="1" placeholder="最后"> 行</label>
+      <span class="hint">结束行留空代表统计到最后</span>
     </div>
     <div class="payment-qr-tools">
       <label class="qr-upload">上传收款码<input type="file" id="paymentQrInput" accept="image/*"></label>
@@ -423,6 +444,9 @@ class Component extends DCLogic {
 .payment-heading-tools label{ display:flex; align-items:center; gap:7px; margin:0; white-space:nowrap; }
 .payment-heading-tools input[type=color]{ width:42px; height:34px; padding:3px; cursor:pointer; }
 .payment-heading-tools select{ width:auto; min-width:82px; }
+.payment-range-tools{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-top:9px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); }
+.payment-range-tools label{ display:flex; align-items:center; gap:5px; margin:0; white-space:nowrap; }
+.payment-range-tools input[type=number]{ width:72px; padding:6px 8px; }
 .payment-qr-tools{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:9px; }
 .payment-qr-tools .qr-upload{ min-height:36px; }
 .payment-project-title{ padding:11px 14px; border-radius:9px 9px 0 0; color:#fff; font-size:19px; font-weight:900; text-align:center; }
@@ -447,10 +471,10 @@ class Component extends DCLogic {
 .wrap .ocr-thumbs img{ height:70px; border:1px solid var(--line); border-radius:6px; }
 .wrap .toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center; }
 .transfer-row{ display:grid; grid-template-columns:minmax(180px,1fr) auto minmax(100px,auto); gap:8px; align-items:center; margin-top:10px; }
-#transferPreviewTable input{ width:100%; min-width:92px; }
-#transferPreviewTable input[type=number]{ min-width:64px; width:72px; }
-#transferPreviewTable .transfer-ok{ color:var(--good); font-weight:800; white-space:nowrap; }
-#transferPreviewTable .transfer-bad{ color:var(--bad); font-weight:800; white-space:nowrap; }
+#transferPreviewTable input,#cancelPreviewTable input{ width:100%; min-width:92px; }
+#transferPreviewTable input[type=number],#cancelPreviewTable input[type=number]{ min-width:64px; width:72px; }
+#transferPreviewTable .transfer-ok,#cancelPreviewTable .transfer-ok{ color:var(--ok); font-weight:800; white-space:nowrap; }
+#transferPreviewTable .transfer-bad,#cancelPreviewTable .transfer-bad{ color:var(--bad); font-weight:800; white-space:nowrap; }
 .data-actions{ position:relative; }
 .data-actions summary{ list-style:none; cursor:pointer; padding:8px 13px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); font-size:12.5px; font-weight:800; }
 .data-actions summary::-webkit-details-marker{ display:none; }
@@ -493,7 +517,7 @@ class Component extends DCLogic {
 .quantity-ride-table .ride-item{ min-width:105px; font-weight:900; background:#f6f2f5!important; }
 .quantity-ride-table .ride-item small,.quantity-ride-table .ride-status small{ display:block; margin-top:3px; color:var(--muted); font-size:10.5px; font-weight:700; }
 .quantity-ride-table .ride-status{ min-width:105px; }
-.quantity-ride-table .ride-onboard .ride-status strong{ color:var(--good); }
+.quantity-ride-table .ride-onboard .ride-status strong{ color:var(--ok); }
 .quantity-ride-table .ride-waiting .ride-status strong{ color:var(--warn); }
 .upload-button{ display:inline-flex!important; align-items:center; margin:0!important; padding:8px 13px; border-radius:8px; background:var(--accent); color:#fff!important; font-weight:700; cursor:pointer; }
 .upload-button input{ display:none; }
@@ -584,11 +608,11 @@ class Component extends DCLogic {
 
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed',priceAdj,fixedPrice,img}
     let allocations={};   // colId -> [person,...]
-    let previewRows=[], transferPreviewRows=[];
+    let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[];
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true;
     let matrixTitle='', matrixColor='#d1466a';
-    let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail';
+    let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null;
     let paymentEdits={};
     let paymentQrImg='';
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
@@ -611,10 +635,10 @@ class Component extends DCLogic {
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentEdits,paymentQrImg,boxSize,groupSize,completeMultiple,quantityConfigured};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,paymentQrImg,boxSize,groupSize,completeMultiple,quantityConfigured};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentEdits:{},paymentQrImg:'',boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},paymentQrImg:'',boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -633,6 +657,7 @@ class Component extends DCLogic {
       cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
       matrixTitle=sheet.matrixTitle||sheet.name||''; matrixColor=sheet.matrixColor||'#d1466a';
       paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
+      paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
       paymentEdits=sheet.paymentEdits||{};
       paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
       highlightedPerson='';
@@ -648,6 +673,7 @@ class Component extends DCLogic {
       $('commentInput').value='';
       $('previewPanel').style.display='none';
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
+      $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
       syncCartControls();
       syncPaymentControls();
       syncMatrixOptions();
@@ -702,6 +728,7 @@ class Component extends DCLogic {
             cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
             matrixTitle=sheet.matrixTitle||sheet.name||''; matrixColor=sheet.matrixColor||'#d1466a';
             paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
+            paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
             paymentEdits=sheet.paymentEdits||{};
             paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
             quantityConfigured=sheet.quantityConfigured===true;
@@ -1088,12 +1115,30 @@ class Component extends DCLogic {
       return results;
     }
     function cleanPersonName(name){ return (name||'').split(/[（(【\[]/)[0].trim(); }
+    // 所有模式共用：日期、时间、“回复”、IP 等只分段，不参与人物/谷子识别。
+    const COMMENT_META_RE=/(?:今天|昨天|前天)(?:\s*\d{1,2}\s*[:：]\s*\d{0,2})?|(?:\d{4}\s*[年.\-\/]\s*)?\d{1,2}\s*(?:月|[.\-\/])\s*\d{1,2}\s*(?:日)?(?:[\s,，]+\d{1,2}\s*[:：]\s*\d{0,2})?|(?:\d+|[一二两三四五六七八九十]+)\s*(?:秒|分钟|小时|天|周|个月|月|年)前|刚刚|\d{1,2}\s*[:：]\s*\d{1,2}(?=\s*(?:回复|$))|回复(?:\s*\d+)?|IP(?:属地)?\s*[:：]?\s*[\u4e00-\u9fa5A-Za-z]+/i;
+    function isCommentUiNoise(line){
+      const text=String(line||'').trim();
+      return /^(?:评论|评论\s*回复(?:\s*[（(]\s*\d+\s*[）)])?|展开\s*\d*\s*条?回复|收起回复|赞|点赞)$/.test(text)
+        || /相册\s*(?:[（(]\s*\d+\s*\/\s*\d+\s*[）)])?\s*$/.test(text);
+    }
+    function splitCommentMeta(rawLine){
+      const line=String(rawLine||'').trim();
+      if(!line||isCommentUiNoise(line)) return {content:'',boundary:false,ignored:true};
+      const meta=line.match(COMMENT_META_RE);
+      if(!meta) return {content:line,boundary:false,ignored:false};
+      return {content:line.slice(0,meta.index).replace(/[·・•‧∙．。|,，、；;\s]+$/,'').trim(),boundary:true,ignored:false};
+    }
+    function actionContentLines(raw){
+      const result=[];
+      String(raw||'').replace(/\r/g,'').split('\n').forEach(rawLine=>{
+        const part=splitCommentMeta(rawLine); if(part.content) result.push(part.content);
+      });
+      return result;
+    }
     function splitComments(raw){
       const blocks=[];
       const pending=[];
-      // 评论元信息只负责分段，永远不作为人物或谷子参与识别。
-      // 不限定某一种固定写法，并允许它粘在正文末尾（如“诺克斯1 今天19:37 回复”）。
-      const metaToken=/(?:今天|昨天|前天)(?:\s*\d{1,2}\s*[:：]\s*\d{0,2})?|(?:\d{4}\s*[年.\-\/]\s*)?\d{1,2}\s*(?:月|[.\-\/])\s*\d{1,2}\s*(?:日)?(?:[\s,，]+\d{1,2}\s*[:：]\s*\d{0,2})?|(?:\d+|[一二两三四五六七八九十]+)\s*(?:秒|分钟|小时|天|周|个月|月|年)前|刚刚|\d{1,2}\s*[:：]\s*\d{1,2}(?=\s*(?:回复|$))|回复(?:\s*\d+)?|IP(?:属地)?\s*[:：]?\s*[\u4e00-\u9fa5A-Za-z]+/i;
       function pushPending(){
         const lines=pending.splice(0).map(l=>l.trim()).filter(Boolean);
         if(lines.length===0) return;
@@ -1107,17 +1152,14 @@ class Component extends DCLogic {
         }
       }
       raw.replace(/\r/g,'').split('\n').forEach(rawLine=>{
-        const line=rawLine.trim();
-        if(!line) return;
-        if(/^(?:展开\s*\d*\s*条?回复|收起回复|赞|点赞)$/.test(line)) return;
-        const meta=line.match(metaToken);
-        if(meta){
-          const content=line.slice(0,meta.index).replace(/[·・•‧∙|,，、；;\s]+$/,'').trim();
-          if(content) pending.push(content);
+        const part=splitCommentMeta(rawLine);
+        if(part.ignored) return;
+        if(part.boundary){
+          if(part.content) pending.push(part.content);
           pushPending();
           return;
         }
-        pending.push(line);
+        if(part.content) pending.push(part.content);
       });
       pushPending();
       return blocks.filter(b=>b.demandText);
@@ -1221,14 +1263,16 @@ class Component extends DCLogic {
 
     function renderPaymentSummary(){
       const people=new Map();
-      columns.forEach(c=>(allocations[c.id]||[]).forEach(person=>{
+      const startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow);
+      columns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
+        if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
         const key=name.replace(/\s+/g,'').toLowerCase();
         if(!people.has(key)) people.set(key,{name,total:0,items:new Map()});
         const row=people.get(key); row.total+=unitPrice(c); row.items.set(c.name,(row.items.get(c.name)||0)+1);
       }));
       const el=$('paymentSummary');
-      if(!people.size){ el.innerHTML=''; return; }
+      if(!people.size){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; return; }
       const feeAmount=total=>Math.ceil(((total<=100?total+0.1:total*1.001)-1e-9)*100)/100;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(paymentEdits,key)?paymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-payment-key="${encodeURIComponent(key)}"`;
@@ -1257,6 +1301,8 @@ class Component extends DCLogic {
       $('paymentTitleInput').value=paymentTitle;
       $('paymentColorInput').value=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
       $('paymentViewMode').value=paymentViewMode;
+      $('paymentStartRow').value=paymentStartRow;
+      $('paymentEndRow').value=paymentEndRow===null?'':paymentEndRow;
       $('clearPaymentQrBtn').style.display=paymentQrImg?'':'none';
     }
 
@@ -1428,10 +1474,11 @@ class Component extends DCLogic {
       renderPreview();
       $('previewPanel').style.display=previewRows.length?'block':'none';
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
+      $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
       if(previewRows.length===0) alert('没有识别到任何评论，请检查粘贴的文字格式');
     });
     $('clearCommentBtn').addEventListener('click',()=>{
-      $('commentInput').value=''; previewRows=[]; transferPreviewRows=[]; $('previewPanel').style.display='none'; $('transferPreviewPanel').style.display='none'; $('commentInput').focus();
+      $('commentInput').value=''; previewRows=[]; transferPreviewRows=[]; cancelPreviewRows=[]; $('previewPanel').style.display='none'; $('transferPreviewPanel').style.display='none'; $('cancelPreviewPanel').style.display='none'; $('commentInput').focus();
     });
 
     $('generateBtn').addEventListener('click',()=>{
@@ -1461,7 +1508,7 @@ class Component extends DCLogic {
       for(const candidate of candidates){ const index=lower.indexOf(candidate.label.toLowerCase()); if(index>=0) return {...candidate,index}; }
       return null;
     }
-    function cleanTransferName(text){ return String(text||'').replace(/^[\s给由]+|[\s，,。；;：:]+$/g,'').trim(); }
+    function cleanTransferName(text){ return String(text||'').replace(/^[\s给由从]+|[把\s，,。；;：:]+$/g,'').trim(); }
     function parseTransferLine(raw){
       let text=String(raw||'').trim(); if(!text) return null;
       const mention=mentionedColumn(text), people=knownPeople();
@@ -1473,7 +1520,7 @@ class Component extends DCLogic {
         else if(beforeQty){ qty=Math.max(1,parseInt(beforeQty[1],10)||1); before=before.slice(0,before.length-beforeQty[0].length); }
         rest=(before+' '+after).replace(/[，,。；;：:]/g,' ').replace(/\s+/g,' ').trim();
       }
-      let source='',target='', match=rest.match(/^(.+?)(?:转给|出给)\s*(.+)$/);
+      let source='',target='', match=rest.match(/^(.+?)(?:转给|出给|给|到|->|→|➡)\s*(.+)$/);
       if(match){ source=match[1]; target=match[2]; }
       else{
         match=rest.match(/^(.+?)(?:转|出)\s*(?:给\s*)?(.+)$/);
@@ -1502,10 +1549,11 @@ class Component extends DCLogic {
     }
     $('transferPreviewBtn').addEventListener('click',()=>{
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先粘贴转单文字'); return; }
-      transferPreviewRows=raw.split(/[\r\n；;]+/).map(parseTransferLine).filter(Boolean);
+      transferPreviewRows=actionContentLines(raw).filter(line=>/(?:转给|出给|转|出|给|到|->|→|➡)/.test(line)).map(parseTransferLine).filter(Boolean);
       $('transferPreviewStatus').textContent='会从原 CN 最后一单开始向上修改。'; $('transferPreviewStatus').style.color='';
       renderTransferPreview(); $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display=transferPreviewRows.length?'block':'none';
+      $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
       if(!transferPreviewRows.length) alert('没有识别到转单内容');
     });
     $('transferPreviewTableBody').addEventListener('change',e=>{
@@ -1530,7 +1578,74 @@ class Component extends DCLogic {
       });
       saveState(); renderMatrix(); $('commentInput').value=''; transferPreviewRows=[]; renderTransferPreview();
       $('transferPreviewStatus').textContent=`已完成 ${changedTotal} 个转单，均从原 CN 最后一单开始修改。`;
-      $('transferPreviewStatus').style.color='var(--good)';
+      $('transferPreviewStatus').style.color='var(--ok)';
+    });
+    function parseCancelRows(raw){
+      const rows=[];
+      splitComments(raw).forEach(comment=>{
+        const combined=(String(comment.person||'')+String(comment.demandText||'')).trim();
+        const marker=combined.match(/撤单?|取消|不要/);
+        if(!marker) return;
+        const person=cleanPersonName(combined.slice(0,marker.index));
+        const demand=combined.slice(marker.index+marker[0].length).replace(/^[掉了的\s，,、；;]+/,'').trim();
+        if(!person||!demand) return;
+        parseDemandText(demand).forEach(item=>rows.push({id:rowIdSeed++,person,itemText:item.name,qty:Math.max(1,item.qty||1)}));
+      });
+      return rows;
+    }
+    function cancelRowCheck(row,index){
+      const col=findColumnByText(row.itemText||''), person=String(row.person||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
+      if(!person) return {ok:false,text:'名字没识别到'};
+      if(!col) return {ok:false,text:'没找到谷子'};
+      const available=(allocations[col.id]||[]).filter(value=>String(value||'').trim()===person).length;
+      const reserved=cancelPreviewRows.slice(0,index).reduce((sum,previous)=>{
+        const previousCol=findColumnByText(previous.itemText||'');
+        return previousCol&&previousCol.id===col.id&&String(previous.person||'').trim()===person?sum+Math.max(1,parseInt(previous.qty,10)||1):sum;
+      },0);
+      const remaining=Math.max(0,available-reserved);
+      if(!available) return {ok:false,text:`没有找到 ${person}`};
+      if(remaining<qty) return {ok:false,text:`只剩 ${remaining} 个可撤`};
+      return {ok:true,text:`可撤 ${remaining} 个`,col,qty,person};
+    }
+    function renderCancelPreview(){
+      $('cancelPreviewTableBody').innerHTML=cancelPreviewRows.map((row,index)=>{
+        const check=cancelRowCheck(row,index);
+        return `<tr><td>${index+1}</td><td><input data-cancel-id="${row.id}" data-cancel-field="person" value="${escapeAttr(row.person)}"></td><td><input data-cancel-id="${row.id}" data-cancel-field="itemText" value="${escapeAttr(row.itemText)}"></td><td><input type="number" min="1" data-cancel-id="${row.id}" data-cancel-field="qty" value="${row.qty}"></td><td class="${check.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(check.text)}</td><td><button class="btn-danger btn-mini" data-remove-cancel="${row.id}">删除</button></td></tr>`;
+      }).join('');
+      $('confirmCancelBtn').disabled=!cancelPreviewRows.length||cancelPreviewRows.some((row,index)=>!cancelRowCheck(row,index).ok);
+    }
+    $('cancelPreviewBtn').addEventListener('click',()=>{
+      const raw=$('commentInput').value.trim(); if(!raw){ alert('请先粘贴撤单文字'); return; }
+      cancelPreviewRows=parseCancelRows(raw);
+      $('cancelPreviewStatus').textContent='会从这个人在对应谷子的最后一单开始向前删除。'; $('cancelPreviewStatus').style.color='';
+      renderCancelPreview(); $('previewPanel').style.display='none'; previewRows=[];
+      $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
+      $('cancelPreviewPanel').style.display=cancelPreviewRows.length?'block':'none';
+      if(!cancelPreviewRows.length) alert('没有识别到撤单内容，请使用“谁 撤 谷子数量”的写法');
+    });
+    $('cancelPreviewTableBody').addEventListener('change',e=>{
+      const input=e.target.closest('[data-cancel-id]'); if(!input) return;
+      const row=cancelPreviewRows.find(item=>item.id===parseInt(input.dataset.cancelId,10)); if(!row) return;
+      row[input.dataset.cancelField]=input.dataset.cancelField==='qty'?Math.max(1,parseInt(input.value,10)||1):input.value.trim(); renderCancelPreview();
+    });
+    $('cancelPreviewTableBody').addEventListener('click',e=>{
+      const button=e.target.closest('[data-remove-cancel]'); if(!button) return;
+      cancelPreviewRows=cancelPreviewRows.filter(row=>row.id!==parseInt(button.dataset.removeCancel,10)); renderCancelPreview();
+    });
+    $('confirmCancelBtn').addEventListener('click',()=>{
+      const checks=cancelPreviewRows.map((row,index)=>({row,check:cancelRowCheck(row,index)}));
+      if(!checks.length||checks.some(item=>!item.check.ok)){ alert('还有没识别清楚的撤单，请先在预览里修改'); return; }
+      let removedTotal=0;
+      checks.forEach(({check})=>{
+        const arr=allocations[check.col.id]||(allocations[check.col.id]=[]); let removed=0;
+        for(let i=arr.length-1;i>=0&&removed<check.qty;i--){
+          if(String(arr[i]||'').trim()===check.person){ arr.splice(i,1); removed++; }
+        }
+        removedTotal+=removed;
+      });
+      saveState(); renderMatrix(); $('commentInput').value=''; cancelPreviewRows=[]; renderCancelPreview();
+      $('cancelPreviewStatus').textContent=`已撤掉 ${removedTotal} 个，均从对应谷子的最后一单开始删除。`;
+      $('cancelPreviewStatus').style.color='var(--ok)';
     });
     function applyQuantitySettings(){
       const boxText=String($('boxSizeInput').value||'').trim(), stepText=String($('groupSizeInput').value||'').trim();
@@ -1697,6 +1812,15 @@ class Component extends DCLogic {
     $('paymentTitleInput').addEventListener('input',e=>{ paymentTitle=e.target.value; saveState(); renderPaymentSummary(); });
     $('paymentColorInput').addEventListener('input',e=>{ paymentColor=e.target.value; saveState(); renderPaymentSummary(); });
     $('paymentViewMode').addEventListener('change',e=>{ paymentViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderPaymentSummary(); });
+    $('paymentStartRow').addEventListener('input',e=>{
+      paymentStartRow=Math.max(1,parseInt(e.target.value,10)||1);
+      if(paymentEndRow!==null&&paymentEndRow<paymentStartRow) paymentEndRow=paymentStartRow;
+      syncPaymentControls(); saveState(); renderPaymentSummary();
+    });
+    $('paymentEndRow').addEventListener('input',e=>{
+      const value=String(e.target.value||'').trim(); paymentEndRow=value?Math.max(paymentStartRow,parseInt(value,10)||paymentStartRow):null;
+      syncPaymentControls(); saveState(); renderPaymentSummary();
+    });
     $('paymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     $('paymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-payment-key]'); if(!cell) return;
@@ -1937,6 +2061,7 @@ class Component extends DCLogic {
             cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=d.cartQrImg||'';
             matrixTitle=d.matrixTitle||''; matrixColor=d.matrixColor||'#d1466a';
             paymentTitle=d.paymentTitle||''; paymentColor=d.paymentColor||'#d1466a'; paymentViewMode=d.paymentViewMode==='merged'?'merged':'detail';
+            paymentStartRow=Math.max(1,parseInt(d.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(d.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(d.paymentEndRow,10)):null;
             paymentEdits=d.paymentEdits||{};
             paymentQrImg=d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             quantityConfigured=d.quantityConfigured===true;
