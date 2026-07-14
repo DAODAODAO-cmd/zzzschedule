@@ -274,7 +274,7 @@
     </div>
     <div id="cartWrap">
       <div id="cartEmpty" class="empty">还没有数据，先生成配比表并给各列上传图片，这里就会出现推车图。</div>
-      <div id="cartHeader" style="display:none;"><div id="cartHeaderNote"></div><img id="cartQrImage" alt="群二维码"></div>
+      <div id="cartHeader" style="display:none;"><div id="cartHeaderNote"></div><img id="cartQrImage" crossorigin="anonymous" alt="群二维码"></div>
       <div id="cartGrid"></div>
     </div>
     <div class="toolbar">
@@ -614,7 +614,7 @@ class Component extends DCLogic {
     let matrixTitle='', matrixColor='#d1466a';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null;
     let paymentEdits={};
-    let paymentQrImg='';
+    let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='';
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
     let totalCost=0, avgPrice=0, adjSum=0;
@@ -635,16 +635,17 @@ class Component extends DCLogic {
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,paymentQrImg,boxSize,groupSize,completeMultiple,quantityConfigured};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},paymentQrImg:'',boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
       if(!sheet) return;
       const current=snapshotSheet();
       Object.assign(sheet,current,{name:sheet.name});
+      delete sheet.cartQrImg; delete sheet.paymentQrImg; delete sheet.alipayQrImg; delete sheet.wechatQrImg;
     }
     function applySheet(sheet){
       isLoadingSheet=true;
@@ -654,12 +655,14 @@ class Component extends DCLogic {
       cartNote=sheet.cartNote||'';
       cartTargetMode=sheet.cartTargetMode||'auto';
       cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
-      cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
+      if(!sharedCartQrImg) sharedCartQrImg=sheet.cartQrImg||'';
+      cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sharedCartQrImg;
       matrixTitle=sheet.matrixTitle||sheet.name||''; matrixColor=sheet.matrixColor||'#d1466a';
       paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
       paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
       paymentEdits=sheet.paymentEdits||{};
-      paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
+      if(!sharedPaymentQrImg) sharedPaymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
+      paymentQrImg=sharedPaymentQrImg;
       highlightedPerson='';
       quantityConfigured=sheet.quantityConfigured===true;
       boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
@@ -692,7 +695,7 @@ class Component extends DCLogic {
     function saveState(){
       if(isLoadingSheet) return;
       captureActiveSheet();
-      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed})); }
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg})); }
       catch(e){ console.warn('保存失败',e); }
       if($('localStatus')) $('localStatus').textContent='已保存本地';
       if(cloudAuto&&!applyingCloud) scheduleCloudUpload();
@@ -717,6 +720,9 @@ class Component extends DCLogic {
           const d=JSON.parse(raw);
           if(Array.isArray(d.sheets)&&d.sheets.length){
             sheets=d.sheets;
+            sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
+            sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||'';
+            sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
             itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[];
             catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1));
             sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
@@ -725,12 +731,12 @@ class Component extends DCLogic {
             columns=Array.isArray(sheet.columns)?sheet.columns.map(migrateColumn):[];
             allocations=sheet.allocations||{}; cartNote=sheet.cartNote||'';
             cartTargetMode=sheet.cartTargetMode||'auto'; cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
-            cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
+            cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sharedCartQrImg;
             matrixTitle=sheet.matrixTitle||sheet.name||''; matrixColor=sheet.matrixColor||'#d1466a';
             paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
             paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
             paymentEdits=sheet.paymentEdits||{};
-            paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
+            paymentQrImg=sharedPaymentQrImg;
             quantityConfigured=sheet.quantityConfigured===true;
             boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
             groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
@@ -744,8 +750,9 @@ class Component extends DCLogic {
             first.cost=d.cost||{...COST_DEFAULTS}; first.cartNote=d.cartNote||'';
             first.cartTargetMode=d.cartTargetMode||'auto'; first.cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null;
             first.matrixTitle=d.matrixTitle||''; first.matrixColor=d.matrixColor||'#d1466a';
+            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             sheets=[first]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; applyCost(first.cost);
           }
           return;
         }
@@ -806,12 +813,13 @@ class Component extends DCLogic {
         }
         for(const sheet of cloudSheets){
           for(const c of sheet.columns||[]) c.img=await uploadImage(c.img,`c${c.id}`);
-          sheet.cartQrImg=await uploadImage(sheet.cartQrImg,'qr');
-          sheet.paymentQrImg=await uploadImage(sheet.paymentQrImg,'payment');
+          delete sheet.cartQrImg; delete sheet.paymentQrImg; delete sheet.alipayQrImg; delete sheet.wechatQrImg;
         }
+        const cloudCartQrImg=await uploadImage(sharedCartQrImg,'shared-qr');
+        const cloudPaymentQrImg=await uploadImage(sharedPaymentQrImg,'shared-payment');
         for(const item of cloudCatalog) item.img=await uploadImage(item.img,`library${item.catalogId||item.id||0}`);
         const now=new Date().toISOString();
-        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,version:Date.now()};
+        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,sharedCartQrImg:cloudCartQrImg,sharedPaymentQrImg:cloudPaymentQrImg,version:Date.now()};
         const {error}=await client.from('ggz_sync_data').upsert({sync_code:code,payload,updated_at:now},{onConflict:'sync_code'});
         if(error) throw error;
         syncCode=code; lastCloudUpdatedAt=now; localStorage.setItem('ggzSyncCode',code);
@@ -829,7 +837,11 @@ class Component extends DCLogic {
         if(!data){ if(!silent) setCloudStatus('云端还没有数据'); return; }
         if(silent&&lastCloudUpdatedAt&&new Date(data.updated_at)<=new Date(lastCloudUpdatedAt)) return;
         const d=data.payload||{}; if(!Array.isArray(d.sheets)||!d.sheets.length) throw new Error('云端数据为空');
-        applyingCloud=true; sheets=d.sheets; itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[]; catalogIdSeed=d.catalogIdSeed||Math.max(1,...itemCatalog.map(x=>(x.catalogId||0)+1)); activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
+        applyingCloud=true; sheets=d.sheets;
+        sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
+        sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||'';
+        sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
+        itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[]; catalogIdSeed=d.catalogIdSeed||Math.max(1,...itemCatalog.map(x=>(x.catalogId||0)+1)); activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
         if(!sheets.some(s=>s.id===activeSheetId)) activeSheetId=sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
         lastCloudUpdatedAt=data.updated_at; syncCode=code; localStorage.setItem('ggzSyncCode',code);
@@ -1185,7 +1197,7 @@ class Component extends DCLogic {
       emptyEl.style.display='none';
       const maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
       const displayRows=maxRows+1;
-      let headHtml='<tr class="header-row"><th></th>'+columns.map(c=>`<th>${c.img?`<img class="head-img" src="${c.img}">`:''}${escapeHtml(c.name)}</th>`).join('')+'</tr>';
+      let headHtml='<tr class="header-row"><th></th>'+columns.map(c=>`<th>${c.img?`<img class="head-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:''}${escapeHtml(c.name)}</th>`).join('')+'</tr>';
       if(showPricingRow) headHtml+='<tr class="adj-row"><td>调价</td>'+columns.map(c=>{
         if(c.mode==='avg') return `<td><input class="matrix-price-input" data-price-kind="pricing" data-price-mode="avg" data-col="${c.id}" value="入均"></td>`;
         if(c.mode==='fixed') return `<td class="adj-fix"><div class="matrix-price-editor"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="fixed" data-col="${c.id}" value="${fmtNum(c.fixedPrice)}"><span class="matrix-price-suffix">/1</span></div></td>`;
@@ -1294,7 +1306,7 @@ class Component extends DCLogic {
         });
       });
       const color=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
-      const qrHtml=paymentQrImg?`<div class="payment-code-export"><img src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
+      const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th ${editAttr('header:cn')}>${edited('header:cn','CN')}</th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody></table>${qrHtml}</div>`;
     }
     function syncPaymentControls(){
@@ -1354,7 +1366,7 @@ class Component extends DCLogic {
         } else {
           countHtml='';
         }
-        const imgHtml=c.img?`<img class="cart-img" src="${c.img}">`:`<div class="cart-img-empty">未加图片</div>`;
+        const imgHtml=c.img?`<img class="cart-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:`<div class="cart-img-empty">未加图片</div>`;
         return `<div class="cart-card">${imgHtml}${priceHtml}${countHtml}<div class="cart-name">${escapeHtml(c.name)}</div></div>`;
       }).join('');
     }
@@ -1829,25 +1841,25 @@ class Component extends DCLogic {
     },true);
     $('cartQrInput').addEventListener('change',e=>{
       const file=e.target.files[0]; if(!file) return;
-      compressImage(file,600,0.92).then(data=>{ cartQrImg=data; saveState(); syncCartControls(); renderCart(); }).catch(()=>alert('二维码图片处理失败'));
+      compressImage(file,600,0.92).then(data=>{ sharedCartQrImg=cartQrImg=data; saveState(); syncCartControls(); renderCart(); }).catch(()=>alert('二维码图片处理失败'));
       e.target.value='';
     });
-    $('clearCartQrBtn').addEventListener('click',()=>{ cartQrImg=''; saveState(); syncCartControls(); renderCart(); });
+    $('clearCartQrBtn').addEventListener('click',()=>{ sharedCartQrImg=cartQrImg=''; saveState(); syncCartControls(); renderCart(); });
     function handlePaymentQr(file){
       if(!file) return;
       compressQrPng(file,1600).then(data=>{
-        paymentQrImg=data;
+        sharedPaymentQrImg=paymentQrImg=data;
         saveState(); syncPaymentControls(); renderPaymentSummary();
       }).catch(()=>alert('收款码图片处理失败'));
     }
     $('paymentQrInput').addEventListener('change',e=>{ handlePaymentQr(e.target.files[0]); e.target.value=''; });
-    $('clearPaymentQrBtn').addEventListener('click',()=>{ paymentQrImg=''; saveState(); syncPaymentControls(); renderPaymentSummary(); });
+    $('clearPaymentQrBtn').addEventListener('click',()=>{ sharedPaymentQrImg=paymentQrImg=''; saveState(); syncPaymentControls(); renderPaymentSummary(); });
     $('cartRefreshBtn').addEventListener('click',renderCart);
     $('cartExportPngBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
       const wrap=$('cartWrap'), oldWidth=wrap.style.width;
       wrap.style.width='1000px';
-      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:1000,height:wrap.scrollHeight,windowWidth:1040,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,'推车图.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{ wrap.style.width=oldWidth; });
+      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:1000,height:wrap.scrollHeight,windowWidth:1040,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,'推车图.png')).catch(()=>alert('导出失败，请确认图片已加载后重试')).finally(()=>{ wrap.style.width=oldWidth; });
     });
     $('exportPaymentBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'||!$('paymentSummary').querySelector('table')){ alert('还没有收款数据'); return; }
@@ -1856,7 +1868,7 @@ class Component extends DCLogic {
       const width=Math.max(680,table.scrollWidth+4);
       scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; wrap.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
       const name=(paymentTitle||'收款统计').replace(/[\\/:*?"<>|]/g,' ').trim()||'收款统计';
-      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; sticky.forEach(el=>{ el.style.position=''; });
       });
     });
@@ -1881,6 +1893,24 @@ class Component extends DCLogic {
     });
 
     // exports
+    async function waitForExportImages(root){
+      const images=[...root.querySelectorAll('img')].filter(img=>img.style.display!=='none');
+      await Promise.all(images.map(img=>new Promise(resolve=>{
+        let done=false;
+        const finish=()=>{ if(done) return; done=true; clearTimeout(timer); resolve(); };
+        const timer=setTimeout(finish,12000);
+        if(img.complete){
+          if(img.naturalWidth>0&&typeof img.decode==='function') img.decode().catch(()=>{}).finally(finish);
+          else finish();
+        }else{
+          img.addEventListener('load',finish,{once:true}); img.addEventListener('error',finish,{once:true});
+        }
+      })));
+    }
+    async function renderExportCanvas(root,options){
+      await waitForExportImages(root);
+      return html2canvas(root,{useCORS:true,allowTaint:false,imageTimeout:20000,logging:false,...options});
+    }
     async function saveCanvasImage(canvas,filename){
       const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
       if(!blob) throw new Error('图片生成失败');
@@ -1908,7 +1938,7 @@ class Component extends DCLogic {
       scrollers.forEach(el=>{ el.style.maxHeight='none'; el.style.overflow='visible'; el.style.width=width+'px'; });
       sticky.forEach(el=>{ el.style.position='static'; });
       summary.style.width=(width+24)+'px'; summary.style.padding='12px'; summary.style.background='#fff';
-      html2canvas(summary,{backgroundColor:'#ffffff',scale:2,width:summary.scrollWidth,height:summary.scrollHeight,windowWidth:summary.scrollWidth+40,windowHeight:summary.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,quantityExportName('png'))).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(summary,{backgroundColor:'#ffffff',scale:2,width:summary.scrollWidth,height:summary.scrollHeight,windowWidth:summary.scrollWidth+40,windowHeight:summary.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,quantityExportName('png'))).catch(()=>alert('导出失败，请重试')).finally(()=>{
         oldScroll.forEach(item=>{ item.el.style.maxHeight=item.maxHeight; item.el.style.overflow=item.overflow; item.el.style.width=item.width; });
         sticky.forEach(el=>{ el.style.position=''; });
         summary.style.width=oldSummary.width; summary.style.padding=oldSummary.padding; summary.style.background=oldSummary.background;
@@ -1930,7 +1960,7 @@ class Component extends DCLogic {
       scroll.style.maxHeight='none'; scroll.style.overflow='visible';
       wrap.style.width=Math.max(wrap.clientWidth,table.scrollWidth+12)+'px';
       const name=(matrixTitle||'排单表').replace(/[\\/:*?"<>|]/g,' ').trim()||'排单表';
-      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroll.style.maxHeight=old.maxHeight; scroll.style.overflow=old.overflow; wrap.style.width=old.width;
         sticky.forEach(el=>{ if(el) el.style.position=''; });
       });
@@ -1995,11 +2025,11 @@ class Component extends DCLogic {
     $('exportCurrentJsonBtn').addEventListener('click',()=>{
       captureActiveSheet();
       const sheet=sheets.find(s=>s.id===activeSheetId);
-      downloadBackup({...sheet},`${sheet.name||'本表'}备份.json`);
+      downloadBackup({...sheet,sharedCartQrImg,sharedPaymentQrImg},`${sheet.name||'本表'}备份.json`);
     });
     $('exportJsonBtn').addEventListener('click',()=>{
       captureActiveSheet();
-      downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed},'全部排单备份.json');
+      downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg},'全部排单备份.json');
     });
     $('excelImportInput').addEventListener('change',e=>{
       const file=e.target.files[0]; if(!file) return;
@@ -2052,18 +2082,22 @@ class Component extends DCLogic {
           const d=JSON.parse(reader.result);
           if(Array.isArray(d.sheets)&&d.sheets.length){
             sheets=d.sheets; itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[]; catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
+            sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
+            sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||'';
+            sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
             activeSheetId=sheets.some(s=>s.id===d.activeSheetId)?d.activeSheetId:sheets[0].id;
             applySheet(sheets.find(s=>s.id===activeSheetId)); saveState();
           }else{
             columns=Array.isArray(d.columns)?d.columns.map(migrateColumn):[]; allocations=d.allocations||{};
             cartNote=d.cartNote||''; cartTargetMode=d.cartTargetMode||'auto';
             cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null; applyCost(d.cost);
-            cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=d.cartQrImg||'';
+            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
+            cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=sharedCartQrImg;
             matrixTitle=d.matrixTitle||''; matrixColor=d.matrixColor||'#d1466a';
             paymentTitle=d.paymentTitle||''; paymentColor=d.paymentColor||'#d1466a'; paymentViewMode=d.paymentViewMode==='merged'?'merged':'detail';
             paymentStartRow=Math.max(1,parseInt(d.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(d.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(d.paymentEndRow,10)):null;
             paymentEdits=d.paymentEdits||{};
-            paymentQrImg=d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
+            paymentQrImg=sharedPaymentQrImg;
             quantityConfigured=d.quantityConfigured===true;
             boxSize=quantityConfigured&&Number.isFinite(parseInt(d.boxSize,10))?Math.max(1,parseInt(d.boxSize,10)):null;
             groupSize=quantityConfigured&&Number.isFinite(parseInt(d.groupSize,10))?Math.max(1,parseInt(d.groupSize,10)):null;
