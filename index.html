@@ -1394,6 +1394,49 @@ class Component extends DCLogic {
         return true;
       }).map(collapseCjkSpaces).join('\n');
     }
+    function loadOcrImage(file){
+      return new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>{ const img=new Image(); img.onload=()=>resolve(img); img.onerror=reject; img.src=reader.result; };
+        reader.onerror=reject; reader.readAsDataURL(file);
+      });
+    }
+    async function preprocessOcrImage(file){
+      const img=await loadOcrImage(file), source=document.createElement('canvas'), sourceCtx=source.getContext('2d',{willReadFrequently:true});
+      source.width=img.naturalWidth||img.width; source.height=img.naturalHeight||img.height; sourceCtx.drawImage(img,0,0);
+      // 缩小扫描，自动寻找黑色封面下方的大面积白色评论面板。
+      const scan=document.createElement('canvas'), scanWidth=Math.min(260,source.width), scanScale=scanWidth/source.width;
+      scan.width=scanWidth; scan.height=Math.max(1,Math.round(source.height*scanScale));
+      const scanCtx=scan.getContext('2d',{willReadFrequently:true}); scanCtx.drawImage(source,0,0,scan.width,scan.height);
+      const pixels=scanCtx.getImageData(0,0,scan.width,scan.height).data;
+      let panelY=Math.round(source.height*0.18), streak=0, found=-1;
+      for(let y=Math.round(scan.height*0.15);y<Math.round(scan.height*0.82);y++){
+        let white=0;
+        for(let x=0;x<scan.width;x+=2){
+          const i=(y*scan.width+x)*4, r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+          if(r>232&&g>232&&b>232&&Math.max(r,g,b)-Math.min(r,g,b)<18) white++;
+        }
+        const ratio=white/Math.ceil(scan.width/2);
+        if(ratio>0.78){ streak++; if(streak>=5){ found=y-4; break; } } else streak=0;
+      }
+      if(found>=0) panelY=Math.max(0,Math.round(found/scanScale));
+      // 左侧头像和右侧滚动条不参与识别，保留人物名与需求正文。
+      const cropX=Math.round(source.width*0.095), cropRight=Math.round(source.width*0.975);
+      const cropY=panelY, cropWidth=Math.max(1,cropRight-cropX), cropHeight=Math.max(1,source.height-cropY-Math.round(source.height*0.025));
+      const scale=Math.min(3,Math.max(1.8,1900/cropWidth)), output=document.createElement('canvas');
+      output.width=Math.round(cropWidth*scale); output.height=Math.round(cropHeight*scale);
+      const ctx=output.getContext('2d',{willReadFrequently:true}); ctx.fillStyle='#fff'; ctx.fillRect(0,0,output.width,output.height);
+      ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; ctx.drawImage(source,cropX,cropY,cropWidth,cropHeight,0,0,output.width,output.height);
+      // 浅灰人物名加深，同时把接近白色的背景清干净。
+      const image=ctx.getImageData(0,0,output.width,output.height), data=image.data;
+      for(let i=0;i<data.length;i+=4){
+        const lum=data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114;
+        let value=Math.round(255-(255-lum)*2.05); value=Math.max(0,Math.min(255,value));
+        if(value>238) value=255;
+        data[i]=data[i+1]=data[i+2]=value;
+      }
+      ctx.putImageData(image,0,0); return output;
+    }
 
     // ---------- wire static controls ----------
     ['priceType','count','jpyPrice','exchangeRate','averageMode','manualAveragePrice','ticketFee','transportFee'].forEach(id=>{
@@ -1803,9 +1846,11 @@ class Component extends DCLogic {
       if(typeof Tesseract==='undefined'){ ocrStatus.textContent='识别库尚未加载完成，请确认联网后稍等几秒再试'; return; }
       let combined=[];
       for(let i=0;i<files.length;i++){
-        ocrStatus.textContent=`识别第 ${i+1}/${files.length} 张...`;
+        ocrStatus.textContent=`增强第 ${i+1}/${files.length} 张评论区...`;
         try{
-          const {data:{text}}=await Tesseract.recognize(files[i],'chi_sim+eng',{logger:m=>{ if(m.status==='recognizing text') ocrStatus.textContent=`识别第 ${i+1}/${files.length} 张... ${Math.round((m.progress||0)*100)}%`; }});
+          let target=files[i];
+          try{ target=await preprocessOcrImage(files[i]); }catch(_){ target=files[i]; }
+          const {data:{text}}=await Tesseract.recognize(target,'chi_sim+eng',{logger:m=>{ if(m.status==='recognizing text') ocrStatus.textContent=`识别第 ${i+1}/${files.length} 张... ${Math.round((m.progress||0)*100)}%`; }});
           combined.push(cleanOcrText(text));
         }catch(err){ ocrStatus.textContent=`第 ${i+1} 张识别失败：${err.message}`; }
       }
