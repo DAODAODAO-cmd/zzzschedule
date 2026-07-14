@@ -193,12 +193,12 @@
   <div class="panel mobile-core" id="quantityPanel">
     <h2>⑥ 数量统计</h2>
     <div class="quantity-controls">
-      <input id="boxSizeInput" type="hidden" value="65">
-      <input id="groupSizeInput" type="hidden" value="5">
+      <input id="boxSizeInput" type="hidden" value="">
+      <input id="groupSizeInput" type="hidden" value="">
       <input id="completeMultipleInput" type="hidden" value="">
-      <label>每盒数量 <span class="count-value-editor" id="editBoxSizeBtn" contenteditable="true" inputmode="numeric" spellcheck="false">65</span></label>
-      <label>每行计数 <span class="count-value-editor" id="editGroupSizeBtn" contenteditable="true" inputmode="numeric" spellcheck="false">5</span></label>
-      <label>每几盒标记 <span class="count-value-editor" id="editCompleteMultipleBtn" contenteditable="true" inputmode="numeric" spellcheck="false">每盒</span></label>
+      <label>每盒数量 <span class="count-value-editor" id="editBoxSizeBtn" contenteditable="true" inputmode="numeric" spellcheck="false"></span></label>
+      <label>每行计数 <span class="count-value-editor" id="editGroupSizeBtn" contenteditable="true" inputmode="numeric" spellcheck="false"></span></label>
+      <label>每几盒标记 <span class="count-value-editor" id="editCompleteMultipleBtn" contenteditable="true" inputmode="numeric" spellcheck="false"></span></label>
       <span class="hint">点数字直接改，离开后保存</span>
     </div>
     <div id="quantitySummary"></div>
@@ -212,6 +212,7 @@
     <h2>⑦ 收款统计</h2>
     <div class="payment-heading-tools">
       <input id="paymentTitleInput" type="text" placeholder="填写项目名称">
+      <label>显示方式 <select id="paymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
       <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
     </div>
     <div class="payment-qr-tools">
@@ -411,9 +412,10 @@ class Component extends DCLogic {
 #matrixTable tbody tr.complete-row td.cell:focus{ background:#fff; color:var(--text); }
 #matrixTable tbody td.cell.person-highlight{ background:#ffe36e!important; color:#452d00!important; box-shadow:inset 0 0 0 3px #e0a900!important; font-weight:900; }
 .payment-summary{ margin-top:12px; }
-.payment-heading-tools{ display:grid; grid-template-columns:minmax(180px,1fr) auto; align-items:center; gap:10px; }
+.payment-heading-tools{ display:grid; grid-template-columns:minmax(180px,1fr) auto auto; align-items:center; gap:10px; }
 .payment-heading-tools label{ display:flex; align-items:center; gap:7px; margin:0; white-space:nowrap; }
 .payment-heading-tools input[type=color]{ width:42px; height:34px; padding:3px; cursor:pointer; }
+.payment-heading-tools select{ width:auto; min-width:82px; }
 .payment-qr-tools{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:9px; }
 .payment-qr-tools .qr-upload{ min-height:36px; }
 .payment-project-title{ padding:11px 14px; border-radius:9px 9px 0 0; color:#fff; font-size:19px; font-weight:900; text-align:center; }
@@ -450,6 +452,7 @@ class Component extends DCLogic {
 .quantity-controls{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
 .quantity-controls label{ display:flex; align-items:center; gap:7px; margin:0; }
 .count-value-editor{ display:inline-flex; align-items:center; justify-content:center; min-width:68px; min-height:36px; padding:7px 12px; border:1px solid #d9cdd6; border-radius:8px; background:#fff; color:var(--accent); font-size:16px; font-weight:900; cursor:text; }
+.count-value-editor:empty::before{ content:"未设置"; color:var(--muted); font-size:12px; font-weight:700; pointer-events:none; }
 .count-value-editor:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(209,70,106,.12); }
 .wrap #quantityPanel.collapsed > .quantity-controls{ display:flex!important; margin:10px 0 0; }
 .quantity-section-title{ margin:12px 0 6px; font-size:13px; font-weight:900; color:var(--text); }
@@ -544,6 +547,8 @@ class Component extends DCLogic {
   #matrixTable thead td:first-child,#matrixTable thead th:first-child{ background:#f5f2f6; }
   .cart-controls{ overflow-x:auto; padding-bottom:3px; }
   .cart-editor-row{ flex-wrap:wrap; }
+  .payment-heading-tools{ grid-template-columns:1fr 1fr; }
+  .payment-heading-tools > #paymentTitleInput{ grid-column:1/-1; }
   .transfer-row{ grid-template-columns:1fr auto; }
   .transfer-row .hint{ grid-column:1/-1; }
   .data-actions-pop{ position:fixed; left:10px; right:10px; bottom:70px; width:auto; max-width:none; grid-template-columns:1fr; }
@@ -575,10 +580,10 @@ class Component extends DCLogic {
     let previewRows=[], transferPreviewRows=[];
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true;
-    let paymentTitle='', paymentColor='#d1466a';
+    let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail';
     let paymentEdits={};
     let paymentQrImg='';
-    let boxSize=65, groupSize=5, completeMultiple=null;
+    let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
@@ -588,7 +593,7 @@ class Component extends DCLogic {
     const SUPABASE_URL='https://fzxabmdnrkvpgraztcwi.supabase.co';
     const SUPABASE_KEY='sb_publishable_yU4Q1T2RuQfgwOW9Idtf9w__YssVHYe';
 
-    const COST_DEFAULTS={priceType:'total',count:'10',jpyPrice:'16500',exchangeRate:'0.0485',averageMode:'auto',manualAveragePrice:'0',ticketFee:'45',transportFee:'18',shareTicket:false,shareTransport:true};
+    const COST_DEFAULTS={priceType:'total',count:'',jpyPrice:'',exchangeRate:'',averageMode:'auto',manualAveragePrice:'',ticketFee:'0',transportFee:'0',shareTicket:false,shareTransport:false};
 
     // ---------- persistence ----------
     function snapshotCost(){
@@ -598,10 +603,10 @@ class Component extends DCLogic {
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,paymentTitle,paymentColor,paymentEdits,paymentQrImg,boxSize,groupSize,completeMultiple};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartQrImg,showPricingRow,showUnitPriceRow,paymentTitle,paymentColor,paymentViewMode,paymentEdits,paymentQrImg,boxSize,groupSize,completeMultiple,quantityConfigured};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,paymentTitle:'',paymentColor:'#d1466a',paymentEdits:{},paymentQrImg:'',boxSize:65,groupSize:5,completeMultiple:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartQrImg:'',showPricingRow:true,showUnitPriceRow:true,paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentEdits:{},paymentQrImg:'',boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -618,14 +623,15 @@ class Component extends DCLogic {
       cartTargetMode=sheet.cartTargetMode||'auto';
       cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
       cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
-      paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a';
+      paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
       paymentEdits=sheet.paymentEdits||{};
       paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
       highlightedPerson='';
-      boxSize=Math.max(1,parseInt(sheet.boxSize,10)||65);
-      groupSize=Math.max(1,parseInt(sheet.groupSize,10)||5);
-      completeMultiple=Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
-      $('boxSizeInput').value=boxSize; $('groupSizeInput').value=groupSize; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
+      quantityConfigured=sheet.quantityConfigured===true;
+      boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
+      groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
+      completeMultiple=quantityConfigured&&Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
+      $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
       showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false;
       previewRows=[];
       colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1;
@@ -685,12 +691,14 @@ class Component extends DCLogic {
             allocations=sheet.allocations||{}; cartNote=sheet.cartNote||'';
             cartTargetMode=sheet.cartTargetMode||'auto'; cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
             cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sheet.cartQrImg||'';
-            paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a';
+            paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
             paymentEdits=sheet.paymentEdits||{};
             paymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
-            boxSize=Math.max(1,parseInt(sheet.boxSize,10)||65); groupSize=Math.max(1,parseInt(sheet.groupSize,10)||5);
-            completeMultiple=Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
-            $('boxSizeInput').value=boxSize; $('groupSizeInput').value=groupSize; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
+            quantityConfigured=sheet.quantityConfigured===true;
+            boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
+            groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
+            completeMultiple=quantityConfigured&&Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
+            $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
             showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false;
             colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1; applyCost(sheet.cost);
           }else{
@@ -1093,6 +1101,7 @@ class Component extends DCLogic {
     }
 
     // ---------- matrix ----------
+    function quantitySettingsReady(){ return Number.isFinite(boxSize)&&boxSize>0&&Number.isFinite(groupSize)&&groupSize>0; }
     function renderMatrix(){
       const thead=document.querySelector('#matrixTable thead');
       const tbody=$('matrixTableBody');
@@ -1116,9 +1125,9 @@ class Component extends DCLogic {
       let bodyHtml='';
       for(let r=0;r<displayRows;r++){
         const rowFilled=r<maxRows&&columns.length>0&&columns.every(c=>String((allocations[c.id]||[])[r]||'').trim());
-        const countValue=(r+1)*groupSize, previousValue=r*groupSize;
-        const boxNumber=Math.floor(countValue/boxSize), crossedBox=boxNumber>Math.floor(previousValue/boxSize);
-        const markBox=crossedBox&&(!completeMultiple||boxNumber%completeMultiple===0);
+        const step=quantitySettingsReady()?groupSize:1, countValue=(r+1)*step, previousValue=r*step;
+        const boxNumber=quantitySettingsReady()?Math.floor(countValue/boxSize):0, crossedBox=quantitySettingsReady()&&boxNumber>Math.floor(previousValue/boxSize);
+        const markBox=crossedBox&&Number.isFinite(completeMultiple)&&completeMultiple>0&&boxNumber%completeMultiple===0;
         const rowClasses=[rowFilled?'complete-row':'',markBox?'box-boundary-row':''].filter(Boolean).join(' ');
         bodyHtml+=`<tr class="${rowClasses}"${markBox?` title="第 ${boxNumber} 盒节点"`:''}><td class="seq-col">${countValue}</td>`+columns.map(c=>{
           const arr=allocations[c.id]||[];
@@ -1145,6 +1154,7 @@ class Component extends DCLogic {
     function renderQuantitySummary(){
       const el=$('quantitySummary');
       if(!columns.length){ el.innerHTML='<div class="hint">有排单数据后会自动统计。</div>'; return; }
+      if(!quantitySettingsReady()){ el.innerHTML='<div class="hint quantity-not-set">填写“每盒数量”和“每行计数”后，才会启用上车统计。</div>'; return; }
       const aggregateRange=(arr,start,end)=>{
         const people=new Map();
         for(let row=start;row<Math.min(end,arr.length);row++){
@@ -1180,8 +1190,9 @@ class Component extends DCLogic {
       const people=new Map();
       columns.forEach(c=>(allocations[c.id]||[]).forEach(person=>{
         const name=String(person||'').trim(); if(!name) return;
-        if(!people.has(name)) people.set(name,{total:0,items:new Map()});
-        const row=people.get(name); row.total+=unitPrice(c); row.items.set(c.name,(row.items.get(c.name)||0)+1);
+        const key=name.replace(/\s+/g,'').toLowerCase();
+        if(!people.has(key)) people.set(key,{name,total:0,items:new Map()});
+        const row=people.get(key); row.total+=unitPrice(c); row.items.set(c.name,(row.items.get(c.name)||0)+1);
       }));
       const el=$('paymentSummary');
       if(!people.size){ el.innerHTML=''; return; }
@@ -1189,8 +1200,14 @@ class Component extends DCLogic {
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(paymentEdits,key)?paymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
-      [...people.entries()].forEach(([name,data])=>{
+      [...people.values()].forEach(data=>{
+        const name=data.name;
         const items=[...data.items.entries()], span=items.length, payable=feeAmount(data.total);
+        if(paymentViewMode==='merged'){
+          const itemText=items.map(([item,count])=>`${item}×${count}`).join('、'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
+          rows+=`<tr><td class="payment-cn" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,totalQty)}</td><td class="payment-money" ${editAttr('alipay:'+name)}>${edited('alipay:'+name,data.total.toFixed(2))}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
+          return;
+        }
         items.forEach(([item,count],index)=>{
           rows+='<tr>';
           if(index===0) rows+=`<td class="payment-cn" rowspan="${span}" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</td>`;
@@ -1206,6 +1223,7 @@ class Component extends DCLogic {
     function syncPaymentControls(){
       $('paymentTitleInput').value=paymentTitle;
       $('paymentColorInput').value=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
+      $('paymentViewMode').value=paymentViewMode;
       $('clearPaymentQrBtn').style.display=paymentQrImg?'':'none';
     }
 
@@ -1480,20 +1498,20 @@ class Component extends DCLogic {
       $('transferPreviewStatus').style.color='var(--good)';
     });
     function applyQuantitySettings(){
-      const nextBox=parseInt($('boxSizeInput').value,10), nextStep=parseInt($('groupSizeInput').value,10);
-      if(!Number.isFinite(nextBox)||nextBox<1||!Number.isFinite(nextStep)||nextStep<1){
-        $('boxSizeInput').value=boxSize; $('groupSizeInput').value=groupSize; syncQuantityControlLabels(); alert('每盒数量和每行计数要填写大于 0 的数字'); return;
-      }
+      const boxText=String($('boxSizeInput').value||'').trim(), stepText=String($('groupSizeInput').value||'').trim();
+      const nextBox=boxText?parseInt(boxText,10):null, nextStep=stepText?parseInt(stepText,10):null;
+      if((boxText&&(!Number.isFinite(nextBox)||nextBox<1))||(stepText&&(!Number.isFinite(nextStep)||nextStep<1))){ syncQuantityControlLabels(); return; }
       boxSize=nextBox; groupSize=nextStep;
       const markValue=parseInt($('completeMultipleInput').value,10);
       completeMultiple=Number.isFinite(markValue)?Math.max(1,markValue):null;
-      $('boxSizeInput').value=boxSize; $('groupSizeInput').value=groupSize; $('completeMultipleInput').value=completeMultiple||'';
+      quantityConfigured=!!(boxSize||groupSize||completeMultiple);
+      $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||'';
       syncQuantityControlLabels(); saveState(); renderMatrix();
     }
     function syncQuantityControlLabels(){
-      $('editBoxSizeBtn').textContent=String(boxSize);
-      $('editGroupSizeBtn').textContent=String(groupSize);
-      $('editCompleteMultipleBtn').textContent=completeMultiple?String(completeMultiple):'每盒';
+      $('editBoxSizeBtn').textContent=boxSize?String(boxSize):'';
+      $('editGroupSizeBtn').textContent=groupSize?String(groupSize):'';
+      $('editCompleteMultipleBtn').textContent=completeMultiple?String(completeMultiple):'';
     }
     function commitQuantityEditor(editorId,inputId,allowBlank){
       const editor=$(editorId), text=String(editor.textContent||'').replace(/[^0-9]/g,'').trim();
@@ -1504,9 +1522,8 @@ class Component extends DCLogic {
       }
       applyQuantitySettings();
     }
-    [['editBoxSizeBtn','boxSizeInput',false],['editGroupSizeBtn','groupSizeInput',false],['editCompleteMultipleBtn','completeMultipleInput',true]].forEach(([editorId,inputId,allowBlank])=>{
+    [['editBoxSizeBtn','boxSizeInput',true],['editGroupSizeBtn','groupSizeInput',true],['editCompleteMultipleBtn','completeMultipleInput',true]].forEach(([editorId,inputId,allowBlank])=>{
       const editor=$(editorId);
-      editor.addEventListener('focus',()=>{ if(allowBlank&&editor.textContent.trim()==='每盒') editor.textContent=''; });
       editor.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); editor.blur(); } });
       editor.addEventListener('blur',()=>commitQuantityEditor(editorId,inputId,allowBlank));
     });
@@ -1644,6 +1661,7 @@ class Component extends DCLogic {
     $('cartColumns').addEventListener('change',e=>{ cartColumns=Math.max(2,parseInt(e.target.value,10)||4); saveState(); renderCart(); });
     $('paymentTitleInput').addEventListener('input',e=>{ paymentTitle=e.target.value; saveState(); renderPaymentSummary(); });
     $('paymentColorInput').addEventListener('input',e=>{ paymentColor=e.target.value; saveState(); renderPaymentSummary(); });
+    $('paymentViewMode').addEventListener('change',e=>{ paymentViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderPaymentSummary(); });
     $('paymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     $('paymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-payment-key]'); if(!cell) return;
@@ -1670,13 +1688,18 @@ class Component extends DCLogic {
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
       const wrap=$('cartWrap'), oldWidth=wrap.style.width;
       wrap.style.width='1000px';
-      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:1000,height:wrap.scrollHeight,windowWidth:1040}).then(canvas=>{ const a=document.createElement('a'); a.download='推车图.png'; a.href=canvas.toDataURL('image/png'); a.click(); }).finally(()=>{ wrap.style.width=oldWidth; });
+      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:1000,height:wrap.scrollHeight,windowWidth:1040,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,'推车图.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{ wrap.style.width=oldWidth; });
     });
     $('exportPaymentBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'||!$('paymentSummary').querySelector('table')){ alert('还没有收款数据'); return; }
-      const wrap=$('paymentSummary'), scroller=wrap.querySelector('.payment-table-wrap'), old=scroller.style.maxHeight;
-      scroller.style.maxHeight='none';
-      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight}).then(canvas=>{ const a=document.createElement('a'); a.download=(paymentTitle||'收款统计')+'.png'; a.href=canvas.toDataURL('image/png'); a.click(); }).finally(()=>{ scroller.style.maxHeight=old; });
+      const wrap=$('paymentSummary'), scroller=wrap.querySelector('.payment-table-wrap'), table=scroller.querySelector('table'), sticky=[...table.querySelectorAll('th')];
+      const old={maxHeight:scroller.style.maxHeight,overflow:scroller.style.overflow,width:scroller.style.width,wrapWidth:wrap.style.width};
+      const width=Math.max(680,table.scrollWidth+4);
+      scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; wrap.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
+      const name=(paymentTitle||'收款统计').replace(/[\\/:*?"<>|]/g,' ').trim()||'收款统计';
+      html2canvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+        scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; sticky.forEach(el=>{ el.style.position=''; });
+      });
     });
     $('exportPaymentExcelBtn').addEventListener('click',()=>{
       const table=$('paymentSummary').querySelector('table');
@@ -1736,7 +1759,7 @@ class Component extends DCLogic {
       if(typeof XLSX==='undefined'){ alert('表格组件尚未加载，请联网后重试'); return; }
       const table=$('quantitySummary').querySelector('.quantity-ride-table'); if(!table){ alert('还没有数量统计'); return; }
       const ws=XLSX.utils.table_to_sheet(table,{raw:true}); ws['!cols']=[{wch:18},{wch:18},{wch:18},{wch:12},{wch:12},{wch:28}];
-      const settings=XLSX.utils.aoa_to_sheet([['每盒数量',boxSize],['每行计数',groupSize],['每几盒标记',completeMultiple||'每盒']]); settings['!cols']=[{wch:16},{wch:14}];
+      const settings=XLSX.utils.aoa_to_sheet([['是否启用',quantitySettingsReady()?'是':'否'],['每盒数量',boxSize||''],['每行计数',groupSize||''],['每几盒标记',completeMultiple||'']]); settings['!cols']=[{wch:16},{wch:14}];
       const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'上车名单'); XLSX.utils.book_append_sheet(wb,settings,'计数设置'); XLSX.writeFile(wb,quantityExportName('xlsx'));
     });
     $('exportPngBtn').addEventListener('click',()=>{
@@ -1759,7 +1782,8 @@ class Component extends DCLogic {
       lines.push(['',...columns.map(c=>c.name)].join('\t'));
       lines.push(['调价',...columns.map(c=> c.mode==='avg'?'入均':(c.mode==='fixed'?(fmtNum(c.fixedPrice)+'/1'):(c.mode==='single'?('原价'+fmtNum(c.sourceJpyPrice)+'日元'):((num(c.priceAdj)>0?'+':'')+fmtNum(c.priceAdj)))))].join('\t'));
       lines.push(['单价',...columns.map(c=>unitPrice(c).toFixed(2))].join('\t'));
-      for(let r=0;r<maxRows;r++) lines.push([(r+1)*groupSize,...columns.map(c=>(allocations[c.id]||[])[r]||'')].join('\t'));
+      const step=quantitySettingsReady()?groupSize:1;
+      for(let r=0;r<maxRows;r++) lines.push([(r+1)*step,...columns.map(c=>(allocations[c.id]||[])[r]||'')].join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const btn=$('copyTsvBtn'); const old=btn.textContent; btn.textContent='已复制 ✓'; setTimeout(()=>btn.textContent=old,1500); });
     });
     function sheetPriceInfo(sheet){
@@ -1778,7 +1802,7 @@ class Component extends DCLogic {
       const {cols,price}=sheetPriceInfo(sheet), data=sheet.allocations||{}, maxRows=Math.max(0,...cols.map(c=>(data[c.id]||[]).length));
       const pricing=c=>c.mode==='avg'?'入均':c.mode==='fixed'?`${fmtNum(c.fixedPrice)}/1`:c.mode==='single'?`原价${fmtNum(c.sourceJpyPrice)}日元`:`${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`;
       const rows=[['',...cols.map(c=>c.name)],['调价',...cols.map(pricing)],['单价',...cols.map(c=>Number(price(c).toFixed(2)))]];
-      const step=Math.max(1,parseInt(sheet.groupSize,10)||5);
+      const step=sheet.quantityConfigured===true&&Number.isFinite(parseInt(sheet.boxSize,10))&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):1;
       for(let r=0;r<maxRows;r++) rows.push([(r+1)*step,...cols.map(c=>(data[c.id]||[])[r]||'')]);
       return rows;
     }
@@ -1875,12 +1899,14 @@ class Component extends DCLogic {
             cartNote=d.cartNote||''; cartTargetMode=d.cartTargetMode||'auto';
             cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null; applyCost(d.cost);
             cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=d.cartQrImg||'';
-            paymentTitle=d.paymentTitle||''; paymentColor=d.paymentColor||'#d1466a';
+            paymentTitle=d.paymentTitle||''; paymentColor=d.paymentColor||'#d1466a'; paymentViewMode=d.paymentViewMode==='merged'?'merged':'detail';
             paymentEdits=d.paymentEdits||{};
             paymentQrImg=d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
-            boxSize=Math.max(1,parseInt(d.boxSize,10)||65); groupSize=Math.max(1,parseInt(d.groupSize,10)||5);
-            completeMultiple=Number.isFinite(parseInt(d.completeMultiple,10))?Math.max(1,parseInt(d.completeMultiple,10)):null;
-            $('boxSizeInput').value=boxSize; $('groupSizeInput').value=groupSize; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
+            quantityConfigured=d.quantityConfigured===true;
+            boxSize=quantityConfigured&&Number.isFinite(parseInt(d.boxSize,10))?Math.max(1,parseInt(d.boxSize,10)):null;
+            groupSize=quantityConfigured&&Number.isFinite(parseInt(d.groupSize,10))?Math.max(1,parseInt(d.groupSize,10)):null;
+            completeMultiple=quantityConfigured&&Number.isFinite(parseInt(d.completeMultiple,10))?Math.max(1,parseInt(d.completeMultiple,10)):null;
+            $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
             showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false;
             syncMatrixOptions();
             syncCartControls(); saveState(); renderColumnList(); recalc();
