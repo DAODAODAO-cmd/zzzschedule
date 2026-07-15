@@ -182,6 +182,7 @@
     <div class="matrix-options">
       <button type="button" class="matrix-toggle" id="showPricingRow">隐藏调价</button>
       <button type="button" class="matrix-toggle" id="showUnitPriceRow">隐藏单价</button>
+      <button type="button" class="matrix-toggle" id="showCompleteRowColor">关闭满配变色</button>
     </div>
     <div class="hint matrix-tip">点格子改字，拖动换位置。</div>
     <div id="matrixWrap">
@@ -610,7 +611,7 @@ class Component extends DCLogic {
     let allocations={};   // colId -> [person,...]
     let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[];
     let colIdSeed=1, rowIdSeed=1;
-    let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true;
+    let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showCompleteRowColor=true;
     let matrixTitle='', matrixColor='#d1466a';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null;
     let paymentEdits={};
@@ -635,10 +636,10 @@ class Component extends DCLogic {
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showCompleteRowColor,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showCompleteRowColor:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -669,7 +670,7 @@ class Component extends DCLogic {
       groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
       completeMultiple=quantityConfigured&&Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
       $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
-      showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false;
+      showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false; showCompleteRowColor=sheet.showCompleteRowColor!==false;
       previewRows=[];
       colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1;
       applyCost(sheet.cost);
@@ -742,17 +743,18 @@ class Component extends DCLogic {
             groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
             completeMultiple=quantityConfigured&&Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
             $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
-            showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false;
+            showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false; showCompleteRowColor=sheet.showCompleteRowColor!==false;
             colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1; applyCost(sheet.cost);
           }else{
             const first=blankSheet('表1'); activeSheetId=first.id;
             first.columns=Array.isArray(d.columns)?d.columns.map(migrateColumn):[]; first.allocations=d.allocations||{};
             first.cost=d.cost||{...COST_DEFAULTS}; first.cartNote=d.cartNote||'';
             first.cartTargetMode=d.cartTargetMode||'auto'; first.cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null;
+            first.showPricingRow=d.showPricingRow!==false; first.showUnitPriceRow=d.showUnitPriceRow!==false; first.showCompleteRowColor=d.showCompleteRowColor!==false;
             first.matrixTitle=d.matrixTitle||''; first.matrixColor=d.matrixColor||'#d1466a';
             sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             sheets=[first]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showCompleteRowColor=first.showCompleteRowColor; applyCost(first.cost);
           }
           return;
         }
@@ -764,11 +766,13 @@ class Component extends DCLogic {
       $('sheetTabs').innerHTML=sheets.map(s=>`<div class="sheet-tab ${s.id===activeSheetId?'active':''}" data-sheet="${s.id}" title="双击改名"><span class="sheet-tab-name">${escapeHtml(s.name)}</span>${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`).join('');
     }
     function syncMatrixOptions(){
-      const pricing=$('showPricingRow'), unit=$('showUnitPriceRow');
+      const pricing=$('showPricingRow'), unit=$('showUnitPriceRow'), complete=$('showCompleteRowColor');
       pricing.textContent=showPricingRow?'隐藏调价':'显示调价';
       unit.textContent=showUnitPriceRow?'隐藏单价':'显示单价';
+      complete.textContent=showCompleteRowColor?'关闭满配变色':'开启满配变色';
       pricing.classList.toggle('off',!showPricingRow);
       unit.classList.toggle('off',!showUnitPriceRow);
+      complete.classList.toggle('off',!showCompleteRowColor);
       $('matrixTitleInput').value=matrixTitle;
       $('matrixColorInput').value=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
       renderMatrixHeading();
@@ -1215,7 +1219,7 @@ class Component extends DCLogic {
         const step=quantitySettingsReady()?groupSize:1, countValue=(r+1)*step, previousValue=r*step;
         const boxNumber=quantitySettingsReady()?Math.floor(countValue/boxSize):0, crossedBox=quantitySettingsReady()&&boxNumber>Math.floor(previousValue/boxSize);
         const markBox=crossedBox&&Number.isFinite(completeMultiple)&&completeMultiple>0&&boxNumber%completeMultiple===0;
-        const rowClasses=[rowFilled?'complete-row':'',markBox?'box-boundary-row':''].filter(Boolean).join(' ');
+        const rowClasses=[rowFilled&&showCompleteRowColor?'complete-row':'',markBox?'box-boundary-row':''].filter(Boolean).join(' ');
         bodyHtml+=`<tr class="${rowClasses}"${markBox?` title="第 ${boxNumber} 盒节点"`:''}><td class="seq-col">${countValue}</td>`+columns.map(c=>{
           const arr=allocations[c.id]||[];
           const nm=arr[r];
@@ -1451,6 +1455,7 @@ class Component extends DCLogic {
     }));
     $('showPricingRow').addEventListener('click',()=>{ showPricingRow=!showPricingRow; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showUnitPriceRow').addEventListener('click',()=>{ showUnitPriceRow=!showUnitPriceRow; syncMatrixOptions(); saveState(); renderMatrix(); });
+    $('showCompleteRowColor').addEventListener('click',()=>{ showCompleteRowColor=!showCompleteRowColor; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('matrixTitleInput').addEventListener('input',e=>{ matrixTitle=e.target.value; renderMatrixHeading(); saveState(); });
     $('matrixColorInput').addEventListener('input',e=>{ matrixColor=e.target.value; renderMatrixHeading(); saveState(); });
     function setMobileView(full){
@@ -2150,7 +2155,7 @@ class Component extends DCLogic {
             groupSize=quantityConfigured&&Number.isFinite(parseInt(d.groupSize,10))?Math.max(1,parseInt(d.groupSize,10)):null;
             completeMultiple=quantityConfigured&&Number.isFinite(parseInt(d.completeMultiple,10))?Math.max(1,parseInt(d.completeMultiple,10)):null;
             $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
-            showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false;
+            showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false; showCompleteRowColor=d.showCompleteRowColor!==false;
             syncMatrixOptions();
             syncCartControls(); saveState(); renderColumnList(); recalc();
           }
