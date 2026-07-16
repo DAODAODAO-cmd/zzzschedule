@@ -125,7 +125,7 @@
       <button class="btn-primary" id="parseBtn">排单预览</button>
       <button class="btn-ghost" id="transferPreviewBtn">转单预览</button>
       <button class="btn-ghost" id="cancelPreviewBtn">撤单预览</button>
-      <button class="btn-ghost" id="coldPromotionPreviewBtn">带冷提追加预览</button>
+      <button class="btn-ghost" id="coldPromotionPreviewBtn">带冷提配预览</button>
       <button class="btn-ghost" id="clearCommentBtn">清空文字</button>
       <span class="hint">先预览，确认后再写入表格。</span>
     </div>
@@ -197,8 +197,9 @@
       </table>
     </div>
     <div class="toolbar">
-      <button class="btn-primary" id="generateBtn">追加到配比表</button>
-      <span class="hint">这次的内容会追加到已有配比；新角色会自动新增。</span>
+      <button class="btn-primary" id="generateBtn">确认排单</button>
+      <button class="btn-ghost" id="cancelOrderPreviewBtn">取消预览</button>
+      <span class="hint" id="orderPreviewStatus">当前只显示模拟结果；确认追加后才会写入正式排单。</span>
     </div>
   </div>
 
@@ -506,8 +507,9 @@ class Component extends DCLogic {
 .wrap .ocr-thumbs img{ height:70px; border:1px solid var(--line); border-radius:6px; }
 .wrap .toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center; }
 .transfer-row{ display:grid; grid-template-columns:minmax(180px,1fr) auto minmax(100px,auto); gap:8px; align-items:center; margin-top:10px; }
-#transferPreviewTable input,#cancelPreviewTable input{ width:100%; min-width:92px; }
-#transferPreviewTable input[type=number],#cancelPreviewTable input[type=number]{ min-width:64px; width:72px; }
+#transferPreviewTable .action-preview-input,#cancelPreviewTable .action-preview-input{ width:100%; min-width:92px; box-sizing:border-box; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:7px 10px; color:var(--text); font:inherit; outline:none; }
+#transferPreviewTable .action-preview-input:focus,#cancelPreviewTable .action-preview-input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(209,70,106,.12); }
+#transferPreviewTable .action-preview-qty,#cancelPreviewTable .action-preview-qty{ min-width:64px; width:72px; text-align:center; }
 #transferPreviewTable .transfer-ok,#cancelPreviewTable .transfer-ok,#coldPromotionPreviewTable .transfer-ok{ color:var(--ok); font-weight:800; white-space:nowrap; }
 #transferPreviewTable .transfer-bad,#cancelPreviewTable .transfer-bad,#coldPromotionPreviewTable .transfer-bad{ color:var(--bad); font-weight:800; white-space:nowrap; }
 #coldPromotionPreviewTable td{ min-width:92px; }
@@ -657,7 +659,7 @@ class Component extends DCLogic {
     // 模式映射不可互换：avg=均价（旧称入均），adjust=调价，fixed=入均（旧称固定），single=原价换算。
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed'|'single',priceAdj,fixedPrice,img}
     let allocations={};   // colId -> [person,...]
-    let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[], transferPreviewSignature='', cancelPreviewSignature='';
+    let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[], orderPreviewSignature='', transferPreviewSignature='', cancelPreviewSignature='';
     let coldPromotionBatches=[], coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
     let coldCarryBundleColumnIds=[];
     let colIdSeed=1, rowIdSeed=1;
@@ -668,7 +670,7 @@ class Component extends DCLogic {
     let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='';
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
-    let matrixPreviewAllocations=null, matrixPreviewLabel='', matrixPreviewHighlights={completeRows:[],pendingRows:[]};
+    let matrixPreviewAllocations=null, matrixPreviewColumns=null, matrixPreviewLabel='', matrixPreviewHighlights={completeRows:[],pendingRows:[]};
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let undoHistoryBySheet={};
@@ -721,7 +723,7 @@ class Component extends DCLogic {
       if(!sharedPaymentQrImg) sharedPaymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
       paymentQrImg=sharedPaymentQrImg;
       highlightedPerson='';
-      matrixPreviewAllocations=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[]};
+      matrixPreviewAllocations=null; matrixPreviewColumns=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[]};
       quantityConfigured=sheet.quantityConfigured===true;
       boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
       groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
@@ -1289,8 +1291,8 @@ class Component extends DCLogic {
       coldCarryBundleColumnIds=coldCarryBundleColumnIds.filter(colId=>colId!==id);
       saveState(); renderColdBundleConfiguration(); renderColumnList(); recalc();
     };
-    ggz.updatePreview=(id,field,value)=>{ const r=previewRows.find(x=>x.id===id); if(r) r[field]=value; };
-    ggz.removePreviewRow=id=>{ previewRows=previewRows.filter(r=>r.id!==id); renderPreview(); };
+    ggz.updatePreview=(id,field,value)=>{ const r=previewRows.find(x=>x.id===id); if(r){ r[field]=value; refreshOrderMatrixPreview(); } };
+    ggz.removePreviewRow=id=>{ previewRows=previewRows.filter(r=>r.id!==id); renderPreview(); refreshOrderMatrixPreview(); };
     window.ggz=ggz;
 
     // ---------- comment parsing ----------
@@ -1432,58 +1434,85 @@ class Component extends DCLogic {
           <td><button class="btn-danger btn-mini" onclick="ggz.removePreviewRow(${r.id})">删除</button></td>
         </tr>`).join('');
     }
+    function buildOrderMatrixPreview(){
+      const previewColumns=deepClone(columns), previewAllocations=deepClone(allocations);
+      let previewColId=colIdSeed;
+      const findPreviewColumn=text=>{
+        const target=String(text||'').trim().toLowerCase();
+        return previewColumns.find(c=>String(c.name||'').trim().toLowerCase()===target||(c.aliases||[]).some(alias=>String(alias||'').trim().toLowerCase()===target));
+      };
+      previewRows.forEach(row=>{
+        parseDemandText(row.itemsText).forEach(item=>{
+          let col=findPreviewColumn(item.name);
+          if(!col){
+            col={id:previewColId++,name:String(item.name||'新角色').trim(),aliases:[],mode:'avg',priceAdj:0,fixedPrice:0,avgOverride:null,sourceJpyPrice:0,promotionPoints:1,img:null};
+            previewColumns.push(col); previewAllocations[col.id]=[];
+          }
+          const arr=previewAllocations[col.id]||(previewAllocations[col.id]=[]);
+          for(let index=0;index<Math.max(1,parseInt(item.qty,10)||1);index++) arr.push(String(row.person||'').trim());
+        });
+      });
+      return {columns:previewColumns,allocations:previewAllocations};
+    }
+    function refreshOrderMatrixPreview(label='排单追加模拟结果'){
+      if(!previewRows.length){ clearMatrixPreview(); return; }
+      const preview=buildOrderMatrixPreview();
+      showMatrixPreview(preview.allocations,label,null,preview.columns);
+    }
 
     // ---------- matrix ----------
     function quantitySettingsReady(){ return Number.isFinite(boxSize)&&boxSize>0&&Number.isFinite(groupSize)&&groupSize>0; }
-    function showMatrixPreview(previewAllocations,label,highlights){
+    function showMatrixPreview(previewAllocations,label,highlights,previewColumns){
       matrixPreviewAllocations=previewAllocations?deepClone(previewAllocations):null;
+      matrixPreviewColumns=matrixPreviewAllocations&&Array.isArray(previewColumns)?deepClone(previewColumns):null;
       matrixPreviewLabel=matrixPreviewAllocations?(label||'排单模拟预览'):'';
       matrixPreviewHighlights=matrixPreviewAllocations?deepClone(highlights||{completeRows:[],pendingRows:[]}):{completeRows:[],pendingRows:[]};
       renderMatrix();
     }
     function clearMatrixPreview(shouldRender=true){
-      const hadPreview=!!matrixPreviewAllocations; matrixPreviewAllocations=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[]};
+      const hadPreview=!!matrixPreviewAllocations; matrixPreviewAllocations=null; matrixPreviewColumns=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[]};
       if(hadPreview&&shouldRender) renderMatrix();
     }
     function renderMatrix(){
       const thead=document.querySelector('#matrixTable thead');
       const tbody=$('matrixTableBody');
       const emptyEl=$('matrixEmpty');
-      const isPreview=!!matrixPreviewAllocations, displayAllocations=matrixPreviewAllocations||allocations, notice=$('matrixPreviewNotice'), table=$('matrixTable');
+      const isPreview=!!matrixPreviewAllocations, displayAllocations=matrixPreviewAllocations||allocations, displayColumns=isPreview&&matrixPreviewColumns?matrixPreviewColumns:columns, notice=$('matrixPreviewNotice'), table=$('matrixTable');
       const completePreviewRows=new Set((matrixPreviewHighlights.completeRows||[]).map(Number)), pendingPreviewRows=new Map((matrixPreviewHighlights.pendingRows||[]).map(item=>[Number(item.row),String(item.person||'')]));
       notice.style.display=isPreview?'block':'none'; notice.textContent=isPreview?`正在预览：${matrixPreviewLabel}（尚未写入正式排单）`:''; table.classList.toggle('is-preview',isPreview);
-      if(columns.length===0){ thead.innerHTML=''; tbody.innerHTML=''; emptyEl.style.display='block'; $('paymentSummary').innerHTML=''; renderQuantitySummary(); renderCart(); return; }
+      if(displayColumns.length===0){ thead.innerHTML=''; tbody.innerHTML=''; emptyEl.style.display='block'; $('paymentSummary').innerHTML=''; renderQuantitySummary(); renderCart(); return; }
       emptyEl.style.display='none';
-      const maxRows=Math.max(0,...columns.map(c=>(displayAllocations[c.id]||[]).length));
+      const maxRows=Math.max(0,...displayColumns.map(c=>(displayAllocations[c.id]||[]).length));
       const displayRows=maxRows+1;
-      let headHtml='<tr class="header-row"><th></th>'+columns.map(c=>`<th>${c.img?`<img class="head-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:''}${escapeHtml(c.name)}</th>`).join('')+'</tr>';
-      if(showPricingRow) headHtml+='<tr class="adj-row"><td>调价</td>'+columns.map(c=>{
-        if(c.mode==='avg') return `<td><input class="matrix-price-input" data-price-kind="pricing" data-price-mode="avg" data-col="${c.id}" value="均价"></td>`;
-        if(c.mode==='fixed') return `<td class="adj-fix"><div class="matrix-price-editor"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="fixed" data-col="${c.id}" value="${fmtNum(c.fixedPrice)}"><span class="matrix-price-suffix">/1</span></div></td>`;
-        if(c.mode==='single') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">原价</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="single" data-col="${c.id}" value="${fmtNum(c.sourceJpyPrice)}"><span class="matrix-price-suffix">日元</span></div></td>`;
+      const previewReadonly=isPreview?' readonly tabindex="-1"':'';
+      let headHtml='<tr class="header-row"><th></th>'+displayColumns.map(c=>`<th>${c.img?`<img class="head-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:''}${escapeHtml(c.name)}</th>`).join('')+'</tr>';
+      if(showPricingRow) headHtml+='<tr class="adj-row"><td>调价</td>'+displayColumns.map(c=>{
+        if(c.mode==='avg') return `<td><input class="matrix-price-input" data-price-kind="pricing" data-price-mode="avg" data-col="${c.id}" value="均价"${previewReadonly}></td>`;
+        if(c.mode==='fixed') return `<td class="adj-fix"><div class="matrix-price-editor"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="fixed" data-col="${c.id}" value="${fmtNum(c.fixedPrice)}"${previewReadonly}><span class="matrix-price-suffix">/1</span></div></td>`;
+        if(c.mode==='single') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">原价</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="single" data-col="${c.id}" value="${fmtNum(c.sourceJpyPrice)}"${previewReadonly}><span class="matrix-price-suffix">日元</span></div></td>`;
         const adj=num(c.priceAdj);
         const cls=adj>0?'adj-pos':(adj<0?'adj-neg':'');
         const sign=adj>0?'+':'';
-        return `<td class="${cls}"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="adjust" data-col="${c.id}" value="${sign}${fmtNum(adj)}"></td>`;
+        return `<td class="${cls}"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="adjust" data-col="${c.id}" value="${sign}${fmtNum(adj)}"${previewReadonly}></td>`;
       }).join('')+'</tr>';
-      if(showUnitPriceRow) headHtml+='<tr class="price-row"><td>单价</td>'+columns.map(c=>`<td><input class="matrix-price-input" data-price-kind="unit" data-col="${c.id}" value="${unitPrice(c).toFixed(2)}"></td>`).join('')+'</tr>';
-      if(showPromotionPointRow) headHtml+='<tr class="promotion-point-row"><td>提配点数</td>'+columns.map(c=>`<td><input class="matrix-price-input" inputmode="decimal" data-price-kind="promotion-point" data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}"></td>`).join('')+'</tr>';
+      if(showUnitPriceRow) headHtml+='<tr class="price-row"><td>单价</td>'+displayColumns.map(c=>`<td><input class="matrix-price-input" data-price-kind="unit" data-col="${c.id}" value="${unitPrice(c).toFixed(2)}"${previewReadonly}></td>`).join('')+'</tr>';
+      if(showPromotionPointRow) headHtml+='<tr class="promotion-point-row"><td>提配点数</td>'+displayColumns.map(c=>`<td><input class="matrix-price-input" inputmode="decimal" data-price-kind="promotion-point" data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}"${previewReadonly}></td>`).join('')+'</tr>';
       thead.innerHTML=headHtml;
       let bodyHtml='';
       for(let r=0;r<displayRows;r++){
-        const rowFilled=r<maxRows&&columns.length>0&&columns.every(c=>String((displayAllocations[c.id]||[])[r]||'').trim());
+        const rowFilled=r<maxRows&&displayColumns.length>0&&displayColumns.every(c=>String((displayAllocations[c.id]||[])[r]||'').trim());
         const step=quantitySettingsReady()?groupSize:1, countValue=(r+1)*step, previousValue=r*step;
         const boxNumber=quantitySettingsReady()?Math.floor(countValue/boxSize):0, crossedBox=quantitySettingsReady()&&boxNumber>Math.floor(previousValue/boxSize);
         const markBox=crossedBox&&Number.isFinite(completeMultiple)&&completeMultiple>0&&boxNumber%completeMultiple===0;
         const rowClasses=[rowFilled&&showCompleteRowColor?'complete-row':'',markBox?'box-boundary-row':'',isPreview&&completePreviewRows.has(r)?'promotion-bundle-complete':''].filter(Boolean).join(' ');
-        bodyHtml+=`<tr class="${rowClasses}"${markBox?` title="第 ${boxNumber} 盒节点"`:''}><td class="seq-col">${countValue}</td>`+columns.map(c=>{
+        bodyHtml+=`<tr class="${rowClasses}"${markBox?` title="第 ${boxNumber} 盒节点"`:''}><td class="seq-col">${countValue}</td>`+displayColumns.map(c=>{
           const arr=displayAllocations[c.id]||[];
           const nm=arr[r];
           const pendingName=isPreview&&nm&&pendingPreviewRows.get(r)===String(nm);
           return `<td class="cell${nm?' has-name':''}${pendingName?' promotion-bundle-pending':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" contenteditable="${isPreview?'false':'true'}" spellcheck="false" draggable="${!isPreview&&nm?'true':'false'}">${nm?escapeHtml(nm):''}</td>`;
         }).join('')+'</tr>';
       }
-      tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(columns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
+      tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(displayColumns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
       applyPersonHighlight(false);
       renderPaymentSummary();
       renderQuantitySummary();
@@ -1798,19 +1827,29 @@ class Component extends DCLogic {
         const itemsText=items.map(i=>`${i.name}${i.qty}`).join('，');
         return {id:rowIdSeed++,person:c.person,itemsText:itemsText||c.demandText};
       });
+      orderPreviewSignature=actionPreviewDataSignature();
+      $('orderPreviewStatus').textContent='当前只显示模拟结果；确认追加后才会写入正式排单。'; $('orderPreviewStatus').style.color='';
       renderPreview();
       $('previewPanel').style.display=previewRows.length?'block':'none';
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
       $('coldPromotionPreviewPanel').style.display='none';
+      if(previewRows.length) refreshOrderMatrixPreview();
       if(previewRows.length===0) alert('没有识别到任何评论，请检查粘贴的文字格式');
     });
     $('clearCommentBtn').addEventListener('click',()=>{
-      $('commentInput').value=''; previewRows=[]; transferPreviewRows=[]; cancelPreviewRows=[]; clearMatrixPreview(); $('previewPanel').style.display='none'; $('transferPreviewPanel').style.display='none'; $('cancelPreviewPanel').style.display='none'; $('commentInput').focus();
+      $('commentInput').value=''; previewRows=[]; orderPreviewSignature=''; transferPreviewRows=[]; cancelPreviewRows=[]; clearMatrixPreview(); $('previewPanel').style.display='none'; $('transferPreviewPanel').style.display='none'; $('cancelPreviewPanel').style.display='none'; $('commentInput').focus();
     });
 
     $('generateBtn').addEventListener('click',()=>{
-      if(!previewRows.length||!pushUndoSnapshot('order-append','追加排单前')) return;
+      if(!previewRows.length) return;
+      const currentSignature=actionPreviewDataSignature();
+      if(orderPreviewSignature&&orderPreviewSignature!==currentSignature){
+        orderPreviewSignature=currentSignature; refreshOrderMatrixPreview('排单追加模拟结果（已刷新）');
+        $('orderPreviewStatus').textContent='正式排单在预览后发生过变化，已刷新下方模拟结果，请核对后再次确认。';
+        $('orderPreviewStatus').style.color='var(--warn)'; return;
+      }
+      if(!pushUndoSnapshot('order-append','追加排单前')) return;
       columns.forEach(c=>{ if(!Array.isArray(allocations[c.id])) allocations[c.id]=[]; });
       previewRows.forEach(row=>{
         const items=parseDemandText(row.itemsText);
@@ -1820,8 +1859,11 @@ class Component extends DCLogic {
           for(let i=0;i<item.qty;i++) allocations[col.id].push(row.person);
         });
       });
-      saveState(); renderColumnList(); recalc();
-      $('previewPanel').style.display='none';
+      saveState(); clearMatrixPreview(false); renderColumnList(); recalc();
+      previewRows=[]; orderPreviewSignature=''; renderPreview(); $('previewPanel').style.display='none';
+    });
+    $('cancelOrderPreviewBtn').addEventListener('click',()=>{
+      previewRows=[]; orderPreviewSignature=''; renderPreview(); $('previewPanel').style.display='none'; clearMatrixPreview();
     });
 
     $('regenBtn').addEventListener('click',renderMatrix);
@@ -1873,7 +1915,7 @@ class Component extends DCLogic {
     function renderTransferPreview(){
       $('transferPreviewTableBody').innerHTML=transferPreviewRows.map((row,index)=>{
         const check=transferRowCheck(row);
-        return `<tr><td>${index+1}</td><td><input data-transfer-id="${row.id}" data-transfer-field="source" value="${escapeAttr(row.source)}"></td><td><input data-transfer-id="${row.id}" data-transfer-field="itemText" value="${escapeAttr(row.itemText)}"></td><td><input type="number" min="1" data-transfer-id="${row.id}" data-transfer-field="qty" value="${row.qty}"></td><td><input data-transfer-id="${row.id}" data-transfer-field="target" value="${escapeAttr(row.target)}"></td><td class="${check.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(check.text)}</td><td><button class="btn-danger btn-mini" data-remove-transfer="${row.id}">删除</button></td></tr>`;
+        return `<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="source" value="${escapeAttr(row.source)}"></td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="itemText" value="${escapeAttr(row.itemText)}"></td><td><input type="text" inputmode="numeric" pattern="[0-9]*" class="action-preview-input action-preview-qty" data-transfer-id="${row.id}" data-transfer-field="qty" value="${row.qty}"></td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="target" value="${escapeAttr(row.target)}"></td><td class="${check.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(check.text)}</td><td><button class="btn-danger btn-mini" data-remove-transfer="${row.id}">删除</button></td></tr>`;
       }).join('');
       $('confirmTransferBtn').disabled=!transferPreviewRows.length||transferPreviewRows.some(row=>!transferRowCheck(row).ok);
     }
@@ -1968,7 +2010,7 @@ class Component extends DCLogic {
     function renderCancelPreview(){
       $('cancelPreviewTableBody').innerHTML=cancelPreviewRows.map((row,index)=>{
         const check=cancelRowCheck(row,index);
-        return `<tr><td>${index+1}</td><td><input data-cancel-id="${row.id}" data-cancel-field="person" value="${escapeAttr(row.person)}"></td><td><input data-cancel-id="${row.id}" data-cancel-field="itemText" value="${escapeAttr(row.itemText)}"></td><td><input type="number" min="1" data-cancel-id="${row.id}" data-cancel-field="qty" value="${row.qty}"></td><td class="${check.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(check.text)}</td><td><button class="btn-danger btn-mini" data-remove-cancel="${row.id}">删除</button></td></tr>`;
+        return `<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-cancel-id="${row.id}" data-cancel-field="person" value="${escapeAttr(row.person)}"></td><td><input type="text" class="action-preview-input" data-cancel-id="${row.id}" data-cancel-field="itemText" value="${escapeAttr(row.itemText)}"></td><td><input type="text" inputmode="numeric" pattern="[0-9]*" class="action-preview-input action-preview-qty" data-cancel-id="${row.id}" data-cancel-field="qty" value="${row.qty}"></td><td class="${check.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(check.text)}</td><td><button class="btn-danger btn-mini" data-remove-cancel="${row.id}">删除</button></td></tr>`;
       }).join('');
       $('confirmCancelBtn').disabled=!cancelPreviewRows.length||cancelPreviewRows.some((row,index)=>!cancelRowCheck(row,index).ok);
     }
