@@ -2082,6 +2082,7 @@ class Component extends DCLogic {
     }
     function buildColdPromotionPlan(){
       const candidates=parseColdPromotionCandidates(), bundleColumns=activeBundleColumns();
+      const bundleColumnIds=new Set(bundleColumns.map(col=>col.id));
       const maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
       const sim={}, displacementPool=new Map(), claimed=new Set(), lockedRows=new Set(), rows=[];
       let uidSeed=1, resourceSeed=1, originalOrder=1;
@@ -2118,11 +2119,14 @@ class Component extends DCLogic {
       });
       const poolAvailable=colId=>(displacementPool.get(colId)||[]).filter(item=>!item.used);
       const requiredFor=candidate=>bundleColumns.filter(col=>!candidate.leftColumnIds.has(col.id));
+      const candidateHasFatalError=candidate=>candidate.errors.some(error=>/^没找到|没有识别|未找到/.test(error));
+      const laterCarryDonors=(candidate,col)=>candidates.filter(other=>other!==candidate&&other.order>candidate.order&&!candidateHasFatalError(other)&&other.resources.some(resource=>!resource.used)&&(other.rightRemaining.get(col.id)||0)>0).sort((a,b)=>a.order-b.order);
+      const hasLaterCarry=(candidate,col)=>laterCarryDonors(candidate,col).length>0;
       function qualification(candidate){
         const required=requiredFor(candidate), own=new Set(required.filter(col=>(candidate.rightRemaining.get(col.id)||0)>0).map(col=>col.id));
         const missing=required.filter(col=>!own.has(col.id));
         if(!missing.length) return {grade:'A',rank:3,missing};
-        if(missing.every(col=>poolAvailable(col.id).length>0)) return {grade:'B',rank:2,missing};
+        if(missing.every(col=>hasLaterCarry(candidate,col)||poolAvailable(col.id).length>0)) return {grade:'B',rank:2,missing};
         return {grade:'C',rank:1,missing};
       }
       function findTarget(resource){
@@ -2145,22 +2149,20 @@ class Component extends DCLogic {
         for(let i=positions.length-1;i>0;i--) arr[positions[i]]=old[i-1];
         arr[target]=moving; return {source,target};
       }
-      function addToPool(col,token){
+      function addToPool(col,token,displacedAt){
         if(!token) return;
-        displacementPool.get(col.id).push({...token,columnId:col.id,source:'displaced',used:false});
+        const minRow=Number.isFinite(displacedAt)?Math.max(Number(token.minRow)||0,displacedAt+1):Math.max(Number(token.minRow)||0,Number(token.originalRow)||0);
+        displacementPool.get(col.id).push({...token,columnId:col.id,source:'displaced',minRow,used:false});
         displacementPool.get(col.id).sort((a,b)=>a.originalOrder-b.originalOrder);
       }
       function takePool(col){
         const token=poolAvailable(col.id)[0]; if(token) token.used=true; return token||null;
       }
-      function insertWithoutLoss(col,target,token){
-        const arr=sim[col.id];
-        if(!arr[target]){ arr[target]=token; return; }
-        let blank=target;
-        while(blank<arr.length&&arr[blank]) blank++;
-        if(blank===arr.length) arr.push(null);
-        for(let row=blank;row>target;row--) arr[row]=arr[row-1];
-        arr[target]=token;
+      function takeLaterCarry(candidate,col){
+        const donor=laterCarryDonors(candidate,col)[0];
+        if(!donor) return null;
+        donor.rightRemaining.set(col.id,(donor.rightRemaining.get(col.id)||0)-1);
+        return applicantToken(donor,col);
       }
       function fillNextEmpty(col,target,token){
         const arr=sim[col.id]; let row=Math.max(0,target);
@@ -2175,7 +2177,7 @@ class Component extends DCLogic {
       while(true){
         let best=null;
         candidates.forEach(candidate=>{
-          if(candidate.errors.some(error=>/^没找到|没有识别|未找到/.test(error))) return;
+          if(candidateHasFatalError(candidate)) return;
           candidate.resources.forEach(resource=>{
             if(resource.used) return;
             const target=findTarget(resource); if(target==null) return;
@@ -2188,50 +2190,67 @@ class Component extends DCLogic {
         resource.used=true; if(!move) continue;
         const required=requiredFor(candidate), ownCols=required.filter(col=>(candidate.rightRemaining.get(col.id)||0)>0);
         const missingCols=required.filter(col=>!ownCols.some(own=>own.id===col.id));
-        const borrowed=new Map(); missingCols.forEach(col=>{ const token=takePool(col); if(token) borrowed.set(col.id,token); });
+        const borrowed=new Map();
+        missingCols.forEach(col=>{
+          const laterToken=takeLaterCarry(candidate,col);
+          if(laterToken){ borrowed.set(col.id,{token:laterToken,source:'later'}); return; }
+          const poolToken=takePool(col); if(poolToken) borrowed.set(col.id,{token:poolToken,source:'original'});
+        });
         required.forEach(col=>{
-          const existing=sim[col.id][target]; if(existing) addToPool(col,existing);
+          const existing=sim[col.id][target]; if(existing) addToPool(col,existing,target);
           if(ownCols.some(own=>own.id===col.id)){
             sim[col.id][target]=applicantToken(candidate,col);
             candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
           }else{
-            let fill=borrowed.get(col.id)||null;
+            let fill=borrowed.get(col.id)?.token||null;
             if(!fill&&q.grade==='C'){
               fill=takePool(col);
-              if(fill) borrowed.set(col.id,fill);
+              if(fill) borrowed.set(col.id,{token:fill,source:'original'});
             }
             sim[col.id][target]=fill;
           }
         });
-        candidate.rightItems.forEach(item=>{
-          const col=item.col; if(!col||required.some(requiredCol=>requiredCol.id===col.id)||(candidate.rightRemaining.get(col.id)||0)<1) return;
-          if(col.mode==='fixed') fillNextEmpty(col,target,applicantToken(candidate,col));
-          else insertWithoutLoss(col,target,applicantToken(candidate,col));
-          candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
+        columns.filter(col=>col.mode!=='fixed'&&!bundleColumnIds.has(col.id)&&!candidate.leftColumnIds.has(col.id)).forEach(col=>{
+          const existing=sim[col.id][target]; if(existing) addToPool(col,existing,target);
+          sim[col.id][target]=null;
+          if((candidate.rightRemaining.get(col.id)||0)>0){
+            sim[col.id][target]=applicantToken(candidate,col);
+            candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
+          }
         });
         lockedRows.add(target);
         const stillMissing=required.filter(col=>!sim[col.id][target]);
-        const usedBorrowed=[...borrowed.values()].length>0;
+        const usedBorrowed=[...borrowed.values()].length>0, usedLater=[...borrowed.values()].some(item=>item.source==='later');
         const baseResult=stillMissing.length?'待补':(q.grade==='A'?'自带满配':'顺延成配'), resultParts=[baseResult];
-        if(stillMissing.length&&usedBorrowed) resultParts.push('顺延');
+        if(usedLater) resultParts.push('后续带冷');
+        if(stillMissing.length&&usedBorrowed&&!usedLater) resultParts.push('顺延');
         if(candidate.hasFixed) resultParts.push('入均');
         rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,move:`第${move.source+1}配 → 第${move.target+1}配`,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:resultParts.join(' + '),grade:q.grade});
       }
       candidates.forEach(candidate=>{
-        candidate.resources.filter(resource=>!resource.used).forEach(()=>rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:'无法前移',grade:'C'}));
-        if(!candidate.resources.length) rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:'无法前移',grade:'C'});
+        const failedResult=candidate.hasFixed?'无法前移 + 入均':'无法前移';
+        candidate.resources.filter(resource=>!resource.used).forEach(()=>rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:failedResult,grade:'C'}));
+        if(!candidate.resources.length) rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:failedResult,grade:'C'});
       });
       columns.forEach(col=>{
         poolAvailable(col.id).sort((a,b)=>a.originalOrder-b.originalOrder).forEach(token=>{
-          const arr=sim[col.id]; let row=Math.max(0,Math.min(token.originalRow,arr.length));
+          const arr=sim[col.id]; let row=Math.max(0,Math.min(Number.isFinite(token.minRow)?token.minRow:token.originalRow,arr.length));
           while(row<arr.length&&arr[row]) row++;
           if(row===arr.length) arr.push(token); else arr[row]=token;
           token.used=true;
         });
       });
+      let fixedApplied=0;
+      [...candidates].sort((a,b)=>a.order-b.order).forEach(candidate=>{
+        candidate.rightItems.filter(item=>item.col&&item.col.mode==='fixed').forEach(item=>{
+          for(let count=0;count<item.qty;count++){
+            fillNextEmpty(item.col,0,applicantToken(candidate,item.col)); fixedApplied++;
+          }
+        });
+      });
       const finalAllocations={};
       columns.forEach(c=>{ const arr=(sim[c.id]||[]).map(token=>token?token.name:''); trimTail(arr); finalAllocations[c.id]=arr; });
-      return {rows,allocations:rows.some(row=>row.ok)?finalAllocations:null,candidateCount:candidates.length};
+      return {rows,allocations:rows.some(row=>row.ok)||fixedApplied>0?finalAllocations:null,candidateCount:candidates.length,fixedApplied};
     }
     function renderColdPromotionPreview(){
       $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map(row=>`<tr><td>${escapeHtml(row.person)}</td><td class="promotion-score">${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
