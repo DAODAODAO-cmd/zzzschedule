@@ -2222,7 +2222,8 @@ class Component extends DCLogic {
             sim[col.id][target]=fill;
           }
         });
-        columns.filter(col=>col.mode!=='fixed'&&!bundleColumnIds.has(col.id)&&!candidate.leftColumnIds.has(col.id)).forEach(col=>{
+        const candidateOrdinaryColumnIds=new Set(candidate.rightItems.filter(item=>item.col&&item.col.mode!=='fixed'&&!bundleColumnIds.has(item.col.id)&&!candidate.leftColumnIds.has(item.col.id)).map(item=>item.col.id));
+        columns.filter(col=>candidateOrdinaryColumnIds.has(col.id)).forEach(col=>{
           const existing=sim[col.id][target]; if(existing) addToPool(col,existing,target);
           sim[col.id][target]=null;
           if((candidate.rightRemaining.get(col.id)||0)>0){
