@@ -197,6 +197,7 @@
     <div class="matrix-options">
       <button type="button" class="matrix-toggle" id="showPricingRow">隐藏调价</button>
       <button type="button" class="matrix-toggle" id="showUnitPriceRow">隐藏单价</button>
+      <button type="button" class="matrix-toggle" id="showPromotionPointRow">隐藏提配点数</button>
       <button type="button" class="matrix-toggle" id="showCompleteRowColor">关闭满配变色</button>
     </div>
     <div class="hint matrix-tip">点格子改字，拖动换位置。</div>
@@ -633,7 +634,7 @@ class Component extends DCLogic {
     let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[];
     let coldPromotionBatches=[], coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1;
     let colIdSeed=1, rowIdSeed=1;
-    let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showCompleteRowColor=true;
+    let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true;
     let matrixTitle='', matrixColor='#d1466a';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null;
     let paymentEdits={};
@@ -661,10 +662,10 @@ class Component extends DCLogic {
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showCompleteRowColor,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showCompleteRowColor:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -695,7 +696,7 @@ class Component extends DCLogic {
       groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
       completeMultiple=quantityConfigured&&Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
       $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
-      showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false; showCompleteRowColor=sheet.showCompleteRowColor!==false;
+      showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false; showPromotionPointRow=sheet.showPromotionPointRow!==false; showCompleteRowColor=sheet.showCompleteRowColor!==false;
       previewRows=[];
       colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1;
       applyCost(sheet.cost);
@@ -775,18 +776,18 @@ class Component extends DCLogic {
             groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
             completeMultiple=quantityConfigured&&Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
             $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
-            showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false; showCompleteRowColor=sheet.showCompleteRowColor!==false;
+            showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false; showPromotionPointRow=sheet.showPromotionPointRow!==false; showCompleteRowColor=sheet.showCompleteRowColor!==false;
             colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1; applyCost(sheet.cost);
           }else{
             const first=blankSheet('表1'); activeSheetId=first.id;
             first.columns=Array.isArray(d.columns)?d.columns.map(migrateColumn):[]; first.allocations=d.allocations||{};
             first.cost=d.cost||{...COST_DEFAULTS}; first.cartNote=d.cartNote||'';
             first.cartTargetMode=d.cartTargetMode||'auto'; first.cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null;
-            first.showPricingRow=d.showPricingRow!==false; first.showUnitPriceRow=d.showUnitPriceRow!==false; first.showCompleteRowColor=d.showCompleteRowColor!==false;
+            first.showPricingRow=d.showPricingRow!==false; first.showUnitPriceRow=d.showUnitPriceRow!==false; first.showPromotionPointRow=d.showPromotionPointRow!==false; first.showCompleteRowColor=d.showCompleteRowColor!==false;
             first.matrixTitle=d.matrixTitle||''; first.matrixColor=d.matrixColor||'#d1466a';
             sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             sheets=[first]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showCompleteRowColor=first.showCompleteRowColor; applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; applyCost(first.cost);
           }
           return;
         }
@@ -798,12 +799,14 @@ class Component extends DCLogic {
       $('sheetTabs').innerHTML=sheets.map(s=>`<div class="sheet-tab ${s.id===activeSheetId?'active':''}" data-sheet="${s.id}" title="双击改名"><span class="sheet-tab-name">${escapeHtml(s.name)}</span>${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`).join('');
     }
     function syncMatrixOptions(){
-      const pricing=$('showPricingRow'), unit=$('showUnitPriceRow'), complete=$('showCompleteRowColor');
+      const pricing=$('showPricingRow'), unit=$('showUnitPriceRow'), promotion=$('showPromotionPointRow'), complete=$('showCompleteRowColor');
       pricing.textContent=showPricingRow?'隐藏调价':'显示调价';
       unit.textContent=showUnitPriceRow?'隐藏单价':'显示单价';
+      promotion.textContent=showPromotionPointRow?'隐藏提配点数':'显示提配点数';
       complete.textContent=showCompleteRowColor?'关闭满配变色':'开启满配变色';
       pricing.classList.toggle('off',!showPricingRow);
       unit.classList.toggle('off',!showUnitPriceRow);
+      promotion.classList.toggle('off',!showPromotionPointRow);
       complete.classList.toggle('off',!showCompleteRowColor);
       $('matrixTitleInput').value=matrixTitle;
       $('matrixColorInput').value=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
@@ -1030,10 +1033,10 @@ class Component extends DCLogic {
       return columns.find(c=>c.name.trim().toLowerCase()===t || c.aliases.some(a=>a.trim().toLowerCase()===t));
     }
     function modeValueHtml(c){
-      if(c.mode==='adjust') return `<label>调价 <input class="modeval" data-col="${c.id}" data-price-field="priceAdj" type="number" step="0.5" value="${c.priceAdj}" onchange="ggz.updateColumn(${c.id},'priceAdj',this.value)"></label>`;
-      if(c.mode==='fixed') return `<label>入均 <input class="modeval" data-col="${c.id}" data-price-field="fixedPrice" type="number" step="0.5" min="0" value="${c.fixedPrice}" onchange="ggz.updateColumn(${c.id},'fixedPrice',this.value)"></label>`;
-      if(c.mode==='single') return `<label>日元 <input class="modeval" data-col="${c.id}" data-price-field="sourceJpyPrice" type="number" step="1" min="0" value="${c.sourceJpyPrice||''}" onchange="ggz.updateColumn(${c.id},'sourceJpyPrice',this.value)"></label>`;
-      return `<label>均价 <input class="modeval" data-col="${c.id}" data-price-field="avgOverride" type="number" step="0.01" min="0" value="${c.avgOverride==null?'':c.avgOverride}" placeholder="自动" onchange="ggz.updateColumn(${c.id},'avgOverride',this.value)"></label>`;
+      if(c.mode==='adjust') return `<label>调价 <input class="modeval" data-col="${c.id}" data-price-field="priceAdj" type="text" inputmode="decimal" value="${c.priceAdj}"></label>`;
+      if(c.mode==='fixed') return `<label>入均 <input class="modeval" data-col="${c.id}" data-price-field="fixedPrice" type="text" inputmode="decimal" value="${c.fixedPrice}"></label>`;
+      if(c.mode==='single') return `<label>日元 <input class="modeval" data-col="${c.id}" data-price-field="sourceJpyPrice" type="text" inputmode="decimal" value="${c.sourceJpyPrice||''}"></label>`;
+      return `<label>均价 <input class="modeval" data-col="${c.id}" data-price-field="avgOverride" type="text" inputmode="decimal" value="${c.avgOverride==null?'':c.avgOverride}" placeholder="自动"></label>`;
     }
     function renderColumnList(){
       const el=$('columnList');
@@ -1054,7 +1057,7 @@ class Component extends DCLogic {
             <option value="single" ${c.mode==='single'?'selected':''}>原价换算</option>
           </select>
           <div class="mode-slot">${modeValueHtml(c)}</div>
-          <label class="promotion-point-slot">提配点 <input type="number" min="0" step="0.1" data-promotion-point data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}" onchange="ggz.updateColumn(${c.id},'promotionPoints',this.value)"></label>
+          <label class="promotion-point-slot">提配点 <input type="text" inputmode="decimal" data-promotion-point data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}"></label>
           <div class="col-actions"><button class="btn-ghost btn-mini" onclick="ggz.moveColumn(${c.id},-1)">↑</button>
           <button class="btn-ghost btn-mini" onclick="ggz.moveColumn(${c.id},1)">↓</button>
           <button class="btn-danger btn-mini" onclick="ggz.removeColumn(${c.id})">删除</button></div>
@@ -1330,7 +1333,7 @@ class Component extends DCLogic {
         return `<td class="${cls}"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="adjust" data-col="${c.id}" value="${sign}${fmtNum(adj)}"></td>`;
       }).join('')+'</tr>';
       if(showUnitPriceRow) headHtml+='<tr class="price-row"><td>单价</td>'+columns.map(c=>`<td><input class="matrix-price-input" data-price-kind="unit" data-col="${c.id}" value="${unitPrice(c).toFixed(2)}"></td>`).join('')+'</tr>';
-      headHtml+='<tr class="promotion-point-row"><td>提配点数</td>'+columns.map(c=>`<td><input class="matrix-price-input" inputmode="decimal" data-price-kind="promotion-point" data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}"></td>`).join('')+'</tr>';
+      if(showPromotionPointRow) headHtml+='<tr class="promotion-point-row"><td>提配点数</td>'+columns.map(c=>`<td><input class="matrix-price-input" inputmode="decimal" data-price-kind="promotion-point" data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}"></td>`).join('')+'</tr>';
       thead.innerHTML=headHtml;
       let bodyHtml='';
       for(let r=0;r<displayRows;r++){
@@ -1574,6 +1577,7 @@ class Component extends DCLogic {
     }));
     $('showPricingRow').addEventListener('click',()=>{ showPricingRow=!showPricingRow; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showUnitPriceRow').addEventListener('click',()=>{ showUnitPriceRow=!showUnitPriceRow; syncMatrixOptions(); saveState(); renderMatrix(); });
+    $('showPromotionPointRow').addEventListener('click',()=>{ showPromotionPointRow=!showPromotionPointRow; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showCompleteRowColor').addEventListener('click',()=>{ showCompleteRowColor=!showCompleteRowColor; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('matrixTitleInput').addEventListener('input',e=>{ matrixTitle=e.target.value; renderMatrixHeading(); saveState(); });
     $('matrixColorInput').addEventListener('input',e=>{ matrixColor=e.target.value; renderMatrixHeading(); saveState(); });
@@ -2077,13 +2081,6 @@ class Component extends DCLogic {
     let dragSrc=null;
     const mbody=$('matrixTableBody');
     const mhead=document.querySelector('#matrixTable thead');
-    $('columnList').addEventListener('mousedown',e=>{ if(e.target.matches('input.modeval')){ e.preventDefault(); e.target.focus(); e.target.select(); } });
-    $('columnList').addEventListener('click',e=>{ if(e.target.matches('input.modeval')) e.target.select(); });
-    $('columnList').addEventListener('focusin',e=>{ if(e.target.matches('input.modeval')){ e.target.dataset.replaceNext='1'; requestAnimationFrame(()=>e.target.select()); } });
-    $('columnList').addEventListener('beforeinput',e=>{
-      if(!e.target.matches('input.modeval')||e.target.dataset.replaceNext!=='1'||!String(e.inputType).startsWith('insert')||e.data==null) return;
-      e.preventDefault(); e.target.value=e.data; e.target.dataset.replaceNext='0';
-    });
     $('columnList').addEventListener('input',e=>{
       const pointInput=e.target.closest('input[data-promotion-point]');
       if(pointInput){
@@ -2101,6 +2098,9 @@ class Component extends DCLogic {
       else if(field==='sourceJpyPrice') c.sourceJpyPrice=Math.max(0,value);
       else if(field==='avgOverride') c.avgOverride=Math.max(0,value);
       saveState(); readCost(); computeAverage();
+    });
+    $('columnList').addEventListener('change',e=>{
+      if(e.target.matches('input.modeval[data-price-field],input[data-promotion-point]')) recalc();
     });
     function matrixPriceColumn(input){ return columns.find(c=>c.id===parseInt(input.dataset.col,10)); }
     function saveMatrixNumericDraft(input){
@@ -2519,7 +2519,7 @@ class Component extends DCLogic {
             groupSize=quantityConfigured&&Number.isFinite(parseInt(d.groupSize,10))?Math.max(1,parseInt(d.groupSize,10)):null;
             completeMultiple=quantityConfigured&&Number.isFinite(parseInt(d.completeMultiple,10))?Math.max(1,parseInt(d.completeMultiple,10)):null;
             $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
-            showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false; showCompleteRowColor=d.showCompleteRowColor!==false;
+            showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false; showPromotionPointRow=d.showPromotionPointRow!==false; showCompleteRowColor=d.showCompleteRowColor!==false;
             syncMatrixOptions();
             syncCartControls(); saveState(); renderColumnList(); recalc();
           }
