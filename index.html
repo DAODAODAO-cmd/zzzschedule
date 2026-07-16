@@ -147,7 +147,7 @@
     <h2>转单预览</h2>
     <div class="table-scroll">
       <table id="transferPreviewTable">
-        <thead><tr><th>#</th><th>从谁</th><th>谷子</th><th>数量</th><th>给谁</th><th>检查</th><th>操作</th></tr></thead>
+        <thead><tr><th>#</th><th>从谁</th><th>谷子</th><th>数量</th><th>给谁</th><th>实际预览</th><th>操作</th></tr></thead>
         <tbody id="transferPreviewTableBody"></tbody>
       </table>
     </div>
@@ -161,7 +161,7 @@
     <h2>撤单预览</h2>
     <div class="table-scroll">
       <table id="cancelPreviewTable">
-        <thead><tr><th>#</th><th>谁撤单</th><th>谷子</th><th>数量</th><th>检查</th><th>操作</th></tr></thead>
+        <thead><tr><th>#</th><th>谁撤单</th><th>谷子</th><th>数量</th><th>实际预览</th><th>操作</th></tr></thead>
         <tbody id="cancelPreviewTableBody"></tbody>
       </table>
     </div>
@@ -650,8 +650,8 @@ class Component extends DCLogic {
     // 模式映射不可互换：avg=均价（旧称入均），adjust=调价，fixed=入均（旧称固定），single=原价换算。
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed'|'single',priceAdj,fixedPrice,img}
     let allocations={};   // colId -> [person,...]
-    let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[];
-    let coldPromotionBatches=[], coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPendingBundlePreview=false;
+    let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[], transferPreviewSignature='', cancelPreviewSignature='';
+    let coldPromotionBatches=[], coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
     let coldCarryBundleColumnIds=[];
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true;
@@ -724,9 +724,9 @@ class Component extends DCLogic {
       applyCost(sheet.cost);
       $('commentInput').value='';
       $('previewPanel').style.display='none';
-      $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
-      $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
-      $('coldPromotionPreviewPanel').style.display='none'; coldPromotionBatches=[]; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1;
+      $('transferPreviewPanel').style.display='none'; transferPreviewRows=[]; transferPreviewSignature='';
+      $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[]; cancelPreviewSignature='';
+      $('coldPromotionPreviewPanel').style.display='none'; coldPromotionBatches=[]; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1; coldPromotionPlanSignature='';
       syncCartControls();
       syncPaymentControls();
       syncMatrixOptions();
@@ -758,6 +758,12 @@ class Component extends DCLogic {
       return localSaved;
     }
     const deepClone=value=>JSON.parse(JSON.stringify(value));
+    function actionPreviewDataSignature(){
+      return JSON.stringify({columns:columns.map(c=>({id:c.id,name:c.name,aliases:c.aliases||[]})),allocations});
+    }
+    function coldPreviewDataSignature(){
+      return JSON.stringify({action:actionPreviewDataSignature(),bundle:coldCarryBundleColumnIds.map(Number),pricing:columns.map(c=>({id:c.id,mode:c.mode,promotionPoints:c.promotionPoints}))});
+    }
     function loadUndoHistory(){
       try{
         const parsed=JSON.parse(localStorage.getItem(UNDO_STORAGE_KEY)||'{}');
@@ -1834,10 +1840,11 @@ class Component extends DCLogic {
       const col=findColumnByText(row.itemText||''), source=String(row.source||'').trim(), target=String(row.target||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
       if(!source||!target) return {ok:false,text:'名字没识别全'};
       if(!col) return {ok:false,text:'没找到谷子'};
-      const available=(allocations[col.id]||[]).filter(value=>String(value||'').trim()===source).length;
+      const positions=(allocations[col.id]||[]).map((value,index)=>String(value||'').trim()===source?index:-1).filter(index=>index>=0), available=positions.length;
       if(!available) return {ok:false,text:`没有找到 ${source}`};
       if(available<qty) return {ok:false,text:`只找到 ${available} 个`};
-      return {ok:true,text:`找到 ${available} 个`,col,qty};
+      const affected=positions.slice(-qty).map(index=>index+1);
+      return {ok:true,text:`第${affected.join('、')}行 → ${target}`,col,qty,positions:affected};
     }
     function renderTransferPreview(){
       $('transferPreviewTableBody').innerHTML=transferPreviewRows.map((row,index)=>{
@@ -1849,6 +1856,7 @@ class Component extends DCLogic {
     $('transferPreviewBtn').addEventListener('click',()=>{
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先粘贴转单文字'); return; }
       transferPreviewRows=actionContentLines(raw).filter(line=>/(?:转给|出给|转|出|给|到|->|→|➡)/.test(line)).map(parseTransferLine).filter(Boolean);
+      transferPreviewSignature=actionPreviewDataSignature();
       $('transferPreviewStatus').textContent='会从原 CN 最后一单开始向上修改。'; $('transferPreviewStatus').style.color='';
       renderTransferPreview(); $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display=transferPreviewRows.length?'block':'none';
@@ -1866,6 +1874,12 @@ class Component extends DCLogic {
       transferPreviewRows=transferPreviewRows.filter(row=>row.id!==parseInt(button.dataset.removeTransfer,10)); renderTransferPreview();
     });
     $('confirmTransferBtn').addEventListener('click',()=>{
+      const currentSignature=actionPreviewDataSignature();
+      if(transferPreviewSignature&&transferPreviewSignature!==currentSignature){
+        transferPreviewSignature=currentSignature; renderTransferPreview();
+        $('transferPreviewStatus').textContent='正式排单在预览后发生过变化，已重新检查并刷新下方预览，请核对后再次确认。';
+        $('transferPreviewStatus').style.color='var(--warn)'; $('transferPreviewPanel').scrollIntoView({behavior:'smooth',block:'start'}); return;
+      }
       const checks=transferPreviewRows.map(row=>({row,check:transferRowCheck(row)}));
       if(!checks.length||checks.some(item=>!item.check.ok)){ alert('还有没识别清楚的转单，请先在预览里修改'); return; }
       if(!pushUndoSnapshot('transfer-apply','确认转单前')) return;
@@ -1877,7 +1891,7 @@ class Component extends DCLogic {
         }
         changedTotal+=changed;
       });
-      saveState(); renderMatrix(); $('commentInput').value=''; transferPreviewRows=[]; renderTransferPreview();
+      saveState(); renderMatrix(); $('commentInput').value=''; transferPreviewRows=[]; transferPreviewSignature=''; renderTransferPreview();
       $('transferPreviewStatus').textContent=`已完成 ${changedTotal} 个转单，均从原 CN 最后一单开始修改。`;
       $('transferPreviewStatus').style.color='var(--ok)';
     });
@@ -1898,7 +1912,7 @@ class Component extends DCLogic {
       const col=findColumnByText(row.itemText||''), person=String(row.person||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
       if(!person) return {ok:false,text:'名字没识别到'};
       if(!col) return {ok:false,text:'没找到谷子'};
-      const available=(allocations[col.id]||[]).filter(value=>String(value||'').trim()===person).length;
+      const positions=(allocations[col.id]||[]).map((value,row)=>String(value||'').trim()===person?row:-1).filter(row=>row>=0), available=positions.length;
       const reserved=cancelPreviewRows.slice(0,index).reduce((sum,previous)=>{
         const previousCol=findColumnByText(previous.itemText||'');
         return previousCol&&previousCol.id===col.id&&String(previous.person||'').trim()===person?sum+Math.max(1,parseInt(previous.qty,10)||1):sum;
@@ -1906,7 +1920,8 @@ class Component extends DCLogic {
       const remaining=Math.max(0,available-reserved);
       if(!available) return {ok:false,text:`没有找到 ${person}`};
       if(remaining<qty) return {ok:false,text:`只剩 ${remaining} 个可撤`};
-      return {ok:true,text:`可撤 ${remaining} 个`,col,qty,person};
+      const availablePositions=positions.slice(0,Math.max(0,positions.length-reserved)), affected=availablePositions.slice(-qty).map(row=>row+1);
+      return {ok:true,text:`将删除第${affected.join('、')}行`,col,qty,person,positions:affected};
     }
     function renderCancelPreview(){
       $('cancelPreviewTableBody').innerHTML=cancelPreviewRows.map((row,index)=>{
@@ -1918,6 +1933,7 @@ class Component extends DCLogic {
     $('cancelPreviewBtn').addEventListener('click',()=>{
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先粘贴撤单文字'); return; }
       cancelPreviewRows=parseCancelRows(raw);
+      cancelPreviewSignature=actionPreviewDataSignature();
       $('cancelPreviewStatus').textContent='会从这个人在对应谷子的最后一单开始向前删除。'; $('cancelPreviewStatus').style.color='';
       renderCancelPreview(); $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
@@ -1935,6 +1951,12 @@ class Component extends DCLogic {
       cancelPreviewRows=cancelPreviewRows.filter(row=>row.id!==parseInt(button.dataset.removeCancel,10)); renderCancelPreview();
     });
     $('confirmCancelBtn').addEventListener('click',()=>{
+      const currentSignature=actionPreviewDataSignature();
+      if(cancelPreviewSignature&&cancelPreviewSignature!==currentSignature){
+        cancelPreviewSignature=currentSignature; renderCancelPreview();
+        $('cancelPreviewStatus').textContent='正式排单在预览后发生过变化，已重新检查并刷新下方预览，请核对后再次确认。';
+        $('cancelPreviewStatus').style.color='var(--warn)'; $('cancelPreviewPanel').scrollIntoView({behavior:'smooth',block:'start'}); return;
+      }
       const checks=cancelPreviewRows.map((row,index)=>({row,check:cancelRowCheck(row,index)}));
       if(!checks.length||checks.some(item=>!item.check.ok)){ alert('还有没识别清楚的撤单，请先在预览里修改'); return; }
       if(!pushUndoSnapshot('cancel-apply','确认撤单前')) return;
@@ -1946,7 +1968,7 @@ class Component extends DCLogic {
         }
         removedTotal+=removed;
       });
-      saveState(); renderMatrix(); $('commentInput').value=''; cancelPreviewRows=[]; renderCancelPreview();
+      saveState(); renderMatrix(); $('commentInput').value=''; cancelPreviewRows=[]; cancelPreviewSignature=''; renderCancelPreview();
       $('cancelPreviewStatus').textContent=`已撤掉 ${removedTotal} 个，均从对应谷子的最后一单开始删除。`;
       $('cancelPreviewStatus').style.color='var(--ok)';
     });
@@ -2084,6 +2106,13 @@ class Component extends DCLogic {
         for(let row=blank;row>target;row--) arr[row]=arr[row-1];
         arr[target]=token;
       }
+      function fillNextEmpty(col,target,token){
+        const arr=sim[col.id]; let row=Math.max(0,target);
+        while(row<arr.length&&arr[row]) row++;
+        while(arr.length<row) arr.push(null);
+        if(row===arr.length) arr.push(token); else arr[row]=token;
+        return row;
+      }
       function applicantToken(candidate,col){
         return {uid:`n${uidSeed++}`,name:candidate.person,columnId:col.id,originalRow:Number.MAX_SAFE_INTEGER,originalOrder:originalOrder++,source:'added'};
       }
@@ -2120,7 +2149,8 @@ class Component extends DCLogic {
         });
         candidate.rightItems.forEach(item=>{
           const col=item.col; if(!col||required.some(requiredCol=>requiredCol.id===col.id)||(candidate.rightRemaining.get(col.id)||0)<1) return;
-          insertWithoutLoss(col,target,applicantToken(candidate,col));
+          if(col.mode==='fixed') fillNextEmpty(col,target,applicantToken(candidate,col));
+          else insertWithoutLoss(col,target,applicantToken(candidate,col));
           candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
         });
         lockedRows.add(target);
@@ -2153,7 +2183,7 @@ class Component extends DCLogic {
     }
     function recalculateColdPromotionPreview(statusText){
       const plan=buildColdPromotionPlan();
-      coldPromotionPreviewRows=plan.rows; coldPromotionPreviewAllocations=plan.allocations; coldPromotionPlanRevision=localRevision;
+      coldPromotionPreviewRows=plan.rows; coldPromotionPreviewAllocations=plan.allocations; coldPromotionPlanRevision=localRevision; coldPromotionPlanSignature=coldPreviewDataSignature();
       renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display=coldPromotionPreviewRows.length?'block':'none';
       $('coldPromotionPreviewStatus').textContent=statusText||'累计预览已生成；确认前不会修改正式排单。';
       $('coldPromotionPreviewStatus').style.color=coldPromotionPreviewAllocations?'':'var(--bad)'; return plan;
@@ -2173,9 +2203,9 @@ class Component extends DCLogic {
     $('coldPromotionPreviewBtn').addEventListener('click',startColdPromotionPreview);
     $('confirmColdPromotionBtn').addEventListener('click',()=>{
       if(!coldPromotionPreviewAllocations){ alert('当前累计内容没有可以前移的项目'); return; }
-      if(coldPromotionPlanRevision!==localRevision){
+      if(coldPromotionPlanSignature!==coldPreviewDataSignature()){
         recalculateColdPromotionPreview('正式排单在预览后发生过变化，已按最新排单重新计算，请再核对一次后确认。');
-        $('coldPromotionPreviewStatus').style.color='var(--warn)'; return;
+        $('coldPromotionPreviewStatus').style.color='var(--warn)'; $('coldPromotionPreviewPanel').scrollIntoView({behavior:'smooth',block:'start'}); return;
       }
       if(!pushUndoSnapshot('cold-carry-apply','带冷提确认应用前')) return;
       const before=deepClone(allocations), applied=coldPromotionPreviewRows.filter(row=>row.ok).length;
@@ -2184,13 +2214,13 @@ class Component extends DCLogic {
         allocations=before; saveState(); renderMatrix();
         alert('正式排单保存失败，已自动恢复应用前状态，撤回快照仍然保留。'); return;
       }
-      coldPromotionPreviewAllocations=null; coldPromotionBatches=[]; coldPromotionPlanRevision=-1;
+      coldPromotionPreviewAllocations=null; coldPromotionBatches=[]; coldPromotionPlanRevision=-1; coldPromotionPlanSignature='';
       renderMatrix();
       $('coldPromotionPreviewStatus').textContent=`已正式应用 ${applied} 项带冷提。`;
       $('coldPromotionPreviewStatus').style.color='var(--ok)'; $('confirmColdPromotionBtn').disabled=true;
     });
     $('clearColdPromotionBtn').addEventListener('click',()=>{
-      coldPromotionBatches=[]; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1;
+      coldPromotionBatches=[]; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1; coldPromotionPlanSignature='';
       renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='none';
       $('coldPromotionPreviewStatus').textContent='可以分批追加；确认前不会修改正式排单。'; $('coldPromotionPreviewStatus').style.color='';
     });
