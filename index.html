@@ -515,6 +515,8 @@ class Component extends DCLogic {
 .promotion-score{ font-weight:900; color:var(--accent); white-space:nowrap; }
 .matrix-preview-notice{ margin:8px 0; padding:8px 10px; border:1px solid #e2b553; border-radius:8px; background:#fff8dc; color:#8a5b00; font-size:12.5px; font-weight:900; text-align:center; }
 #matrixTable.is-preview tbody td.cell{ cursor:default; background-image:repeating-linear-gradient(135deg,rgba(209,70,106,.025) 0,rgba(209,70,106,.025) 5px,transparent 5px,transparent 10px); }
+#matrixTable.is-preview tbody tr.promotion-bundle-complete td{ background:#fff1bd!important; color:#765000!important; font-weight:850; }
+#matrixTable.is-preview tbody td.cell.promotion-bundle-pending{ background:#eee3ff!important; color:#6b3fa0!important; font-weight:900; box-shadow:inset 0 0 0 1px #d4bdf3; }
 .cold-bundle-bar{ display:flex; align-items:center; gap:8px; margin-top:9px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--muted); font-size:12.5px; }
 .cold-bundle-chooser{ margin-top:8px; padding:10px; border:1px solid #efcad5; border-radius:10px; background:#fff8fb; }
 .cold-bundle-list{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:7px; margin-top:9px; }
@@ -666,7 +668,7 @@ class Component extends DCLogic {
     let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='';
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
-    let matrixPreviewAllocations=null, matrixPreviewLabel='';
+    let matrixPreviewAllocations=null, matrixPreviewLabel='', matrixPreviewHighlights={completeRows:[],pendingRows:[]};
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let undoHistoryBySheet={};
@@ -719,7 +721,7 @@ class Component extends DCLogic {
       if(!sharedPaymentQrImg) sharedPaymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
       paymentQrImg=sharedPaymentQrImg;
       highlightedPerson='';
-      matrixPreviewAllocations=null; matrixPreviewLabel='';
+      matrixPreviewAllocations=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[]};
       quantityConfigured=sheet.quantityConfigured===true;
       boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
       groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
@@ -1433,13 +1435,14 @@ class Component extends DCLogic {
 
     // ---------- matrix ----------
     function quantitySettingsReady(){ return Number.isFinite(boxSize)&&boxSize>0&&Number.isFinite(groupSize)&&groupSize>0; }
-    function showMatrixPreview(previewAllocations,label){
+    function showMatrixPreview(previewAllocations,label,highlights){
       matrixPreviewAllocations=previewAllocations?deepClone(previewAllocations):null;
       matrixPreviewLabel=matrixPreviewAllocations?(label||'排单模拟预览'):'';
+      matrixPreviewHighlights=matrixPreviewAllocations?deepClone(highlights||{completeRows:[],pendingRows:[]}):{completeRows:[],pendingRows:[]};
       renderMatrix();
     }
     function clearMatrixPreview(shouldRender=true){
-      const hadPreview=!!matrixPreviewAllocations; matrixPreviewAllocations=null; matrixPreviewLabel='';
+      const hadPreview=!!matrixPreviewAllocations; matrixPreviewAllocations=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[]};
       if(hadPreview&&shouldRender) renderMatrix();
     }
     function renderMatrix(){
@@ -1447,6 +1450,7 @@ class Component extends DCLogic {
       const tbody=$('matrixTableBody');
       const emptyEl=$('matrixEmpty');
       const isPreview=!!matrixPreviewAllocations, displayAllocations=matrixPreviewAllocations||allocations, notice=$('matrixPreviewNotice'), table=$('matrixTable');
+      const completePreviewRows=new Set((matrixPreviewHighlights.completeRows||[]).map(Number)), pendingPreviewRows=new Map((matrixPreviewHighlights.pendingRows||[]).map(item=>[Number(item.row),String(item.person||'')]));
       notice.style.display=isPreview?'block':'none'; notice.textContent=isPreview?`正在预览：${matrixPreviewLabel}（尚未写入正式排单）`:''; table.classList.toggle('is-preview',isPreview);
       if(columns.length===0){ thead.innerHTML=''; tbody.innerHTML=''; emptyEl.style.display='block'; $('paymentSummary').innerHTML=''; renderQuantitySummary(); renderCart(); return; }
       emptyEl.style.display='none';
@@ -1471,11 +1475,12 @@ class Component extends DCLogic {
         const step=quantitySettingsReady()?groupSize:1, countValue=(r+1)*step, previousValue=r*step;
         const boxNumber=quantitySettingsReady()?Math.floor(countValue/boxSize):0, crossedBox=quantitySettingsReady()&&boxNumber>Math.floor(previousValue/boxSize);
         const markBox=crossedBox&&Number.isFinite(completeMultiple)&&completeMultiple>0&&boxNumber%completeMultiple===0;
-        const rowClasses=[rowFilled&&showCompleteRowColor?'complete-row':'',markBox?'box-boundary-row':''].filter(Boolean).join(' ');
+        const rowClasses=[rowFilled&&showCompleteRowColor?'complete-row':'',markBox?'box-boundary-row':'',isPreview&&completePreviewRows.has(r)?'promotion-bundle-complete':''].filter(Boolean).join(' ');
         bodyHtml+=`<tr class="${rowClasses}"${markBox?` title="第 ${boxNumber} 盒节点"`:''}><td class="seq-col">${countValue}</td>`+columns.map(c=>{
           const arr=displayAllocations[c.id]||[];
           const nm=arr[r];
-          return `<td class="cell${nm?' has-name':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" contenteditable="${isPreview?'false':'true'}" spellcheck="false" draggable="${!isPreview&&nm?'true':'false'}">${nm?escapeHtml(nm):''}</td>`;
+          const pendingName=isPreview&&nm&&pendingPreviewRows.get(r)===String(nm);
+          return `<td class="cell${nm?' has-name':''}${pendingName?' promotion-bundle-pending':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" contenteditable="${isPreview?'false':'true'}" spellcheck="false" draggable="${!isPreview&&nm?'true':'false'}">${nm?escapeHtml(nm):''}</td>`;
         }).join('')+'</tr>';
       }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(columns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
@@ -2145,9 +2150,16 @@ class Component extends DCLogic {
         const arr=sim[resource.col.id], source=tokenRow(resource), positions=[];
         for(let row=target;row<=source;row++) if(!lockedRows.has(row)) positions.push(row);
         if(source<0||positions[0]!==target||positions[positions.length-1]!==source) return null;
-        const old=positions.map(row=>arr[row]), moving=arr[source];
-        for(let i=positions.length-1;i>0;i--) arr[positions[i]]=old[i-1];
-        arr[target]=moving; return {source,target};
+        const moving=arr[source], blankIndex=positions.slice(0,-1).findIndex(row=>!arr[row]);
+        if(blankIndex>=0){
+          for(let i=blankIndex;i>0;i--) arr[positions[i]]=arr[positions[i-1]];
+          arr[target]=moving; arr[source]=null;
+        }else{
+          const old=positions.map(row=>arr[row]);
+          for(let i=positions.length-1;i>0;i--) arr[positions[i]]=old[i-1];
+          arr[target]=moving;
+        }
+        return {source,target};
       }
       function addToPool(col,token,displacedAt){
         if(!token) return;
@@ -2220,12 +2232,12 @@ class Component extends DCLogic {
         });
         lockedRows.add(target);
         const stillMissing=required.filter(col=>!sim[col.id][target]);
-        const usedBorrowed=[...borrowed.values()].length>0, usedLater=[...borrowed.values()].some(item=>item.source==='later');
+        const usedBorrowed=[...borrowed.values()].length>0, usedLater=[...borrowed.values()].some(item=>item.source==='later'), usedOriginalBorrowed=[...borrowed.values()].some(item=>item.source==='original');
         const baseResult=stillMissing.length?'待补':(q.grade==='A'?'自带满配':'顺延成配'), resultParts=[baseResult];
         if(usedLater) resultParts.push('后续带冷');
         if(stillMissing.length&&usedBorrowed&&!usedLater) resultParts.push('顺延');
         if(candidate.hasFixed) resultParts.push('入均');
-        rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,move:`第${move.source+1}配 → 第${move.target+1}配`,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:resultParts.join(' + '),grade:q.grade});
+        rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,move:`第${move.source+1}配 → 第${move.target+1}配`,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:resultParts.join(' + '),grade:q.grade,targetRow:target,requiredColumnIds:required.map(col=>col.id),bundleComplete:stillMissing.length===0,usedLater,usedOriginalBorrowed,hasFixed:candidate.hasFixed});
       }
       candidates.forEach(candidate=>{
         const failedResult=candidate.hasFixed?'无法前移 + 入均':'无法前移';
@@ -2248,6 +2260,14 @@ class Component extends DCLogic {
           }
         });
       });
+      rows.filter(row=>row.ok).forEach(row=>{
+        row.bundleComplete=(row.requiredColumnIds||[]).every(colId=>!!sim[colId]?.[row.targetRow]);
+        const resultParts=[row.bundleComplete?(row.grade==='A'&&!row.usedLater&&!row.usedOriginalBorrowed?'自带满配':'顺延成配'):'待补'];
+        if(row.usedLater) resultParts.push('后续带冷');
+        if(!row.bundleComplete&&row.usedOriginalBorrowed) resultParts.push('顺延');
+        if(row.hasFixed) resultParts.push('入均');
+        row.result=resultParts.join(' + ');
+      });
       const finalAllocations={};
       columns.forEach(c=>{ const arr=(sim[c.id]||[]).map(token=>token?token.name:''); trimTail(arr); finalAllocations[c.id]=arr; });
       return {rows,allocations:rows.some(row=>row.ok)||fixedApplied>0?finalAllocations:null,candidateCount:candidates.length,fixedApplied};
@@ -2260,7 +2280,8 @@ class Component extends DCLogic {
       const plan=buildColdPromotionPlan();
       coldPromotionPreviewRows=plan.rows; coldPromotionPreviewAllocations=plan.allocations; coldPromotionPlanRevision=localRevision; coldPromotionPlanSignature=coldPreviewDataSignature();
       renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display=coldPromotionPreviewRows.length?'block':'none';
-      if(coldPromotionPreviewAllocations) showMatrixPreview(coldPromotionPreviewAllocations,'带冷提重排模拟结果'); else clearMatrixPreview();
+      const highlights={completeRows:coldPromotionPreviewRows.filter(row=>row.ok&&row.bundleComplete).map(row=>row.targetRow),pendingRows:coldPromotionPreviewRows.filter(row=>row.ok&&!row.bundleComplete).map(row=>({row:row.targetRow,person:row.person}))};
+      if(coldPromotionPreviewAllocations) showMatrixPreview(coldPromotionPreviewAllocations,'带冷提重排模拟结果',highlights); else clearMatrixPreview();
       $('coldPromotionPreviewStatus').textContent=statusText||'累计预览已生成；确认前不会修改正式排单。';
       $('coldPromotionPreviewStatus').style.color=coldPromotionPreviewAllocations?'':'var(--bad)'; return plan;
     }
