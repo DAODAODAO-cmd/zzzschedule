@@ -129,6 +129,18 @@
       <button class="btn-ghost" id="clearCommentBtn">清空文字</button>
       <span class="hint">先预览，确认后再写入表格。</span>
     </div>
+    <div class="cold-bundle-bar">
+      <button type="button" class="btn-ghost btn-mini" id="selectColdBundleBtn">选择捆位</button>
+      <span id="coldBundleSummary">捆位：尚未选择</span>
+    </div>
+    <div class="cold-bundle-chooser" id="coldBundleChooser" style="display:none;">
+      <strong>选择当前排单表的捆位</strong>
+      <div class="cold-bundle-list" id="coldBundleList"></div>
+      <div class="toolbar">
+        <button type="button" class="btn-primary btn-mini" id="saveColdBundleBtn">保存</button>
+        <button type="button" class="btn-ghost btn-mini" id="cancelColdBundleBtn">取消</button>
+      </div>
+    </div>
   </div>
 
   <div class="panel mobile-core" id="transferPreviewPanel" style="display:none;">
@@ -163,13 +175,13 @@
     <h2>带冷提累计预览</h2>
     <div class="table-scroll">
       <table id="coldPromotionPreviewTable">
-        <thead><tr><th>#</th><th>CN</th><th>带冷提点数</th><th>计算</th><th>原谷子移动</th><th>一起补入</th><th>顺延</th><th>结果</th></tr></thead>
+        <thead><tr><th>CN</th><th>带冷提点数</th><th>计算</th><th>原谷子移动</th><th>带冷</th><th>结果</th></tr></thead>
         <tbody id="coldPromotionPreviewTableBody"></tbody>
       </table>
     </div>
     <div class="toolbar">
       <button class="btn-primary" id="confirmColdPromotionBtn">确认应用</button>
-      <button class="btn-danger" id="clearColdPromotionBtn">清空带冷提预览</button>
+      <button class="btn-ghost" id="clearColdPromotionBtn">取消预览</button>
       <span class="hint" id="coldPromotionPreviewStatus">可以分批追加；确认前不会修改正式排单。</span>
     </div>
   </div>
@@ -214,6 +226,7 @@
     <div class="toolbar">
       <button class="btn-ghost" id="regenBtn">刷新表格</button>
       <button class="btn-ghost" id="exportPngBtn">导出配比图</button>
+      <button class="btn-ghost" id="undoLastApplyBtn" disabled>撤回上次应用</button>
       <details class="data-actions" id="dataActions"><summary>导入导出</summary><div class="data-actions-pop">
         <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单 Excel</button>
         <button class="btn-ghost" id="exportAllExcelBtn">导出全部表 Excel</button>
@@ -495,8 +508,13 @@ class Component extends DCLogic {
 #transferPreviewTable .transfer-ok,#cancelPreviewTable .transfer-ok,#coldPromotionPreviewTable .transfer-ok{ color:var(--ok); font-weight:800; white-space:nowrap; }
 #transferPreviewTable .transfer-bad,#cancelPreviewTable .transfer-bad,#coldPromotionPreviewTable .transfer-bad{ color:var(--bad); font-weight:800; white-space:nowrap; }
 #coldPromotionPreviewTable td{ min-width:92px; }
-#coldPromotionPreviewTable td:nth-child(5),#coldPromotionPreviewTable td:nth-child(6),#coldPromotionPreviewTable td:nth-child(7){ white-space:normal; line-height:1.5; }
+#coldPromotionPreviewTable td:nth-child(4),#coldPromotionPreviewTable td:nth-child(5){ white-space:normal; line-height:1.5; }
 .promotion-score{ font-weight:900; color:var(--accent); white-space:nowrap; }
+.cold-bundle-bar{ display:flex; align-items:center; gap:8px; margin-top:9px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--muted); font-size:12.5px; }
+.cold-bundle-chooser{ margin-top:8px; padding:10px; border:1px solid #efcad5; border-radius:10px; background:#fff8fb; }
+.cold-bundle-list{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:7px; margin-top:9px; }
+.cold-bundle-list label{ display:flex; align-items:center; gap:6px; padding:6px 8px; border:1px solid var(--line); border-radius:7px; background:#fff; }
+.cold-bundle-list label.is-fixed{ color:var(--muted); background:#f5f2f6; }
 .data-actions{ position:relative; }
 .data-actions summary{ list-style:none; cursor:pointer; padding:8px 13px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); font-size:12.5px; font-weight:800; }
 .data-actions summary::-webkit-details-marker{ display:none; }
@@ -588,7 +606,7 @@ class Component extends DCLogic {
   .cloudbar #syncCodeInput,.cloudbar #cloudStatus{ grid-column:1/-1; text-align:left; }
   .wrap .panel{ padding:12px; margin-bottom:9px; }
   #matrixPanel .toolbar > *{ display:none!important; }
-  #matrixPanel .toolbar #regenBtn,#matrixPanel .toolbar #exportPngBtn,#matrixPanel .toolbar #dataActions,#matrixPanel .toolbar #clearAllBtn{ display:inline-flex!important; }
+  #matrixPanel .toolbar #regenBtn,#matrixPanel .toolbar #exportPngBtn,#matrixPanel .toolbar #undoLastApplyBtn,#matrixPanel .toolbar #dataActions,#matrixPanel .toolbar #clearAllBtn{ display:inline-flex!important; }
   body.mobile-full #matrixPanel .toolbar > *{ display:inline-flex!important; }
   .matrix-tip,.matrix-options{ display:none; }
   body.mobile-full .matrix-tip,body.mobile-full .matrix-options{ display:flex; }
@@ -620,6 +638,7 @@ class Component extends DCLogic {
 
   initApp(){
     const STORAGE_KEY='ggzCombinedTool_v1';
+    const UNDO_STORAGE_KEY='ggzOrderUndoHistory_v1';
     const $=id=>document.getElementById(id);
     const money=v=>'¥'+(Number(v)||0).toFixed(2);
     const num=v=>Number(v)||0;
@@ -632,7 +651,8 @@ class Component extends DCLogic {
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed'|'single',priceAdj,fixedPrice,img}
     let allocations={};   // colId -> [person,...]
     let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[];
-    let coldPromotionBatches=[], coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1;
+    let coldPromotionBatches=[], coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPendingBundlePreview=false;
+    let coldCarryBundleColumnIds=[];
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true;
     let matrixTitle='', matrixColor='#d1466a';
@@ -643,6 +663,7 @@ class Component extends DCLogic {
     let highlightedPerson='';
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
+    let undoHistoryBySheet={};
     let itemCatalog=[], catalogIdSeed=1;
     const CLOUD_IDLE_UPLOAD_MS=5*60*1000;
     const CLOUD_VERSION_KEY_PREFIX='ggzCloudVersion_';
@@ -662,10 +683,10 @@ class Component extends DCLogic {
         shareTicket:$('shareTicket').checked,shareTransport:$('shareTransport').checked};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[]};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -688,6 +709,7 @@ class Component extends DCLogic {
       paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
       paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
       paymentEdits=sheet.paymentEdits||{};
+      coldCarryBundleColumnIds=(Array.isArray(sheet.coldCarryBundleColumnIds)?sheet.coldCarryBundleColumnIds:[]).map(Number).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
       if(!sharedPaymentQrImg) sharedPaymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
       paymentQrImg=sharedPaymentQrImg;
       highlightedPerson='';
@@ -708,6 +730,7 @@ class Component extends DCLogic {
       syncCartControls();
       syncPaymentControls();
       syncMatrixOptions();
+      renderColdBundleConfiguration(); syncUndoButton();
       renderColumnList(); if($('catalogPanel').style.display!=='none') renderCatalog(); recalc(); renderSheetTabs();
       isLoadingSheet=false;
     }
@@ -721,7 +744,7 @@ class Component extends DCLogic {
       syncAverageMode();
     }
     function saveState(){
-      if(isLoadingSheet) return;
+      if(isLoadingSheet) return true;
       captureActiveSheet();
       let localSaved=true;
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg})); }
@@ -732,6 +755,62 @@ class Component extends DCLogic {
         if(syncCode&&cloudIdleEnabled) scheduleIdleCloudUpload();
         else setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false);
       }
+      return localSaved;
+    }
+    const deepClone=value=>JSON.parse(JSON.stringify(value));
+    function loadUndoHistory(){
+      try{
+        const parsed=JSON.parse(localStorage.getItem(UNDO_STORAGE_KEY)||'{}');
+        undoHistoryBySheet=parsed&&typeof parsed==='object'?parsed:{};
+      }catch(e){ undoHistoryBySheet={}; }
+    }
+    function saveUndoHistory(){
+      try{ localStorage.setItem(UNDO_STORAGE_KEY,JSON.stringify(undoHistoryBySheet)); return true; }
+      catch(e){ console.warn('撤回记录保存失败',e); return false; }
+    }
+    function currentUndoHistory(){
+      const key=String(activeSheetId);
+      if(!Array.isArray(undoHistoryBySheet[key])) undoHistoryBySheet[key]=[];
+      return undoHistoryBySheet[key];
+    }
+    function syncUndoButton(){
+      const button=$('undoLastApplyBtn'); if(!button) return;
+      const count=activeSheetId==null?0:currentUndoHistory().length;
+      button.disabled=count===0;
+      button.textContent=count?`撤回上次应用（${count}）`:'撤回上次应用';
+    }
+    function pushUndoSnapshot(actionType,label){
+      captureActiveSheet();
+      const sheet=sheets.find(s=>s.id===activeSheetId); if(!sheet) return false;
+      const history=currentUndoHistory();
+      const snapshotSheet=deepClone(sheet);
+      (snapshotSheet.columns||[]).forEach(c=>{ delete c.img; });
+      history.push({id:`undo_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,projectId:activeSheetId,createdAt:Date.now(),actionType,label,sheet:snapshotSheet});
+      while(history.length>10) history.shift();
+      if(!saveUndoHistory()){
+        history.pop(); syncUndoButton();
+        alert('无法创建撤回快照，本次修改尚未应用。请先清理浏览器存储空间。');
+        return false;
+      }
+      syncUndoButton(); return true;
+    }
+    function undoLastApplication(){
+      const history=currentUndoHistory();
+      if(!history.length){ alert('暂无可撤回操作'); return; }
+      if(!confirm('是否撤回上一次排单修改？\n当前排单表将恢复到应用前状态。')) return;
+      const snapshot=history[history.length-1], index=sheets.findIndex(s=>s.id===activeSheetId);
+      if(index<0||!snapshot.sheet){ alert('撤回记录已损坏，无法恢复'); return; }
+      captureActiveSheet(); const before=deepClone(sheets[index]);
+      const restored=deepClone(snapshot.sheet); restored.id=activeSheetId;
+      const currentImages=new Map((before.columns||[]).map(c=>[c.id,c.img||null]));
+      (restored.columns||[]).forEach(c=>{ c.img=currentImages.get(c.id)||null; });
+      sheets[index]=restored; applySheet(restored);
+      if(!saveState()){
+        sheets[index]=before; applySheet(before); saveState();
+        alert('撤回后的数据保存失败，已恢复撤回前状态。'); return;
+      }
+      history.pop(); saveUndoHistory(); syncUndoButton();
+      alert('已撤回上一次排单修改');
     }
     function migrateColumn(c){
       // migrate legacy {isAvg,priceAdj} into mode model
@@ -770,6 +849,7 @@ class Component extends DCLogic {
             paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
             paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
             paymentEdits=sheet.paymentEdits||{};
+            coldCarryBundleColumnIds=(Array.isArray(sheet.coldCarryBundleColumnIds)?sheet.coldCarryBundleColumnIds:[]).map(Number).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
             paymentQrImg=sharedPaymentQrImg;
             quantityConfigured=sheet.quantityConfigured===true;
             boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
@@ -784,10 +864,11 @@ class Component extends DCLogic {
             first.cost=d.cost||{...COST_DEFAULTS}; first.cartNote=d.cartNote||'';
             first.cartTargetMode=d.cartTargetMode||'auto'; first.cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null;
             first.showPricingRow=d.showPricingRow!==false; first.showUnitPriceRow=d.showUnitPriceRow!==false; first.showPromotionPointRow=d.showPromotionPointRow!==false; first.showCompleteRowColor=d.showCompleteRowColor!==false;
+            first.coldCarryBundleColumnIds=Array.isArray(d.coldCarryBundleColumnIds)?d.coldCarryBundleColumnIds.map(Number):[];
             first.matrixTitle=d.matrixTitle||''; first.matrixColor=d.matrixColor||'#d1466a';
             sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             sheets=[first]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
           }
           return;
         }
@@ -811,6 +892,29 @@ class Component extends DCLogic {
       $('matrixTitleInput').value=matrixTitle;
       $('matrixColorInput').value=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
       renderMatrixHeading();
+    }
+    function activeBundleColumns(){
+      const selected=new Set(coldCarryBundleColumnIds.map(Number));
+      return columns.filter(c=>selected.has(c.id)&&c.mode!=='fixed');
+    }
+    function renderColdBundleConfiguration(){
+      coldCarryBundleColumnIds=activeBundleColumns().map(c=>c.id);
+      const selected=activeBundleColumns();
+      if($('coldBundleSummary')) $('coldBundleSummary').textContent=selected.length?`捆位：${selected.map(c=>c.name).join('、')}`:'捆位：尚未选择';
+      if($('selectColdBundleBtn')) $('selectColdBundleBtn').textContent=selected.length?'修改':'选择捆位';
+      if($('coldBundleChooser')&&$('coldBundleChooser').style.display!=='none') renderColdBundleList();
+    }
+    function renderColdBundleList(){
+      const selected=new Set(coldCarryBundleColumnIds.map(Number));
+      $('coldBundleList').innerHTML=columns.length?columns.map(c=>{
+        const fixed=c.mode==='fixed';
+        return `<label class="${fixed?'is-fixed':''}"><input type="checkbox" value="${c.id}" ${selected.has(c.id)&&!fixed?'checked':''} ${fixed?'disabled':''}> <span>${escapeHtml(c.name)}${fixed?'（入均）':''}</span></label>`;
+      }).join(''):'<span class="hint">请先添加谷子列。</span>';
+    }
+    function openColdBundleChooser(pendingPreview){
+      coldPromotionPendingBundlePreview=!!pendingPreview;
+      renderColdBundleList(); $('coldBundleChooser').style.display='block';
+      if(pendingPreview) $('coldBundleSummary').textContent='请先选择捆位，保存后会继续生成预览。';
     }
     function renderMatrixHeading(){
       const el=$('matrixProjectTitle'), color=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
@@ -1151,10 +1255,11 @@ class Component extends DCLogic {
       else if(field==='mode'){
         if(value==='fixed'&&c.mode!=='fixed'&&!(Number(c.fixedPrice)>0)) c.fixedPrice=Math.max(0,unitPrice(c));
         c.mode=value;
+        if(value==='fixed') coldCarryBundleColumnIds=coldCarryBundleColumnIds.filter(colId=>colId!==c.id);
       }
       else c[field]=value;
       saveState();
-      if(field==='mode') renderColumnList();
+      if(field==='mode'){ renderColumnList(); renderColdBundleConfiguration(); }
       recalc();
     };
     ggz.moveColumn=(id,dir)=>{
@@ -1166,7 +1271,8 @@ class Component extends DCLogic {
     ggz.removeColumn=id=>{
       if(!confirm('确定删除这一列吗？该列已生成的配比数据也会一并清除。')) return;
       columns=columns.filter(c=>c.id!==id); delete allocations[id];
-      saveState(); renderColumnList(); recalc();
+      coldCarryBundleColumnIds=coldCarryBundleColumnIds.filter(colId=>colId!==id);
+      saveState(); renderColdBundleConfiguration(); renderColumnList(); recalc();
     };
     ggz.updatePreview=(id,field,value)=>{ const r=previewRows.find(x=>x.id===id); if(r) r[field]=value; };
     ggz.removePreviewRow=id=>{ previewRows=previewRows.filter(r=>r.id!==id); renderPreview(); };
@@ -1579,6 +1685,16 @@ class Component extends DCLogic {
     $('showUnitPriceRow').addEventListener('click',()=>{ showUnitPriceRow=!showUnitPriceRow; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showPromotionPointRow').addEventListener('click',()=>{ showPromotionPointRow=!showPromotionPointRow; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showCompleteRowColor').addEventListener('click',()=>{ showCompleteRowColor=!showCompleteRowColor; syncMatrixOptions(); saveState(); renderMatrix(); });
+    $('selectColdBundleBtn').addEventListener('click',()=>openColdBundleChooser(false));
+    $('cancelColdBundleBtn').addEventListener('click',()=>{ coldPromotionPendingBundlePreview=false; $('coldBundleChooser').style.display='none'; renderColdBundleConfiguration(); });
+    $('saveColdBundleBtn').addEventListener('click',()=>{
+      const selected=[...$('coldBundleList').querySelectorAll('input[type="checkbox"]:checked')].map(input=>parseInt(input.value,10)).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
+      if(!selected.length){ alert('请至少选择一个捆位'); return; }
+      coldCarryBundleColumnIds=selected; saveState(); $('coldBundleChooser').style.display='none'; renderColdBundleConfiguration();
+      const continuePreview=coldPromotionPendingBundlePreview; coldPromotionPendingBundlePreview=false;
+      if(continuePreview) startColdPromotionPreview();
+    });
+    $('undoLastApplyBtn').addEventListener('click',undoLastApplication);
     $('matrixTitleInput').addEventListener('input',e=>{ matrixTitle=e.target.value; renderMatrixHeading(); saveState(); });
     $('matrixColorInput').addEventListener('input',e=>{ matrixColor=e.target.value; renderMatrixHeading(); saveState(); });
     function setMobileView(full){
@@ -1630,6 +1746,7 @@ class Component extends DCLogic {
         if(sheets.length<=1||!confirm('确定删除这张表吗？')) return;
         const wasActive=id===activeSheetId;
         sheets=sheets.filter(s=>s.id!==id);
+        delete undoHistoryBySheet[String(id)]; saveUndoHistory();
         if(wasActive) applySheet(sheets[0]); else renderSheetTabs();
         saveState(); return;
       }
@@ -1663,6 +1780,7 @@ class Component extends DCLogic {
     });
 
     $('generateBtn').addEventListener('click',()=>{
+      if(!previewRows.length||!pushUndoSnapshot('order-append','追加排单前')) return;
       columns.forEach(c=>{ if(!Array.isArray(allocations[c.id])) allocations[c.id]=[]; });
       previewRows.forEach(row=>{
         const items=parseDemandText(row.itemsText);
@@ -1750,6 +1868,7 @@ class Component extends DCLogic {
     $('confirmTransferBtn').addEventListener('click',()=>{
       const checks=transferPreviewRows.map(row=>({row,check:transferRowCheck(row)}));
       if(!checks.length||checks.some(item=>!item.check.ok)){ alert('还有没识别清楚的转单，请先在预览里修改'); return; }
+      if(!pushUndoSnapshot('transfer-apply','确认转单前')) return;
       let changedTotal=0;
       checks.forEach(({row,check})=>{
         const arr=allocations[check.col.id]||(allocations[check.col.id]=[]); let changed=0;
@@ -1818,6 +1937,7 @@ class Component extends DCLogic {
     $('confirmCancelBtn').addEventListener('click',()=>{
       const checks=cancelPreviewRows.map((row,index)=>({row,check:cancelRowCheck(row,index)}));
       if(!checks.length||checks.some(item=>!item.check.ok)){ alert('还有没识别清楚的撤单，请先在预览里修改'); return; }
+      if(!pushUndoSnapshot('cancel-apply','确认撤单前')) return;
       let removedTotal=0;
       checks.forEach(({check})=>{
         const arr=allocations[check.col.id]||(allocations[check.col.id]=[]); let removed=0;
@@ -1879,20 +1999,25 @@ class Component extends DCLogic {
       merged.forEach(candidate=>{ candidate.errors=[...new Set(candidate.errors)]; });
       return merged;
     }
+    function normalizeColdCarryScore(value){
+      const number=Number(value); return Number.isFinite(number)?Number(number.toFixed(4)):0;
+    }
     function buildColdPromotionPlan(){
-      const candidates=parseColdPromotionCandidates(), maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
-      const sim={}; let uidSeed=1, resourceSeed=1;
+      const candidates=parseColdPromotionCandidates(), bundleColumns=activeBundleColumns();
+      const maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
+      const sim={}, displacementPool=new Map(), claimed=new Set(), lockedRows=new Set(), rows=[];
+      let uidSeed=1, resourceSeed=1, originalOrder=1;
       columns.forEach(c=>{
+        displacementPool.set(c.id,[]);
         const source=allocations[c.id]||[];
         sim[c.id]=Array.from({length:maxRows},(_,row)=>{
           const name=String(source[row]||'').trim();
-          return name?{uid:`o${uidSeed++}`,name}:null;
+          return name?{uid:`o${uidSeed++}`,name,columnId:c.id,originalRow:row,originalOrder:originalOrder++,source:'original'}:null;
         });
       });
-      const rowIsFull=row=>columns.length>0&&columns.every(c=>sim[c.id][row]);
-      const lockedRows=new Set();
-      for(let row=0;row<maxRows;row++) if(rowIsFull(row)) lockedRows.add(row);
-      const originallyLockedCount=lockedRows.size, claimed=new Set(), rows=[];
+      const tokenRow=resource=>(sim[resource.col.id]||[]).findIndex(token=>token&&token.uid===resource.uid);
+      const rowHasBundle=row=>bundleColumns.length>0&&bundleColumns.every(col=>sim[col.id]&&sim[col.id][row]);
+      for(let row=0;row<maxRows;row++) if(rowHasBundle(row)) lockedRows.add(row);
       candidates.forEach(candidate=>{
         candidate.resources=[]; candidate.rightRemaining=new Map();
         candidate.leftTotal=candidate.leftItems.reduce((sum,item)=>sum+Math.max(0,Number(item.qty)||0),0);
@@ -1900,129 +2025,169 @@ class Component extends DCLogic {
           const point=item.col&&Number.isFinite(Number(item.col.promotionPoints))?Math.max(0,Number(item.col.promotionPoints)):1;
           return sum+Math.max(0,Number(item.qty)||0)*point;
         },0);
-        candidate.kValue=candidate.leftTotal>0?candidate.rightPointTotal/candidate.leftTotal:0;
-        candidate.scoreLabel=`1k${fmtPoint(candidate.kValue)}`;
-        candidate.scoreCalc=`${fmtPoint(candidate.rightPointTotal)}÷${fmtPoint(candidate.leftTotal)}`;
+        candidate.kValue=normalizeColdCarryScore(candidate.leftTotal>0?candidate.rightPointTotal/candidate.leftTotal:0);
+        candidate.scoreLabel=fmtPoint(candidate.kValue);
+        candidate.hasFixed=candidate.rightItems.some(item=>item.col&&item.col.mode==='fixed');
+        candidate.leftColumnIds=new Set(candidate.leftItems.filter(item=>item.col).map(item=>item.col.id));
         candidate.leftItems.forEach(item=>{
           if(!item.col) return;
-          const matches=sim[item.col.id].map((token,row)=>({token,row})).filter(entry=>entry.token&&entry.token.name===candidate.person&&!lockedRows.has(entry.row)&&!claimed.has(entry.token.uid));
+          const matches=(sim[item.col.id]||[]).map((token,row)=>({token,row})).filter(entry=>entry.token&&entry.token.name===candidate.person&&!lockedRows.has(entry.row)&&!claimed.has(entry.token.uid));
           const chosen=matches.slice(-item.qty);
-          chosen.forEach(entry=>{
-            claimed.add(entry.token.uid);
-            candidate.resources.push({id:resourceSeed++,col:item.col,uid:entry.token.uid,used:false});
-          });
-          if(chosen.length<item.qty) candidate.errors.push(`${item.col.name} 只找到 ${chosen.length}/${item.qty} 个未成配位置`);
+          chosen.forEach(entry=>{ claimed.add(entry.token.uid); candidate.resources.push({id:resourceSeed++,col:item.col,uid:entry.token.uid,used:false}); });
+          if(chosen.length<item.qty) candidate.errors.push(`${item.col.name} 未找到足够的可前移位置`);
         });
-        candidate.rightItems.forEach(item=>{
-          if(item.col) candidate.rightRemaining.set(item.col.id,(candidate.rightRemaining.get(item.col.id)||0)+item.qty);
-        });
+        candidate.rightItems.forEach(item=>{ if(item.col) candidate.rightRemaining.set(item.col.id,(candidate.rightRemaining.get(item.col.id)||0)+item.qty); });
       });
-      const tokenRow=resource=>sim[resource.col.id].findIndex(token=>token&&token.uid===resource.uid);
-      function evaluate(candidate,resource,target){
-        const source=tokenRow(resource);
-        if(source<=target||source<0||lockedRows.has(source)||lockedRows.has(target)) return null;
-        const additions=columns.filter(col=>col.id!==resource.col.id&&!sim[col.id][target]);
-        if(!additions.length) return null;
-        if(additions.some(col=>(candidate.rightRemaining.get(col.id)||0)<1)) return null;
-        return {candidate,resource,source,target,additions};
+      const poolAvailable=colId=>(displacementPool.get(colId)||[]).filter(item=>!item.used);
+      const requiredFor=candidate=>bundleColumns.filter(col=>!candidate.leftColumnIds.has(col.id));
+      function qualification(candidate){
+        const required=requiredFor(candidate), own=new Set(required.filter(col=>(candidate.rightRemaining.get(col.id)||0)>0).map(col=>col.id));
+        const missing=required.filter(col=>!own.has(col.id));
+        if(!missing.length) return {grade:'A',rank:3,missing};
+        if(missing.every(col=>poolAvailable(col.id).length>0)) return {grade:'B',rank:2,missing};
+        return {grade:'C',rank:1,missing};
+      }
+      function findTarget(resource){
+        const source=tokenRow(resource); if(source<=0) return null;
+        for(let row=0;row<source;row++) if(!lockedRows.has(row)) return row;
+        return null;
       }
       function better(proposal,best){
         if(!best) return true;
-        if(Math.abs(proposal.candidate.kValue-best.candidate.kValue)>1e-9) return proposal.candidate.kValue>best.candidate.kValue;
+        if(proposal.qualification.rank!==best.qualification.rank) return proposal.qualification.rank>best.qualification.rank;
+        if(proposal.candidate.kValue!==best.candidate.kValue) return proposal.candidate.kValue>best.candidate.kValue;
         if(proposal.candidate.order!==best.candidate.order) return proposal.candidate.order<best.candidate.order;
-        if(proposal.target!==best.target) return proposal.target<best.target;
         return proposal.resource.id<best.resource.id;
       }
       function moveOriginal(resource,target){
         const arr=sim[resource.col.id], source=tokenRow(resource), positions=[];
         for(let row=target;row<=source;row++) if(!lockedRows.has(row)) positions.push(row);
-        if(!positions.length||positions[0]!==target||positions[positions.length-1]!==source) return null;
-        const old=positions.map(row=>arr[row]), moving=arr[source], displaced=[];
-        for(let i=positions.length-1;i>0;i--){
-          arr[positions[i]]=old[i-1];
-          if(old[i-1]) displaced.push({name:old[i-1].name,from:positions[i-1],to:positions[i]});
-        }
-        arr[target]=moving;
-        return {source,target,displaced};
+        if(source<0||positions[0]!==target||positions[positions.length-1]!==source) return null;
+        const old=positions.map(row=>arr[row]), moving=arr[source];
+        for(let i=positions.length-1;i>0;i--) arr[positions[i]]=old[i-1];
+        arr[target]=moving; return {source,target};
+      }
+      function addToPool(col,token){
+        if(!token) return;
+        displacementPool.get(col.id).push({...token,columnId:col.id,source:'displaced',used:false});
+        displacementPool.get(col.id).sort((a,b)=>a.originalOrder-b.originalOrder);
+      }
+      function takePool(col){
+        const token=poolAvailable(col.id)[0]; if(token) token.used=true; return token||null;
+      }
+      function insertWithoutLoss(col,target,token){
+        const arr=sim[col.id];
+        if(!arr[target]){ arr[target]=token; return; }
+        let blank=target;
+        while(blank<arr.length&&arr[blank]) blank++;
+        if(blank===arr.length) arr.push(null);
+        for(let row=blank;row>target;row--) arr[row]=arr[row-1];
+        arr[target]=token;
+      }
+      function applicantToken(candidate,col){
+        return {uid:`n${uidSeed++}`,name:candidate.person,columnId:col.id,originalRow:Number.MAX_SAFE_INTEGER,originalOrder:originalOrder++,source:'added'};
       }
       while(true){
         let best=null;
         candidates.forEach(candidate=>{
-          if(candidate.errors.some(error=>/^没找到|没有识别/.test(error))) return;
+          if(candidate.errors.some(error=>/^没找到|没有识别|未找到/.test(error))) return;
           candidate.resources.forEach(resource=>{
             if(resource.used) return;
-            const source=tokenRow(resource);
-            for(let target=0;target<source;target++){
-              const proposal=evaluate(candidate,resource,target);
-              if(proposal&&better(proposal,best)) best=proposal;
-            }
+            const target=findTarget(resource); if(target==null) return;
+            const proposal={candidate,resource,target,qualification:qualification(candidate)};
+            if(better(proposal,best)) best=proposal;
           });
         });
         if(!best) break;
-        const move=moveOriginal(best.resource,best.target);
-        if(!move){ best.resource.used=true; continue; }
-        best.resource.used=true;
-        best.additions.forEach(col=>{
-          sim[col.id][best.target]={uid:`n${uidSeed++}`,name:best.candidate.person};
-          best.candidate.rightRemaining.set(col.id,(best.candidate.rightRemaining.get(col.id)||0)-1);
+        const {candidate,resource,target,qualification:q}=best, move=moveOriginal(resource,target);
+        resource.used=true; if(!move) continue;
+        const required=requiredFor(candidate), ownCols=required.filter(col=>(candidate.rightRemaining.get(col.id)||0)>0);
+        const missingCols=required.filter(col=>!ownCols.some(own=>own.id===col.id));
+        const borrowed=new Map(); missingCols.forEach(col=>{ const token=takePool(col); if(token) borrowed.set(col.id,token); });
+        required.forEach(col=>{
+          const existing=sim[col.id][target]; if(existing) addToPool(col,existing);
+          if(ownCols.some(own=>own.id===col.id)){
+            sim[col.id][target]=applicantToken(candidate,col);
+            candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
+          }else{
+            let fill=borrowed.get(col.id)||null;
+            if(!fill&&q.grade==='C'){
+              fill=takePool(col);
+              if(fill) borrowed.set(col.id,fill);
+            }
+            sim[col.id][target]=fill;
+          }
         });
-        lockedRows.add(best.target);
-        const displaced=move.displaced.reverse().map(item=>`${item.name}：第${item.from+1}行→第${item.to+1}行`);
-        rows.push({ok:true,candidateOrder:best.candidate.order,person:best.candidate.person,scoreLabel:best.candidate.scoreLabel,scoreCalc:best.candidate.scoreCalc,move:`${best.resource.col.name}：第${move.source+1}行→第${move.target+1}行`,added:best.additions.map(col=>col.name).join('、'),displaced:displaced.length?displaced.join('；'):'无人顺延',result:`补齐第${best.target+1}行完整一配`});
+        candidate.rightItems.forEach(item=>{
+          const col=item.col; if(!col||required.some(requiredCol=>requiredCol.id===col.id)||(candidate.rightRemaining.get(col.id)||0)<1) return;
+          insertWithoutLoss(col,target,applicantToken(candidate,col));
+          candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
+        });
+        lockedRows.add(target);
+        const stillMissing=required.filter(col=>!sim[col.id][target]);
+        const usedBorrowed=[...borrowed.values()].length>0;
+        const calcParts=[`1k${fmtPoint(candidate.kValue)}`];
+        if(usedBorrowed) calcParts.push('顺延');
+        if(candidate.hasFixed) calcParts.push('入均');
+        rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,scoreCalc:calcParts.join(' + '),move:`第${move.source+1}配 → 第${move.target+1}配`,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:stillMissing.length?'待补':(q.grade==='A'?'自带满配':'顺延成配'),grade:q.grade});
       }
       candidates.forEach(candidate=>{
-        if(rows.some(row=>row.candidateOrder===candidate.order)) return;
-        const detail=candidate.errors.length?[...new Set(candidate.errors)].join('；'):'目前不能独自补齐前面的完整一配';
-        rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'1k0',scoreCalc:candidate.scoreCalc||'—',move:candidate.leftItems.map(item=>`${item.name}${item.qty}`).join('、')||'—',added:candidate.rightItems.map(item=>`${item.name}${item.qty}`).join('、')||'—',displaced:'—',result:detail});
+        candidate.resources.filter(resource=>!resource.used).forEach(()=>rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',scoreCalc:`1k${candidate.scoreLabel||'0'}`,move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:'无法前移',grade:'C'}));
+        if(!candidate.resources.length) rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',scoreCalc:`1k${candidate.scoreLabel||'0'}`,move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:'无法前移',grade:'C'});
+      });
+      columns.forEach(col=>{
+        poolAvailable(col.id).sort((a,b)=>a.originalOrder-b.originalOrder).forEach(token=>{
+          const arr=sim[col.id]; let row=Math.max(0,Math.min(token.originalRow,arr.length));
+          while(row<arr.length&&arr[row]) row++;
+          if(row===arr.length) arr.push(token); else arr[row]=token;
+          token.used=true;
+        });
       });
       const finalAllocations={};
-      columns.forEach(c=>{
-        const arr=sim[c.id].map(token=>token?token.name:''); trimTail(arr); finalAllocations[c.id]=arr;
-      });
-      return {rows,allocations:rows.some(row=>row.ok)?finalAllocations:null,candidateCount:candidates.length,lockedCount:originallyLockedCount};
+      columns.forEach(c=>{ const arr=(sim[c.id]||[]).map(token=>token?token.name:''); trimTail(arr); finalAllocations[c.id]=arr; });
+      return {rows,allocations:rows.some(row=>row.ok)?finalAllocations:null,candidateCount:candidates.length};
     }
     function renderColdPromotionPreview(){
-      $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map((row,index)=>`<tr><td>${index+1}</td><td>${escapeHtml(row.person)}</td><td class="promotion-score">${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.scoreCalc)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td>${escapeHtml(row.displaced)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
+      $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map(row=>`<tr><td>${escapeHtml(row.person)}</td><td class="promotion-score">${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.scoreCalc)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
       $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations;
     }
     function recalculateColdPromotionPreview(statusText){
       const plan=buildColdPromotionPlan();
-      coldPromotionPreviewRows=plan.rows;
-      coldPromotionPreviewAllocations=plan.allocations;
-      coldPromotionPlanRevision=localRevision;
-      renderColdPromotionPreview();
-      $('coldPromotionPreviewPanel').style.display=coldPromotionPreviewRows.length?'block':'none';
-      const arranged=coldPromotionPreviewRows.filter(row=>row.ok).length;
-      $('coldPromotionPreviewStatus').textContent=statusText||`已累计 ${coldPromotionBatches.length} 批、${plan.candidateCount} 人；锁定原有成配 ${plan.lockedCount} 行，暂排成 ${arranged} 配。`;
-      $('coldPromotionPreviewStatus').style.color=coldPromotionPreviewAllocations?'':'var(--bad)';
-      return plan;
+      coldPromotionPreviewRows=plan.rows; coldPromotionPreviewAllocations=plan.allocations; coldPromotionPlanRevision=localRevision;
+      renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display=coldPromotionPreviewRows.length?'block':'none';
+      $('coldPromotionPreviewStatus').textContent=statusText||'累计预览已生成；确认前不会修改正式排单。';
+      $('coldPromotionPreviewStatus').style.color=coldPromotionPreviewAllocations?'':'var(--bad)'; return plan;
     }
-    $('coldPromotionPreviewBtn').addEventListener('click',()=>{
+    function startColdPromotionPreview(){
+      if(!activeBundleColumns().length){ openColdBundleChooser(true); return; }
       const raw=$('commentInput').value.trim();
       if(raw){
         if(!parsePromotionCandidates(raw).length){ alert('这一批没有识别到“原谷子 带 新增谷子”的内容，尚未加入累计预览'); return; }
-        coldPromotionBatches.push(raw);
-        $('commentInput').value='';
+        coldPromotionBatches=[raw];
       }else if(!coldPromotionBatches.length){ alert('请先粘贴带冷提文字'); return; }
       recalculateColdPromotionPreview();
       $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
-    });
+    }
+    $('coldPromotionPreviewBtn').addEventListener('click',startColdPromotionPreview);
     $('confirmColdPromotionBtn').addEventListener('click',()=>{
-      if(!coldPromotionPreviewAllocations){ alert('当前累计内容还没有可以补成完整一配的方案'); return; }
+      if(!coldPromotionPreviewAllocations){ alert('当前累计内容没有可以前移的项目'); return; }
       if(coldPromotionPlanRevision!==localRevision){
         recalculateColdPromotionPreview('正式排单在预览后发生过变化，已按最新排单重新计算，请再核对一次后确认。');
-        $('coldPromotionPreviewStatus').style.color='var(--warn)';
-        return;
+        $('coldPromotionPreviewStatus').style.color='var(--warn)'; return;
       }
-      const applied=coldPromotionPreviewRows.filter(row=>row.ok).length;
-      allocations=coldPromotionPreviewAllocations;
+      if(!pushUndoSnapshot('cold-carry-apply','带冷提确认应用前')) return;
+      const before=deepClone(allocations), applied=coldPromotionPreviewRows.filter(row=>row.ok).length;
+      allocations=deepClone(coldPromotionPreviewAllocations);
+      if(!saveState()){
+        allocations=before; saveState(); renderMatrix();
+        alert('正式排单保存失败，已自动恢复应用前状态，撤回快照仍然保留。'); return;
+      }
       coldPromotionPreviewAllocations=null; coldPromotionBatches=[]; coldPromotionPlanRevision=-1;
-      saveState(); renderMatrix(); $('commentInput').value='';
-      $('coldPromotionPreviewStatus').textContent=`已正式应用 ${applied} 项带冷提；本次累计已结束。`;
-      $('coldPromotionPreviewStatus').style.color='var(--ok)';
-      $('confirmColdPromotionBtn').disabled=true;
+      renderMatrix();
+      $('coldPromotionPreviewStatus').textContent=`已正式应用 ${applied} 项带冷提。`;
+      $('coldPromotionPreviewStatus').style.color='var(--ok)'; $('confirmColdPromotionBtn').disabled=true;
     });
     $('clearColdPromotionBtn').addEventListener('click',()=>{
       coldPromotionBatches=[]; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1;
@@ -2070,6 +2235,7 @@ class Component extends DCLogic {
     function trimTail(arr){ while(arr.length&&(arr[arr.length-1]===''||arr[arr.length-1]==null)) arr.pop(); }
     function swapAlloc(a,b){
       if(a.col===b.col&&a.row===b.row) return;
+      if(!pushUndoSnapshot('cell-move','移动排单人员前')) return;
       const A=allocations[a.col]||(allocations[a.col]=[]);
       const B=allocations[b.col]||(allocations[b.col]=[]);
       while(A.length<=a.row) A.push('');
@@ -2520,8 +2686,9 @@ class Component extends DCLogic {
             completeMultiple=quantityConfigured&&Number.isFinite(parseInt(d.completeMultiple,10))?Math.max(1,parseInt(d.completeMultiple,10)):null;
             $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
             showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false; showPromotionPointRow=d.showPromotionPointRow!==false; showCompleteRowColor=d.showCompleteRowColor!==false;
+            coldCarryBundleColumnIds=(Array.isArray(d.coldCarryBundleColumnIds)?d.coldCarryBundleColumnIds:[]).map(Number).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
             syncMatrixOptions();
-            syncCartControls(); saveState(); renderColumnList(); recalc();
+            syncCartControls(); saveState(); renderColdBundleConfiguration(); renderColumnList(); recalc();
           }
         }catch(err){ alert('读取失败：'+err.message); }
       };
@@ -2529,6 +2696,7 @@ class Component extends DCLogic {
     });
     $('clearAllBtn').addEventListener('click',()=>{
       if(!confirm('确定清空当前排单里的全部名字吗？谷子列、图片、价格和其他设置都会保留。')) return;
+      if(!pushUndoSnapshot('clear-order','清空排单前')) return;
       allocations={}; columns.forEach(c=>{ allocations[c.id]=[]; }); highlightedPerson='';
       saveState(); renderMatrix();
     });
@@ -2538,12 +2706,14 @@ class Component extends DCLogic {
     $('syncCodeInput').value=syncCode;
     localStorage.removeItem('ggzCloudAuto');
     setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false);
+    loadUndoHistory();
     loadState();
     syncCartControls();
     syncPaymentControls();
     syncMatrixOptions();
     renderSheetTabs();
     renderColumnList();
+    renderColdBundleConfiguration(); syncUndoButton();
     recalc();
     cloudIdleEnabled=true;
   }
