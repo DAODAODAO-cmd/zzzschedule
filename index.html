@@ -22,9 +22,9 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">早上好打表部</div>
+    <div class="eyebrow">调价 · 排单</div>
     <h1>谷子调排簿</h1>
-    <p class="lead">能自动就别手动</p>
+    <p class="lead">调价、排单，数据自动累加。</p>
   </header>
 
   <div class="mobile-view-switch">
@@ -153,6 +153,7 @@
     </div>
     <div class="toolbar">
       <button class="btn-primary" id="confirmTransferBtn">确认转单</button>
+      <button class="btn-ghost" id="cancelTransferPreviewBtn">取消预览</button>
       <span class="hint" id="transferPreviewStatus">会从原 CN 最后一单开始向上修改。</span>
     </div>
   </div>
@@ -167,6 +168,7 @@
     </div>
     <div class="toolbar">
       <button class="btn-primary" id="confirmCancelBtn">确认撤单</button>
+      <button class="btn-ghost" id="cancelCancelPreviewBtn">取消预览</button>
       <span class="hint" id="cancelPreviewStatus">会从这个人在对应谷子的最后一单开始向前删除。</span>
     </div>
   </div>
@@ -175,7 +177,7 @@
     <h2>带冷提累计预览</h2>
     <div class="table-scroll">
       <table id="coldPromotionPreviewTable">
-        <thead><tr><th>CN</th><th>带冷提点数</th><th>计算</th><th>原谷子移动</th><th>带冷</th><th>结果</th></tr></thead>
+        <thead><tr><th>CN</th><th>带冷提点数</th><th>原谷子移动</th><th>带冷</th><th>结果</th></tr></thead>
         <tbody id="coldPromotionPreviewTableBody"></tbody>
       </table>
     </div>
@@ -215,6 +217,7 @@
     <div class="hint matrix-tip">点格子改字，拖动换位置。</div>
     <div id="matrixWrap">
       <div id="matrixProjectTitle" class="matrix-project-title"></div>
+      <div id="matrixPreviewNotice" class="matrix-preview-notice" style="display:none;"></div>
       <div class="table-scroll">
         <table id="matrixTable">
           <thead></thead>
@@ -508,8 +511,10 @@ class Component extends DCLogic {
 #transferPreviewTable .transfer-ok,#cancelPreviewTable .transfer-ok,#coldPromotionPreviewTable .transfer-ok{ color:var(--ok); font-weight:800; white-space:nowrap; }
 #transferPreviewTable .transfer-bad,#cancelPreviewTable .transfer-bad,#coldPromotionPreviewTable .transfer-bad{ color:var(--bad); font-weight:800; white-space:nowrap; }
 #coldPromotionPreviewTable td{ min-width:92px; }
-#coldPromotionPreviewTable td:nth-child(4),#coldPromotionPreviewTable td:nth-child(5){ white-space:normal; line-height:1.5; }
+#coldPromotionPreviewTable td:nth-child(3),#coldPromotionPreviewTable td:nth-child(4){ white-space:normal; line-height:1.5; }
 .promotion-score{ font-weight:900; color:var(--accent); white-space:nowrap; }
+.matrix-preview-notice{ margin:8px 0; padding:8px 10px; border:1px solid #e2b553; border-radius:8px; background:#fff8dc; color:#8a5b00; font-size:12.5px; font-weight:900; text-align:center; }
+#matrixTable.is-preview tbody td.cell{ cursor:default; background-image:repeating-linear-gradient(135deg,rgba(209,70,106,.025) 0,rgba(209,70,106,.025) 5px,transparent 5px,transparent 10px); }
 .cold-bundle-bar{ display:flex; align-items:center; gap:8px; margin-top:9px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--muted); font-size:12.5px; }
 .cold-bundle-chooser{ margin-top:8px; padding:10px; border:1px solid #efcad5; border-radius:10px; background:#fff8fb; }
 .cold-bundle-list{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:7px; margin-top:9px; }
@@ -661,6 +666,7 @@ class Component extends DCLogic {
     let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='';
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
+    let matrixPreviewAllocations=null, matrixPreviewLabel='';
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let undoHistoryBySheet={};
@@ -713,6 +719,7 @@ class Component extends DCLogic {
       if(!sharedPaymentQrImg) sharedPaymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
       paymentQrImg=sharedPaymentQrImg;
       highlightedPerson='';
+      matrixPreviewAllocations=null; matrixPreviewLabel='';
       quantityConfigured=sheet.quantityConfigured===true;
       boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
       groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
@@ -1426,13 +1433,24 @@ class Component extends DCLogic {
 
     // ---------- matrix ----------
     function quantitySettingsReady(){ return Number.isFinite(boxSize)&&boxSize>0&&Number.isFinite(groupSize)&&groupSize>0; }
+    function showMatrixPreview(previewAllocations,label){
+      matrixPreviewAllocations=previewAllocations?deepClone(previewAllocations):null;
+      matrixPreviewLabel=matrixPreviewAllocations?(label||'排单模拟预览'):'';
+      renderMatrix();
+    }
+    function clearMatrixPreview(shouldRender=true){
+      const hadPreview=!!matrixPreviewAllocations; matrixPreviewAllocations=null; matrixPreviewLabel='';
+      if(hadPreview&&shouldRender) renderMatrix();
+    }
     function renderMatrix(){
       const thead=document.querySelector('#matrixTable thead');
       const tbody=$('matrixTableBody');
       const emptyEl=$('matrixEmpty');
+      const isPreview=!!matrixPreviewAllocations, displayAllocations=matrixPreviewAllocations||allocations, notice=$('matrixPreviewNotice'), table=$('matrixTable');
+      notice.style.display=isPreview?'block':'none'; notice.textContent=isPreview?`正在预览：${matrixPreviewLabel}（尚未写入正式排单）`:''; table.classList.toggle('is-preview',isPreview);
       if(columns.length===0){ thead.innerHTML=''; tbody.innerHTML=''; emptyEl.style.display='block'; $('paymentSummary').innerHTML=''; renderQuantitySummary(); renderCart(); return; }
       emptyEl.style.display='none';
-      const maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
+      const maxRows=Math.max(0,...columns.map(c=>(displayAllocations[c.id]||[]).length));
       const displayRows=maxRows+1;
       let headHtml='<tr class="header-row"><th></th>'+columns.map(c=>`<th>${c.img?`<img class="head-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:''}${escapeHtml(c.name)}</th>`).join('')+'</tr>';
       if(showPricingRow) headHtml+='<tr class="adj-row"><td>调价</td>'+columns.map(c=>{
@@ -1449,15 +1467,15 @@ class Component extends DCLogic {
       thead.innerHTML=headHtml;
       let bodyHtml='';
       for(let r=0;r<displayRows;r++){
-        const rowFilled=r<maxRows&&columns.length>0&&columns.every(c=>String((allocations[c.id]||[])[r]||'').trim());
+        const rowFilled=r<maxRows&&columns.length>0&&columns.every(c=>String((displayAllocations[c.id]||[])[r]||'').trim());
         const step=quantitySettingsReady()?groupSize:1, countValue=(r+1)*step, previousValue=r*step;
         const boxNumber=quantitySettingsReady()?Math.floor(countValue/boxSize):0, crossedBox=quantitySettingsReady()&&boxNumber>Math.floor(previousValue/boxSize);
         const markBox=crossedBox&&Number.isFinite(completeMultiple)&&completeMultiple>0&&boxNumber%completeMultiple===0;
         const rowClasses=[rowFilled&&showCompleteRowColor?'complete-row':'',markBox?'box-boundary-row':''].filter(Boolean).join(' ');
         bodyHtml+=`<tr class="${rowClasses}"${markBox?` title="第 ${boxNumber} 盒节点"`:''}><td class="seq-col">${countValue}</td>`+columns.map(c=>{
-          const arr=allocations[c.id]||[];
+          const arr=displayAllocations[c.id]||[];
           const nm=arr[r];
-          return `<td class="cell${nm?' has-name':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" contenteditable="true" spellcheck="false" draggable="${nm?'true':'false'}">${nm?escapeHtml(nm):''}</td>`;
+          return `<td class="cell${nm?' has-name':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" contenteditable="${isPreview?'false':'true'}" spellcheck="false" draggable="${!isPreview&&nm?'true':'false'}">${nm?escapeHtml(nm):''}</td>`;
         }).join('')+'</tr>';
       }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(columns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
@@ -1766,6 +1784,7 @@ class Component extends DCLogic {
     });
 
     $('parseBtn').addEventListener('click',()=>{
+      clearMatrixPreview();
       const raw=$('commentInput').value;
       if(!raw.trim()){ alert('请先粘贴评论文字'); return; }
       const comments=splitComments(raw);
@@ -1782,7 +1801,7 @@ class Component extends DCLogic {
       if(previewRows.length===0) alert('没有识别到任何评论，请检查粘贴的文字格式');
     });
     $('clearCommentBtn').addEventListener('click',()=>{
-      $('commentInput').value=''; previewRows=[]; transferPreviewRows=[]; cancelPreviewRows=[]; $('previewPanel').style.display='none'; $('transferPreviewPanel').style.display='none'; $('cancelPreviewPanel').style.display='none'; $('commentInput').focus();
+      $('commentInput').value=''; previewRows=[]; transferPreviewRows=[]; cancelPreviewRows=[]; clearMatrixPreview(); $('previewPanel').style.display='none'; $('transferPreviewPanel').style.display='none'; $('cancelPreviewPanel').style.display='none'; $('commentInput').focus();
     });
 
     $('generateBtn').addEventListener('click',()=>{
@@ -1853,6 +1872,17 @@ class Component extends DCLogic {
       }).join('');
       $('confirmTransferBtn').disabled=!transferPreviewRows.length||transferPreviewRows.some(row=>!transferRowCheck(row).ok);
     }
+    function buildTransferMatrixPreview(){
+      const preview=deepClone(allocations);
+      transferPreviewRows.forEach(row=>{
+        const col=findColumnByText(row.itemText||''), source=String(row.source||'').trim(), target=String(row.target||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
+        if(!col||!source||!target) return;
+        const arr=preview[col.id]||(preview[col.id]=[]), positions=arr.map((value,index)=>String(value||'').trim()===source?index:-1).filter(index=>index>=0).slice(-qty);
+        if(positions.length<qty) return;
+        positions.forEach(index=>{ arr[index]=target; });
+      });
+      return preview;
+    }
     $('transferPreviewBtn').addEventListener('click',()=>{
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先粘贴转单文字'); return; }
       transferPreviewRows=actionContentLines(raw).filter(line=>/(?:转给|出给|转|出|给|到|->|→|➡)/.test(line)).map(parseTransferLine).filter(Boolean);
@@ -1860,6 +1890,7 @@ class Component extends DCLogic {
       $('transferPreviewStatus').textContent='会从原 CN 最后一单开始向上修改。'; $('transferPreviewStatus').style.color='';
       renderTransferPreview(); $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display=transferPreviewRows.length?'block':'none';
+      if(transferPreviewRows.length) showMatrixPreview(buildTransferMatrixPreview(),'转单模拟结果'); else clearMatrixPreview();
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
       $('coldPromotionPreviewPanel').style.display='none';
       if(!transferPreviewRows.length) alert('没有识别到转单内容');
@@ -1867,16 +1898,18 @@ class Component extends DCLogic {
     $('transferPreviewTableBody').addEventListener('change',e=>{
       const input=e.target.closest('[data-transfer-id]'); if(!input) return;
       const row=transferPreviewRows.find(item=>item.id===parseInt(input.dataset.transferId,10)); if(!row) return;
-      row[input.dataset.transferField]=input.dataset.transferField==='qty'?Math.max(1,parseInt(input.value,10)||1):input.value.trim(); renderTransferPreview();
+      row[input.dataset.transferField]=input.dataset.transferField==='qty'?Math.max(1,parseInt(input.value,10)||1):input.value.trim(); renderTransferPreview(); showMatrixPreview(buildTransferMatrixPreview(),'转单模拟结果');
     });
     $('transferPreviewTableBody').addEventListener('click',e=>{
       const button=e.target.closest('[data-remove-transfer]'); if(!button) return;
       transferPreviewRows=transferPreviewRows.filter(row=>row.id!==parseInt(button.dataset.removeTransfer,10)); renderTransferPreview();
+      if(transferPreviewRows.length) showMatrixPreview(buildTransferMatrixPreview(),'转单模拟结果'); else clearMatrixPreview();
     });
     $('confirmTransferBtn').addEventListener('click',()=>{
       const currentSignature=actionPreviewDataSignature();
       if(transferPreviewSignature&&transferPreviewSignature!==currentSignature){
         transferPreviewSignature=currentSignature; renderTransferPreview();
+        showMatrixPreview(buildTransferMatrixPreview(),'转单模拟结果（已刷新）');
         $('transferPreviewStatus').textContent='正式排单在预览后发生过变化，已重新检查并刷新下方预览，请核对后再次确认。';
         $('transferPreviewStatus').style.color='var(--warn)'; $('transferPreviewPanel').scrollIntoView({behavior:'smooth',block:'start'}); return;
       }
@@ -1891,9 +1924,13 @@ class Component extends DCLogic {
         }
         changedTotal+=changed;
       });
-      saveState(); renderMatrix(); $('commentInput').value=''; transferPreviewRows=[]; transferPreviewSignature=''; renderTransferPreview();
+      saveState(); clearMatrixPreview(false); renderMatrix(); $('commentInput').value=''; transferPreviewRows=[]; transferPreviewSignature=''; renderTransferPreview();
       $('transferPreviewStatus').textContent=`已完成 ${changedTotal} 个转单，均从原 CN 最后一单开始修改。`;
       $('transferPreviewStatus').style.color='var(--ok)';
+    });
+    $('cancelTransferPreviewBtn').addEventListener('click',()=>{
+      transferPreviewRows=[]; transferPreviewSignature=''; renderTransferPreview();
+      $('transferPreviewPanel').style.display='none'; clearMatrixPreview();
     });
     function parseCancelRows(raw){
       const rows=[];
@@ -1930,6 +1967,18 @@ class Component extends DCLogic {
       }).join('');
       $('confirmCancelBtn').disabled=!cancelPreviewRows.length||cancelPreviewRows.some((row,index)=>!cancelRowCheck(row,index).ok);
     }
+    function buildCancelMatrixPreview(){
+      const preview=deepClone(allocations);
+      cancelPreviewRows.forEach(row=>{
+        const col=findColumnByText(row.itemText||''), person=String(row.person||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
+        if(!col||!person) return;
+        const arr=preview[col.id]||(preview[col.id]=[]); let removed=0;
+        for(let index=arr.length-1;index>=0&&removed<qty;index--){
+          if(String(arr[index]||'').trim()===person){ arr.splice(index,1); removed++; }
+        }
+      });
+      return preview;
+    }
     $('cancelPreviewBtn').addEventListener('click',()=>{
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先粘贴撤单文字'); return; }
       cancelPreviewRows=parseCancelRows(raw);
@@ -1938,22 +1987,25 @@ class Component extends DCLogic {
       renderCancelPreview(); $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display=cancelPreviewRows.length?'block':'none';
+      if(cancelPreviewRows.length) showMatrixPreview(buildCancelMatrixPreview(),'撤单模拟结果'); else clearMatrixPreview();
       $('coldPromotionPreviewPanel').style.display='none';
       if(!cancelPreviewRows.length) alert('没有识别到撤单内容，请使用“谁 撤 谷子数量”的写法');
     });
     $('cancelPreviewTableBody').addEventListener('change',e=>{
       const input=e.target.closest('[data-cancel-id]'); if(!input) return;
       const row=cancelPreviewRows.find(item=>item.id===parseInt(input.dataset.cancelId,10)); if(!row) return;
-      row[input.dataset.cancelField]=input.dataset.cancelField==='qty'?Math.max(1,parseInt(input.value,10)||1):input.value.trim(); renderCancelPreview();
+      row[input.dataset.cancelField]=input.dataset.cancelField==='qty'?Math.max(1,parseInt(input.value,10)||1):input.value.trim(); renderCancelPreview(); showMatrixPreview(buildCancelMatrixPreview(),'撤单模拟结果');
     });
     $('cancelPreviewTableBody').addEventListener('click',e=>{
       const button=e.target.closest('[data-remove-cancel]'); if(!button) return;
       cancelPreviewRows=cancelPreviewRows.filter(row=>row.id!==parseInt(button.dataset.removeCancel,10)); renderCancelPreview();
+      if(cancelPreviewRows.length) showMatrixPreview(buildCancelMatrixPreview(),'撤单模拟结果'); else clearMatrixPreview();
     });
     $('confirmCancelBtn').addEventListener('click',()=>{
       const currentSignature=actionPreviewDataSignature();
       if(cancelPreviewSignature&&cancelPreviewSignature!==currentSignature){
         cancelPreviewSignature=currentSignature; renderCancelPreview();
+        showMatrixPreview(buildCancelMatrixPreview(),'撤单模拟结果（已刷新）');
         $('cancelPreviewStatus').textContent='正式排单在预览后发生过变化，已重新检查并刷新下方预览，请核对后再次确认。';
         $('cancelPreviewStatus').style.color='var(--warn)'; $('cancelPreviewPanel').scrollIntoView({behavior:'smooth',block:'start'}); return;
       }
@@ -1968,9 +2020,13 @@ class Component extends DCLogic {
         }
         removedTotal+=removed;
       });
-      saveState(); renderMatrix(); $('commentInput').value=''; cancelPreviewRows=[]; cancelPreviewSignature=''; renderCancelPreview();
+      saveState(); clearMatrixPreview(false); renderMatrix(); $('commentInput').value=''; cancelPreviewRows=[]; cancelPreviewSignature=''; renderCancelPreview();
       $('cancelPreviewStatus').textContent=`已撤掉 ${removedTotal} 个，均从对应谷子的最后一单开始删除。`;
       $('cancelPreviewStatus').style.color='var(--ok)';
+    });
+    $('cancelCancelPreviewBtn').addEventListener('click',()=>{
+      cancelPreviewRows=[]; cancelPreviewSignature=''; renderCancelPreview();
+      $('cancelPreviewPanel').style.display='none'; clearMatrixPreview();
     });
     function parsePromotionCandidates(raw){
       const people=knownPeople();
@@ -2156,14 +2212,14 @@ class Component extends DCLogic {
         lockedRows.add(target);
         const stillMissing=required.filter(col=>!sim[col.id][target]);
         const usedBorrowed=[...borrowed.values()].length>0;
-        const calcParts=[`1k${fmtPoint(candidate.kValue)}`];
-        if(usedBorrowed) calcParts.push('顺延');
-        if(candidate.hasFixed) calcParts.push('入均');
-        rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,scoreCalc:calcParts.join(' + '),move:`第${move.source+1}配 → 第${move.target+1}配`,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:stillMissing.length?'待补':(q.grade==='A'?'自带满配':'顺延成配'),grade:q.grade});
+        const baseResult=stillMissing.length?'待补':(q.grade==='A'?'自带满配':'顺延成配'), resultParts=[baseResult];
+        if(stillMissing.length&&usedBorrowed) resultParts.push('顺延');
+        if(candidate.hasFixed) resultParts.push('入均');
+        rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,move:`第${move.source+1}配 → 第${move.target+1}配`,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:resultParts.join(' + '),grade:q.grade});
       }
       candidates.forEach(candidate=>{
-        candidate.resources.filter(resource=>!resource.used).forEach(()=>rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',scoreCalc:`1k${candidate.scoreLabel||'0'}`,move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:'无法前移',grade:'C'}));
-        if(!candidate.resources.length) rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',scoreCalc:`1k${candidate.scoreLabel||'0'}`,move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:'无法前移',grade:'C'});
+        candidate.resources.filter(resource=>!resource.used).forEach(()=>rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:'无法前移',grade:'C'}));
+        if(!candidate.resources.length) rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:'无法前移',grade:'C'});
       });
       columns.forEach(col=>{
         poolAvailable(col.id).sort((a,b)=>a.originalOrder-b.originalOrder).forEach(token=>{
@@ -2178,13 +2234,14 @@ class Component extends DCLogic {
       return {rows,allocations:rows.some(row=>row.ok)?finalAllocations:null,candidateCount:candidates.length};
     }
     function renderColdPromotionPreview(){
-      $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map(row=>`<tr><td>${escapeHtml(row.person)}</td><td class="promotion-score">${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.scoreCalc)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
+      $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map(row=>`<tr><td>${escapeHtml(row.person)}</td><td class="promotion-score">${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
       $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations;
     }
     function recalculateColdPromotionPreview(statusText){
       const plan=buildColdPromotionPlan();
       coldPromotionPreviewRows=plan.rows; coldPromotionPreviewAllocations=plan.allocations; coldPromotionPlanRevision=localRevision; coldPromotionPlanSignature=coldPreviewDataSignature();
       renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display=coldPromotionPreviewRows.length?'block':'none';
+      if(coldPromotionPreviewAllocations) showMatrixPreview(coldPromotionPreviewAllocations,'带冷提重排模拟结果'); else clearMatrixPreview();
       $('coldPromotionPreviewStatus').textContent=statusText||'累计预览已生成；确认前不会修改正式排单。';
       $('coldPromotionPreviewStatus').style.color=coldPromotionPreviewAllocations?'':'var(--bad)'; return plan;
     }
@@ -2215,13 +2272,13 @@ class Component extends DCLogic {
         alert('正式排单保存失败，已自动恢复应用前状态，撤回快照仍然保留。'); return;
       }
       coldPromotionPreviewAllocations=null; coldPromotionBatches=[]; coldPromotionPlanRevision=-1; coldPromotionPlanSignature='';
-      renderMatrix();
+      clearMatrixPreview(false); renderMatrix();
       $('coldPromotionPreviewStatus').textContent=`已正式应用 ${applied} 项带冷提。`;
       $('coldPromotionPreviewStatus').style.color='var(--ok)'; $('confirmColdPromotionBtn').disabled=true;
     });
     $('clearColdPromotionBtn').addEventListener('click',()=>{
       coldPromotionBatches=[]; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1; coldPromotionPlanSignature='';
-      renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='none';
+      renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview();
       $('coldPromotionPreviewStatus').textContent='可以分批追加；确认前不会修改正式排单。'; $('coldPromotionPreviewStatus').style.color='';
     });
     function applyQuantitySettings(){
