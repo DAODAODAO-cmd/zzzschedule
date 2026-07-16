@@ -42,9 +42,8 @@
     <button id="createSyncCodeBtn" class="btn-ghost">新建同步码</button>
     <button id="cloudUploadBtn" class="btn-primary">上传云端</button>
     <button id="cloudDownloadBtn" class="btn-ghost">读取云端</button>
-    <label class="cloud-auto"><input id="cloudAutoSync" type="checkbox"> 自动同步</label>
-    <span id="localStatus">已保存本地</span>
-    <span id="cloudStatus">尚未连接</span>
+    <span id="localStatus">本机已保存</span>
+    <span id="cloudStatus">云端未同步</span>
   </div>
 
   <div class="panel desktop-setup" id="costPanel">
@@ -87,7 +86,7 @@
       <div class="stat"><span>总成本</span><strong id="targetTotal">¥0.00</strong></div>
       <div class="stat"><span>平摊数量</span><strong id="effCount">0 项</strong></div>
       <div class="stat highlight"><span>均价</span><strong id="avgPriceText">¥0.00</strong></div>
-      <div class="stat"><span>加减合计</span><strong id="adjSumText">¥0.00</strong></div>
+      <div class="stat"><span>调价合计</span><strong id="adjSumText">¥0.00</strong></div>
     </div>
     <div id="avgWarn" class="warn" style="display:none;"></div>
   </div>
@@ -126,6 +125,7 @@
       <button class="btn-primary" id="parseBtn">排单预览</button>
       <button class="btn-ghost" id="transferPreviewBtn">转单预览</button>
       <button class="btn-ghost" id="cancelPreviewBtn">撤单预览</button>
+      <button class="btn-ghost" id="coldPromotionPreviewBtn">带冷提追加预览</button>
       <button class="btn-ghost" id="clearCommentBtn">清空文字</button>
       <span class="hint">先预览，确认后再写入表格。</span>
     </div>
@@ -156,6 +156,21 @@
     <div class="toolbar">
       <button class="btn-primary" id="confirmCancelBtn">确认撤单</button>
       <span class="hint" id="cancelPreviewStatus">会从这个人在对应谷子的最后一单开始向前删除。</span>
+    </div>
+  </div>
+
+  <div class="panel mobile-core" id="coldPromotionPreviewPanel" style="display:none;">
+    <h2>带冷提累计预览</h2>
+    <div class="table-scroll">
+      <table id="coldPromotionPreviewTable">
+        <thead><tr><th>#</th><th>CN</th><th>有效数量</th><th>类型</th><th>原谷子移动</th><th>一起补入</th><th>顺延</th><th>结果</th></tr></thead>
+        <tbody id="coldPromotionPreviewTableBody"></tbody>
+      </table>
+    </div>
+    <div class="toolbar">
+      <button class="btn-primary" id="confirmColdPromotionBtn">确认应用</button>
+      <button class="btn-danger" id="clearColdPromotionBtn">清空带冷提预览</button>
+      <span class="hint" id="coldPromotionPreviewStatus">可以分批追加；确认前不会修改正式排单。</span>
     </div>
   </div>
 
@@ -310,8 +325,7 @@ class Component extends DCLogic {
 .wrap .lead{ margin:5px 0 0; color:var(--muted); font-size:12.5px; line-height:1.55; }
 .mobile-view-switch{ display:none; }
 .sheetbar{ position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:7px; margin:0 0 12px; padding:7px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:11px; box-shadow:0 4px 16px rgba(53,36,62,.06); backdrop-filter:blur(10px); }
-.cloudbar{ display:grid; grid-template-columns:150px repeat(3,auto) auto auto 1fr; align-items:center; gap:7px; margin:-5px 0 12px; padding:8px; border:1px solid var(--line); border-radius:11px; background:#fff; }
-.cloudbar .cloud-auto{ display:flex; align-items:center; gap:5px; margin:0; white-space:nowrap; }
+.cloudbar{ display:grid; grid-template-columns:150px repeat(3,auto) auto 1fr; align-items:center; gap:7px; margin:-5px 0 12px; padding:8px; border:1px solid var(--line); border-radius:11px; background:#fff; }
 #cloudStatus{ color:var(--muted); font-size:12px; text-align:right; white-space:nowrap; }
 #localStatus{ color:var(--ok); font-size:12px; font-weight:800; white-space:nowrap; }
 .sheet-tabs{ display:flex; align-items:center; gap:6px; overflow-x:auto; flex:1; padding-bottom:1px; }
@@ -474,8 +488,11 @@ class Component extends DCLogic {
 .transfer-row{ display:grid; grid-template-columns:minmax(180px,1fr) auto minmax(100px,auto); gap:8px; align-items:center; margin-top:10px; }
 #transferPreviewTable input,#cancelPreviewTable input{ width:100%; min-width:92px; }
 #transferPreviewTable input[type=number],#cancelPreviewTable input[type=number]{ min-width:64px; width:72px; }
-#transferPreviewTable .transfer-ok,#cancelPreviewTable .transfer-ok{ color:var(--ok); font-weight:800; white-space:nowrap; }
-#transferPreviewTable .transfer-bad,#cancelPreviewTable .transfer-bad{ color:var(--bad); font-weight:800; white-space:nowrap; }
+#transferPreviewTable .transfer-ok,#cancelPreviewTable .transfer-ok,#coldPromotionPreviewTable .transfer-ok{ color:var(--ok); font-weight:800; white-space:nowrap; }
+#transferPreviewTable .transfer-bad,#cancelPreviewTable .transfer-bad,#coldPromotionPreviewTable .transfer-bad{ color:var(--bad); font-weight:800; white-space:nowrap; }
+#coldPromotionPreviewTable td{ min-width:92px; }
+#coldPromotionPreviewTable td:nth-child(5),#coldPromotionPreviewTable td:nth-child(6),#coldPromotionPreviewTable td:nth-child(7){ white-space:normal; line-height:1.5; }
+.promotion-priority{ font-weight:900; color:var(--accent); white-space:nowrap; }
 .data-actions{ position:relative; }
 .data-actions summary{ list-style:none; cursor:pointer; padding:8px 13px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); font-size:12.5px; font-weight:800; }
 .data-actions summary::-webkit-details-marker{ display:none; }
@@ -565,7 +582,6 @@ class Component extends DCLogic {
   .mobile-view-switch button.active{ color:var(--accent); background:#fff0f4; border-color:#efcad5; }
   .cloudbar{ grid-template-columns:1fr 1fr; gap:6px; }
   .cloudbar #syncCodeInput,.cloudbar #cloudStatus{ grid-column:1/-1; text-align:left; }
-  .cloudbar .cloud-auto{ justify-content:center; }
   .wrap .panel{ padding:12px; margin-bottom:9px; }
   #matrixPanel .toolbar > *{ display:none!important; }
   #matrixPanel .toolbar #regenBtn,#matrixPanel .toolbar #exportPngBtn,#matrixPanel .toolbar #dataActions,#matrixPanel .toolbar #clearAllBtn{ display:inline-flex!important; }
@@ -610,6 +626,7 @@ class Component extends DCLogic {
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed',priceAdj,fixedPrice,img}
     let allocations={};   // colId -> [person,...]
     let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[];
+    let coldPromotionBatches=[], coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1;
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showCompleteRowColor=true;
     let matrixTitle='', matrixColor='#d1466a';
@@ -621,8 +638,11 @@ class Component extends DCLogic {
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let itemCatalog=[], catalogIdSeed=1;
-    let cloudClient=null, cloudTimer=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='';
-    let syncCode=localStorage.getItem('ggzSyncCode')||'', cloudAuto=localStorage.getItem('ggzCloudAuto')==='1';
+    const CLOUD_IDLE_UPLOAD_MS=5*60*1000;
+    const CLOUD_VERSION_KEY_PREFIX='ggzCloudVersion_';
+    let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
+    let syncCode=localStorage.getItem('ggzSyncCode')||'';
+    lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):'';
     const SUPABASE_URL='https://fzxabmdnrkvpgraztcwi.supabase.co';
     const SUPABASE_KEY='sb_publishable_yU4Q1T2RuQfgwOW9Idtf9w__YssVHYe';
 
@@ -678,6 +698,7 @@ class Component extends DCLogic {
       $('previewPanel').style.display='none';
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
+      $('coldPromotionPreviewPanel').style.display='none'; coldPromotionBatches=[]; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1;
       syncCartControls();
       syncPaymentControls();
       syncMatrixOptions();
@@ -696,10 +717,15 @@ class Component extends DCLogic {
     function saveState(){
       if(isLoadingSheet) return;
       captureActiveSheet();
+      let localSaved=true;
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg})); }
-      catch(e){ console.warn('保存失败',e); }
-      if($('localStatus')) $('localStatus').textContent='已保存本地';
-      if(cloudAuto&&!applyingCloud) scheduleCloudUpload();
+      catch(e){ localSaved=false; console.warn('保存失败',e); }
+      if($('localStatus')){ $('localStatus').textContent=localSaved?'本机已保存':'本机保存失败'; $('localStatus').style.color=localSaved?'var(--ok)':'var(--bad)'; }
+      if(!applyingCloud){
+        localRevision++; cloudDirty=true;
+        if(syncCode&&cloudIdleEnabled) scheduleIdleCloudUpload();
+        else setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false);
+      }
     }
     function migrateColumn(c){
       // migrate legacy {isAvg,priceAdj} into mode model
@@ -787,21 +813,54 @@ class Component extends DCLogic {
       const sheet=sheets.find(s=>s.id===id); if(!sheet) return;
       applySheet(sheet); saveState();
     }
-    function setCloudStatus(text,bad){ const el=$('cloudStatus'); el.textContent=text; el.style.color=bad?'var(--bad)':'var(--muted)'; }
+    function setCloudStatus(text,tone){ const el=$('cloudStatus'); el.textContent=text; el.style.color=tone==='warn'?'var(--warn)':(tone?'var(--bad)':'var(--muted)'); }
     function normalizedSyncCode(){ return String($('syncCodeInput').value||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24); }
+    function rememberCloudVersion(code,updatedAt){ lastCloudUpdatedAt=updatedAt||''; if(code&&updatedAt) localStorage.setItem(CLOUD_VERSION_KEY_PREFIX+code,updatedAt); }
+    function cloudVersionIsNewer(remote,known){ return !!remote&&(!known||new Date(remote)>new Date(known)); }
+    function pauseForCloudConflict(){
+      cloudConflictPaused=true; clearIdleCloudUpload();
+      setCloudStatus('云端有较新版本，已暂停自动上传以免覆盖，请手动确认','warn');
+    }
     function getCloudClient(code){
       if(!window.supabase||!window.supabase.createClient) throw new Error('云同步组件尚未加载');
       cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{global:{headers:{'x-sync-code':code}}});
       return cloudClient;
     }
-    function scheduleCloudUpload(){
-      clearTimeout(cloudTimer); setCloudStatus('等待云同步'); cloudTimer=setTimeout(()=>uploadCloud(true),1800);
+    function clearIdleCloudUpload(){ if(cloudIdleTimer){ clearTimeout(cloudIdleTimer); cloudIdleTimer=null; } }
+    function attemptIdleCloudUpload(){
+      cloudIdleTimer=null;
+      if(!cloudDirty||!syncCode||!cloudIdleEnabled||cloudConflictPaused) return;
+      if(cloudBusy){ cloudIdleTimer=setTimeout(attemptIdleCloudUpload,30000); return; }
+      uploadCloud(true);
+    }
+    function scheduleIdleCloudUpload(){
+      clearIdleCloudUpload();
+      if(!syncCode||!cloudIdleEnabled||applyingCloud) return;
+      if(cloudConflictPaused){ pauseForCloudConflict(); return; }
+      setCloudStatus('云端未同步 · 5分钟无操作后自动上传','warn');
+      cloudIdleTimer=setTimeout(attemptIdleCloudUpload,CLOUD_IDLE_UPLOAD_MS);
     }
     async function uploadCloud(silent){
-      const code=normalizedSyncCode(); if(!code||cloudBusy) return;
+      const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先填写同步码',true); return; } if(cloudBusy) return;
+      const automatic=silent===true;
+      clearIdleCloudUpload();
       cloudBusy=true; setCloudStatus('正在同步云端…');
       try{
-        captureActiveSheet(); const client=getCloudClient(code);
+        const client=getCloudClient(code);
+        const knownVersion=lastCloudUpdatedAt||localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+code)||'';
+        async function fetchRemoteVersion(){
+          const {data,error}=await client.from('ggz_sync_data').select('updated_at').eq('sync_code',code).maybeSingle();
+          if(error) throw error;
+          return data?.updated_at||'';
+        }
+        const remoteBefore=await fetchRemoteVersion();
+        if(cloudVersionIsNewer(remoteBefore,knownVersion)){
+          if(automatic){ pauseForCloudConflict(); return; }
+          if(!confirm('云端有较新版本。继续上传会用本机数据覆盖云端，确定仍要上传吗？')){ pauseForCloudConflict(); return; }
+          cloudConflictPaused=false;
+        }
+        captureActiveSheet();
+        const uploadRevision=localRevision;
         const cloudSheets=JSON.parse(JSON.stringify(sheets));
         const cloudCatalog=JSON.parse(JSON.stringify(itemCatalog));
         async function uploadImage(data,label){
@@ -822,17 +881,45 @@ class Component extends DCLogic {
         const cloudCartQrImg=await uploadImage(sharedCartQrImg,'shared-qr');
         const cloudPaymentQrImg=await uploadImage(sharedPaymentQrImg,'shared-payment');
         for(const item of cloudCatalog) item.img=await uploadImage(item.img,`library${item.catalogId||item.id||0}`);
+        const remoteNow=await fetchRemoteVersion();
+        const changedDuringUpload=remoteNow&&remoteNow!==remoteBefore&&cloudVersionIsNewer(remoteNow,knownVersion);
+        if(changedDuringUpload){
+          if(automatic){ pauseForCloudConflict(); return; }
+          if(!confirm('上传准备期间云端又有新更新。继续会覆盖它，确定仍要上传吗？')){ pauseForCloudConflict(); return; }
+          cloudConflictPaused=false;
+        }
         const now=new Date().toISOString();
         const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,sharedCartQrImg:cloudCartQrImg,sharedPaymentQrImg:cloudPaymentQrImg,version:Date.now()};
-        const {error}=await client.from('ggz_sync_data').upsert({sync_code:code,payload,updated_at:now},{onConflict:'sync_code'});
-        if(error) throw error;
-        syncCode=code; lastCloudUpdatedAt=now; localStorage.setItem('ggzSyncCode',code);
-        setCloudStatus('云端已同步 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}));
-      }catch(err){ setCloudStatus('同步失败：'+(err.message||err),true); }
+        let writeSucceeded=false;
+        if(remoteNow){
+          const {data,error}=await client.from('ggz_sync_data').update({payload,updated_at:now}).eq('sync_code',code).eq('updated_at',remoteNow).select('updated_at').maybeSingle();
+          if(error) throw error;
+          writeSucceeded=!!data;
+        }else{
+          const {error}=await client.from('ggz_sync_data').insert({sync_code:code,payload,updated_at:now});
+          if(!error) writeSucceeded=true;
+          else if(error.code!=='23505') throw error;
+        }
+        if(!writeSucceeded){
+          if(automatic){ pauseForCloudConflict(); return; }
+          if(!confirm('云端在最后一刻又有新更新。继续会覆盖它，确定仍要上传吗？')){ pauseForCloudConflict(); return; }
+          const {error}=await client.from('ggz_sync_data').upsert({sync_code:code,payload,updated_at:now},{onConflict:'sync_code'});
+          if(error) throw error;
+        }
+        syncCode=code; rememberCloudVersion(code,now); cloudConflictPaused=false; localStorage.setItem('ggzSyncCode',code);
+        if(localRevision===uploadRevision){ cloudDirty=false; setCloudStatus('云端已同步 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})); }
+        else{ cloudDirty=true; setCloudStatus('本机有新修改 · 云端未同步','warn'); }
+      }catch(err){
+        cloudDirty=true;
+        if(automatic) setCloudStatus('自动上传失败，稍后会再尝试','warn');
+        else setCloudStatus('同步失败：'+(err.message||err),true);
+      }
       finally{ cloudBusy=false; }
     }
     async function downloadCloud(silent){
-      const code=normalizedSyncCode(); if(!code||cloudBusy) return;
+      const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先填写同步码',true); return; } if(cloudBusy) return;
+      if(cloudDirty&&!confirm('本机有尚未上传的内容。读取云端会覆盖本机当前数据，确定继续吗？')) return;
+      clearIdleCloudUpload();
       cloudBusy=true; if(!silent) setCloudStatus('正在读取…');
       try{
         const client=getCloudClient(code);
@@ -848,7 +935,7 @@ class Component extends DCLogic {
         itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[]; catalogIdSeed=d.catalogIdSeed||Math.max(1,...itemCatalog.map(x=>(x.catalogId||0)+1)); activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
         if(!sheets.some(s=>s.id===activeSheetId)) activeSheetId=sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
-        lastCloudUpdatedAt=data.updated_at; syncCode=code; localStorage.setItem('ggzSyncCode',code);
+        rememberCloudVersion(code,data.updated_at); syncCode=code; cloudDirty=false; cloudConflictPaused=false; localStorage.setItem('ggzSyncCode',code);
         saveState(); setCloudStatus('云端已读取 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}));
       }catch(err){ setCloudStatus('读取失败：'+(err.message||err),true); }
       finally{ applyingCloud=false; cloudBusy=false; }
@@ -906,13 +993,13 @@ class Component extends DCLogic {
       const calculatedAverage=denom>0 ? (totalCost-fixedSum)/denom : 0;
       avgPrice=$('averageMode').value==='manual'?Math.max(0,num($('manualAveragePrice').value)):calculatedAverage;
       $('avgPriceText').textContent=money(avgPrice);
-      $('effCount').textContent=denom+' 项'+(fixedCount?`（固定${fixedCount}项另算）`:'');
+      $('effCount').textContent=denom+' 项'+(fixedCount?`（入均${fixedCount}项另算）`:'');
       $('adjSumText').textContent=(adjSum>0?'+':'')+money(adjSum);
       const w=$('avgWarn');
       let msg='';
-      if(denom<=0) msg='固定项占满了所有列，没有可摊均的谷子，无法计算均价。';
-      else if(fixedSum>totalCost) msg='固定价之和已超过总成本，均价为负，请检查固定价或成本。';
-      else if(Math.abs(adjSum)>0.005) msg=`加减合计为 ${(adjSum>0?'+':'')+money(adjSum)}，不为0 —— 收回的钱与成本相差 ${(adjSum>0?'+':'')+money(adjSum)}（正=多收，负=少收）。`;
+      if(denom<=0) msg='入均项占满了所有列，没有可摊均的谷子，无法计算均价。';
+      else if(fixedSum>totalCost) msg='入均价之和已超过总成本，均价为负，请检查入均价或成本。';
+      else if(Math.abs(adjSum)>0.005) msg=`调价合计为 ${(adjSum>0?'+':'')+money(adjSum)}，不为0 —— 收回的钱与成本相差 ${(adjSum>0?'+':'')+money(adjSum)}（正=多收，负=少收）。`;
       if(msg){ w.style.display='block'; w.textContent=msg; } else { w.style.display='none'; }
     }
     function unitPrice(c){
@@ -934,7 +1021,7 @@ class Component extends DCLogic {
     }
     function modeValueHtml(c){
       if(c.mode==='adjust') return `<label>调价 <input class="modeval" type="number" step="0.5" value="${c.priceAdj}" onchange="ggz.updateColumn(${c.id},'priceAdj',this.value)"></label>`;
-      if(c.mode==='fixed') return `<label>固定 <input class="modeval" type="number" step="0.5" min="0" value="${c.fixedPrice}" onchange="ggz.updateColumn(${c.id},'fixedPrice',this.value)"></label>`;
+      if(c.mode==='fixed') return `<label>入均 <input class="modeval" type="number" step="0.5" min="0" value="${c.fixedPrice}" onchange="ggz.updateColumn(${c.id},'fixedPrice',this.value)"></label>`;
       if(c.mode==='single') return `<label>日元 <input class="modeval" type="number" step="1" min="0" value="${c.sourceJpyPrice||''}" onchange="ggz.updateColumn(${c.id},'sourceJpyPrice',this.value)"></label>`;
       return `<label>均价 <input class="modeval" type="number" step="0.01" min="0" value="${c.avgOverride==null?'':c.avgOverride}" placeholder="自动" onchange="ggz.updateColumn(${c.id},'avgOverride',this.value)"></label>`;
     }
@@ -951,9 +1038,9 @@ class Component extends DCLogic {
           <input type="text" value="${escapeAttr(c.name)}" onchange="ggz.updateColumn(${c.id},'name',this.value)" placeholder="列名">
           <input type="text" class="alias-input" value="${escapeAttr(c.aliases.join('，'))}" onchange="ggz.updateColumn(${c.id},'aliases',this.value)" placeholder="别名（逗号分隔）">
           <select onchange="ggz.updateColumn(${c.id},'mode',this.value)">
-            <option value="avg" ${c.mode==='avg'?'selected':''}>入均</option>
-            <option value="adjust" ${c.mode==='adjust'?'selected':''}>加减</option>
-            <option value="fixed" ${c.mode==='fixed'?'selected':''}>固定</option>
+            <option value="avg" ${c.mode==='avg'?'selected':''}>均价</option>
+            <option value="adjust" ${c.mode==='adjust'?'selected':''}>调价</option>
+            <option value="fixed" ${c.mode==='fixed'?'selected':''}>入均</option>
             <option value="single" ${c.mode==='single'?'selected':''}>原价换算</option>
           </select>
           <div class="mode-slot">${modeValueHtml(c)}</div>
@@ -964,8 +1051,8 @@ class Component extends DCLogic {
     }
     function catalogPriceText(c){
       if(c.mode==='single') return `${fmtNum(c.sourceJpyPrice)} 日元 → ${money(Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value)))}`;
-      if(c.mode==='fixed') return `固定 ${money(c.fixedPrice)}`;
-      if(c.mode==='adjust') return `均价 ${(num(c.priceAdj)>=0?'+':'')+fmtNum(c.priceAdj)}`;
+      if(c.mode==='fixed') return `入均 ${money(c.fixedPrice)}`;
+      if(c.mode==='adjust') return `调价 ${(num(c.priceAdj)>=0?'+':'')+fmtNum(c.priceAdj)}`;
       if(c.avgOverride!==null&&c.avgOverride!=='') return `独立均价 ${money(c.avgOverride)}`;
       return '跟随均价';
     }
@@ -1167,7 +1254,18 @@ class Component extends DCLogic {
           blocks.push({person:cleanPersonName(lines[0]),demandText:lines.slice(1).join(' ').trim()});
         }
       }
+      function looksLikeNextPerson(line){
+        const text=String(line||'').trim();
+        if(pending.length<2||!pending.slice(1).some(value=>/\d/.test(value))) return false;
+        if(!text||/\d/.test(text)||/[，,、；;]/.test(text)) return false;
+        if(/(?:带|撤单?|取消|不要|转给|出给|->|→|➡)/.test(text)) return false;
+        return text.length<=60;
+      }
       raw.replace(/\r/g,'').split('\n').forEach(rawLine=>{
+        if(!String(rawLine||'').trim()){
+          pushPending();
+          return;
+        }
         const part=splitCommentMeta(rawLine);
         if(part.ignored) return;
         if(part.boundary){
@@ -1175,7 +1273,10 @@ class Component extends DCLogic {
           pushPending();
           return;
         }
-        if(part.content) pending.push(part.content);
+        if(part.content){
+          if(looksLikeNextPerson(part.content)) pushPending();
+          pending.push(part.content);
+        }
       });
       pushPending();
       return blocks.filter(b=>b.demandText);
@@ -1203,7 +1304,7 @@ class Component extends DCLogic {
       const displayRows=maxRows+1;
       let headHtml='<tr class="header-row"><th></th>'+columns.map(c=>`<th>${c.img?`<img class="head-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:''}${escapeHtml(c.name)}</th>`).join('')+'</tr>';
       if(showPricingRow) headHtml+='<tr class="adj-row"><td>调价</td>'+columns.map(c=>{
-        if(c.mode==='avg') return `<td><input class="matrix-price-input" data-price-kind="pricing" data-price-mode="avg" data-col="${c.id}" value="入均"></td>`;
+        if(c.mode==='avg') return `<td><input class="matrix-price-input" data-price-kind="pricing" data-price-mode="avg" data-col="${c.id}" value="均价"></td>`;
         if(c.mode==='fixed') return `<td class="adj-fix"><div class="matrix-price-editor"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="fixed" data-col="${c.id}" value="${fmtNum(c.fixedPrice)}"><span class="matrix-price-suffix">/1</span></div></td>`;
         if(c.mode==='single') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">原价</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="single" data-col="${c.id}" value="${fmtNum(c.sourceJpyPrice)}"><span class="matrix-price-suffix">日元</span></div></td>`;
         const adj=num(c.priceAdj);
@@ -1344,7 +1445,7 @@ class Component extends DCLogic {
       $('cartTargetInfo').textContent=`当前最多 ${maxCount} 配`+(cartTargetMode==='manual'&&target?` · 目标 ${target} 配`:'');
       grid.innerHTML=columns.map(c=>{
         const cnt=colOrderedCount(c);
-        // 左上角价格徽标：入均不写；加减写 +价/−价；固定写 价/1
+        // 左上角价格徽标：均价不写；调价写 +价/−价；入均写 价/1
         let priceHtml='';
         if(c.mode==='fixed'){
           priceHtml=`<span class="cart-badge cart-price fixed">${fmtNum(c.fixedPrice)}/1</span>`;
@@ -1469,15 +1570,12 @@ class Component extends DCLogic {
       const bytes=new Uint8Array(6); crypto.getRandomValues(bytes);
       syncCode=[...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
       $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode);
-      setCloudStatus('同步码已创建，请在另一台设备输入同一个码');
+      lastCloudUpdatedAt=localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''; cloudConflictPaused=false;
+      cloudDirty=true; clearIdleCloudUpload(); setCloudStatus('同步码已创建 · 云端未同步','warn');
     });
-    $('syncCodeInput').addEventListener('change',()=>{ syncCode=normalizedSyncCode(); $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode); lastCloudUpdatedAt=''; });
+    $('syncCodeInput').addEventListener('change',()=>{ syncCode=normalizedSyncCode(); $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode); lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):''; cloudConflictPaused=false; cloudDirty=true; clearIdleCloudUpload(); setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false); });
     $('cloudUploadBtn').addEventListener('click',()=>uploadCloud(false));
     $('cloudDownloadBtn').addEventListener('click',()=>downloadCloud(false));
-    $('cloudAutoSync').addEventListener('change',e=>{
-      cloudAuto=e.target.checked; localStorage.setItem('ggzCloudAuto',cloudAuto?'1':'0');
-      if(cloudAuto){ scheduleCloudUpload(); setCloudStatus('自动同步已开启'); } else setCloudStatus('自动同步已关闭');
-    });
 
     $('addColumnBtn').addEventListener('click',()=>{ addColumn('新角色'+(columns.length+1),[], 'avg',0,0); saveState(); renderColumnList(); recalc(); });
     $('saveColumnsToCatalogBtn').addEventListener('click',()=>{ saveColumnsToCatalog(); const b=$('saveColumnsToCatalogBtn'),old=b.textContent;b.textContent='已保存';setTimeout(()=>b.textContent=old,1200); });
@@ -1535,6 +1633,7 @@ class Component extends DCLogic {
       $('previewPanel').style.display=previewRows.length?'block':'none';
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
+      $('coldPromotionPreviewPanel').style.display='none';
       if(previewRows.length===0) alert('没有识别到任何评论，请检查粘贴的文字格式');
     });
     $('clearCommentBtn').addEventListener('click',()=>{
@@ -1614,6 +1713,7 @@ class Component extends DCLogic {
       renderTransferPreview(); $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display=transferPreviewRows.length?'block':'none';
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
+      $('coldPromotionPreviewPanel').style.display='none';
       if(!transferPreviewRows.length) alert('没有识别到转单内容');
     });
     $('transferPreviewTableBody').addEventListener('change',e=>{
@@ -1681,6 +1781,7 @@ class Component extends DCLogic {
       renderCancelPreview(); $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display=cancelPreviewRows.length?'block':'none';
+      $('coldPromotionPreviewPanel').style.display='none';
       if(!cancelPreviewRows.length) alert('没有识别到撤单内容，请使用“谁 撤 谷子数量”的写法');
     });
     $('cancelPreviewTableBody').addEventListener('change',e=>{
@@ -1706,6 +1807,208 @@ class Component extends DCLogic {
       saveState(); renderMatrix(); $('commentInput').value=''; cancelPreviewRows=[]; renderCancelPreview();
       $('cancelPreviewStatus').textContent=`已撤掉 ${removedTotal} 个，均从对应谷子的最后一单开始删除。`;
       $('cancelPreviewStatus').style.color='var(--ok)';
+    });
+    function parsePromotionCandidates(raw){
+      const people=knownPeople();
+      return splitComments(raw).map((comment,order)=>{
+        let person=String(comment.person||'').trim(), demand=String(comment.demandText||'').trim();
+        if(!demand.includes('带')) return null;
+        if(!person){
+          const known=people.find(name=>demand.startsWith(name));
+          if(known){ person=known; demand=demand.slice(known.length).trim(); }
+        }
+        const marker=demand.match(/可以带|可带|带/); if(!marker) return null;
+        const leftText=demand.slice(0,marker.index).replace(/[：:\s，,、；;]+$/,'').trim();
+        const rightText=demand.slice(marker.index+marker[0].length).replace(/^[：:\s，,、；;]+/,'').trim();
+        const left=parseDemandText(leftText), right=parseDemandText(rightText), errors=[];
+        if(!person) errors.push('没有识别到 CN');
+        if(!left.length) errors.push('“带”左边没有识别到原谷子');
+        if(!right.length) errors.push('“带”右边没有识别到新增谷子');
+        const leftItems=left.map(item=>({col:findColumnByText(item.name),name:item.name,qty:Math.max(1,item.qty||1)}));
+        const rightItems=right.map(item=>({col:findColumnByText(item.name),name:item.name,qty:Math.max(1,item.qty||1)}));
+        leftItems.filter(item=>!item.col).forEach(item=>errors.push(`没找到原谷子“${item.name}”`));
+        rightItems.filter(item=>!item.col).forEach(item=>errors.push(`没找到带物“${item.name}”`));
+        return {order,person,leftItems,rightItems,errors,sourceText:demand};
+      }).filter(Boolean);
+    }
+    function parseColdPromotionCandidates(){
+      const parsed=[]; let orderSeed=0;
+      coldPromotionBatches.forEach((raw,batchIndex)=>{
+        parsePromotionCandidates(raw).forEach(candidate=>parsed.push({...candidate,order:orderSeed++,batch:batchIndex+1}));
+      });
+      const merged=[], byPerson=new Map();
+      parsed.forEach(candidate=>{
+        const key=candidate.person?candidate.person:`__missing_${candidate.order}`;
+        let target=byPerson.get(key);
+        if(!target){
+          target={order:candidate.order,batch:candidate.batch,person:candidate.person,leftItems:[],rightItems:[],errors:[],sourceCount:0};
+          byPerson.set(key,target); merged.push(target);
+        }
+        target.sourceCount++;
+        target.errors.push(...candidate.errors);
+        const addItems=(dest,items)=>items.forEach(item=>{
+          const key=item.col?`c${item.col.id}`:`n${item.name}`;
+          const old=dest.find(entry=>entry.key===key);
+          if(old) old.qty+=item.qty;
+          else dest.push({...item,key});
+        });
+        addItems(target.leftItems,candidate.leftItems);
+        addItems(target.rightItems,candidate.rightItems);
+      });
+      merged.forEach(candidate=>{ candidate.errors=[...new Set(candidate.errors)]; });
+      return merged;
+    }
+    function buildColdPromotionPlan(){
+      const candidates=parseColdPromotionCandidates(), maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
+      const sim={}; let uidSeed=1, resourceSeed=1;
+      columns.forEach(c=>{
+        const source=allocations[c.id]||[];
+        sim[c.id]=Array.from({length:maxRows},(_,row)=>{
+          const name=String(source[row]||'').trim();
+          return name?{uid:`o${uidSeed++}`,name}:null;
+        });
+      });
+      const rowIsFull=row=>columns.length>0&&columns.every(c=>sim[c.id][row]);
+      const lockedRows=new Set();
+      for(let row=0;row<maxRows;row++) if(rowIsFull(row)) lockedRows.add(row);
+      const originallyLockedCount=lockedRows.size, claimed=new Set(), rows=[];
+      candidates.forEach(candidate=>{
+        candidate.resources=[]; candidate.rightRemaining=new Map();
+        candidate.leftItems.forEach(item=>{
+          if(!item.col) return;
+          const matches=sim[item.col.id].map((token,row)=>({token,row})).filter(entry=>entry.token&&entry.token.name===candidate.person&&!lockedRows.has(entry.row)&&!claimed.has(entry.token.uid));
+          const chosen=matches.slice(-item.qty);
+          chosen.forEach(entry=>{
+            claimed.add(entry.token.uid);
+            candidate.resources.push({id:resourceSeed++,col:item.col,uid:entry.token.uid,used:false});
+          });
+          if(chosen.length<item.qty) candidate.errors.push(`${item.col.name} 只找到 ${chosen.length}/${item.qty} 个未成配位置`);
+        });
+        candidate.rightItems.forEach(item=>{
+          if(item.col) candidate.rightRemaining.set(item.col.id,(candidate.rightRemaining.get(item.col.id)||0)+item.qty);
+        });
+      });
+      const tokenRow=resource=>sim[resource.col.id].findIndex(token=>token&&token.uid===resource.uid);
+      const inAverageColumn=col=>col.mode==='fixed'||col.mode==='single';
+      function proposalType(additions){
+        const hasInAverage=additions.some(inAverageColumn);
+        const hasRemainder=additions.some(col=>!inAverageColumn(col));
+        if(hasInAverage&&hasRemainder) return {score:3,label:'入均+余量'};
+        if(hasRemainder) return {score:2,label:'余量'};
+        return {score:1,label:'只入均'};
+      }
+      function evaluate(candidate,resource,target){
+        const source=tokenRow(resource);
+        if(source<=target||source<0||lockedRows.has(source)||lockedRows.has(target)) return null;
+        const additions=columns.filter(col=>col.id!==resource.col.id&&!sim[col.id][target]);
+        if(!additions.length) return null;
+        if(additions.some(col=>(candidate.rightRemaining.get(col.id)||0)<1)) return null;
+        const type=proposalType(additions);
+        return {candidate,resource,source,target,additions,count:additions.length,typeScore:type.score,typeLabel:type.label};
+      }
+      function better(proposal,best){
+        if(!best) return true;
+        if(proposal.count!==best.count) return proposal.count>best.count;
+        if(proposal.typeScore!==best.typeScore) return proposal.typeScore>best.typeScore;
+        if(proposal.candidate.order!==best.candidate.order) return proposal.candidate.order<best.candidate.order;
+        if(proposal.target!==best.target) return proposal.target<best.target;
+        return proposal.resource.id<best.resource.id;
+      }
+      function moveOriginal(resource,target){
+        const arr=sim[resource.col.id], source=tokenRow(resource), positions=[];
+        for(let row=target;row<=source;row++) if(!lockedRows.has(row)) positions.push(row);
+        if(!positions.length||positions[0]!==target||positions[positions.length-1]!==source) return null;
+        const old=positions.map(row=>arr[row]), moving=arr[source], displaced=[];
+        for(let i=positions.length-1;i>0;i--){
+          arr[positions[i]]=old[i-1];
+          if(old[i-1]) displaced.push({name:old[i-1].name,from:positions[i-1],to:positions[i]});
+        }
+        arr[target]=moving;
+        return {source,target,displaced};
+      }
+      while(true){
+        let best=null;
+        candidates.forEach(candidate=>{
+          if(candidate.errors.some(error=>/^没找到|没有识别/.test(error))) return;
+          candidate.resources.forEach(resource=>{
+            if(resource.used) return;
+            const source=tokenRow(resource);
+            for(let target=0;target<source;target++){
+              const proposal=evaluate(candidate,resource,target);
+              if(proposal&&better(proposal,best)) best=proposal;
+            }
+          });
+        });
+        if(!best) break;
+        const move=moveOriginal(best.resource,best.target);
+        if(!move){ best.resource.used=true; continue; }
+        best.resource.used=true;
+        best.additions.forEach(col=>{
+          sim[col.id][best.target]={uid:`n${uidSeed++}`,name:best.candidate.person};
+          best.candidate.rightRemaining.set(col.id,(best.candidate.rightRemaining.get(col.id)||0)-1);
+        });
+        lockedRows.add(best.target);
+        const displaced=move.displaced.reverse().map(item=>`${item.name}：第${item.from+1}行→第${item.to+1}行`);
+        rows.push({ok:true,candidateOrder:best.candidate.order,person:best.candidate.person,count:best.count,typeLabel:best.typeLabel,move:`${best.resource.col.name}：第${move.source+1}行→第${move.target+1}行`,added:best.additions.map(col=>col.name).join('、'),displaced:displaced.length?displaced.join('；'):'无人顺延',result:`补齐第${best.target+1}行完整一配`});
+      }
+      candidates.forEach(candidate=>{
+        if(rows.some(row=>row.candidateOrder===candidate.order)) return;
+        const detail=candidate.errors.length?[...new Set(candidate.errors)].join('；'):'目前不能独自补齐前面的完整一配';
+        rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',count:0,typeLabel:'—',move:candidate.leftItems.map(item=>`${item.name}${item.qty}`).join('、')||'—',added:candidate.rightItems.map(item=>`${item.name}${item.qty}`).join('、')||'—',displaced:'—',result:detail});
+      });
+      const finalAllocations={};
+      columns.forEach(c=>{
+        const arr=sim[c.id].map(token=>token?token.name:''); trimTail(arr); finalAllocations[c.id]=arr;
+      });
+      return {rows,allocations:rows.some(row=>row.ok)?finalAllocations:null,candidateCount:candidates.length,lockedCount:originallyLockedCount};
+    }
+    function renderColdPromotionPreview(){
+      $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map((row,index)=>`<tr><td>${index+1}</td><td>${escapeHtml(row.person)}</td><td class="promotion-priority">${row.ok?row.count:'—'}</td><td>${escapeHtml(row.typeLabel)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td>${escapeHtml(row.displaced)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
+      $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations;
+    }
+    function recalculateColdPromotionPreview(statusText){
+      const plan=buildColdPromotionPlan();
+      coldPromotionPreviewRows=plan.rows;
+      coldPromotionPreviewAllocations=plan.allocations;
+      coldPromotionPlanRevision=localRevision;
+      renderColdPromotionPreview();
+      $('coldPromotionPreviewPanel').style.display=coldPromotionPreviewRows.length?'block':'none';
+      const arranged=coldPromotionPreviewRows.filter(row=>row.ok).length;
+      $('coldPromotionPreviewStatus').textContent=statusText||`已累计 ${coldPromotionBatches.length} 批、${plan.candidateCount} 人；锁定原有成配 ${plan.lockedCount} 行，暂排成 ${arranged} 配。`;
+      $('coldPromotionPreviewStatus').style.color=coldPromotionPreviewAllocations?'':'var(--bad)';
+      return plan;
+    }
+    $('coldPromotionPreviewBtn').addEventListener('click',()=>{
+      const raw=$('commentInput').value.trim();
+      if(raw){
+        if(!parsePromotionCandidates(raw).length){ alert('这一批没有识别到“原谷子 带 新增谷子”的内容，尚未加入累计预览'); return; }
+        coldPromotionBatches.push(raw);
+        $('commentInput').value='';
+      }else if(!coldPromotionBatches.length){ alert('请先粘贴带冷提文字'); return; }
+      recalculateColdPromotionPreview();
+      $('previewPanel').style.display='none'; previewRows=[];
+      $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
+      $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
+    });
+    $('confirmColdPromotionBtn').addEventListener('click',()=>{
+      if(!coldPromotionPreviewAllocations){ alert('当前累计内容还没有可以补成完整一配的方案'); return; }
+      if(coldPromotionPlanRevision!==localRevision){
+        recalculateColdPromotionPreview('正式排单在预览后发生过变化，已按最新排单重新计算，请再核对一次后确认。');
+        $('coldPromotionPreviewStatus').style.color='var(--warn)';
+        return;
+      }
+      const applied=coldPromotionPreviewRows.filter(row=>row.ok).length;
+      allocations=coldPromotionPreviewAllocations;
+      coldPromotionPreviewAllocations=null; coldPromotionBatches=[]; coldPromotionPlanRevision=-1;
+      saveState(); renderMatrix(); $('commentInput').value='';
+      $('coldPromotionPreviewStatus').textContent=`已正式应用 ${applied} 项带冷提；本次累计已结束。`;
+      $('coldPromotionPreviewStatus').style.color='var(--ok)';
+      $('confirmColdPromotionBtn').disabled=true;
+    });
+    $('clearColdPromotionBtn').addEventListener('click',()=>{
+      coldPromotionBatches=[]; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1;
+      renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='none';
+      $('coldPromotionPreviewStatus').textContent='可以分批追加；确认前不会修改正式排单。'; $('coldPromotionPreviewStatus').style.color='';
     });
     function applyQuantitySettings(){
       const boxText=String($('boxSizeInput').value||'').trim(), stepText=String($('groupSizeInput').value||'').trim();
@@ -1791,9 +2094,9 @@ class Component extends DCLogic {
         const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='single'; c.sourceJpyPrice=Math.max(0,value||0);
       }else if(td.dataset.priceMode==='adjust'){
         const value=parseFloat(text.replace(/[^\d.+-]/g,'')); if(Number.isFinite(value)){ c.mode='adjust'; c.priceAdj=value; }
-      }else if(/入均|均价|^均$/.test(text)){
+      }else if(/均价|^均$/.test(text)){
         c.mode='avg'; c.priceAdj=0;
-      }else if(/固定|\/1/.test(text)){
+      }else if(/入均|固定|\/1/.test(text)){
         const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='fixed'; c.fixedPrice=Math.max(0,value||0);
       }else if(/原价|单领|日元/.test(text)){
         const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='single'; c.sourceJpyPrice=Math.max(0,value||0);
@@ -2022,7 +2325,7 @@ class Component extends DCLogic {
       const maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
       let lines=[];
       lines.push(['',...columns.map(c=>c.name)].join('\t'));
-      lines.push(['调价',...columns.map(c=> c.mode==='avg'?'入均':(c.mode==='fixed'?(fmtNum(c.fixedPrice)+'/1'):(c.mode==='single'?('原价'+fmtNum(c.sourceJpyPrice)+'日元'):((num(c.priceAdj)>0?'+':'')+fmtNum(c.priceAdj)))))].join('\t'));
+      lines.push(['调价',...columns.map(c=> c.mode==='avg'?'均价':(c.mode==='fixed'?(fmtNum(c.fixedPrice)+'/1'):(c.mode==='single'?('原价'+fmtNum(c.sourceJpyPrice)+'日元'):((num(c.priceAdj)>0?'+':'')+fmtNum(c.priceAdj)))))].join('\t'));
       lines.push(['单价',...columns.map(c=>unitPrice(c).toFixed(2))].join('\t'));
       const step=quantitySettingsReady()?groupSize:1;
       for(let r=0;r<maxRows;r++) lines.push([(r+1)*step,...columns.map(c=>(allocations[c.id]||[])[r]||'')].join('\t'));
@@ -2042,7 +2345,7 @@ class Component extends DCLogic {
     }
     function sheetToAoa(sheet){
       const {cols,price}=sheetPriceInfo(sheet), data=sheet.allocations||{}, maxRows=Math.max(0,...cols.map(c=>(data[c.id]||[]).length));
-      const pricing=c=>c.mode==='avg'?'入均':c.mode==='fixed'?`${fmtNum(c.fixedPrice)}/1`:c.mode==='single'?`原价${fmtNum(c.sourceJpyPrice)}日元`:`${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`;
+      const pricing=c=>c.mode==='avg'?'均价':c.mode==='fixed'?`${fmtNum(c.fixedPrice)}/1`:c.mode==='single'?`原价${fmtNum(c.sourceJpyPrice)}日元`:`${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`;
       const rows=[['',...cols.map(c=>c.name)],['调价',...cols.map(pricing)],['单价',...cols.map(c=>Number(price(c).toFixed(2)))]];
       const step=sheet.quantityConfigured===true&&Number.isFinite(parseInt(sheet.boxSize,10))&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):1;
       for(let r=0;r<maxRows;r++) rows.push([(r+1)*step,...cols.map(c=>(data[c.id]||[])[r]||'')]);
@@ -2107,8 +2410,8 @@ class Component extends DCLogic {
               const id=i+1, pricing=pricingIndex>=0?String((rows[pricingIndex]||[])[i+startCol]||'').trim():'';
               const unit=unitIndex>=0?parseFloat((rows[unitIndex]||[])[i+startCol]):NaN;
               let mode='avg',priceAdj=0,fixedPrice=0;
-              if(/固定|\/1/.test(pricing)){ mode='fixed'; fixedPrice=Math.max(0,parseFloat(pricing.replace(/[^\d.-]/g,''))||0); }
-              else if(pricing&&!/入均|均价|^均$/.test(pricing)){ const n=parseFloat(pricing.replace(/[^\d.+-]/g,'')); if(Number.isFinite(n)){ mode='adjust'; priceAdj=n; } }
+              if(/入均|固定|\/1/.test(pricing)){ mode='fixed'; fixedPrice=Math.max(0,parseFloat(pricing.replace(/[^\d.-]/g,''))||0); }
+              else if(pricing&&!/均价|^均$/.test(pricing)){ const n=parseFloat(pricing.replace(/[^\d.+-]/g,'')); if(Number.isFinite(n)){ mode='adjust'; priceAdj=n; } }
               else if(Number.isFinite(unit)&&!pricing){ mode='fixed'; fixedPrice=Math.max(0,unit); }
               return {id,name:name||`角色${i+1}`,aliases:[],mode,priceAdj,fixedPrice,img:null};
             });
@@ -2172,9 +2475,8 @@ class Component extends DCLogic {
     // ---------- boot ----------
     setupCollapsiblePanels();
     $('syncCodeInput').value=syncCode;
-    $('cloudAutoSync').checked=cloudAuto;
-    if(syncCode) setCloudStatus(cloudAuto?'自动同步已开启':'已填写同步码');
-    setInterval(()=>{ if(cloudAuto&&syncCode&&!cloudBusy) downloadCloud(true); },15000);
+    localStorage.removeItem('ggzCloudAuto');
+    setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false);
     loadState();
     syncCartControls();
     syncPaymentControls();
@@ -2182,6 +2484,7 @@ class Component extends DCLogic {
     renderSheetTabs();
     renderColumnList();
     recalc();
+    cloudIdleEnabled=true;
   }
 }
 </script>
