@@ -163,7 +163,7 @@
     <h2>带冷提累计预览</h2>
     <div class="table-scroll">
       <table id="coldPromotionPreviewTable">
-        <thead><tr><th>#</th><th>CN</th><th>有效数量</th><th>类型</th><th>原谷子移动</th><th>一起补入</th><th>顺延</th><th>结果</th></tr></thead>
+        <thead><tr><th>#</th><th>CN</th><th>带冷提点数</th><th>计算</th><th>原谷子移动</th><th>一起补入</th><th>顺延</th><th>结果</th></tr></thead>
         <tbody id="coldPromotionPreviewTableBody"></tbody>
       </table>
     </div>
@@ -394,7 +394,7 @@ class Component extends DCLogic {
 .wrap thead th{ text-align:left; font-size:11.5px; color:var(--muted); font-weight:700; padding:8px; border-bottom:1px solid var(--line); white-space:nowrap; }
 .wrap tbody td{ padding:7px 8px; border-bottom:1px solid #ece7f0; vertical-align:middle; }
 .wrap .table-scroll{ overflow-x:auto; }
-.wrap .col-card{ display:grid; grid-template-columns:42px 76px minmax(130px,1fr) minmax(170px,1.35fr) 86px 132px 108px; align-items:center; gap:8px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px; }
+.wrap .col-card{ display:grid; grid-template-columns:42px 76px minmax(130px,1fr) minmax(170px,1.35fr) 86px 132px 100px 108px; align-items:center; gap:8px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px; }
 .wrap .col-index{ width:42px; text-align:center; white-space:nowrap; color:var(--muted); font-size:12px; }
 .wrap .col-card input[type=text]{ min-width:0; width:100%; }
 .wrap .col-card .alias-input{ min-width:0; }
@@ -403,6 +403,8 @@ class Component extends DCLogic {
 .wrap .col-card .mode-slot{ width:132px; min-width:132px; }
 .wrap .col-card .mode-slot label{ width:100%; }
 .wrap .col-card .modeval{ width:78px; min-width:0; }
+.wrap .col-card .promotion-point-slot{ width:100px; min-width:100px; }
+.wrap .col-card .promotion-point-slot input{ width:48px; min-width:0; }
 .wrap .col-media{ display:grid; grid-template-columns:38px 30px; gap:6px; align-items:center; width:76px; }
 .wrap .col-actions{ display:flex; gap:4px; justify-content:flex-end; width:108px; }
 .wrap .col-actions .btn-mini{ padding:4px 7px; }
@@ -429,12 +431,13 @@ class Component extends DCLogic {
 #matrixTable thead tr.header-row th{ background:var(--panel-2); font-weight:700; color:var(--text); font-size:13px; }
 #matrixTable tr.adj-row td{ font-size:12px; color:var(--muted); background:#faf9fb; }
 #matrixTable tr.price-row td{ font-size:12px; font-weight:700; }
+#matrixTable tr.promotion-point-row td{ font-size:12px; font-weight:800; color:var(--accent); background:#fff8fb; }
 .matrix-price-input{ width:100%; min-width:72px; padding:2px 3px!important; border:0!important; border-radius:4px!important; background:transparent!important; box-shadow:none!important; color:inherit!important; font:inherit!important; font-weight:inherit!important; text-align:center; }
 .matrix-price-input:focus{ background:#fff!important; box-shadow:inset 0 0 0 2px var(--accent)!important; }
 .matrix-price-editor{ display:flex; align-items:center; justify-content:center; gap:2px; white-space:nowrap; }
 .matrix-price-editor .matrix-price-input{ width:58px; min-width:0; flex:0 1 58px; }
 .matrix-price-suffix{ color:inherit; font-weight:800; }
-#matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child{ min-width:58px; width:58px; background:#f5f2f6; font-weight:900; z-index:9; }
+#matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child,#matrixTable tr.promotion-point-row td:first-child{ min-width:58px; width:58px; background:#f5f2f6; font-weight:900; z-index:9; }
 #matrixTable td.adj-pos{ color:var(--bad); }
 #matrixTable td.adj-neg{ color:var(--accent-2); }
 #matrixTable td.adj-fix{ color:var(--gold); }
@@ -492,7 +495,7 @@ class Component extends DCLogic {
 #transferPreviewTable .transfer-bad,#cancelPreviewTable .transfer-bad,#coldPromotionPreviewTable .transfer-bad{ color:var(--bad); font-weight:800; white-space:nowrap; }
 #coldPromotionPreviewTable td{ min-width:92px; }
 #coldPromotionPreviewTable td:nth-child(5),#coldPromotionPreviewTable td:nth-child(6),#coldPromotionPreviewTable td:nth-child(7){ white-space:normal; line-height:1.5; }
-.promotion-priority{ font-weight:900; color:var(--accent); white-space:nowrap; }
+.promotion-score{ font-weight:900; color:var(--accent); white-space:nowrap; }
 .data-actions{ position:relative; }
 .data-actions summary{ list-style:none; cursor:pointer; padding:8px 13px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); font-size:12.5px; font-weight:800; }
 .data-actions summary::-webkit-details-marker{ display:none; }
@@ -570,7 +573,7 @@ class Component extends DCLogic {
   .price-grid{ grid-template-areas:"type count" "jpy rate" "average manual" "ticket transport"; }
   .wrap .summary{ grid-template-columns:1fr 1fr; }
 }
-@media(max-width:1050px){ .wrap .col-card{ grid-template-columns:42px 76px minmax(125px,1fr) minmax(150px,1fr) 82px 125px 108px; overflow-x:auto; } }
+@media(max-width:1050px){ .wrap .col-card{ grid-template-columns:42px 76px minmax(125px,1fr) minmax(150px,1fr) 82px 125px 100px 108px; overflow-x:auto; } }
 @media(max-width:620px){
   .wrap{ padding:12px 9px 28px; }
   .wrap header{ margin-bottom:9px; }
@@ -591,7 +594,7 @@ class Component extends DCLogic {
   .wrap input[type=text],.wrap input[type=number],.wrap textarea,.wrap select{ font-size:16px; }
   #matrixTable [contenteditable=true],.payment-table [contenteditable=true]{ font-size:16px; }
   .matrix-price-input{ font-size:16px!important; }
-  #matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child{ min-width:62px; width:62px; background:#f5f2f6; }
+  #matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child,#matrixTable tr.promotion-point-row td:first-child{ min-width:62px; width:62px; background:#f5f2f6; }
   #matrixTable thead td:first-child,#matrixTable thead th:first-child{ background:#f5f2f6; }
   .cart-controls{ overflow-x:auto; padding-bottom:3px; }
   .cart-editor-row{ flex-wrap:wrap; }
@@ -620,6 +623,7 @@ class Component extends DCLogic {
     const money=v=>'¥'+(Number(v)||0).toFixed(2);
     const num=v=>Number(v)||0;
     const fmtNum=v=>{ const n=Number(v)||0; return Number.isInteger(n)?String(n):n.toFixed(2); };
+    const fmtPoint=v=>String(Number(Math.max(0,Number(v)||0).toFixed(4)));
     const escapeHtml=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const escapeAttr=s=>escapeHtml(s).replace(/"/g,'&quot;');
 
@@ -738,6 +742,7 @@ class Component extends DCLogic {
       if(c.fixedPrice===undefined) c.fixedPrice=0;
       if(c.avgOverride===undefined) c.avgOverride=null;
       if(c.sourceJpyPrice===undefined) c.sourceJpyPrice=0;
+      c.promotionPoints=Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1;
       if(!Array.isArray(c.aliases)) c.aliases=[];
       return c;
     }
@@ -1018,7 +1023,7 @@ class Component extends DCLogic {
 
     // ---------- column list ----------
     function addColumn(name,aliases,mode,priceAdj,fixedPrice){
-      columns.push({id:colIdSeed++,name:(name||'新角色').trim(),aliases:aliases||[],mode:mode||'avg',priceAdj:priceAdj||0,fixedPrice:fixedPrice||0,avgOverride:null,sourceJpyPrice:0,img:null});
+      columns.push({id:colIdSeed++,name:(name||'新角色').trim(),aliases:aliases||[],mode:mode||'avg',priceAdj:priceAdj||0,fixedPrice:fixedPrice||0,avgOverride:null,sourceJpyPrice:0,promotionPoints:1,img:null});
     }
     function findColumnByText(text){
       const t=text.trim().toLowerCase();
@@ -1049,17 +1054,19 @@ class Component extends DCLogic {
             <option value="single" ${c.mode==='single'?'selected':''}>原价换算</option>
           </select>
           <div class="mode-slot">${modeValueHtml(c)}</div>
+          <label class="promotion-point-slot">提配点 <input type="number" min="0" step="0.1" data-promotion-point data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}" onchange="ggz.updateColumn(${c.id},'promotionPoints',this.value)"></label>
           <div class="col-actions"><button class="btn-ghost btn-mini" onclick="ggz.moveColumn(${c.id},-1)">↑</button>
           <button class="btn-ghost btn-mini" onclick="ggz.moveColumn(${c.id},1)">↓</button>
           <button class="btn-danger btn-mini" onclick="ggz.removeColumn(${c.id})">删除</button></div>
         </div>`).join('');
     }
     function catalogPriceText(c){
-      if(c.mode==='single') return `${fmtNum(c.sourceJpyPrice)} 日元 → ${money(Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value)))}`;
-      if(c.mode==='fixed') return `入均 ${money(c.fixedPrice)}`;
-      if(c.mode==='adjust') return `调价 ${(num(c.priceAdj)>=0?'+':'')+fmtNum(c.priceAdj)}`;
-      if(c.avgOverride!==null&&c.avgOverride!=='') return `独立均价 ${money(c.avgOverride)}`;
-      return '跟随均价';
+      let price='跟随均价';
+      if(c.mode==='single') price=`${fmtNum(c.sourceJpyPrice)} 日元 → ${money(Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value)))}`;
+      else if(c.mode==='fixed') price=`入均 ${money(c.fixedPrice)}`;
+      else if(c.mode==='adjust') price=`调价 ${(num(c.priceAdj)>=0?'+':'')+fmtNum(c.priceAdj)}`;
+      else if(c.avgOverride!==null&&c.avgOverride!=='') price=`独立均价 ${money(c.avgOverride)}`;
+      return `${price} · 提配${fmtPoint(c.promotionPoints)}点`;
     }
     function renderCatalog(){
       const q=($('catalogSearch').value||'').trim().toLowerCase();
@@ -1069,14 +1076,14 @@ class Component extends DCLogic {
     function saveColumnsToCatalog(){
       columns.forEach(c=>{
         const found=itemCatalog.find(x=>x.name.trim().toLowerCase()===c.name.trim().toLowerCase());
-        const data={name:c.name,aliases:[...(c.aliases||[])],mode:c.mode,priceAdj:c.priceAdj||0,fixedPrice:c.fixedPrice||0,avgOverride:c.avgOverride??null,sourceJpyPrice:c.sourceJpyPrice||0,img:c.img||null};
+        const data={name:c.name,aliases:[...(c.aliases||[])],mode:c.mode,priceAdj:c.priceAdj||0,fixedPrice:c.fixedPrice||0,avgOverride:c.avgOverride??null,sourceJpyPrice:c.sourceJpyPrice||0,promotionPoints:Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1,img:c.img||null};
         if(found) Object.assign(found,data); else itemCatalog.push({catalogId:catalogIdSeed++,...data});
       });
       saveState(); renderCatalog();
     }
     function addCatalogItemToSheet(item){
       if(findColumnByText(item.name)) return false;
-      const c={id:colIdSeed++,name:item.name,aliases:[...(item.aliases||[])],mode:item.mode||'avg',priceAdj:item.priceAdj||0,fixedPrice:item.fixedPrice||0,avgOverride:item.avgOverride??null,sourceJpyPrice:item.sourceJpyPrice||0,img:item.img||null};
+      const c={id:colIdSeed++,name:item.name,aliases:[...(item.aliases||[])],mode:item.mode||'avg',priceAdj:item.priceAdj||0,fixedPrice:item.fixedPrice||0,avgOverride:item.avgOverride??null,sourceJpyPrice:item.sourceJpyPrice||0,promotionPoints:Number.isFinite(Number(item.promotionPoints))?Math.max(0,Number(item.promotionPoints)):1,img:item.img||null};
       columns.push(c); allocations[c.id]=[]; return true;
     }
 
@@ -1137,6 +1144,7 @@ class Component extends DCLogic {
       else if(field==='fixedPrice'){ const n=parseFloat(value); if(Number.isFinite(n)) c.fixedPrice=Math.max(0,n); }
       else if(field==='avgOverride') c.avgOverride=value===''?null:Math.max(0,parseFloat(value)||0);
       else if(field==='sourceJpyPrice') c.sourceJpyPrice=Math.max(0,parseFloat(value)||0);
+      else if(field==='promotionPoints'){ const n=parseFloat(value); if(Number.isFinite(n)) c.promotionPoints=Math.max(0,n); }
       else if(field==='mode'){
         if(value==='fixed'&&c.mode!=='fixed'&&!(Number(c.fixedPrice)>0)) c.fixedPrice=Math.max(0,unitPrice(c));
         c.mode=value;
@@ -1322,6 +1330,7 @@ class Component extends DCLogic {
         return `<td class="${cls}"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="adjust" data-col="${c.id}" value="${sign}${fmtNum(adj)}"></td>`;
       }).join('')+'</tr>';
       if(showUnitPriceRow) headHtml+='<tr class="price-row"><td>单价</td>'+columns.map(c=>`<td><input class="matrix-price-input" data-price-kind="unit" data-col="${c.id}" value="${unitPrice(c).toFixed(2)}"></td>`).join('')+'</tr>';
+      headHtml+='<tr class="promotion-point-row"><td>提配点数</td>'+columns.map(c=>`<td><input class="matrix-price-input" inputmode="decimal" data-price-kind="promotion-point" data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}"></td>`).join('')+'</tr>';
       thead.innerHTML=headHtml;
       let bodyHtml='';
       for(let r=0;r<displayRows;r++){
@@ -1837,23 +1846,22 @@ class Component extends DCLogic {
         const rightItems=right.map(item=>({col:findColumnByText(item.name),name:item.name,qty:Math.max(1,item.qty||1)}));
         leftItems.filter(item=>!item.col).forEach(item=>errors.push(`没找到原谷子“${item.name}”`));
         rightItems.filter(item=>!item.col).forEach(item=>errors.push(`没找到带物“${item.name}”`));
-        return {order,person,leftItems,rightItems,errors,sourceText:demand};
+        return {order,person,leftItems,rightItems,errors};
       }).filter(Boolean);
     }
     function parseColdPromotionCandidates(){
       const parsed=[]; let orderSeed=0;
-      coldPromotionBatches.forEach((raw,batchIndex)=>{
-        parsePromotionCandidates(raw).forEach(candidate=>parsed.push({...candidate,order:orderSeed++,batch:batchIndex+1}));
+      coldPromotionBatches.forEach(raw=>{
+        parsePromotionCandidates(raw).forEach(candidate=>parsed.push({...candidate,order:orderSeed++}));
       });
       const merged=[], byPerson=new Map();
       parsed.forEach(candidate=>{
         const key=candidate.person?candidate.person:`__missing_${candidate.order}`;
         let target=byPerson.get(key);
         if(!target){
-          target={order:candidate.order,batch:candidate.batch,person:candidate.person,leftItems:[],rightItems:[],errors:[],sourceCount:0};
+          target={order:candidate.order,person:candidate.person,leftItems:[],rightItems:[],errors:[]};
           byPerson.set(key,target); merged.push(target);
         }
-        target.sourceCount++;
         target.errors.push(...candidate.errors);
         const addItems=(dest,items)=>items.forEach(item=>{
           const key=item.col?`c${item.col.id}`:`n${item.name}`;
@@ -1883,6 +1891,14 @@ class Component extends DCLogic {
       const originallyLockedCount=lockedRows.size, claimed=new Set(), rows=[];
       candidates.forEach(candidate=>{
         candidate.resources=[]; candidate.rightRemaining=new Map();
+        candidate.leftTotal=candidate.leftItems.reduce((sum,item)=>sum+Math.max(0,Number(item.qty)||0),0);
+        candidate.rightPointTotal=candidate.rightItems.reduce((sum,item)=>{
+          const point=item.col&&Number.isFinite(Number(item.col.promotionPoints))?Math.max(0,Number(item.col.promotionPoints)):1;
+          return sum+Math.max(0,Number(item.qty)||0)*point;
+        },0);
+        candidate.kValue=candidate.leftTotal>0?candidate.rightPointTotal/candidate.leftTotal:0;
+        candidate.scoreLabel=`1k${fmtPoint(candidate.kValue)}`;
+        candidate.scoreCalc=`${fmtPoint(candidate.rightPointTotal)}÷${fmtPoint(candidate.leftTotal)}`;
         candidate.leftItems.forEach(item=>{
           if(!item.col) return;
           const matches=sim[item.col.id].map((token,row)=>({token,row})).filter(entry=>entry.token&&entry.token.name===candidate.person&&!lockedRows.has(entry.row)&&!claimed.has(entry.token.uid));
@@ -1898,27 +1914,17 @@ class Component extends DCLogic {
         });
       });
       const tokenRow=resource=>sim[resource.col.id].findIndex(token=>token&&token.uid===resource.uid);
-      const inAverageColumn=col=>col.mode==='fixed';
-      function proposalType(additions){
-        const hasInAverage=additions.some(inAverageColumn);
-        const hasRemainder=additions.some(col=>!inAverageColumn(col));
-        if(hasInAverage&&hasRemainder) return {score:3,label:'入均+余量'};
-        if(hasRemainder) return {score:2,label:'余量'};
-        return {score:1,label:'只入均'};
-      }
       function evaluate(candidate,resource,target){
         const source=tokenRow(resource);
         if(source<=target||source<0||lockedRows.has(source)||lockedRows.has(target)) return null;
         const additions=columns.filter(col=>col.id!==resource.col.id&&!sim[col.id][target]);
         if(!additions.length) return null;
         if(additions.some(col=>(candidate.rightRemaining.get(col.id)||0)<1)) return null;
-        const type=proposalType(additions);
-        return {candidate,resource,source,target,additions,count:additions.length,typeScore:type.score,typeLabel:type.label};
+        return {candidate,resource,source,target,additions};
       }
       function better(proposal,best){
         if(!best) return true;
-        if(proposal.count!==best.count) return proposal.count>best.count;
-        if(proposal.typeScore!==best.typeScore) return proposal.typeScore>best.typeScore;
+        if(Math.abs(proposal.candidate.kValue-best.candidate.kValue)>1e-9) return proposal.candidate.kValue>best.candidate.kValue;
         if(proposal.candidate.order!==best.candidate.order) return proposal.candidate.order<best.candidate.order;
         if(proposal.target!==best.target) return proposal.target<best.target;
         return proposal.resource.id<best.resource.id;
@@ -1958,12 +1964,12 @@ class Component extends DCLogic {
         });
         lockedRows.add(best.target);
         const displaced=move.displaced.reverse().map(item=>`${item.name}：第${item.from+1}行→第${item.to+1}行`);
-        rows.push({ok:true,candidateOrder:best.candidate.order,person:best.candidate.person,count:best.count,typeLabel:best.typeLabel,move:`${best.resource.col.name}：第${move.source+1}行→第${move.target+1}行`,added:best.additions.map(col=>col.name).join('、'),displaced:displaced.length?displaced.join('；'):'无人顺延',result:`补齐第${best.target+1}行完整一配`});
+        rows.push({ok:true,candidateOrder:best.candidate.order,person:best.candidate.person,scoreLabel:best.candidate.scoreLabel,scoreCalc:best.candidate.scoreCalc,move:`${best.resource.col.name}：第${move.source+1}行→第${move.target+1}行`,added:best.additions.map(col=>col.name).join('、'),displaced:displaced.length?displaced.join('；'):'无人顺延',result:`补齐第${best.target+1}行完整一配`});
       }
       candidates.forEach(candidate=>{
         if(rows.some(row=>row.candidateOrder===candidate.order)) return;
         const detail=candidate.errors.length?[...new Set(candidate.errors)].join('；'):'目前不能独自补齐前面的完整一配';
-        rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',count:0,typeLabel:'—',move:candidate.leftItems.map(item=>`${item.name}${item.qty}`).join('、')||'—',added:candidate.rightItems.map(item=>`${item.name}${item.qty}`).join('、')||'—',displaced:'—',result:detail});
+        rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'1k0',scoreCalc:candidate.scoreCalc||'—',move:candidate.leftItems.map(item=>`${item.name}${item.qty}`).join('、')||'—',added:candidate.rightItems.map(item=>`${item.name}${item.qty}`).join('、')||'—',displaced:'—',result:detail});
       });
       const finalAllocations={};
       columns.forEach(c=>{
@@ -1972,7 +1978,7 @@ class Component extends DCLogic {
       return {rows,allocations:rows.some(row=>row.ok)?finalAllocations:null,candidateCount:candidates.length,lockedCount:originallyLockedCount};
     }
     function renderColdPromotionPreview(){
-      $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map((row,index)=>`<tr><td>${index+1}</td><td>${escapeHtml(row.person)}</td><td class="promotion-priority">${row.ok?row.count:'—'}</td><td>${escapeHtml(row.typeLabel)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td>${escapeHtml(row.displaced)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
+      $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map((row,index)=>`<tr><td>${index+1}</td><td>${escapeHtml(row.person)}</td><td class="promotion-score">${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.scoreCalc)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td>${escapeHtml(row.displaced)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
       $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations;
     }
     function recalculateColdPromotionPreview(statusText){
@@ -2079,6 +2085,12 @@ class Component extends DCLogic {
       e.preventDefault(); e.target.value=e.data; e.target.dataset.replaceNext='0';
     });
     $('columnList').addEventListener('input',e=>{
+      const pointInput=e.target.closest('input[data-promotion-point]');
+      if(pointInput){
+        const c=columns.find(col=>col.id===parseInt(pointInput.dataset.col,10)), value=parseFloat(pointInput.value);
+        if(c&&Number.isFinite(value)){ c.promotionPoints=Math.max(0,value); saveState(); }
+        return;
+      }
       const input=e.target.closest('input.modeval[data-price-field]'); if(!input) return;
       const c=columns.find(col=>col.id===parseInt(input.dataset.col,10)); if(!c) return;
       const field=input.dataset.priceField, text=String(input.value||'').trim(), value=parseFloat(text);
@@ -2094,7 +2106,8 @@ class Component extends DCLogic {
     function saveMatrixNumericDraft(input){
       const c=matrixPriceColumn(input); if(!c) return;
       const value=parseFloat(String(input.value||'').replace(/[^\d.+-]/g,'')); if(!Number.isFinite(value)) return;
-      if(input.dataset.priceKind==='unit'){ c.mode='fixed'; c.fixedPrice=Math.max(0,value); }
+      if(input.dataset.priceKind==='promotion-point') c.promotionPoints=Math.max(0,value);
+      else if(input.dataset.priceKind==='unit'){ c.mode='fixed'; c.fixedPrice=Math.max(0,value); }
       else if(input.dataset.priceMode==='fixed') c.fixedPrice=Math.max(0,value);
       else if(input.dataset.priceMode==='single') c.sourceJpyPrice=Math.max(0,value);
       else if(input.dataset.priceMode==='adjust') c.priceAdj=value;
@@ -2125,7 +2138,9 @@ class Component extends DCLogic {
       const td=e.target.closest('[data-price-kind]'); if(!td) return;
       const c=columns.find(x=>x.id===parseInt(td.dataset.col,10)); if(!c) return;
       const text=String(td.value||'').trim(), previousMode=td.dataset.modeBeforeEdit||c.mode, previousUnit=unitPrice(c);
-      if(td.dataset.priceKind==='unit'){
+      if(td.dataset.priceKind==='promotion-point'){
+        const value=parseFloat(text.replace(/[^\d.-]/g,'')); if(Number.isFinite(value)) c.promotionPoints=Math.max(0,value);
+      }else if(td.dataset.priceKind==='unit'){
         const value=parseFloat(text.replace(/[^\d.-]/g,''));
         if(Number.isFinite(value)&&value>=0){ c.mode='fixed'; c.fixedPrice=value; }
       }else if(td.dataset.priceMode==='fixed'){
@@ -2370,6 +2385,7 @@ class Component extends DCLogic {
       lines.push(['',...columns.map(c=>c.name)].join('\t'));
       lines.push(['调价',...columns.map(c=> c.mode==='avg'?'均价':(c.mode==='fixed'?(fmtNum(c.fixedPrice)+'/1'):(c.mode==='single'?('原价'+fmtNum(c.sourceJpyPrice)+'日元'):((num(c.priceAdj)>0?'+':'')+fmtNum(c.priceAdj)))))].join('\t'));
       lines.push(['单价',...columns.map(c=>unitPrice(c).toFixed(2))].join('\t'));
+      lines.push(['提配点数',...columns.map(c=>fmtPoint(c.promotionPoints))].join('\t'));
       const step=quantitySettingsReady()?groupSize:1;
       for(let r=0;r<maxRows;r++) lines.push([(r+1)*step,...columns.map(c=>(allocations[c.id]||[])[r]||'')].join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const btn=$('copyTsvBtn'); const old=btn.textContent; btn.textContent='已复制 ✓'; setTimeout(()=>btn.textContent=old,1500); });
@@ -2389,7 +2405,7 @@ class Component extends DCLogic {
     function sheetToAoa(sheet){
       const {cols,price}=sheetPriceInfo(sheet), data=sheet.allocations||{}, maxRows=Math.max(0,...cols.map(c=>(data[c.id]||[]).length));
       const pricing=c=>c.mode==='avg'?'均价':c.mode==='fixed'?`${fmtNum(c.fixedPrice)}/1`:c.mode==='single'?`原价${fmtNum(c.sourceJpyPrice)}日元`:`${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`;
-      const rows=[['',...cols.map(c=>c.name)],['调价',...cols.map(pricing)],['单价',...cols.map(c=>Number(price(c).toFixed(2)))]];
+      const rows=[['',...cols.map(c=>c.name)],['调价',...cols.map(pricing)],['单价',...cols.map(c=>Number(price(c).toFixed(2)))],['提配点数',...cols.map(c=>Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1)]];
       const step=sheet.quantityConfigured===true&&Number.isFinite(parseInt(sheet.boxSize,10))&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):1;
       for(let r=0;r<maxRows;r++) rows.push([(r+1)*step,...cols.map(c=>(data[c.id]||[])[r]||'')]);
       return rows;
@@ -2439,24 +2455,26 @@ class Component extends DCLogic {
           book.SheetNames.forEach(sheetName=>{
             const rows=XLSX.utils.sheet_to_json(book.Sheets[sheetName],{header:1,raw:false,defval:''});
             if(!rows.length) return;
-            const hasLabelCol=['调价','定价','单价'].some(label=>rows.slice(1,4).some(r=>String(r[0]||'').trim()===label));
+            const hasLabelCol=['调价','定价','单价','提配点数'].some(label=>rows.slice(1,5).some(r=>String(r[0]||'').trim()===label));
             const startCol=hasLabelCol||String(rows[0][0]||'').trim()===''?1:0;
             const headers=(rows[0]||[]).slice(startCol).map(v=>String(v||'').trim());
             while(headers.length&&!headers[headers.length-1]) headers.pop();
             if(!headers.length) return;
             const pricingIndex=rows.findIndex((r,i)=>i>0&&['调价','定价'].includes(String(r[0]||'').trim()));
             const unitIndex=rows.findIndex((r,i)=>i>0&&String(r[0]||'').trim()==='单价');
-            const dataStart=Math.max(1,pricingIndex+1,unitIndex+1);
+            const promotionPointIndex=rows.findIndex((r,i)=>i>0&&String(r[0]||'').trim()==='提配点数');
+            const dataStart=Math.max(1,pricingIndex+1,unitIndex+1,promotionPointIndex+1);
             const sheet=blankSheet(sheetName||`表${sheets.length+imported.length+1}`);
             sheet.cost={...COST_DEFAULTS,count:String(headers.length)};
             sheet.columns=headers.map((name,i)=>{
               const id=i+1, pricing=pricingIndex>=0?String((rows[pricingIndex]||[])[i+startCol]||'').trim():'';
               const unit=unitIndex>=0?parseFloat((rows[unitIndex]||[])[i+startCol]):NaN;
+              const promotionPoint=promotionPointIndex>=0?parseFloat((rows[promotionPointIndex]||[])[i+startCol]):NaN;
               let mode='avg',priceAdj=0,fixedPrice=0;
               if(/固定|\/1/.test(pricing)||(/入均/.test(pricing)&&/\d/.test(pricing))){ mode='fixed'; fixedPrice=Math.max(0,parseFloat(pricing.replace(/[^\d.-]/g,''))||0); }
               else if(pricing&&!/^(?:入均|均价|均)$/.test(pricing)){ const n=parseFloat(pricing.replace(/[^\d.+-]/g,'')); if(Number.isFinite(n)){ mode='adjust'; priceAdj=n; } }
               else if(Number.isFinite(unit)&&!pricing){ mode='fixed'; fixedPrice=Math.max(0,unit); }
-              return {id,name:name||`角色${i+1}`,aliases:[],mode,priceAdj,fixedPrice,img:null};
+              return {id,name:name||`角色${i+1}`,aliases:[],mode,priceAdj,fixedPrice,promotionPoints:Number.isFinite(promotionPoint)?Math.max(0,promotionPoint):1,img:null};
             });
             sheet.allocations={};
             sheet.columns.forEach((c,i)=>{
