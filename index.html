@@ -2627,6 +2627,7 @@ class Component extends DCLogic {
       saveState(); renderMatrix();
     }
     let dragSrc=null;
+    const dragBlurSuppressedCells=new WeakSet();
     const mbody=$('matrixTableBody');
     const mhead=document.querySelector('#matrixTable thead');
     $('columnList').addEventListener('input',e=>{
@@ -2715,6 +2716,7 @@ class Component extends DCLogic {
     mbody.addEventListener('blur',e=>{
       const td=e.target.closest('td[data-col]');
       if(!td) return;
+      if(dragBlurSuppressedCells.has(td)){ dragBlurSuppressedCells.delete(td); return; }
       const col=parseInt(td.dataset.col,10), row=parseInt(td.dataset.row,10);
       const arr=allocations[col]||(allocations[col]=[]);
       while(arr.length<=row) arr.push('');
@@ -2728,7 +2730,11 @@ class Component extends DCLogic {
     mbody.addEventListener('dragstart',e=>{
       const td=e.target.closest('td[data-col]');
       if(!td||td.getAttribute('draggable')!=='true'){ return; }
-      dragSrc={col:parseInt(td.dataset.col,10),row:parseInt(td.dataset.row,10)};
+      const col=parseInt(td.dataset.col,10), row=parseInt(td.dataset.row,10), arr=allocations[col]||(allocations[col]=[]);
+      while(arr.length<=row) arr.push('');
+      arr[row]=(td.textContent||'').replace(/[\r\n]+/g,' ').trim();
+      dragSrc={col,row};
+      dragBlurSuppressedCells.add(td);
       e.dataTransfer.effectAllowed='move';
       try{ e.dataTransfer.setData('text/plain',td.textContent||''); }catch(_){}
       td.classList.add('dragging');
@@ -2741,6 +2747,7 @@ class Component extends DCLogic {
       const td=e.target.closest('td[data-col]');
       if(!td||!dragSrc){ return; }
       e.preventDefault();
+      dragBlurSuppressedCells.add(td);
       td.classList.remove('drop-hover');
       swapAlloc(dragSrc,{col:parseInt(td.dataset.col,10),row:parseInt(td.dataset.row,10)});
       dragSrc=null;
