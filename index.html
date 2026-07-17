@@ -162,7 +162,15 @@
   </div>
 
   <div class="panel mobile-core" id="coldPromotionPreviewPanel" style="display:none;">
-    <h2>带冷提累计预览</h2>
+    <h2>带冷提配预览</h2>
+    <div class="hint" style="margin-bottom:7px;">已保存的带冷提内容（可继续追加、修改或删除）</div>
+    <div class="table-scroll">
+      <table id="coldPromotionDraftTable">
+        <thead><tr><th>#</th><th>CN</th><th>原谷子</th><th>带了什么</th><th>操作</th></tr></thead>
+        <tbody id="coldPromotionDraftTableBody"></tbody>
+      </table>
+    </div>
+    <div class="hint" style="margin:10px 0 7px;">重排计算结果</div>
     <div class="table-scroll">
       <table id="coldPromotionPreviewTable">
         <thead><tr><th>CN</th><th>带冷提点数</th><th>原谷子移动</th><th>带冷</th><th>结果</th></tr></thead>
@@ -171,8 +179,9 @@
     </div>
     <div class="toolbar">
       <button class="btn-primary" id="confirmColdPromotionBtn">确认应用</button>
-      <button class="btn-ghost" id="clearColdPromotionBtn">结束本轮累计</button>
-      <span class="hint" id="coldPromotionPreviewStatus">可以分批累计；确认后仍可继续追加，结束本轮后才会清空名单。</span>
+      <button class="btn-ghost" id="exportColdPromotionPreviewBtn">导出预览图</button>
+      <button class="btn-ghost" id="clearColdPromotionBtn">清除带冷提内容</button>
+      <span class="hint" id="coldPromotionPreviewStatus">内容会一直保存；全部录完后再确认应用。</span>
     </div>
   </div>
 
@@ -511,12 +520,13 @@ class Component extends DCLogic {
 .wrap .ocr-thumbs img{ height:70px; border:1px solid var(--line); border-radius:6px; }
 .wrap .toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center; }
 .transfer-row{ display:grid; grid-template-columns:minmax(180px,1fr) auto minmax(100px,auto); gap:8px; align-items:center; margin-top:10px; }
-#transferPreviewTable .action-preview-input,#cancelPreviewTable .action-preview-input{ width:100%; min-width:92px; box-sizing:border-box; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:7px 10px; color:var(--text); font:inherit; outline:none; }
-#transferPreviewTable .action-preview-input:focus,#cancelPreviewTable .action-preview-input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(209,70,106,.12); }
+#transferPreviewTable .action-preview-input,#cancelPreviewTable .action-preview-input,#coldPromotionDraftTable .action-preview-input{ width:100%; min-width:92px; box-sizing:border-box; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:7px 10px; color:var(--text); font:inherit; outline:none; }
+#transferPreviewTable .action-preview-input:focus,#cancelPreviewTable .action-preview-input:focus,#coldPromotionDraftTable .action-preview-input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(209,70,106,.12); }
 #transferPreviewTable .action-preview-qty,#cancelPreviewTable .action-preview-qty{ min-width:64px; width:72px; text-align:center; }
 #transferPreviewTable .transfer-ok,#cancelPreviewTable .transfer-ok,#coldPromotionPreviewTable .transfer-ok{ color:var(--ok); font-weight:800; white-space:nowrap; }
 #transferPreviewTable .transfer-bad,#cancelPreviewTable .transfer-bad,#coldPromotionPreviewTable .transfer-bad{ color:var(--bad); font-weight:800; white-space:nowrap; }
 #coldPromotionPreviewTable td{ min-width:92px; }
+#coldPromotionDraftTable td{ min-width:110px; }
 #coldPromotionPreviewTable td:nth-child(3),#coldPromotionPreviewTable td:nth-child(4){ white-space:normal; line-height:1.5; }
 .promotion-score{ font-weight:900; color:var(--accent); white-space:nowrap; }
 .matrix-preview-notice{ margin:8px 0; padding:8px 10px; border:1px solid #e2b553; border-radius:8px; background:#fff8dc; color:#8a5b00; font-size:12.5px; font-weight:900; text-align:center; }
@@ -669,7 +679,7 @@ class Component extends DCLogic {
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed'|'single',priceAdj,fixedPrice,img}
     let allocations={};   // colId -> [person,...]
     let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[], orderPreviewSignature='', transferPreviewSignature='', cancelPreviewSignature='';
-    let coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
+    let coldPromotionDraftRows=[], coldPromotionDraftApplied=false, coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
     let coldCarryBundleColumnIds=[];
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
@@ -701,10 +711,10 @@ class Component extends DCLogic {
         exchangeRate:$('exchangeRate').value,manualAveragePrice:$('manualAveragePrice').value,sharedFee:$('sharedFee').value};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:''};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -744,6 +754,9 @@ class Component extends DCLogic {
       coldPromotionSeriesBaseAllocations=sheet.coldPromotionSeriesBaseAllocations&&typeof sheet.coldPromotionSeriesBaseAllocations==='object'?deepClone(sheet.coldPromotionSeriesBaseAllocations):null;
       coldPromotionSeriesBaseHighlights=sheet.coldPromotionSeriesBaseHighlights&&typeof sheet.coldPromotionSeriesBaseHighlights==='object'?deepClone(sheet.coldPromotionSeriesBaseHighlights):null;
       coldPromotionSeriesFormalSignature=String(sheet.coldPromotionSeriesFormalSignature||'');
+      coldPromotionDraftRows=Array.isArray(sheet.coldPromotionDraftRows)?deepClone(sheet.coldPromotionDraftRows):[]; coldPromotionDraftApplied=sheet.coldPromotionDraftApplied===true;
+      migrateLegacyColdPromotionDraft();
+      rowIdSeed=Math.max(rowIdSeed,...coldPromotionDraftRows.map(row=>(Number(row.id)||0)+1));
       previewRows=[];
       colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1;
       applyCost(sheet.cost);
@@ -892,6 +905,7 @@ class Component extends DCLogic {
             showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false; showPromotionPointRow=sheet.showPromotionPointRow!==false; showCompleteRowColor=sheet.showCompleteRowColor!==false; showColdPromotionColor=sheet.showColdPromotionColor!==false;
             coldPromotionHighlights=sheet.coldPromotionHighlights&&typeof sheet.coldPromotionHighlights==='object'?deepClone(sheet.coldPromotionHighlights):{completeRows:[],pendingRows:[]};
             coldPromotionBatches=Array.isArray(sheet.coldPromotionBatches)?deepClone(sheet.coldPromotionBatches):[]; coldPromotionSeriesBaseAllocations=sheet.coldPromotionSeriesBaseAllocations&&typeof sheet.coldPromotionSeriesBaseAllocations==='object'?deepClone(sheet.coldPromotionSeriesBaseAllocations):null; coldPromotionSeriesBaseHighlights=sheet.coldPromotionSeriesBaseHighlights&&typeof sheet.coldPromotionSeriesBaseHighlights==='object'?deepClone(sheet.coldPromotionSeriesBaseHighlights):null; coldPromotionSeriesFormalSignature=String(sheet.coldPromotionSeriesFormalSignature||'');
+            coldPromotionDraftRows=Array.isArray(sheet.coldPromotionDraftRows)?deepClone(sheet.coldPromotionDraftRows):[]; coldPromotionDraftApplied=sheet.coldPromotionDraftApplied===true;
             colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1; applyCost(sheet.cost);
           }else{
             const first=blankSheet('表1'); activeSheetId=first.id;
@@ -901,11 +915,12 @@ class Component extends DCLogic {
             first.showPricingRow=d.showPricingRow!==false; first.showUnitPriceRow=d.showUnitPriceRow!==false; first.showPromotionPointRow=d.showPromotionPointRow!==false; first.showCompleteRowColor=d.showCompleteRowColor!==false; first.showColdPromotionColor=d.showColdPromotionColor!==false;
             first.coldPromotionHighlights=d.coldPromotionHighlights&&typeof d.coldPromotionHighlights==='object'?deepClone(d.coldPromotionHighlights):{completeRows:[],pendingRows:[]};
             first.coldPromotionBatches=Array.isArray(d.coldPromotionBatches)?deepClone(d.coldPromotionBatches):[]; first.coldPromotionSeriesBaseAllocations=d.coldPromotionSeriesBaseAllocations&&typeof d.coldPromotionSeriesBaseAllocations==='object'?deepClone(d.coldPromotionSeriesBaseAllocations):null; first.coldPromotionSeriesBaseHighlights=d.coldPromotionSeriesBaseHighlights&&typeof d.coldPromotionSeriesBaseHighlights==='object'?deepClone(d.coldPromotionSeriesBaseHighlights):null; first.coldPromotionSeriesFormalSignature=String(d.coldPromotionSeriesFormalSignature||'');
+            first.coldPromotionDraftRows=Array.isArray(d.coldPromotionDraftRows)?deepClone(d.coldPromotionDraftRows):[]; first.coldPromotionDraftApplied=d.coldPromotionDraftApplied===true;
             first.coldCarryBundleColumnIds=Array.isArray(d.coldCarryBundleColumnIds)?d.coldCarryBundleColumnIds.map(Number):[];
             first.matrixTitle=d.matrixTitle||''; first.matrixColor=d.matrixColor||'#d1466a';
             sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             sheets=[first]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionBatches=deepClone(first.coldPromotionBatches); coldPromotionSeriesBaseAllocations=deepClone(first.coldPromotionSeriesBaseAllocations); coldPromotionSeriesBaseHighlights=deepClone(first.coldPromotionSeriesBaseHighlights); coldPromotionSeriesFormalSignature=first.coldPromotionSeriesFormalSignature; coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
           }
           return;
         }
@@ -2163,6 +2178,10 @@ class Component extends DCLogic {
         const marker=demand.match(/可以带|可带|带/); if(!marker) return null;
         const leftText=demand.slice(0,marker.index).replace(/[：:\s，,、；;]+$/,'').trim();
         const rightText=demand.slice(marker.index+marker[0].length).replace(/^[：:\s，,、；;]+/,'').trim();
+        return buildPromotionCandidate(person,leftText,rightText,order);
+      }).filter(Boolean);
+    }
+    function buildPromotionCandidate(person,leftText,rightText,order){
         const left=parseDemandText(leftText), right=parseDemandText(rightText), errors=[];
         if(!person) errors.push('没有识别到 CN');
         if(!left.length) errors.push('“带”左边没有识别到原谷子');
@@ -2171,14 +2190,16 @@ class Component extends DCLogic {
         const rightItems=right.map(item=>({col:findColumnByText(item.name),name:item.name,qty:Math.max(1,item.qty||1)}));
         leftItems.filter(item=>!item.col).forEach(item=>errors.push(`没找到原谷子“${item.name}”`));
         rightItems.filter(item=>!item.col).forEach(item=>errors.push(`没找到带物“${item.name}”`));
-        return {order,person,leftItems,rightItems,errors};
-      }).filter(Boolean);
+        return {order,person,leftText,rightText,leftItems,rightItems,errors};
+    }
+    function migrateLegacyColdPromotionDraft(){
+      if(!coldPromotionDraftRows.length&&coldPromotionBatches.length){
+        coldPromotionBatches.forEach(oldRaw=>parsePromotionCandidates(oldRaw).forEach(candidate=>coldPromotionDraftRows.push({id:rowIdSeed++,person:candidate.person,leftText:candidate.leftText,rightText:candidate.rightText})));
+      }
+      coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature='';
     }
     function parseColdPromotionCandidates(){
-      const parsed=[]; let orderSeed=0;
-      coldPromotionBatches.forEach(raw=>{
-        parsePromotionCandidates(raw).forEach(candidate=>parsed.push({...candidate,order:orderSeed++}));
-      });
+      const parsed=coldPromotionDraftRows.map((row,order)=>buildPromotionCandidate(String(row.person||'').trim(),String(row.leftText||'').trim(),String(row.rightText||'').trim(),order));
       const merged=[], byPerson=new Map();
       parsed.forEach(candidate=>{
         const key=candidate.person?candidate.person:`__missing_${candidate.order}`;
@@ -2391,69 +2412,92 @@ class Component extends DCLogic {
       columns.forEach(c=>{ const arr=(sim[c.id]||[]).map(token=>token?token.name:''); trimTail(arr); finalAllocations[c.id]=arr; });
       return {rows,allocations:rows.some(row=>row.ok)||fixedApplied>0?finalAllocations:null,candidateCount:candidates.length,fixedApplied};
     }
+    function renderColdPromotionDraft(){
+      const locked=coldPromotionDraftApplied?' readonly tabindex="-1"':'';
+      $('coldPromotionDraftTableBody').innerHTML=coldPromotionDraftRows.map((row,index)=>`<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-cold-draft-id="${row.id}" data-cold-draft-field="person" value="${escapeAttr(row.person)}"${locked}></td><td><input type="text" class="action-preview-input" data-cold-draft-id="${row.id}" data-cold-draft-field="leftText" value="${escapeAttr(row.leftText)}"${locked}></td><td><input type="text" class="action-preview-input" data-cold-draft-id="${row.id}" data-cold-draft-field="rightText" value="${escapeAttr(row.rightText)}"${locked}></td><td><button class="btn-danger btn-mini" data-remove-cold-draft="${row.id}"${coldPromotionDraftApplied?' disabled':''}>删除</button></td></tr>`).join('');
+    }
     function renderColdPromotionPreview(){
+      renderColdPromotionDraft();
       $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map(row=>`<tr><td>${escapeHtml(row.person)}</td><td class="promotion-score">${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
-      $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations;
+      $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations||coldPromotionDraftApplied;
     }
     function recalculateColdPromotionPreview(statusText){
-      const plan=buildColdPromotionPlan(coldPromotionSeriesBaseAllocations||allocations);
+      const plan=buildColdPromotionPlan(allocations);
       coldPromotionPreviewRows=plan.rows; coldPromotionPreviewAllocations=plan.allocations; coldPromotionPlanRevision=localRevision; coldPromotionPlanSignature=coldPreviewDataSignature();
-      renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display=coldPromotionPreviewRows.length?'block':'none';
+      renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display=coldPromotionDraftRows.length?'block':'none';
       const highlights={completeRows:coldPromotionPreviewRows.filter(row=>row.ok&&row.bundleComplete).map(row=>row.targetRow),pendingRows:coldPromotionPreviewRows.filter(row=>row.ok&&!row.bundleComplete).map(row=>({row:row.targetRow,person:row.person}))};
       if(coldPromotionPreviewAllocations) showMatrixPreview(coldPromotionPreviewAllocations,'带冷提重排模拟结果',highlights); else clearMatrixPreview();
       const peopleCount=parseColdPromotionCandidates().length;
-      $('coldPromotionPreviewStatus').textContent=statusText||`本轮已累计 ${coldPromotionBatches.length} 批、${peopleCount} 人；确认只保存当前结果，之后仍可继续追加。`;
+      $('coldPromotionPreviewStatus').textContent=statusText||`已保存 ${coldPromotionDraftRows.length} 条、合计 ${peopleCount} 人；内容会保留到手动清除。`;
       $('coldPromotionPreviewStatus').style.color=coldPromotionPreviewAllocations?'':'var(--bad)'; return plan;
     }
     function startColdPromotionPreview(){
       if(!activeBundleColumns().length){ openColdBundleChooser(true); return; }
       const raw=$('commentInput').value.trim();
-      const currentFormalSignature=coldPreviewDataSignature();
-      if(coldPromotionSeriesBaseAllocations&&coldPromotionSeriesFormalSignature&&coldPromotionSeriesFormalSignature!==currentFormalSignature){
-        $('coldPromotionPreviewStatus').textContent='本轮确认后，正式排单或带冷设置又发生了变化。为避免覆盖这些修改，请先结束本轮累计，再开始新一轮。';
-        $('coldPromotionPreviewStatus').style.color='var(--bad)'; $('coldPromotionPreviewPanel').style.display='block'; return;
-      }
+      migrateLegacyColdPromotionDraft();
       if(raw){
-        if(!parsePromotionCandidates(raw).length){ alert('这一批没有识别到“原谷子 带 新增谷子”的内容，尚未加入累计预览'); return; }
-        if(!coldPromotionSeriesBaseAllocations){
-          coldPromotionSeriesBaseAllocations=deepClone(allocations); coldPromotionSeriesBaseHighlights=deepClone(coldPromotionHighlights); coldPromotionSeriesFormalSignature=currentFormalSignature;
-        }
-        coldPromotionBatches.push(raw); $('commentInput').value=''; saveState();
-      }else if(!coldPromotionBatches.length){ alert('请先粘贴带冷提文字'); return; }
+        if(coldPromotionDraftApplied){ alert('这份带冷提已经正式应用。请先清除旧内容，再开始下一份带冷提。'); return; }
+        if(!parsePromotionCandidates(raw).length){ alert('这一批没有识别到“原谷子 带 新增谷子”的内容，尚未加入带冷提草稿'); return; }
+        parsePromotionCandidates(raw).forEach(candidate=>coldPromotionDraftRows.push({id:rowIdSeed++,person:candidate.person,leftText:candidate.leftText,rightText:candidate.rightText}));
+        $('commentInput').value=''; saveState();
+      }else if(!coldPromotionDraftRows.length){ alert('请先粘贴带冷提文字'); return; }
+      if(coldPromotionDraftApplied){
+        coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='block'; clearMatrixPreview();
+        $('coldPromotionPreviewStatus').textContent='这份带冷提已经应用，内容仍会保留；可以导出正式排单，清除后再开始下一份。'; $('coldPromotionPreviewStatus').style.color='var(--ok)'; return;
+      }
       recalculateColdPromotionPreview();
       $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
     }
     $('coldPromotionPreviewBtn').addEventListener('click',startColdPromotionPreview);
+    $('exportColdPromotionPreviewBtn').addEventListener('click',()=>{
+      if(!coldPromotionDraftRows.length){ alert('还没有带冷提内容'); return; }
+      if(!coldPromotionDraftApplied){
+        recalculateColdPromotionPreview('预览图已准备好；导出的只是模拟结果，不会修改正式排单。');
+        if(!coldPromotionPreviewAllocations){ alert('当前内容没有可以导出的重排结果'); return; }
+      }else{ clearMatrixPreview(false); renderMatrix(); }
+      $('exportPngBtn').click();
+    });
+    $('coldPromotionDraftTableBody').addEventListener('change',e=>{
+      const input=e.target.closest('[data-cold-draft-id]'); if(!input||coldPromotionDraftApplied) return;
+      const row=coldPromotionDraftRows.find(item=>item.id===parseInt(input.dataset.coldDraftId,10)); if(!row) return;
+      row[input.dataset.coldDraftField]=input.value.trim(); saveState(); recalculateColdPromotionPreview();
+    });
+    $('coldPromotionDraftTableBody').addEventListener('click',e=>{
+      const button=e.target.closest('[data-remove-cold-draft]'); if(!button||coldPromotionDraftApplied) return;
+      coldPromotionDraftRows=coldPromotionDraftRows.filter(row=>row.id!==parseInt(button.dataset.removeColdDraft,10)); saveState();
+      if(coldPromotionDraftRows.length) recalculateColdPromotionPreview(); else{ coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; renderColdPromotionPreview(); clearMatrixPreview(); }
+    });
     $('confirmColdPromotionBtn').addEventListener('click',()=>{
-      if(!coldPromotionPreviewAllocations){ alert('当前累计内容没有可以前移的项目'); return; }
+      if(coldPromotionDraftApplied){ alert('这份带冷提已经应用过了；如需开始新一轮，请先清除带冷提内容。'); return; }
+      if(!coldPromotionPreviewAllocations){ alert('当前带冷提草稿没有可以前移的项目'); return; }
       if(coldPromotionPlanSignature!==coldPreviewDataSignature()){
-        $('coldPromotionPreviewStatus').textContent='正式排单或带冷设置在预览后发生过变化，已暂停确认以免覆盖。请结束本轮累计后重新开始。';
-        $('coldPromotionPreviewStatus').style.color='var(--bad)'; $('coldPromotionPreviewPanel').scrollIntoView({behavior:'smooth',block:'start'}); return;
+        recalculateColdPromotionPreview('正式排单在预览后发生过变化，已按最新排单刷新预览，请重新核对后再确认。');
+        $('coldPromotionPreviewStatus').style.color='var(--warn)'; $('coldPromotionPreviewPanel').scrollIntoView({behavior:'smooth',block:'start'}); return;
       }
       if(!pushUndoSnapshot('cold-carry-apply','带冷提确认应用前')) return;
-      const before=deepClone(allocations), beforeHighlights=deepClone(coldPromotionHighlights), beforeSeriesSignature=coldPromotionSeriesFormalSignature, applied=coldPromotionPreviewRows.filter(row=>row.ok).length;
+      const before=deepClone(allocations), beforeHighlights=deepClone(coldPromotionHighlights), applied=coldPromotionPreviewRows.filter(row=>row.ok).length;
       allocations=deepClone(coldPromotionPreviewAllocations);
-      const baseHighlights=coldPromotionSeriesBaseHighlights||{completeRows:[],pendingRows:[]};
-      const nextComplete=new Set([...(baseHighlights.completeRows||[]),...coldPromotionPreviewRows.filter(row=>row.ok&&row.bundleComplete).map(row=>Number(row.targetRow))]);
-      const pendingMap=new Map((baseHighlights.pendingRows||[]).map(item=>[`${Number(item.row)}:${String(item.person||'')}`,{row:Number(item.row),person:String(item.person||'')}]))
+      const nextComplete=new Set([...(coldPromotionHighlights.completeRows||[]),...coldPromotionPreviewRows.filter(row=>row.ok&&row.bundleComplete).map(row=>Number(row.targetRow))]);
+      const pendingMap=new Map((coldPromotionHighlights.pendingRows||[]).map(item=>[`${Number(item.row)}:${String(item.person||'')}`,{row:Number(item.row),person:String(item.person||'')}]))
       coldPromotionPreviewRows.filter(row=>row.ok&&!row.bundleComplete).forEach(row=>pendingMap.set(`${Number(row.targetRow)}:${String(row.person||'')}`,{row:Number(row.targetRow),person:String(row.person||'')}));
       coldPromotionHighlights={completeRows:[...nextComplete].sort((a,b)=>a-b),pendingRows:[...pendingMap.values()].filter(item=>!nextComplete.has(item.row))};
-      coldPromotionSeriesFormalSignature=coldPreviewDataSignature();
+      coldPromotionDraftApplied=true;
       if(!saveState()){
-        allocations=before; coldPromotionHighlights=beforeHighlights; coldPromotionSeriesFormalSignature=beforeSeriesSignature; saveState(); renderMatrix();
+        allocations=before; coldPromotionHighlights=beforeHighlights; coldPromotionDraftApplied=false; saveState(); renderMatrix();
         alert('正式排单保存失败，已自动恢复应用前状态，撤回快照仍然保留。'); return;
       }
       coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1; coldPromotionPlanSignature='';
       clearMatrixPreview(false); renderMatrix(); renderColdPromotionPreview();
-      $('coldPromotionPreviewStatus').textContent=`已保存本轮 ${coldPromotionBatches.length} 批累计结果，共应用 ${applied} 项；可以继续粘贴下一批追加计算。`;
+      $('coldPromotionPreviewStatus').textContent=`已正式应用 ${applied} 项；带冷提内容仍会保留，清除前不会消失。`;
       $('coldPromotionPreviewStatus').style.color='var(--ok)'; $('confirmColdPromotionBtn').disabled=true;
     });
     $('clearColdPromotionBtn').addEventListener('click',()=>{
-      coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1; coldPromotionPlanSignature=''; saveState();
+      if(coldPromotionDraftRows.length&&!confirm('确定清除这份带冷提内容吗？清除后不能恢复。')) return;
+      coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1; coldPromotionPlanSignature=''; saveState();
       renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview();
-      $('coldPromotionPreviewStatus').textContent='本轮累计已结束；下次带冷提会以当前正式排单作为新的起点。'; $('coldPromotionPreviewStatus').style.color='';
+      $('coldPromotionPreviewStatus').textContent='带冷提内容已清除。'; $('coldPromotionPreviewStatus').style.color='';
     });
     function applyQuantitySettings(){
       const boxText=String($('boxSizeInput').value||'').trim(), stepText=String($('groupSizeInput').value||'').trim();
@@ -2988,6 +3032,7 @@ class Component extends DCLogic {
             showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false; showPromotionPointRow=d.showPromotionPointRow!==false; showCompleteRowColor=d.showCompleteRowColor!==false; showColdPromotionColor=d.showColdPromotionColor!==false;
             coldPromotionHighlights=d.coldPromotionHighlights&&typeof d.coldPromotionHighlights==='object'?deepClone(d.coldPromotionHighlights):{completeRows:[],pendingRows:[]};
             coldPromotionBatches=Array.isArray(d.coldPromotionBatches)?deepClone(d.coldPromotionBatches):[]; coldPromotionSeriesBaseAllocations=d.coldPromotionSeriesBaseAllocations&&typeof d.coldPromotionSeriesBaseAllocations==='object'?deepClone(d.coldPromotionSeriesBaseAllocations):null; coldPromotionSeriesBaseHighlights=d.coldPromotionSeriesBaseHighlights&&typeof d.coldPromotionSeriesBaseHighlights==='object'?deepClone(d.coldPromotionSeriesBaseHighlights):null; coldPromotionSeriesFormalSignature=String(d.coldPromotionSeriesFormalSignature||'');
+            coldPromotionDraftRows=Array.isArray(d.coldPromotionDraftRows)?deepClone(d.coldPromotionDraftRows):[]; coldPromotionDraftApplied=d.coldPromotionDraftApplied===true;
             coldCarryBundleColumnIds=(Array.isArray(d.coldCarryBundleColumnIds)?d.coldCarryBundleColumnIds:[]).map(Number).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
             syncMatrixOptions();
             syncCartControls(); saveState(); renderColdBundleConfiguration(); renderColumnList(); recalc();
@@ -2999,7 +3044,7 @@ class Component extends DCLogic {
     $('clearAllBtn').addEventListener('click',()=>{
       if(!confirm('确定清空当前排单里的全部名字吗？谷子列、图片、价格和其他设置都会保留。')) return;
       if(!pushUndoSnapshot('clear-order','清空排单前')) return;
-      allocations={}; columns.forEach(c=>{ allocations[c.id]=[]; }); highlightedPerson=''; coldPromotionHighlights={completeRows:[],pendingRows:[]}; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanSignature=''; $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview(false);
+      allocations={}; columns.forEach(c=>{ allocations[c.id]=[]; }); highlightedPerson=''; coldPromotionHighlights={completeRows:[],pendingRows:[]}; coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanSignature=''; $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview(false);
       saveState(); renderMatrix();
     });
 
@@ -3010,6 +3055,8 @@ class Component extends DCLogic {
     setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false);
     loadUndoHistory();
     loadState();
+    migrateLegacyColdPromotionDraft();
+    rowIdSeed=Math.max(rowIdSeed,...coldPromotionDraftRows.map(row=>(Number(row.id)||0)+1));
     syncCartControls();
     syncPaymentControls();
     syncMatrixOptions();
