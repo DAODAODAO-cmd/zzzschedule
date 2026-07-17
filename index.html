@@ -56,7 +56,7 @@
           <option value="single">单个日元原价</option>
         </select>
       </div>
-      <div class="count-field"><label>谷子数量（默认=列数）</label><input id="count" type="text" inputmode="numeric" pattern="[0-9]*"></div>
+      <div class="count-field"><label>谷子数量（可不填，默认=列数）</label><input id="count" type="text" inputmode="numeric" pattern="[0-9]*"></div>
       <div class="jpy-field"><label>日元原价</label><input id="jpyPrice" type="text" inputmode="decimal"></div>
       <div class="rate-field"><label>汇率</label><input id="exchangeRate" type="text" inputmode="decimal"></div>
       <div class="manual-average-field"><label>手动均价（原价未填时用）</label><input id="manualAveragePrice" type="text" inputmode="decimal"></div>
@@ -1134,7 +1134,7 @@ class Component extends DCLogic {
     // ---------- cost & average ----------
     function readCost(){
       const type=$('priceType').value;
-      const count=Math.max(1,parseInt($('count').value,10)||1);
+      const enteredCount=parseInt($('count').value,10), count=Number.isFinite(enteredCount)&&enteredCount>0?enteredCount:Math.max(1,columns.length||1);
       const raw=Math.max(0,num($('jpyPrice').value));
       const rate=Math.max(0,num($('exchangeRate').value));
       const jpyTotal=type==='single'?raw*count:raw;
@@ -1159,7 +1159,8 @@ class Component extends DCLogic {
       const denom=N-fixedCount;
       // 入均仍按自己的价格收款；这里只从均分数量中排除，不从总成本扣除入均价格。
       const hasAutoCost=Math.max(0,num($('jpyPrice').value))>0&&Math.max(0,num($('exchangeRate').value))>0;
-      const calculatedAverage=denom>0 ? totalCost/denom : 0;
+      const type=$('priceType').value, raw=Math.max(0,num($('jpyPrice').value)), rate=Math.max(0,num($('exchangeRate').value));
+      const calculatedAverage=type==='single'?raw*rate:(denom>0?totalCost/denom:0);
       avgPrice=hasAutoCost?calculatedAverage:Math.max(0,num($('manualAveragePrice').value));
       $('avgPriceText').textContent=money(avgPrice);
       const separateLabels=[];
@@ -2207,8 +2208,8 @@ class Component extends DCLogic {
     }
     function coldDemandShape(text){ return parseDemandText(text).map(item=>String(item.name||'').replace(/\s+/g,'').toLowerCase()).filter(Boolean).sort().join('|'); }
     function appendColdPromotionCandidate(candidate){
-      const person=String(candidate.person||'').trim(), leftShape=coldDemandShape(candidate.leftText), rightShape=coldDemandShape(candidate.rightText);
-      const existing=coldPromotionDraftRows.find(row=>String(row.person||'').trim()===person&&coldDemandShape(row.leftText)===leftShape&&coldDemandShape(row.rightText)===rightShape);
+      const person=String(candidate.person||'').trim(), leftShape=coldDemandShape(candidate.leftText);
+      const existing=coldPromotionDraftRows.find(row=>String(row.person||'').trim()===person&&coldDemandShape(row.leftText)===leftShape);
       if(existing){ existing.leftText=mergeColdDemandText(existing.leftText,candidate.leftText,true); existing.rightText=mergeColdDemandText(existing.rightText,candidate.rightText); return existing; }
       const suppliedId=Number(candidate.id), row={id:Number.isFinite(suppliedId)&&suppliedId>0?suppliedId:rowIdSeed++,person,leftText:candidate.leftText,rightText:candidate.rightText}; coldPromotionDraftRows.push(row); return row;
     }
@@ -2937,13 +2938,13 @@ class Component extends DCLogic {
     });
     function sheetPriceInfo(sheet){
       const cost={...COST_DEFAULTS,...(sheet.cost||{})}, cols=(sheet.columns||[]).map(c=>({...c}));
-      const rate=Math.max(0,num(cost.exchangeRate)), count=Math.max(1,parseInt(cost.count,10)||1), raw=Math.max(0,num(cost.jpyPrice));
+      const rate=Math.max(0,num(cost.exchangeRate)), enteredCount=parseInt(cost.count,10), count=Number.isFinite(enteredCount)&&enteredCount>0?enteredCount:Math.max(1,cols.length||1), raw=Math.max(0,num(cost.jpyPrice));
       const jpyTotal=cost.priceType==='single'?raw*count:raw;
       const total=jpyTotal*rate;
       let fixedCount=0;
       cols.forEach(c=>{ if(c.mode==='fixed'||c.mode==='single') fixedCount++; });
       const denom=(cols.length||count)-fixedCount;
-      const average=raw>0&&rate>0?(denom>0?total/denom:0):Math.max(0,num(cost.manualAveragePrice));
+      const average=raw>0&&rate>0?(cost.priceType==='single'?raw*rate:(denom>0?total/denom:0)):Math.max(0,num(cost.manualAveragePrice));
       const price=c=>c.mode==='fixed'?num(c.fixedPrice):c.mode==='single'?Math.max(0,num(c.sourceJpyPrice))*rate:c.mode==='adjust'?average+num(c.priceAdj):(c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))?Math.max(0,Number(c.avgOverride)):average);
       return {cols,price};
     }
