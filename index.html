@@ -2210,7 +2210,13 @@ class Component extends DCLogic {
       const person=String(candidate.person||'').trim(), leftShape=coldDemandShape(candidate.leftText), rightShape=coldDemandShape(candidate.rightText);
       const existing=coldPromotionDraftRows.find(row=>String(row.person||'').trim()===person&&coldDemandShape(row.leftText)===leftShape&&coldDemandShape(row.rightText)===rightShape);
       if(existing){ existing.leftText=mergeColdDemandText(existing.leftText,candidate.leftText,true); existing.rightText=mergeColdDemandText(existing.rightText,candidate.rightText); return existing; }
-      const row={id:rowIdSeed++,person,leftText:candidate.leftText,rightText:candidate.rightText}; coldPromotionDraftRows.push(row); return row;
+      const suppliedId=Number(candidate.id), row={id:Number.isFinite(suppliedId)&&suppliedId>0?suppliedId:rowIdSeed++,person,leftText:candidate.leftText,rightText:candidate.rightText}; coldPromotionDraftRows.push(row); return row;
+    }
+    function consolidateColdPromotionDraftRows(){
+      if(coldPromotionDraftRows.length<2) return;
+      const source=coldPromotionDraftRows.map(row=>({id:row.id,person:row.person,leftText:row.leftText,rightText:row.rightText}));
+      coldPromotionDraftRows=[];
+      source.forEach(row=>appendColdPromotionCandidate(row));
     }
     function migrateLegacyColdPromotionDraft(){
       if(!coldPromotionDraftBaseAllocations&&coldPromotionSeriesBaseAllocations) coldPromotionDraftBaseAllocations=deepClone(coldPromotionSeriesBaseAllocations);
@@ -2223,6 +2229,7 @@ class Component extends DCLogic {
         if(previous) coldPromotionDraftBaseAllocations=deepClone(previous.sheet.allocations);
       }
       if(coldPromotionDraftRows.length&&!coldPromotionDraftBaseAllocations&&!coldPromotionDraftApplied) coldPromotionDraftBaseAllocations=deepClone(allocations);
+      consolidateColdPromotionDraftRows();
       coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature='';
     }
     function parseColdPromotionCandidates(){
@@ -2490,7 +2497,7 @@ class Component extends DCLogic {
     $('coldPromotionDraftTableBody').addEventListener('change',e=>{
       const input=e.target.closest('[data-cold-draft-id]'); if(!input||coldPromotionDraftApplied) return;
       const row=coldPromotionDraftRows.find(item=>item.id===parseInt(input.dataset.coldDraftId,10)); if(!row) return;
-      row[input.dataset.coldDraftField]=input.value.trim(); saveState(); recalculateColdPromotionPreview();
+      row[input.dataset.coldDraftField]=input.value.trim(); consolidateColdPromotionDraftRows(); saveState(); recalculateColdPromotionPreview();
     });
     $('coldPromotionDraftTableBody').addEventListener('click',e=>{
       const button=e.target.closest('[data-remove-cold-draft]'); if(!button||coldPromotionDraftApplied) return;
