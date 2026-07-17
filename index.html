@@ -71,6 +71,7 @@
       <div class="stat"><span>整套日元原价</span><strong id="jpyTotal">0 日元</strong></div>
       <div class="stat"><span>折合人民币</span><strong id="rmbGoods">¥0.00</strong></div>
       <div class="stat"><span>谷子总成本</span><strong id="targetTotal">¥0.00</strong></div>
+      <div class="stat highlight"><span>当前排单总价</span><strong id="orderTotalText">¥0.00</strong></div>
       <div class="stat"><span>均摊金额（另算）</span><strong id="sharedFeeText">未填写</strong></div>
       <div class="stat"><span>平摊数量</span><strong id="effCount">0 项</strong></div>
       <div class="stat highlight"><span>均价</span><strong id="avgPriceText">¥0.00</strong></div>
@@ -232,6 +233,8 @@
       <details class="data-actions" id="dataActions"><summary>导入导出</summary><div class="data-actions-pop">
         <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单 Excel</button>
         <button class="btn-ghost" id="exportAllExcelBtn">导出全部表 Excel</button>
+        <button class="btn-ghost" id="exportSingleQuantityBtn">复制单领数量</button>
+        <button class="btn-ghost" id="exportBundleQuantityBtn">复制配比数量</button>
         <button class="btn-ghost" id="copyTsvBtn">复制表格文本</button>
         <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前表</button>
         <button class="btn-ghost" id="exportJsonBtn">备份全部表</button>
@@ -1179,6 +1182,7 @@ class Component extends DCLogic {
       if(denom<=0) msg=`${separateName}项占满了所有列，没有可摊均的谷子，无法计算均价。`;
       else if(Math.abs(adjSum)>0.005) msg=`调价合计为 ${(adjSum>0?'+':'')+money(adjSum)}，不为0 —— 收回的钱与成本相差 ${(adjSum>0?'+':'')+money(adjSum)}（正=多收，负=少收）。`;
       if(msg){ w.style.display='block'; w.textContent=msg; } else { w.style.display='none'; }
+      updateOrderTotal();
     }
     function unitPrice(c){
       if(c.mode==='fixed') return num(c.fixedPrice);
@@ -1186,6 +1190,11 @@ class Component extends DCLogic {
       if(c.mode==='single') return Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value));
       if(c.mode==='avg'&&c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))) return Math.max(0,Number(c.avgOverride));
       return avgPrice;
+    }
+    function updateOrderTotal(){
+      const total=columns.reduce((sum,c)=>sum+(allocations[c.id]||[]).reduce((columnTotal,person)=>columnTotal+(String(person||'').trim()?unitPrice(c):0),0),0);
+      const el=$('orderTotalText'); if(el) el.textContent=money(total);
+      return total;
     }
     // ---------- column list ----------
     function addColumn(name,aliases,mode,priceAdj,fixedPrice){
@@ -1529,7 +1538,7 @@ class Component extends DCLogic {
       const transferPreviewCells=new Map((matrixPreviewHighlights.transferCells||[]).map(item=>[`${item.col}:${Number(item.row)}`,item]));
       const cancelPreviewRows=new Set((matrixPreviewHighlights.cancelRows||[]).map(Number));
       notice.style.display=isPreview?'block':'none'; notice.textContent=isPreview?`正在预览：${matrixPreviewLabel}（尚未写入正式排单）`:''; table.classList.toggle('is-preview',isPreview);
-      if(displayColumns.length===0){ thead.innerHTML=''; tbody.innerHTML=''; emptyEl.style.display='block'; $('paymentSummary').innerHTML=''; renderSharePaymentSummary(); renderQuantitySummary(); renderCart(); return; }
+      if(displayColumns.length===0){ thead.innerHTML=''; tbody.innerHTML=''; emptyEl.style.display='block'; $('paymentSummary').innerHTML=''; updateOrderTotal(); renderSharePaymentSummary(); renderQuantitySummary(); renderCart(); return; }
       emptyEl.style.display='none';
       const maxRows=Math.max(0,...displayColumns.map(c=>(displayAllocations[c.id]||[]).length));
       const displayRows=maxRows+1;
@@ -1564,6 +1573,7 @@ class Component extends DCLogic {
         }).join('')+'</tr>';
       }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(displayColumns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
+      updateOrderTotal();
       applyPersonHighlight(false);
       renderPaymentSummary();
       renderSharePaymentSummary();
@@ -2997,6 +3007,38 @@ class Component extends DCLogic {
       ws['!cols']=[{wch:8},...(sheet.columns||[]).map(()=>({wch:16}))];
       XLSX.utils.book_append_sheet(wb,ws,name);
     }
+    function currentQuantityExportRows(mode){
+      const exportColumns=mode==='bundle'?columns.filter(c=>c.mode!=='fixed'):columns;
+      if(!exportColumns.length) return {rows:[],completeRows:0};
+      if(mode==='single'){
+        return {rows:exportColumns.map(c=>[c.name,(allocations[c.id]||[]).filter(person=>String(person||'').trim()).length]),completeRows:0};
+      }
+      const maxRows=Math.max(0,...exportColumns.map(c=>(allocations[c.id]||[]).length));
+      let completeRows=0;
+      for(let row=0;row<maxRows;row++){
+        if(exportColumns.every(c=>String((allocations[c.id]||[])[row]||'').trim())) completeRows++;
+      }
+      return {rows:exportColumns.map(c=>[c.name,completeRows]),completeRows};
+    }
+    function copyTextWithFallback(text){
+      if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+      const area=document.createElement('textarea'); area.value=text; area.style.position='fixed'; area.style.opacity='0'; document.body.appendChild(area); area.select();
+      try{ document.execCommand('copy'); area.remove(); return Promise.resolve(); }catch(err){ area.remove(); return Promise.reject(err); }
+    }
+    function exportCurrentQuantity(mode){
+      if(!columns.length){ alert('还没有排单数据'); return; }
+      const bundle=mode==='bundle', result=currentQuantityExportRows(mode);
+      if(bundle&&!result.rows.length){ alert('当前表只有入均列，没有可统计的配比列'); return; }
+      const title=matrixTitle||sheets.find(s=>s.id===activeSheetId)?.name||'未命名项目';
+      const lines=[`${title}｜${bundle?'配比数量':'单领数量'}`];
+      if(bundle) lines.push(`完整配比：${result.completeRows}配`);
+      result.rows.filter(([,qty])=>qty>0).forEach(([name,qty])=>lines.push(`${name}×${qty}`));
+      if(lines.length===(bundle?2:1)) lines.push('暂无数量');
+      const button=$(bundle?'exportBundleQuantityBtn':'exportSingleQuantityBtn'), old=button.textContent;
+      copyTextWithFallback(lines.join('\n')).then(()=>{ button.textContent='已复制 ✓'; setTimeout(()=>button.textContent=old,1500); $('dataActions').open=false; }).catch(()=>alert('复制失败，请允许浏览器访问剪贴板后重试'));
+    }
+    $('exportSingleQuantityBtn').addEventListener('click',()=>exportCurrentQuantity('single'));
+    $('exportBundleQuantityBtn').addEventListener('click',()=>exportCurrentQuantity('bundle'));
     $('exportCurrentExcelBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       captureActiveSheet(); const sheet=sheets.find(s=>s.id===activeSheetId); if(!sheet||!sheet.columns.length){ alert('还没有排单数据'); return; }
