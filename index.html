@@ -361,6 +361,11 @@ class Component extends DCLogic {
 .sheet-tab:hover{ background:#faf6fa; color:var(--text); }
 .sheet-tab.active{ color:var(--accent); background:#fff0f4; border-color:#efcad5; font-weight:700; }
 .sheet-tab-name{ max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.sheet-move{ display:none; width:24px; height:26px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--accent); font-size:16px; font-weight:900; cursor:pointer; }
+.sheet-tab.active .sheet-move{ display:inline-grid; place-items:center; }
+.sheet-move:hover{ background:#f9dfe7; }
+.sheet-tab.dragging{ opacity:.38; }
+.sheet-tab.drag-over{ outline:2px dashed var(--accent); outline-offset:2px; }
 .sheet-close{ width:24px; height:24px; display:grid; place-items:center; margin-left:5px; border-radius:7px; color:#aaa0ad; font-size:16px; }
 .sheet-close:hover{ color:var(--bad); background:#fff; }
 .wrap .sheet-add{ flex:0 0 auto; padding:8px 12px; color:var(--accent); background:#fff; border:1px dashed #dfa9b8; }
@@ -932,7 +937,7 @@ class Component extends DCLogic {
     }
 
     function renderSheetTabs(){
-      $('sheetTabs').innerHTML=sheets.map(s=>`<div class="sheet-tab ${s.id===activeSheetId?'active':''}" data-sheet="${s.id}" title="双击改名"><span class="sheet-tab-name">${escapeHtml(s.name)}</span>${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`).join('');
+      $('sheetTabs').innerHTML=sheets.map((s,index)=>`<div class="sheet-tab ${s.id===activeSheetId?'active':''}" data-sheet="${s.id}" draggable="true" title="拖动排序，双击改名">${s.id===activeSheetId&&index>0?'<button type="button" class="sheet-move" data-sheet-move="-1" title="向左移动">‹</button>':''}<span class="sheet-tab-name">${escapeHtml(s.name)}</span>${s.id===activeSheetId&&index<sheets.length-1?'<button type="button" class="sheet-move" data-sheet-move="1" title="向右移动">›</button>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`).join('');
     }
     function syncMatrixOptions(){
       const pricing=$('showPricingRow'), unit=$('showUnitPriceRow'), promotion=$('showPromotionPointRow'), complete=$('showCompleteRowColor'), cold=$('showColdPromotionColor');
@@ -1884,9 +1889,17 @@ class Component extends DCLogic {
       const sheet=blankSheet(`表${sheets.length+1}`);
       sheets.push(sheet); applySheet(sheet); saveState();
     });
+    function moveSheetByOffset(id,offset){
+      const index=sheets.findIndex(sheet=>sheet.id===id), target=index+offset;
+      if(index<0||target<0||target>=sheets.length) return;
+      captureActiveSheet(); [sheets[index],sheets[target]]=[sheets[target],sheets[index]]; saveState(); renderSheetTabs();
+      requestAnimationFrame(()=>document.querySelector(`.sheet-tab[data-sheet="${id}"]`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}));
+    }
     $('sheetTabs').addEventListener('click',e=>{
       const tab=e.target.closest('[data-sheet]'); if(!tab) return;
       const id=parseInt(tab.dataset.sheet,10);
+      const move=e.target.closest('[data-sheet-move]');
+      if(move){ moveSheetByOffset(id,parseInt(move.dataset.sheetMove,10)||0); return; }
       if(e.target.closest('.sheet-close')){
         if(sheets.length<=1||!confirm('确定删除这张表吗？')) return;
         const wasActive=id===activeSheetId;
@@ -1898,11 +1911,29 @@ class Component extends DCLogic {
       switchSheet(id);
     });
     $('sheetTabs').addEventListener('dblclick',e=>{
-      const tab=e.target.closest('[data-sheet]'); if(!tab||e.target.closest('.sheet-close')) return;
+      const tab=e.target.closest('[data-sheet]'); if(!tab||e.target.closest('.sheet-close,.sheet-move')) return;
       const sheet=sheets.find(s=>s.id===parseInt(tab.dataset.sheet,10)); if(!sheet) return;
       const name=prompt('给这张表改个名字',sheet.name);
       if(name&&name.trim()){ sheet.name=name.trim(); saveState(); renderSheetTabs(); }
     });
+    let draggedSheetId=null;
+    $('sheetTabs').addEventListener('dragstart',e=>{
+      const tab=e.target.closest('.sheet-tab'); if(!tab||e.target.closest('.sheet-close,.sheet-move')){ e.preventDefault(); return; }
+      draggedSheetId=parseInt(tab.dataset.sheet,10); tab.classList.add('dragging'); e.dataTransfer.effectAllowed='move';
+      try{ e.dataTransfer.setData('text/plain',String(draggedSheetId)); }catch(_){}
+    });
+    $('sheetTabs').addEventListener('dragover',e=>{
+      const tab=e.target.closest('.sheet-tab'); if(!tab||draggedSheetId==null||parseInt(tab.dataset.sheet,10)===draggedSheetId) return;
+      e.preventDefault(); e.dataTransfer.dropEffect='move'; document.querySelectorAll('.sheet-tab.drag-over').forEach(item=>item.classList.remove('drag-over')); tab.classList.add('drag-over');
+    });
+    $('sheetTabs').addEventListener('drop',e=>{
+      const targetTab=e.target.closest('.sheet-tab'); if(!targetTab||draggedSheetId==null) return;
+      e.preventDefault(); const targetId=parseInt(targetTab.dataset.sheet,10), sourceIndex=sheets.findIndex(sheet=>sheet.id===draggedSheetId), targetIndex=sheets.findIndex(sheet=>sheet.id===targetId);
+      if(sourceIndex<0||targetIndex<0||sourceIndex===targetIndex) return;
+      const after=e.clientX>targetTab.getBoundingClientRect().left+targetTab.getBoundingClientRect().width/2;
+      captureActiveSheet(); const [moving]=sheets.splice(sourceIndex,1); let insertAt=targetIndex+(after?1:0); if(sourceIndex<insertAt) insertAt--; sheets.splice(Math.max(0,Math.min(insertAt,sheets.length)),0,moving); saveState(); renderSheetTabs();
+    });
+    $('sheetTabs').addEventListener('dragend',()=>{ draggedSheetId=null; document.querySelectorAll('.sheet-tab.dragging,.sheet-tab.drag-over').forEach(item=>item.classList.remove('dragging','drag-over')); });
 
     $('parseBtn').addEventListener('click',()=>{
       clearMatrixPreview();
