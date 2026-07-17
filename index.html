@@ -679,7 +679,7 @@ class Component extends DCLogic {
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed'|'single',priceAdj,fixedPrice,img}
     let allocations={};   // colId -> [person,...]
     let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[], orderPreviewSignature='', transferPreviewSignature='', cancelPreviewSignature='';
-    let coldPromotionDraftRows=[], coldPromotionDraftApplied=false, coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
+    let coldPromotionDraftRows=[], coldPromotionDraftApplied=false, coldPromotionDraftBaseAllocations=null, coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
     let coldCarryBundleColumnIds=[];
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
@@ -711,10 +711,10 @@ class Component extends DCLogic {
         exchangeRate:$('exchangeRate').value,manualAveragePrice:$('manualAveragePrice').value,sharedFee:$('sharedFee').value};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,paymentEdits,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,paymentEdits:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -755,6 +755,7 @@ class Component extends DCLogic {
       coldPromotionSeriesBaseHighlights=sheet.coldPromotionSeriesBaseHighlights&&typeof sheet.coldPromotionSeriesBaseHighlights==='object'?deepClone(sheet.coldPromotionSeriesBaseHighlights):null;
       coldPromotionSeriesFormalSignature=String(sheet.coldPromotionSeriesFormalSignature||'');
       coldPromotionDraftRows=Array.isArray(sheet.coldPromotionDraftRows)?deepClone(sheet.coldPromotionDraftRows):[]; coldPromotionDraftApplied=sheet.coldPromotionDraftApplied===true;
+      coldPromotionDraftBaseAllocations=sheet.coldPromotionDraftBaseAllocations&&typeof sheet.coldPromotionDraftBaseAllocations==='object'?deepClone(sheet.coldPromotionDraftBaseAllocations):null;
       migrateLegacyColdPromotionDraft();
       rowIdSeed=Math.max(rowIdSeed,...coldPromotionDraftRows.map(row=>(Number(row.id)||0)+1));
       previewRows=[];
@@ -906,6 +907,7 @@ class Component extends DCLogic {
             coldPromotionHighlights=sheet.coldPromotionHighlights&&typeof sheet.coldPromotionHighlights==='object'?deepClone(sheet.coldPromotionHighlights):{completeRows:[],pendingRows:[]};
             coldPromotionBatches=Array.isArray(sheet.coldPromotionBatches)?deepClone(sheet.coldPromotionBatches):[]; coldPromotionSeriesBaseAllocations=sheet.coldPromotionSeriesBaseAllocations&&typeof sheet.coldPromotionSeriesBaseAllocations==='object'?deepClone(sheet.coldPromotionSeriesBaseAllocations):null; coldPromotionSeriesBaseHighlights=sheet.coldPromotionSeriesBaseHighlights&&typeof sheet.coldPromotionSeriesBaseHighlights==='object'?deepClone(sheet.coldPromotionSeriesBaseHighlights):null; coldPromotionSeriesFormalSignature=String(sheet.coldPromotionSeriesFormalSignature||'');
             coldPromotionDraftRows=Array.isArray(sheet.coldPromotionDraftRows)?deepClone(sheet.coldPromotionDraftRows):[]; coldPromotionDraftApplied=sheet.coldPromotionDraftApplied===true;
+            coldPromotionDraftBaseAllocations=sheet.coldPromotionDraftBaseAllocations&&typeof sheet.coldPromotionDraftBaseAllocations==='object'?deepClone(sheet.coldPromotionDraftBaseAllocations):null;
             colIdSeed=columns.reduce((m,c)=>Math.max(m,c.id||0),0)+1; applyCost(sheet.cost);
           }else{
             const first=blankSheet('表1'); activeSheetId=first.id;
@@ -916,11 +918,12 @@ class Component extends DCLogic {
             first.coldPromotionHighlights=d.coldPromotionHighlights&&typeof d.coldPromotionHighlights==='object'?deepClone(d.coldPromotionHighlights):{completeRows:[],pendingRows:[]};
             first.coldPromotionBatches=Array.isArray(d.coldPromotionBatches)?deepClone(d.coldPromotionBatches):[]; first.coldPromotionSeriesBaseAllocations=d.coldPromotionSeriesBaseAllocations&&typeof d.coldPromotionSeriesBaseAllocations==='object'?deepClone(d.coldPromotionSeriesBaseAllocations):null; first.coldPromotionSeriesBaseHighlights=d.coldPromotionSeriesBaseHighlights&&typeof d.coldPromotionSeriesBaseHighlights==='object'?deepClone(d.coldPromotionSeriesBaseHighlights):null; first.coldPromotionSeriesFormalSignature=String(d.coldPromotionSeriesFormalSignature||'');
             first.coldPromotionDraftRows=Array.isArray(d.coldPromotionDraftRows)?deepClone(d.coldPromotionDraftRows):[]; first.coldPromotionDraftApplied=d.coldPromotionDraftApplied===true;
+            first.coldPromotionDraftBaseAllocations=d.coldPromotionDraftBaseAllocations&&typeof d.coldPromotionDraftBaseAllocations==='object'?deepClone(d.coldPromotionDraftBaseAllocations):null;
             first.coldCarryBundleColumnIds=Array.isArray(d.coldCarryBundleColumnIds)?d.coldCarryBundleColumnIds.map(Number):[];
             first.matrixTitle=d.matrixTitle||''; first.matrixColor=d.matrixColor||'#d1466a';
             sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             sheets=[first]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldPromotionDraftBaseAllocations=deepClone(first.coldPromotionDraftBaseAllocations); coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
           }
           return;
         }
@@ -2170,12 +2173,12 @@ class Component extends DCLogic {
       const people=knownPeople();
       return splitComments(raw).map((comment,order)=>{
         let person=String(comment.person||'').trim(), demand=String(comment.demandText||'').trim();
-        if(!demand.includes('带')) return null;
+        if(!/[带提]/.test(demand)) return null;
         if(!person){
           const known=people.find(name=>demand.startsWith(name));
           if(known){ person=known; demand=demand.slice(known.length).trim(); }
         }
-        const marker=demand.match(/可以带|可带|带/); if(!marker) return null;
+        const marker=demand.match(/可以带|可以提|可带|可提|带|提/); if(!marker) return null;
         const leftText=demand.slice(0,marker.index).replace(/[：:\s，,、；;]+$/,'').trim();
         const rightText=demand.slice(marker.index+marker[0].length).replace(/^[：:\s，,、；;]+/,'').trim();
         return buildPromotionCandidate(person,leftText,rightText,order);
@@ -2192,10 +2195,34 @@ class Component extends DCLogic {
         rightItems.filter(item=>!item.col).forEach(item=>errors.push(`没找到带物“${item.name}”`));
         return {order,person,leftText,rightText,leftItems,rightItems,errors};
     }
+    function mergeColdDemandText(first,second,useMaximum=false){
+      const merged=new Map();
+      [...parseDemandText(first),...parseDemandText(second)].forEach(item=>{
+        const key=String(item.name||'').replace(/\s+/g,'').toLowerCase(); if(!key) return;
+        const qty=Math.max(1,Number(item.qty)||1);
+        if(!merged.has(key)) merged.set(key,{name:item.name,qty:useMaximum?qty:0});
+        if(useMaximum) merged.get(key).qty=Math.max(merged.get(key).qty,qty); else merged.get(key).qty+=qty;
+      });
+      return [...merged.values()].map(item=>`${item.name}${item.qty}`).join('，');
+    }
+    function coldDemandShape(text){ return parseDemandText(text).map(item=>String(item.name||'').replace(/\s+/g,'').toLowerCase()).filter(Boolean).sort().join('|'); }
+    function appendColdPromotionCandidate(candidate){
+      const person=String(candidate.person||'').trim(), leftShape=coldDemandShape(candidate.leftText), rightShape=coldDemandShape(candidate.rightText);
+      const existing=coldPromotionDraftRows.find(row=>String(row.person||'').trim()===person&&coldDemandShape(row.leftText)===leftShape&&coldDemandShape(row.rightText)===rightShape);
+      if(existing){ existing.leftText=mergeColdDemandText(existing.leftText,candidate.leftText,true); existing.rightText=mergeColdDemandText(existing.rightText,candidate.rightText); return existing; }
+      const row={id:rowIdSeed++,person,leftText:candidate.leftText,rightText:candidate.rightText}; coldPromotionDraftRows.push(row); return row;
+    }
     function migrateLegacyColdPromotionDraft(){
+      if(!coldPromotionDraftBaseAllocations&&coldPromotionSeriesBaseAllocations) coldPromotionDraftBaseAllocations=deepClone(coldPromotionSeriesBaseAllocations);
       if(!coldPromotionDraftRows.length&&coldPromotionBatches.length){
-        coldPromotionBatches.forEach(oldRaw=>parsePromotionCandidates(oldRaw).forEach(candidate=>coldPromotionDraftRows.push({id:rowIdSeed++,person:candidate.person,leftText:candidate.leftText,rightText:candidate.rightText})));
+        coldPromotionBatches.forEach(oldRaw=>parsePromotionCandidates(oldRaw).forEach(appendColdPromotionCandidate));
       }
+      if(coldPromotionDraftRows.length&&!coldPromotionDraftBaseAllocations&&activeSheetId!=null){
+        const history=Array.isArray(undoHistoryBySheet[String(activeSheetId)])?undoHistoryBySheet[String(activeSheetId)]:[];
+        const previous=[...history].reverse().find(entry=>entry&&entry.actionType==='cold-carry-apply'&&entry.sheet&&entry.sheet.allocations);
+        if(previous) coldPromotionDraftBaseAllocations=deepClone(previous.sheet.allocations);
+      }
+      if(coldPromotionDraftRows.length&&!coldPromotionDraftBaseAllocations&&!coldPromotionDraftApplied) coldPromotionDraftBaseAllocations=deepClone(allocations);
       coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature='';
     }
     function parseColdPromotionCandidates(){
@@ -2280,8 +2307,8 @@ class Component extends DCLogic {
       }
       function better(proposal,best){
         if(!best) return true;
-        if(proposal.qualification.rank!==best.qualification.rank) return proposal.qualification.rank>best.qualification.rank;
         if(proposal.candidate.kValue!==best.candidate.kValue) return proposal.candidate.kValue>best.candidate.kValue;
+        if(proposal.qualification.rank!==best.qualification.rank) return proposal.qualification.rank>best.qualification.rank;
         if(proposal.candidate.order!==best.candidate.order) return proposal.candidate.order<best.candidate.order;
         return proposal.resource.id<best.resource.id;
       }
@@ -2422,7 +2449,7 @@ class Component extends DCLogic {
       $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations||coldPromotionDraftApplied;
     }
     function recalculateColdPromotionPreview(statusText){
-      const plan=buildColdPromotionPlan(allocations);
+      const plan=buildColdPromotionPlan(coldPromotionDraftBaseAllocations||allocations);
       coldPromotionPreviewRows=plan.rows; coldPromotionPreviewAllocations=plan.allocations; coldPromotionPlanRevision=localRevision; coldPromotionPlanSignature=coldPreviewDataSignature();
       renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display=coldPromotionDraftRows.length?'block':'none';
       const highlights={completeRows:coldPromotionPreviewRows.filter(row=>row.ok&&row.bundleComplete).map(row=>row.targetRow),pendingRows:coldPromotionPreviewRows.filter(row=>row.ok&&!row.bundleComplete).map(row=>({row:row.targetRow,person:row.person}))};
@@ -2437,8 +2464,9 @@ class Component extends DCLogic {
       migrateLegacyColdPromotionDraft();
       if(raw){
         if(coldPromotionDraftApplied){ alert('这份带冷提已经正式应用。请先清除旧内容，再开始下一份带冷提。'); return; }
-        if(!parsePromotionCandidates(raw).length){ alert('这一批没有识别到“原谷子 带 新增谷子”的内容，尚未加入带冷提草稿'); return; }
-        parsePromotionCandidates(raw).forEach(candidate=>coldPromotionDraftRows.push({id:rowIdSeed++,person:candidate.person,leftText:candidate.leftText,rightText:candidate.rightText}));
+        if(!parsePromotionCandidates(raw).length){ alert('这一批没有识别到“原谷子 带/提 新增谷子”的内容，尚未加入带冷提草稿'); return; }
+        if(!coldPromotionDraftRows.length&&!coldPromotionDraftBaseAllocations) coldPromotionDraftBaseAllocations=deepClone(allocations);
+        parsePromotionCandidates(raw).forEach(appendColdPromotionCandidate);
         $('commentInput').value=''; saveState();
       }else if(!coldPromotionDraftRows.length){ alert('请先粘贴带冷提文字'); return; }
       if(coldPromotionDraftApplied){
@@ -2466,7 +2494,8 @@ class Component extends DCLogic {
     });
     $('coldPromotionDraftTableBody').addEventListener('click',e=>{
       const button=e.target.closest('[data-remove-cold-draft]'); if(!button||coldPromotionDraftApplied) return;
-      coldPromotionDraftRows=coldPromotionDraftRows.filter(row=>row.id!==parseInt(button.dataset.removeColdDraft,10)); saveState();
+      coldPromotionDraftRows=coldPromotionDraftRows.filter(row=>row.id!==parseInt(button.dataset.removeColdDraft,10));
+      if(!coldPromotionDraftRows.length) coldPromotionDraftBaseAllocations=null; saveState();
       if(coldPromotionDraftRows.length) recalculateColdPromotionPreview(); else{ coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; renderColdPromotionPreview(); clearMatrixPreview(); }
     });
     $('confirmColdPromotionBtn').addEventListener('click',()=>{
@@ -2495,7 +2524,7 @@ class Component extends DCLogic {
     });
     $('clearColdPromotionBtn').addEventListener('click',()=>{
       if(coldPromotionDraftRows.length&&!confirm('确定清除这份带冷提内容吗？清除后不能恢复。')) return;
-      coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1; coldPromotionPlanSignature=''; saveState();
+      coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionDraftBaseAllocations=null; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1; coldPromotionPlanSignature=''; saveState();
       renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview();
       $('coldPromotionPreviewStatus').textContent='带冷提内容已清除。'; $('coldPromotionPreviewStatus').style.color='';
     });
@@ -3033,6 +3062,7 @@ class Component extends DCLogic {
             coldPromotionHighlights=d.coldPromotionHighlights&&typeof d.coldPromotionHighlights==='object'?deepClone(d.coldPromotionHighlights):{completeRows:[],pendingRows:[]};
             coldPromotionBatches=Array.isArray(d.coldPromotionBatches)?deepClone(d.coldPromotionBatches):[]; coldPromotionSeriesBaseAllocations=d.coldPromotionSeriesBaseAllocations&&typeof d.coldPromotionSeriesBaseAllocations==='object'?deepClone(d.coldPromotionSeriesBaseAllocations):null; coldPromotionSeriesBaseHighlights=d.coldPromotionSeriesBaseHighlights&&typeof d.coldPromotionSeriesBaseHighlights==='object'?deepClone(d.coldPromotionSeriesBaseHighlights):null; coldPromotionSeriesFormalSignature=String(d.coldPromotionSeriesFormalSignature||'');
             coldPromotionDraftRows=Array.isArray(d.coldPromotionDraftRows)?deepClone(d.coldPromotionDraftRows):[]; coldPromotionDraftApplied=d.coldPromotionDraftApplied===true;
+            coldPromotionDraftBaseAllocations=d.coldPromotionDraftBaseAllocations&&typeof d.coldPromotionDraftBaseAllocations==='object'?deepClone(d.coldPromotionDraftBaseAllocations):null;
             coldCarryBundleColumnIds=(Array.isArray(d.coldCarryBundleColumnIds)?d.coldCarryBundleColumnIds:[]).map(Number).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
             syncMatrixOptions();
             syncCartControls(); saveState(); renderColdBundleConfiguration(); renderColumnList(); recalc();
@@ -3044,7 +3074,7 @@ class Component extends DCLogic {
     $('clearAllBtn').addEventListener('click',()=>{
       if(!confirm('确定清空当前排单里的全部名字吗？谷子列、图片、价格和其他设置都会保留。')) return;
       if(!pushUndoSnapshot('clear-order','清空排单前')) return;
-      allocations={}; columns.forEach(c=>{ allocations[c.id]=[]; }); highlightedPerson=''; coldPromotionHighlights={completeRows:[],pendingRows:[]}; coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanSignature=''; $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview(false);
+      allocations={}; columns.forEach(c=>{ allocations[c.id]=[]; }); highlightedPerson=''; coldPromotionHighlights={completeRows:[],pendingRows:[]}; coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionDraftBaseAllocations=null; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanSignature=''; $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview(false);
       saveState(); renderMatrix();
     });
 
