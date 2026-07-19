@@ -282,7 +282,7 @@
         <label>显示方式 <select id="paymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
       </div>
-      <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">未收款：0 人</span></div>
+      <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div id="paymentSummary" class="payment-summary"></div>
       <div class="toolbar"><button type="button" class="btn-ghost" id="showPaymentTotalBtn">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn">导出收款图</button><button class="btn-ghost" id="exportPaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn">复制表格</button></div>
     </div>
@@ -292,7 +292,7 @@
         <label>显示方式 <select id="sharePaymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="sharePaymentColorInput" type="color" value="#d1466a"></label>
       </div>
-      <div class="payment-search-tools"><input id="sharePaymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="sharePaymentSearchBtn">查找</button><span class="payment-unpaid-count" id="sharePaymentUnpaidCount">未收款：0 人</span></div>
+      <div class="payment-search-tools"><input id="sharePaymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="sharePaymentSearchBtn">查找</button><span class="payment-unpaid-count" id="sharePaymentUnpaidCount">已收：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div id="sharePaymentSummary" class="payment-summary"></div>
       <div class="toolbar"><button type="button" class="btn-ghost payment-calc-toggle" id="shareDeductFixedBtn">入均计算：未开启</button><button class="btn-ghost" id="exportSharePaymentBtn">导出均摊图</button><button class="btn-ghost" id="exportSharePaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copySharePaymentBtn">复制表格</button></div>
     </div>
@@ -1638,6 +1638,11 @@ class Component extends DCLogic {
       el.innerHTML=`<div class="quantity-section-title">上车名单 <span class="hint">成车范围内算上车，后面的继续等</span></div><div class="quantity-table-wrap"><table class="quantity-table quantity-ride-table"><thead><tr><th>谷子</th><th>状态</th><th>CN</th><th>吃几配</th><th>数量</th><th>位置</th></tr></thead><tbody>${rideRows}</tbody></table></div>`;
     }
 
+    function paymentProgressText(records,paidMap,amountGetter){
+      let paidPeople=0,unpaidPeople=0,paidAmount=0,unpaidAmount=0;
+      records.forEach(record=>{ const amount=Math.max(0,num(amountGetter(record))); if(paidMap[record.key]===true){ paidPeople++; paidAmount+=amount; }else{ unpaidPeople++; unpaidAmount+=amount; } });
+      return `已收：${paidPeople}人 / ${money(paidAmount)}；未收：${unpaidPeople}人 / ${money(unpaidAmount)}`;
+    }
     function renderPaymentSummary(){
       const people=new Map();
       const startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow);
@@ -1649,13 +1654,13 @@ class Component extends DCLogic {
         const row=people.get(key); row.total+=unitPrice(c); row.items.set(c.name,(row.items.get(c.name)||0)+1);
       }));
       const el=$('paymentSummary');
-      if(!people.size){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('paymentUnpaidCount').textContent='未收款：0 人'; return; }
+      if(!people.size){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('paymentUnpaidCount').textContent='已收：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
       const feeAmount=total=>Math.ceil(((total<=100?total+0.1:total*1.001)-1e-9)*100)/100;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(paymentEdits,key)?paymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, paid=paymentPaid[data.key]===true, paidClass=paid?' class="payment-paid-row"':'', personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" aria-pressed="${paid?'true':'false'}" title="标记为已收款">${paid?'✓':''}</button><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const name=data.name, paid=paymentPaid[data.key]===true, alipayAmount=Math.max(0,num(Object.prototype.hasOwnProperty.call(paymentEdits,'alipay:'+name)?paymentEdits['alipay:'+name]:data.total)), paidClass=paid?' class="payment-paid-row"':'', personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" aria-pressed="${paid?'true':'false'}" title="标记为已收款">${paid?'✓':''}</button><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         const items=[...data.items.entries()], span=items.length, payable=feeAmount(data.total);
         if(paymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
@@ -1675,13 +1680,13 @@ class Component extends DCLogic {
       const paymentTotal=[...people.values()].reduce((sum,data)=>sum+data.total,0);
       const totalHtml=showPaymentTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">排单总价</td><td class="payment-total-value">${money(paymentTotal)}</td></tr></tfoot>`:'';
       const visibleKeys=[...people.keys()], paidCount=visibleKeys.filter(key=>paymentPaid[key]===true).length, allPaid=visibleKeys.length>0&&paidCount===visibleKeys.length, partialPaid=paidCount>0&&!allPaid;
-      $('paymentUnpaidCount').textContent=`未收款：${visibleKeys.length-paidCount} 人`;
+      $('paymentUnpaidCount').textContent=paymentProgressText([...people.values()],paymentPaid,data=>Object.prototype.hasOwnProperty.call(paymentEdits,'alipay:'+data.name)?paymentEdits['alipay:'+data.name]:data.total);
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-payment-paid-all="1" aria-pressed="${allPaid?'true':'false'}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody>${totalHtml}</table>${qrHtml}</div>`;
     }
     function renderSharePaymentSummary(){
       const el=$('sharePaymentSummary'), sharedText=String($('sharedFee').value||'').trim(), sharedTotal=Math.max(0,num(sharedText));
-      if(!sharedText||sharedTotal<=0){ el.innerHTML='<div class="empty">没有填写均摊金额，这里暂时不用计算</div>'; $('sharePaymentUnpaidCount').textContent='未收款：0 人'; return; }
+      if(!sharedText||sharedTotal<=0){ el.innerHTML='<div class="empty">没有填写均摊金额，这里暂时不用计算</div>'; $('sharePaymentUnpaidCount').textContent='已收：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
       const people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow);
       let totalQty=0, fixedDeduction=0;
       columns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
@@ -1692,14 +1697,14 @@ class Component extends DCLogic {
         const data=people.get(key); data.qty++; totalQty++; data.items.set(c.name,(data.items.get(c.name)||0)+1);
         if(shareDeductFixed&&c.mode==='fixed') fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
-      if(!people.size||!totalQty){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('sharePaymentUnpaidCount').textContent='未收款：0 人'; return; }
+      if(!people.size||!totalQty){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('sharePaymentUnpaidCount').textContent='已收：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
       const distributable=Math.max(0,sharedTotal-fixedDeduction), perItem=distributable/totalQty;
       const feeAmount=total=>Math.ceil(((total<=100?total+0.1:total*1.001)-1e-9)*100)/100;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(sharePaymentEdits,key)?sharePaymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-share-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, paid=sharePaymentPaid[data.key]===true, paidClass=paid?' class="payment-paid-row"':'', personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" aria-pressed="${paid?'true':'false'}" title="标记为已收款">${paid?'✓':''}</button><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`, items=[...data.items.entries()], span=items.length, raw=data.qty*perItem, payable=feeAmount(raw);
+        const name=data.name, paid=sharePaymentPaid[data.key]===true, items=[...data.items.entries()], span=items.length, raw=data.qty*perItem, payable=feeAmount(raw), alipayAmount=Math.max(0,num(Object.prototype.hasOwnProperty.call(sharePaymentEdits,'alipay:'+name)?sharePaymentEdits['alipay:'+name]:raw)), paidClass=paid?' class="payment-paid-row"':'', personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" aria-pressed="${paid?'true':'false'}" title="标记为已收款">${paid?'✓':''}</button><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         if(sharePaymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、');
           rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,data.qty)}</td><td class="payment-money" ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
@@ -1717,7 +1722,7 @@ class Component extends DCLogic {
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       const note=shareDeductFixed?`均摊 ${money(sharedTotal)}－入均 ${money(fixedDeduction)}＝实际均摊 ${money(distributable)}；共 ${totalQty} 件，每件 ${money(perItem)}`:`直接均摊 ${money(sharedTotal)}；共 ${totalQty} 件，每件 ${money(perItem)}`;
       const visibleKeys=[...people.keys()], paidCount=visibleKeys.filter(key=>sharePaymentPaid[key]===true).length, allPaid=visibleKeys.length>0&&paidCount===visibleKeys.length, partialPaid=paidCount>0&&!allPaid;
-      $('sharePaymentUnpaidCount').textContent=`未收款：${visibleKeys.length-paidCount} 人`;
+      $('sharePaymentUnpaidCount').textContent=paymentProgressText([...people.values()],sharePaymentPaid,data=>Object.prototype.hasOwnProperty.call(sharePaymentEdits,'alipay:'+data.name)?sharePaymentEdits['alipay:'+data.name]:data.qty*perItem);
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-share-payment-paid-all="1" aria-pressed="${allPaid?'true':'false'}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(sharePaymentTitle||'均摊统计')}</div><div class="hint share-calculation-note" data-html2canvas-ignore="true" style="padding:8px 10px;background:#fff8fb;text-align:center;">${escapeHtml(note)}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody></table>${qrHtml}</div>`;
     }
@@ -2860,8 +2865,9 @@ class Component extends DCLogic {
     });
     $('paymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     function syncRenderedUnpaidCount(rootId,countId,selector){
-      const buttons=[...$(rootId).querySelectorAll(selector)], unpaid=buttons.filter(button=>button.getAttribute('aria-pressed')!=='true').length;
-      $(countId).textContent=`未收款：${unpaid} 人`;
+      const buttons=[...$(rootId).querySelectorAll(selector)], paid=buttons.filter(button=>button.getAttribute('aria-pressed')==='true'), unpaid=buttons.filter(button=>button.getAttribute('aria-pressed')!=='true');
+      const total=list=>list.reduce((sum,button)=>sum+Math.max(0,num(button.dataset.paymentAmount)),0);
+      $(countId).textContent=`已收：${paid.length}人 / ${money(total(paid))}；未收：${unpaid.length}人 / ${money(total(unpaid))}`;
     }
     $('paymentSummary').addEventListener('click',e=>{
       const allButton=e.target.closest('[data-payment-paid-all]');
@@ -2888,7 +2894,7 @@ class Component extends DCLogic {
     $('paymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-payment-key]'); if(!cell) return;
       const key=decodeURIComponent(cell.dataset.paymentKey), value=(cell.textContent||'').replace(/[\r\n]+/g,' ').trim();
-      paymentEdits[key]=value; saveState();
+      paymentEdits[key]=value; saveState(); renderPaymentSummary();
     },true);
     $('sharePaymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-share-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     $('sharePaymentSummary').addEventListener('click',e=>{
@@ -2909,7 +2915,7 @@ class Component extends DCLogic {
     $('sharePaymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-share-payment-key]'); if(!cell) return;
       const key=decodeURIComponent(cell.dataset.sharePaymentKey), value=(cell.textContent||'').replace(/[\r\n]+/g,' ').trim();
-      sharePaymentEdits[key]=value; saveState();
+      sharePaymentEdits[key]=value; saveState(); renderSharePaymentSummary();
     },true);
     $('cartQrInput').addEventListener('change',e=>{
       const file=e.target.files[0]; if(!file) return;
