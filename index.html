@@ -753,6 +753,7 @@ class Component extends DCLogic {
     let itemCatalog=[], catalogIdSeed=1;
     const CLOUD_IDLE_UPLOAD_MS=5*60*1000;
     const CLOUD_VERSION_KEY_PREFIX='ggzCloudVersion_';
+    const CLOUD_DIRTY_KEY_PREFIX='ggzCloudDirty_';
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
     let syncCode=localStorage.getItem('ggzSyncCode')||'';
@@ -760,6 +761,7 @@ class Component extends DCLogic {
     const editSessionId=sessionStorage.getItem('ggzEditSessionId')||((crypto.randomUUID&&crypto.randomUUID())||('tab-'+Date.now()+'-'+Math.random().toString(36).slice(2)));
     sessionStorage.setItem('ggzEditSessionId',editSessionId);
     lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):'';
+    if(syncCode) cloudDirty=rememberedCloudDirty(syncCode,lastCloudUpdatedAt);
     const SUPABASE_URL='https://fzxabmdnrkvpgraztcwi.supabase.co';
     const SUPABASE_KEY='sb_publishable_yU4Q1T2RuQfgwOW9Idtf9w__YssVHYe';
 
@@ -858,7 +860,7 @@ class Component extends DCLogic {
       catch(e){ localSaved=false; console.warn('保存失败',e); }
       if($('localStatus')){ $('localStatus').textContent=localSaved?'本机已保存':'本机保存失败'; $('localStatus').style.color=localSaved?'var(--ok)':'var(--bad)'; }
       if(!applyingCloud){
-        localRevision++; cloudDirty=true;
+        localRevision++; cloudDirty=true; rememberCloudDirty(syncCode,true);
         if(syncCode&&cloudIdleEnabled) scheduleIdleCloudUpload();
         else setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false);
       }
@@ -1060,6 +1062,8 @@ class Component extends DCLogic {
     function setCloudStatus(text,tone){ const el=$('cloudStatus'); el.textContent=text; el.style.color=tone==='warn'?'var(--warn)':(tone?'var(--bad)':'var(--muted)'); }
     function normalizedSyncCode(){ return String($('syncCodeInput').value||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24); }
     function rememberCloudVersion(code,updatedAt){ lastCloudUpdatedAt=updatedAt||''; if(code&&updatedAt) localStorage.setItem(CLOUD_VERSION_KEY_PREFIX+code,updatedAt); }
+    function rememberedCloudDirty(code,knownVersion){ const stored=code?localStorage.getItem(CLOUD_DIRTY_KEY_PREFIX+code):null; return stored===null?!knownVersion:stored==='1'; }
+    function rememberCloudDirty(code,dirty){ if(code) localStorage.setItem(CLOUD_DIRTY_KEY_PREFIX+code,dirty?'1':'0'); }
     function cloudVersionIsNewer(remote,known){ return !!remote&&(!known||new Date(remote)>new Date(known)); }
     function pauseForCloudConflict(){
       cloudConflictPaused=true; clearIdleCloudUpload();
@@ -1261,10 +1265,10 @@ class Component extends DCLogic {
           if(error) throw error;
         }
         syncCode=code; rememberCloudVersion(code,now); cloudConflictPaused=false; localStorage.setItem('ggzSyncCode',code);
-        if(localRevision===uploadRevision){ cloudDirty=false; setCloudStatus('云端已同步 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})); if(automatic&&editLockOwned) setTimeout(()=>releaseEditLock(false,true),0); }
-        else{ cloudDirty=true; setCloudStatus('本机有新修改 · 云端未同步','warn'); }
+        if(localRevision===uploadRevision){ cloudDirty=false; rememberCloudDirty(code,false); setCloudStatus('云端已同步 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})); if(automatic&&editLockOwned) setTimeout(()=>releaseEditLock(false,true),0); }
+        else{ cloudDirty=true; rememberCloudDirty(code,true); setCloudStatus('本机有新修改 · 云端未同步','warn'); }
       }catch(err){
-        cloudDirty=true;
+        cloudDirty=true; rememberCloudDirty(code,true);
         if(automatic) setCloudStatus('自动上传失败，稍后会再尝试','warn');
         else setCloudStatus('同步失败：'+(err.message||err),true);
       }
@@ -1289,7 +1293,7 @@ class Component extends DCLogic {
         itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[]; catalogIdSeed=d.catalogIdSeed||Math.max(1,...itemCatalog.map(x=>(x.catalogId||0)+1)); activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
         if(!sheets.some(s=>s.id===activeSheetId)) activeSheetId=sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
-        rememberCloudVersion(code,data.updated_at); syncCode=code; cloudDirty=false; cloudConflictPaused=false; localStorage.setItem('ggzSyncCode',code);
+        rememberCloudVersion(code,data.updated_at); syncCode=code; cloudDirty=false; rememberCloudDirty(code,false); cloudConflictPaused=false; localStorage.setItem('ggzSyncCode',code);
         saveState(); setCloudStatus('云端已读取 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})); return true;
       }catch(err){ setCloudStatus('读取失败：'+(err.message||err),true); return false; }
       finally{ applyingCloud=false; cloudBusy=false; }
@@ -2065,14 +2069,14 @@ class Component extends DCLogic {
       syncCode=[...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
       $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode);
       lastCloudUpdatedAt=localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''; cloudConflictPaused=false;
-      cloudDirty=true; editLockSupported=null; editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); setCloudStatus('同步码已创建 · 云端未同步','warn'); syncEditLockUI(); refreshEditLockStatus();
+      cloudDirty=true; rememberCloudDirty(syncCode,true); editLockSupported=null; editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); setCloudStatus('同步码已创建 · 云端未同步','warn'); syncEditLockUI(); refreshEditLockStatus();
     });
     $('syncCodeInput').addEventListener('change',async()=>{
       const nextCode=normalizedSyncCode();
       if(nextCode===syncCode) return;
       $('syncCodeInput').value=syncCode;
       if(editLockOwned&&!(await releaseEditLock(true,false))) return;
-      syncCode=nextCode; $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode); lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):''; cloudConflictPaused=false; cloudDirty=true; editLockSupported=syncCode?null:false; editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false); syncEditLockUI(); refreshEditLockStatus();
+      syncCode=nextCode; $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode); lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):''; cloudConflictPaused=false; cloudDirty=syncCode?rememberedCloudDirty(syncCode,lastCloudUpdatedAt):true; editLockSupported=syncCode?null:false; editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); setCloudStatus(syncCode?(cloudDirty?'云端未同步':'云端已同步'):'未填写同步码',syncCode&&cloudDirty?'warn':false); syncEditLockUI(); refreshEditLockStatus();
     });
     $('editorNameInput').addEventListener('change',()=>{ editorName=String($('editorNameInput').value||'').trim(); localStorage.setItem('ggzEditorName',editorName); if(editLockOwned) heartbeatEditLock(); });
     $('acquireEditLockBtn').addEventListener('click',acquireEditLock);
@@ -3517,7 +3521,7 @@ class Component extends DCLogic {
     $('syncCodeInput').value=syncCode;
     $('editorNameInput').value=editorName;
     localStorage.removeItem('ggzCloudAuto');
-    setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false);
+    setCloudStatus(syncCode?(cloudDirty?'云端未同步':`云端已同步 ${lastCloudUpdatedAt?new Date(lastCloudUpdatedAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}):''}`):'未填写同步码',syncCode&&cloudDirty?'warn':false);
     loadUndoHistory();
     loadState();
     migrateLegacyColdPromotionDraft();
