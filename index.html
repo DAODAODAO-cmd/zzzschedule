@@ -281,6 +281,7 @@
         <label>显示方式 <select id="paymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
       </div>
+      <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button></div>
       <div id="paymentSummary" class="payment-summary"></div>
       <div class="toolbar"><button type="button" class="btn-ghost" id="showPaymentTotalBtn">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn">导出收款图</button><button class="btn-ghost" id="exportPaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn">复制表格</button></div>
     </div>
@@ -500,6 +501,8 @@ class Component extends DCLogic {
 .payment-heading-tools label{ display:flex; align-items:center; gap:7px; margin:0; white-space:nowrap; }
 .payment-heading-tools input[type=color]{ width:42px; height:34px; padding:3px; cursor:pointer; }
 .payment-heading-tools select{ width:auto; min-width:82px; }
+.payment-search-tools{ display:flex; align-items:center; gap:7px; margin-top:9px; }
+.payment-search-tools input{ max-width:300px; }
 .payment-range-tools{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-top:9px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); }
 .payment-range-tools label{ display:flex; align-items:center; gap:5px; margin:0; white-space:nowrap; }
 .payment-range-tools input[type=number]{ width:72px; padding:6px 8px; }
@@ -516,8 +519,9 @@ class Component extends DCLogic {
 .payment-table td.payment-money{ color:#16703a; font-weight:900; white-space:nowrap; }
 .payment-table tr.payment-paid-row td{ background:#e4f6e9; color:#176b38; }
 .payment-table tr.payment-paid-row td.payment-cn,.payment-table tr.payment-paid-row td.payment-money{ background:#d9f1e0; color:#176b38; }
-.wrap .payment-paid-check{ display:inline-grid; place-items:center; width:18px; height:18px; min-width:18px; margin:0 6px 0 0; padding:0; border:1.5px solid #9bbda5; border-radius:4px; background:#fff; color:#27834b; font-size:14px; font-weight:900; line-height:1; vertical-align:middle; cursor:pointer; }
-.wrap .payment-paid-check[aria-pressed="true"]{ border-color:#2f9e5c; background:#d9f1e0; }
+.payment-table tr.payment-search-hit td{ background:#ffe993!important; color:#5b4100!important; box-shadow:inset 0 0 0 2px #dda914; }
+.wrap .payment-paid-check,.wrap .payment-paid-all{ display:inline-grid; place-items:center; width:18px; height:18px; min-width:18px; margin:0 6px 0 0; padding:0; border:1.5px solid #9bbda5; border-radius:4px; background:#fff; color:#27834b; font-size:14px; font-weight:900; line-height:1; vertical-align:middle; cursor:pointer; }
+.wrap .payment-paid-check[aria-pressed="true"],.wrap .payment-paid-all[aria-pressed="true"]{ border-color:#2f9e5c; background:#d9f1e0; }
 .payment-cn-name{ display:inline; }
 .payment-table tfoot td.payment-total-label{ background:#fff4f7; color:var(--accent); font-weight:900; text-align:right; }
 .payment-table tfoot td.payment-total-value{ background:#fff4f7; color:var(--accent); font-size:16px; font-weight:900; }
@@ -1664,7 +1668,9 @@ class Component extends DCLogic {
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       const paymentTotal=[...people.values()].reduce((sum,data)=>sum+data.total,0);
       const totalHtml=showPaymentTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">排单总价</td><td class="payment-total-value">${money(paymentTotal)}</td></tr></tfoot>`:'';
-      el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th ${editAttr('header:cn')}>${edited('header:cn','CN')}</th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody>${totalHtml}</table>${qrHtml}</div>`;
+      const visibleKeys=[...people.keys()], paidCount=visibleKeys.filter(key=>paymentPaid[key]===true).length, allPaid=visibleKeys.length>0&&paidCount===visibleKeys.length, partialPaid=paidCount>0&&!allPaid;
+      const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-payment-paid-all="1" aria-pressed="${allPaid?'true':'false'}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
+      el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody>${totalHtml}</table>${qrHtml}</div>`;
     }
     function renderSharePaymentSummary(){
       const el=$('sharePaymentSummary'), sharedText=String($('sharedFee').value||'').trim(), sharedTotal=Math.max(0,num(sharedText));
@@ -2798,6 +2804,21 @@ class Component extends DCLogic {
     $('paymentColorInput').addEventListener('input',e=>{ paymentColor=e.target.value; saveState(); renderPaymentSummary(); });
     $('paymentViewMode').addEventListener('change',e=>{ paymentViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderPaymentSummary(); });
     $('showPaymentTotalBtn').addEventListener('click',()=>{ showPaymentTotal=!showPaymentTotal; saveState(); syncPaymentControls(); renderPaymentSummary(); });
+    let paymentSearchTimer=null;
+    function clearPaymentSearchHighlight(){ clearTimeout(paymentSearchTimer); $('paymentSummary').querySelectorAll('.payment-search-hit').forEach(row=>row.classList.remove('payment-search-hit')); }
+    function findPaymentPerson(){
+      const query=String($('paymentSearchInput').value||'').replace(/\s+/g,'').toLowerCase();
+      if(!query){ $('paymentSearchInput').focus(); return; }
+      const names=[...$('paymentSummary').querySelectorAll('.payment-cn-name')], match=names.find(el=>String(el.textContent||'').replace(/\s+/g,'').toLowerCase().includes(query));
+      clearPaymentSearchHighlight();
+      if(!match){ alert('当前收款统计范围里没有找到这个人'); return; }
+      const key=match.closest('[data-payment-person]')?.dataset.paymentPerson||'';
+      const rows=[...$('paymentSummary').querySelectorAll('[data-payment-person]')].filter(row=>row.dataset.paymentPerson===key);
+      rows.forEach(row=>row.classList.add('payment-search-hit')); match.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});
+      paymentSearchTimer=setTimeout(()=>rows.forEach(row=>row.classList.remove('payment-search-hit')),3000);
+    }
+    $('paymentSearchBtn').addEventListener('click',findPaymentPerson);
+    $('paymentSearchInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); findPaymentPerson(); } });
     document.querySelector('.payment-tabs').addEventListener('click',e=>{
       const button=e.target.closest('[data-payment-tab]'); if(!button) return;
       paymentActiveTab=button.dataset.paymentTab==='share'?'share':'goods'; syncPaymentControls();
@@ -2816,6 +2837,15 @@ class Component extends DCLogic {
     });
     $('paymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     $('paymentSummary').addEventListener('click',e=>{
+      const allButton=e.target.closest('[data-payment-paid-all]');
+      if(allButton){
+        e.preventDefault(); e.stopPropagation();
+        const rows=[...$('paymentSummary').querySelectorAll('[data-payment-person]')], keys=[...new Set(rows.map(row=>row.dataset.paymentPerson).filter(Boolean))], paid=keys.some(key=>paymentPaid[key]!==true);
+        keys.forEach(key=>{ if(paid) paymentPaid[key]=true; else delete paymentPaid[key]; });
+        rows.forEach(row=>row.classList.toggle('payment-paid-row',paid));
+        $('paymentSummary').querySelectorAll('[data-payment-paid]').forEach(button=>{ button.setAttribute('aria-pressed',paid?'true':'false'); button.textContent=paid?'✓':''; });
+        allButton.setAttribute('aria-pressed',paid?'true':'false'); allButton.textContent=paid?'✓':''; saveState(); return;
+      }
       const checkbox=e.target.closest('[data-payment-paid]'); if(!checkbox) return;
       e.preventDefault(); e.stopPropagation();
       const key=decodeURIComponent(checkbox.dataset.paymentPaid||''); if(!key) return;
@@ -2823,6 +2853,8 @@ class Component extends DCLogic {
       if(paid) paymentPaid[key]=true; else delete paymentPaid[key];
       checkbox.setAttribute('aria-pressed',paid?'true':'false'); checkbox.textContent=paid?'✓':'';
       $('paymentSummary').querySelectorAll('[data-payment-person]').forEach(row=>{ if(row.dataset.paymentPerson===key) row.classList.toggle('payment-paid-row',paid); });
+      const buttons=[...$('paymentSummary').querySelectorAll('[data-payment-paid]')], headerButton=$('paymentSummary').querySelector('[data-payment-paid-all]'), paidCount=buttons.filter(button=>button.getAttribute('aria-pressed')==='true').length;
+      if(headerButton){ const all=buttons.length>0&&paidCount===buttons.length; headerButton.setAttribute('aria-pressed',all?'true':'false'); headerButton.textContent=all?'✓':(paidCount>0?'−':''); }
       saveState();
     });
     $('paymentSummary').addEventListener('blur',e=>{
@@ -2859,6 +2891,7 @@ class Component extends DCLogic {
       renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:1000,height:wrap.scrollHeight,windowWidth:1040,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,'推车图.png')).catch(()=>alert('导出失败，请确认图片已加载后重试')).finally(()=>{ wrap.style.width=oldWidth; });
     });
     $('exportPaymentBtn').addEventListener('click',()=>{
+      clearPaymentSearchHighlight();
       if(typeof html2canvas==='undefined'||!$('paymentSummary').querySelector('table')){ alert('还没有收款数据'); return; }
       const wrap=$('paymentSummary'), scroller=wrap.querySelector('.payment-table-wrap'), table=scroller.querySelector('table'), sticky=[...table.querySelectorAll('th')];
       const old={maxHeight:scroller.style.maxHeight,overflow:scroller.style.overflow,width:scroller.style.width,wrapWidth:wrap.style.width};
@@ -2876,7 +2909,7 @@ class Component extends DCLogic {
       const exportTable=document.createElement('table'), body=document.createElement('tbody');
       const titleRow=document.createElement('tr'), titleCell=document.createElement('td');
       titleCell.colSpan=5; titleCell.textContent=paymentTitle||'未命名项目'; titleRow.appendChild(titleCell); body.appendChild(titleRow);
-      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); body.appendChild(copy); });
+      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]').forEach(el=>el.remove()); body.appendChild(copy); });
       exportTable.appendChild(body);
       const ws=XLSX.utils.table_to_sheet(exportTable,{raw:true});
       ws['!cols']=[{wch:16},{wch:24},{wch:10},{wch:16},{wch:16}];
@@ -2885,7 +2918,8 @@ class Component extends DCLogic {
     });
     $('copyPaymentBtn').addEventListener('click',()=>{
       const table=$('paymentSummary').querySelector('table'); if(!table){ alert('还没有收款数据'); return; }
-      const lines=[...table.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
+      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]').forEach(el=>el.remove());
+      const lines=[...cleanTable.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const b=$('copyPaymentBtn'),old=b.textContent;b.textContent='已复制';setTimeout(()=>b.textContent=old,1200); });
     });
     $('exportSharePaymentBtn').addEventListener('click',()=>{
