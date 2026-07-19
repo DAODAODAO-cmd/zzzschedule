@@ -237,6 +237,7 @@
         <button class="btn-ghost" id="copyTsvBtn">复制表格文本</button>
         <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前表</button>
         <button class="btn-ghost" id="exportJsonBtn">备份全部表</button>
+        <button class="btn-ghost" id="exportImportTemplateBtn">下载排单导入模板</button>
         <label class="btn-ghost filelabel import-backup">导入备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
         <label class="btn-ghost filelabel">导入 Excel<input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;"></label>
       </div></details>
@@ -281,7 +282,7 @@
         <label>显示方式 <select id="paymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
       </div>
-      <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button></div>
+      <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">未收款：0 人</span></div>
       <div id="paymentSummary" class="payment-summary"></div>
       <div class="toolbar"><button type="button" class="btn-ghost" id="showPaymentTotalBtn">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn">导出收款图</button><button class="btn-ghost" id="exportPaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn">复制表格</button></div>
     </div>
@@ -291,7 +292,7 @@
         <label>显示方式 <select id="sharePaymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="sharePaymentColorInput" type="color" value="#d1466a"></label>
       </div>
-      <div class="payment-search-tools"><input id="sharePaymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="sharePaymentSearchBtn">查找</button></div>
+      <div class="payment-search-tools"><input id="sharePaymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="sharePaymentSearchBtn">查找</button><span class="payment-unpaid-count" id="sharePaymentUnpaidCount">未收款：0 人</span></div>
       <div id="sharePaymentSummary" class="payment-summary"></div>
       <div class="toolbar"><button type="button" class="btn-ghost payment-calc-toggle" id="shareDeductFixedBtn">入均计算：未开启</button><button class="btn-ghost" id="exportSharePaymentBtn">导出均摊图</button><button class="btn-ghost" id="exportSharePaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copySharePaymentBtn">复制表格</button></div>
     </div>
@@ -502,8 +503,9 @@ class Component extends DCLogic {
 .payment-heading-tools label{ display:flex; align-items:center; gap:7px; margin:0; white-space:nowrap; }
 .payment-heading-tools input[type=color]{ width:42px; height:34px; padding:3px; cursor:pointer; }
 .payment-heading-tools select{ width:auto; min-width:82px; }
-.payment-search-tools{ display:flex; align-items:center; gap:7px; margin-top:9px; }
+.payment-search-tools{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:9px; }
 .payment-search-tools input{ max-width:300px; }
+.payment-unpaid-count{ margin-left:auto; padding:6px 10px; border-radius:8px; background:#fff3e5; color:#a26413; font-size:12px; font-weight:900; white-space:nowrap; }
 .payment-calc-toggle.active{ color:#176b38; border-color:#9fcfb0; background:#e4f6e9; }
 .payment-range-tools{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-top:9px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); }
 .payment-range-tools label{ display:flex; align-items:center; gap:5px; margin:0; white-space:nowrap; }
@@ -1647,7 +1649,7 @@ class Component extends DCLogic {
         const row=people.get(key); row.total+=unitPrice(c); row.items.set(c.name,(row.items.get(c.name)||0)+1);
       }));
       const el=$('paymentSummary');
-      if(!people.size){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; return; }
+      if(!people.size){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('paymentUnpaidCount').textContent='未收款：0 人'; return; }
       const feeAmount=total=>Math.ceil(((total<=100?total+0.1:total*1.001)-1e-9)*100)/100;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(paymentEdits,key)?paymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-payment-key="${encodeURIComponent(key)}"`;
@@ -1673,12 +1675,13 @@ class Component extends DCLogic {
       const paymentTotal=[...people.values()].reduce((sum,data)=>sum+data.total,0);
       const totalHtml=showPaymentTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">排单总价</td><td class="payment-total-value">${money(paymentTotal)}</td></tr></tfoot>`:'';
       const visibleKeys=[...people.keys()], paidCount=visibleKeys.filter(key=>paymentPaid[key]===true).length, allPaid=visibleKeys.length>0&&paidCount===visibleKeys.length, partialPaid=paidCount>0&&!allPaid;
+      $('paymentUnpaidCount').textContent=`未收款：${visibleKeys.length-paidCount} 人`;
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-payment-paid-all="1" aria-pressed="${allPaid?'true':'false'}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody>${totalHtml}</table>${qrHtml}</div>`;
     }
     function renderSharePaymentSummary(){
       const el=$('sharePaymentSummary'), sharedText=String($('sharedFee').value||'').trim(), sharedTotal=Math.max(0,num(sharedText));
-      if(!sharedText||sharedTotal<=0){ el.innerHTML='<div class="empty">没有填写均摊金额，这里暂时不用计算</div>'; return; }
+      if(!sharedText||sharedTotal<=0){ el.innerHTML='<div class="empty">没有填写均摊金额，这里暂时不用计算</div>'; $('sharePaymentUnpaidCount').textContent='未收款：0 人'; return; }
       const people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow);
       let totalQty=0, fixedDeduction=0;
       columns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
@@ -1689,7 +1692,7 @@ class Component extends DCLogic {
         const data=people.get(key); data.qty++; totalQty++; data.items.set(c.name,(data.items.get(c.name)||0)+1);
         if(shareDeductFixed&&c.mode==='fixed') fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
-      if(!people.size||!totalQty){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; return; }
+      if(!people.size||!totalQty){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('sharePaymentUnpaidCount').textContent='未收款：0 人'; return; }
       const distributable=Math.max(0,sharedTotal-fixedDeduction), perItem=distributable/totalQty;
       const feeAmount=total=>Math.ceil(((total<=100?total+0.1:total*1.001)-1e-9)*100)/100;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(sharePaymentEdits,key)?sharePaymentEdits[key]:value);
@@ -1714,6 +1717,7 @@ class Component extends DCLogic {
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       const note=shareDeductFixed?`均摊 ${money(sharedTotal)}－入均 ${money(fixedDeduction)}＝实际均摊 ${money(distributable)}；共 ${totalQty} 件，每件 ${money(perItem)}`:`直接均摊 ${money(sharedTotal)}；共 ${totalQty} 件，每件 ${money(perItem)}`;
       const visibleKeys=[...people.keys()], paidCount=visibleKeys.filter(key=>sharePaymentPaid[key]===true).length, allPaid=visibleKeys.length>0&&paidCount===visibleKeys.length, partialPaid=paidCount>0&&!allPaid;
+      $('sharePaymentUnpaidCount').textContent=`未收款：${visibleKeys.length-paidCount} 人`;
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-share-payment-paid-all="1" aria-pressed="${allPaid?'true':'false'}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(sharePaymentTitle||'均摊统计')}</div><div class="hint share-calculation-note" data-html2canvas-ignore="true" style="padding:8px 10px;background:#fff8fb;text-align:center;">${escapeHtml(note)}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody></table>${qrHtml}</div>`;
     }
@@ -2855,6 +2859,10 @@ class Component extends DCLogic {
       syncPaymentControls(); saveState(); renderPaymentSummary(); renderSharePaymentSummary();
     });
     $('paymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
+    function syncRenderedUnpaidCount(rootId,countId,selector){
+      const buttons=[...$(rootId).querySelectorAll(selector)], unpaid=buttons.filter(button=>button.getAttribute('aria-pressed')!=='true').length;
+      $(countId).textContent=`未收款：${unpaid} 人`;
+    }
     $('paymentSummary').addEventListener('click',e=>{
       const allButton=e.target.closest('[data-payment-paid-all]');
       if(allButton){
@@ -2863,7 +2871,7 @@ class Component extends DCLogic {
         keys.forEach(key=>{ if(paid) paymentPaid[key]=true; else delete paymentPaid[key]; });
         rows.forEach(row=>row.classList.toggle('payment-paid-row',paid));
         $('paymentSummary').querySelectorAll('[data-payment-paid]').forEach(button=>{ button.setAttribute('aria-pressed',paid?'true':'false'); button.textContent=paid?'✓':''; });
-        allButton.setAttribute('aria-pressed',paid?'true':'false'); allButton.textContent=paid?'✓':''; saveState(); return;
+        allButton.setAttribute('aria-pressed',paid?'true':'false'); allButton.textContent=paid?'✓':''; syncRenderedUnpaidCount('paymentSummary','paymentUnpaidCount','[data-payment-paid]'); saveState(); return;
       }
       const checkbox=e.target.closest('[data-payment-paid]'); if(!checkbox) return;
       e.preventDefault(); e.stopPropagation();
@@ -2874,6 +2882,7 @@ class Component extends DCLogic {
       $('paymentSummary').querySelectorAll('[data-payment-person]').forEach(row=>{ if(row.dataset.paymentPerson===key) row.classList.toggle('payment-paid-row',paid); });
       const buttons=[...$('paymentSummary').querySelectorAll('[data-payment-paid]')], headerButton=$('paymentSummary').querySelector('[data-payment-paid-all]'), paidCount=buttons.filter(button=>button.getAttribute('aria-pressed')==='true').length;
       if(headerButton){ const all=buttons.length>0&&paidCount===buttons.length; headerButton.setAttribute('aria-pressed',all?'true':'false'); headerButton.textContent=all?'✓':(paidCount>0?'−':''); }
+      syncRenderedUnpaidCount('paymentSummary','paymentUnpaidCount','[data-payment-paid]');
       saveState();
     });
     $('paymentSummary').addEventListener('blur',e=>{
@@ -2888,14 +2897,14 @@ class Component extends DCLogic {
         e.preventDefault(); e.stopPropagation();
         const rows=[...$('sharePaymentSummary').querySelectorAll('[data-share-payment-person]')], keys=[...new Set(rows.map(row=>row.dataset.sharePaymentPerson).filter(Boolean))], paid=keys.some(key=>sharePaymentPaid[key]!==true);
         keys.forEach(key=>{ if(paid) sharePaymentPaid[key]=true; else delete sharePaymentPaid[key]; }); rows.forEach(row=>row.classList.toggle('payment-paid-row',paid));
-        $('sharePaymentSummary').querySelectorAll('[data-share-payment-paid]').forEach(button=>{ button.setAttribute('aria-pressed',paid?'true':'false'); button.textContent=paid?'✓':''; }); allButton.setAttribute('aria-pressed',paid?'true':'false'); allButton.textContent=paid?'✓':''; saveState(); return;
+        $('sharePaymentSummary').querySelectorAll('[data-share-payment-paid]').forEach(button=>{ button.setAttribute('aria-pressed',paid?'true':'false'); button.textContent=paid?'✓':''; }); allButton.setAttribute('aria-pressed',paid?'true':'false'); allButton.textContent=paid?'✓':''; syncRenderedUnpaidCount('sharePaymentSummary','sharePaymentUnpaidCount','[data-share-payment-paid]'); saveState(); return;
       }
       const checkbox=e.target.closest('[data-share-payment-paid]'); if(!checkbox) return;
       e.preventDefault(); e.stopPropagation(); const key=decodeURIComponent(checkbox.dataset.sharePaymentPaid||''); if(!key) return; const paid=sharePaymentPaid[key]!==true;
       if(paid) sharePaymentPaid[key]=true; else delete sharePaymentPaid[key]; checkbox.setAttribute('aria-pressed',paid?'true':'false'); checkbox.textContent=paid?'✓':'';
       $('sharePaymentSummary').querySelectorAll('[data-share-payment-person]').forEach(row=>{ if(row.dataset.sharePaymentPerson===key) row.classList.toggle('payment-paid-row',paid); });
       const buttons=[...$('sharePaymentSummary').querySelectorAll('[data-share-payment-paid]')], headerButton=$('sharePaymentSummary').querySelector('[data-share-payment-paid-all]'), paidCount=buttons.filter(button=>button.getAttribute('aria-pressed')==='true').length;
-      if(headerButton){ const all=buttons.length>0&&paidCount===buttons.length; headerButton.setAttribute('aria-pressed',all?'true':'false'); headerButton.textContent=all?'✓':(paidCount>0?'−':''); } saveState();
+      if(headerButton){ const all=buttons.length>0&&paidCount===buttons.length; headerButton.setAttribute('aria-pressed',all?'true':'false'); headerButton.textContent=all?'✓':(paidCount>0?'−':''); } syncRenderedUnpaidCount('sharePaymentSummary','sharePaymentUnpaidCount','[data-share-payment-paid]'); saveState();
     });
     $('sharePaymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-share-payment-key]'); if(!cell) return;
@@ -3158,6 +3167,22 @@ class Component extends DCLogic {
       captureActiveSheet();
       downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg},'全部排单备份.json');
     });
+    $('exportImportTemplateBtn').addEventListener('click',()=>{
+      if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
+      const templateColumns=columns.length?columns:Array.from({length:8},(_,i)=>({name:`谷子${i+1}`,mode:'avg',priceAdj:0,fixedPrice:0,sourceJpyPrice:0,promotionPoints:1}));
+      const pricing=c=>c.mode==='fixed'?`${fmtNum(c.fixedPrice)}/1`:c.mode==='single'?`原价${fmtNum(c.sourceJpyPrice)}日元`:c.mode==='adjust'?`${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`:'均价';
+      const rows=[
+        ['顺位',...templateColumns.map(c=>c.name)],
+        ['调价',...templateColumns.map(pricing)],
+        ['单价',...templateColumns.map(c=>Number(unitPrice(c).toFixed(2)))],
+        ['提配点数',...templateColumns.map(c=>Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1)],
+      ];
+      for(let row=1;row<=100;row++) rows.push([row,...templateColumns.map(()=>'')]);
+      const ws=XLSX.utils.aoa_to_sheet(rows), sheetName=String((sheets.find(s=>s.id===activeSheetId)||{}).name||'排单导入模板').replace(/[\\/?*\[\]:]/g,' ').slice(0,31)||'排单导入模板';
+      ws['!cols']=[{wch:9},...templateColumns.map(()=>({wch:18}))]; ws['!freeze']={xSplit:1,ySplit:4};
+      if(ws.A1) ws.A1.c=[{a:'Codex',t:'第一行填写谷子名称；第5行开始，每一行代表同一个排单顺位。可以增加、删除谷子列，也可以增加人员行。填好后回到网页点击“导入 Excel”。'}];
+      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,sheetName); XLSX.writeFile(wb,`${sheetName}-排单导入模板.xlsx`); $('dataActions').open=false;
+    });
     $('excelImportInput').addEventListener('change',e=>{
       const file=e.target.files[0]; if(!file) return;
       if(typeof XLSX==='undefined'){ alert('Excel 读取组件尚未加载，请联网后重试'); e.target.value=''; return; }
@@ -3183,11 +3208,12 @@ class Component extends DCLogic {
               const id=i+1, pricing=pricingIndex>=0?String((rows[pricingIndex]||[])[i+startCol]||'').trim():'';
               const unit=unitIndex>=0?parseFloat((rows[unitIndex]||[])[i+startCol]):NaN;
               const promotionPoint=promotionPointIndex>=0?parseFloat((rows[promotionPointIndex]||[])[i+startCol]):NaN;
-              let mode='avg',priceAdj=0,fixedPrice=0;
+              let mode='avg',priceAdj=0,fixedPrice=0,sourceJpyPrice=0;
               if(/固定|\/1/.test(pricing)||(/入均/.test(pricing)&&/\d/.test(pricing))){ mode='fixed'; fixedPrice=Math.max(0,parseFloat(pricing.replace(/[^\d.-]/g,''))||0); }
+              else if(/原价|日元/.test(pricing)){ mode='single'; sourceJpyPrice=Math.max(0,parseFloat(pricing.replace(/[^\d.-]/g,''))||0); }
               else if(pricing&&!/^(?:入均|均价|均)$/.test(pricing)){ const n=parseFloat(pricing.replace(/[^\d.+-]/g,'')); if(Number.isFinite(n)){ mode='adjust'; priceAdj=n; } }
               else if(Number.isFinite(unit)&&!pricing){ mode='fixed'; fixedPrice=Math.max(0,unit); }
-              return {id,name:name||`角色${i+1}`,aliases:[],mode,priceAdj,fixedPrice,promotionPoints:Number.isFinite(promotionPoint)?Math.max(0,promotionPoint):1,img:null};
+              return {id,name:name||`角色${i+1}`,aliases:[],mode,priceAdj,fixedPrice,sourceJpyPrice,promotionPoints:Number.isFinite(promotionPoint)?Math.max(0,promotionPoint):1,img:null};
             });
             sheet.allocations={};
             sheet.columns.forEach((c,i)=>{
