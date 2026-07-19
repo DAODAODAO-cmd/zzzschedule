@@ -39,12 +39,17 @@
 
   <div class="cloudbar">
     <input id="syncCodeInput" type="text" maxlength="24" placeholder="同步码">
+    <input id="editorNameInput" type="text" maxlength="20" placeholder="编辑者名字">
     <button id="createSyncCodeBtn" class="btn-ghost">新建同步码</button>
+    <button id="acquireEditLockBtn" class="btn-primary">开始编辑</button>
+    <button id="releaseEditLockBtn" class="btn-ghost" disabled>保存并结束</button>
     <button id="cloudUploadBtn" class="btn-primary">上传云端</button>
     <button id="cloudDownloadBtn" class="btn-ghost">读取云端</button>
     <span id="localStatus">本机已保存</span>
     <span id="cloudStatus">云端未同步</span>
+    <span id="editLockStatus">编辑锁检查中…</span>
   </div>
+  <div id="editLockBanner" class="edit-lock-banner" style="display:none;"></div>
 
   <div class="panel desktop-setup" id="costPanel">
     <h2>① 价格</h2>
@@ -282,7 +287,7 @@
         <label>显示方式 <select id="paymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
       </div>
-      <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
+      <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收：0人 / ¥0.00；待退款：0人 / ¥0.00；待补款：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div id="paymentSummary" class="payment-summary"></div>
       <div class="toolbar"><button type="button" class="btn-ghost" id="showPaymentTotalBtn">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn">导出收款图</button><button class="btn-ghost" id="exportPaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn">复制表格</button></div>
     </div>
@@ -292,7 +297,7 @@
         <label>显示方式 <select id="sharePaymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="sharePaymentColorInput" type="color" value="#d1466a"></label>
       </div>
-      <div class="payment-search-tools"><input id="sharePaymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="sharePaymentSearchBtn">查找</button><span class="payment-unpaid-count" id="sharePaymentUnpaidCount">已收：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
+      <div class="payment-search-tools"><input id="sharePaymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="sharePaymentSearchBtn">查找</button><span class="payment-unpaid-count" id="sharePaymentUnpaidCount">已收：0人 / ¥0.00；待退款：0人 / ¥0.00；待补款：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div id="sharePaymentSummary" class="payment-summary"></div>
       <div class="toolbar"><button type="button" class="btn-ghost payment-calc-toggle" id="shareDeductFixedBtn">入均计算：未开启</button><button class="btn-ghost" id="exportSharePaymentBtn">导出均摊图</button><button class="btn-ghost" id="exportSharePaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copySharePaymentBtn">复制表格</button></div>
     </div>
@@ -358,8 +363,15 @@ class Component extends DCLogic {
 .wrap .lead{ margin:5px 0 0; color:var(--muted); font-size:12.5px; line-height:1.55; }
 .mobile-view-switch{ display:none; }
 .sheetbar{ position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:7px; margin:0 0 12px; padding:7px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:11px; box-shadow:0 4px 16px rgba(53,36,62,.06); backdrop-filter:blur(10px); }
-.cloudbar{ display:grid; grid-template-columns:150px repeat(3,auto) auto 1fr; align-items:center; gap:7px; margin:-5px 0 12px; padding:8px; border:1px solid var(--line); border-radius:11px; background:#fff; }
+.cloudbar{ display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin:-5px 0 12px; padding:8px; border:1px solid var(--line); border-radius:11px; background:#fff; }
+.cloudbar input{ width:150px; }
 #cloudStatus{ color:var(--muted); font-size:12px; text-align:right; white-space:nowrap; }
+#editLockStatus{ margin-left:auto; color:var(--muted); font-size:12px; font-weight:800; white-space:nowrap; }
+.edit-lock-banner{ margin:-5px 0 12px; padding:9px 12px; border:1px solid #e3b35e; border-radius:10px; background:#fff6df; color:#835a12; font-size:13px; font-weight:800; text-align:center; }
+.cloud-edit-readonly .sheetbar button,.cloud-edit-readonly .panel input,.cloud-edit-readonly .panel select,.cloud-edit-readonly .panel textarea,.cloud-edit-readonly .panel button,.cloud-edit-readonly .panel [contenteditable="true"]{ pointer-events:none!important; }
+.cloud-edit-readonly .sheetbar{ pointer-events:none!important; }
+.cloud-edit-readonly .sheetbar,.cloud-edit-readonly .panel{ opacity:.78; }
+.cloud-edit-readonly .panel{ user-select:text; }
 #localStatus{ color:var(--ok); font-size:12px; font-weight:800; white-space:nowrap; }
 .sheet-tabs{ display:flex; align-items:center; gap:6px; overflow-x:auto; flex:1; padding-bottom:1px; }
 .sheet-tab{ display:flex; align-items:center; flex:0 0 auto; border:1px solid transparent; border-radius:9px; background:transparent; color:var(--muted); min-height:36px; padding:0 5px 0 13px; cursor:pointer; }
@@ -518,15 +530,28 @@ class Component extends DCLogic {
 .payment-table{ font-size:14.5px; }
 .payment-table th{ position:sticky; top:0; z-index:2; padding:7px 8px; border:1px solid #cfc7d2; background:#f5f2f6; color:var(--text); font-size:14px; font-weight:900; text-align:center; white-space:nowrap; }
 .payment-table td{ padding:7px 8px; border:1px solid #d8d1db; background:#fff; text-align:center; line-height:1.35; vertical-align:middle; }
-.payment-table td.payment-cn{ font-weight:900; background:#faf8fb; }
+.payment-table td.payment-cn{ font-weight:900; background:#faf8fb; text-align:left; white-space:nowrap; }
 .payment-table td.payment-item-name{ text-align:center; }
 .payment-table td.payment-money{ color:#16703a; font-weight:900; white-space:nowrap; }
 .payment-table tr.payment-paid-row td{ background:#e4f6e9; color:#176b38; }
 .payment-table tr.payment-paid-row td.payment-cn,.payment-table tr.payment-paid-row td.payment-money{ background:#d9f1e0; color:#176b38; }
+.payment-table tr.payment-refund-row td{ background:#fdebed; color:#a93645; }
+.payment-table tr.payment-refund-row td.payment-cn,.payment-table tr.payment-refund-row td.payment-money{ background:#f9dfe3; color:#a93645; }
+.payment-table tr.payment-supplement-row td{ background:#eaf3fc; color:#2f6f9f; }
+.payment-table tr.payment-supplement-row td.payment-cn,.payment-table tr.payment-supplement-row td.payment-money{ background:#dfeefa; color:#2f6f9f; }
 .payment-table tr.payment-search-hit td{ background:#ffe993!important; color:#5b4100!important; box-shadow:inset 0 0 0 2px #dda914; }
 .wrap .payment-paid-check,.wrap .payment-paid-all{ display:inline-grid; place-items:center; width:18px; height:18px; min-width:18px; margin:0 6px 0 0; padding:0; border:1.5px solid #9bbda5; border-radius:4px; background:#fff; color:#27834b; font-size:14px; font-weight:900; line-height:1; vertical-align:middle; cursor:pointer; }
 .wrap .payment-paid-check[aria-pressed="true"],.wrap .payment-paid-all[aria-pressed="true"]{ border-color:#2f9e5c; background:#d9f1e0; }
+.payment-cn-controls{ display:inline-grid; grid-template-columns:18px 28px 28px; align-items:center; gap:4px; width:82px; margin-right:6px; vertical-align:middle; }
+.payment-cn-controls .payment-paid-check,.payment-cn-controls .payment-refund-check,.payment-cn-controls .payment-supplement-check{ margin:0; }
+.wrap .payment-refund-check,.wrap .payment-supplement-check{ display:inline-grid; place-items:center; width:28px; height:18px; min-width:28px; padding:0; border:1.5px solid #d89aa3; border-radius:4px; background:#fff; color:#b64251; font-size:11px; font-weight:900; line-height:1; vertical-align:middle; cursor:pointer; }
+.wrap .payment-refund-check[aria-pressed="true"]{ border-color:#cf5968; background:#f9dfe3; color:#a93645; }
+.wrap .payment-supplement-check{ border-color:#91b8d8; color:#347fbd; }
+.wrap .payment-supplement-check[aria-pressed="true"]{ border-color:#4f91c5; background:#dfeefa; color:#2f6f9f; }
 .payment-cn-name{ display:inline; }
+.payment-adjustment-note{ display:inline-flex; gap:4px; margin-left:5px; font-size:12px; font-weight:900; white-space:nowrap; }
+.payment-adjustment-refund{ color:#d04a59; }
+.payment-adjustment-supplement{ color:#347fbd; }
 .payment-table tfoot td.payment-total-label{ background:#fff4f7; color:var(--accent); font-weight:900; text-align:right; }
 .payment-table tfoot td.payment-total-value{ background:#fff4f7; color:var(--accent); font-size:16px; font-weight:900; }
 .payment-code-export{ width:100%; padding:0; border-top:1px solid var(--line); background:#fff; }
@@ -652,8 +677,9 @@ class Component extends DCLogic {
   .mobile-view-switch{ display:grid; grid-template-columns:1fr 1fr; gap:5px; margin:0 0 9px; padding:4px; border:1px solid var(--line); border-radius:10px; background:#fff; }
   .mobile-view-switch button{ background:transparent; color:var(--muted); border:1px solid transparent; }
   .mobile-view-switch button.active{ color:var(--accent); background:#fff0f4; border-color:#efcad5; }
-  .cloudbar{ grid-template-columns:1fr 1fr; gap:6px; }
-  .cloudbar #syncCodeInput,.cloudbar #cloudStatus{ grid-column:1/-1; text-align:left; }
+  .cloudbar{ gap:6px; }
+  .cloudbar input{ width:calc(50% - 3px); flex:1 1 140px; }
+  .cloudbar #cloudStatus,.cloudbar #editLockStatus{ width:100%; margin-left:0; text-align:left; }
   .wrap .panel{ padding:12px; margin-bottom:9px; }
   #matrixPanel .toolbar > *{ display:none!important; }
   #matrixPanel .toolbar #regenBtn,#matrixPanel .toolbar #exportPngBtn,#matrixPanel .toolbar #exportSingleQuantityBtn,#matrixPanel .toolbar #exportBundleQuantityBtn,#matrixPanel .toolbar #undoLastApplyBtn,#matrixPanel .toolbar #dataActions,#matrixPanel .toolbar #clearAllBtn{ display:inline-flex!important; }
@@ -707,7 +733,7 @@ class Component extends DCLogic {
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
     let matrixTitle='', matrixColor='#d1466a';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', showPaymentTotal=true;
-    let paymentEdits={}, paymentPaid={}, sharePaymentTitle='', sharePaymentColor='#d1466a', sharePaymentViewMode='detail', sharePaymentEdits={}, sharePaymentPaid={}, shareDeductFixed=false;
+    let paymentEdits={}, paymentPaid={}, paymentRefund={}, paymentSupplement={}, sharePaymentTitle='', sharePaymentColor='#d1466a', sharePaymentViewMode='detail', sharePaymentEdits={}, sharePaymentPaid={}, sharePaymentRefund={}, sharePaymentSupplement={}, shareDeductFixed=false;
     let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='';
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
@@ -719,8 +745,12 @@ class Component extends DCLogic {
     let itemCatalog=[], catalogIdSeed=1;
     const CLOUD_IDLE_UPLOAD_MS=5*60*1000;
     const CLOUD_VERSION_KEY_PREFIX='ggzCloudVersion_';
+    const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
     let syncCode=localStorage.getItem('ggzSyncCode')||'';
+    let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=syncCode?null:false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
+    const editSessionId=sessionStorage.getItem('ggzEditSessionId')||((crypto.randomUUID&&crypto.randomUUID())||('tab-'+Date.now()+'-'+Math.random().toString(36).slice(2)));
+    sessionStorage.setItem('ggzEditSessionId',editSessionId);
     lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):'';
     const SUPABASE_URL='https://fzxabmdnrkvpgraztcwi.supabase.co';
     const SUPABASE_KEY='sb_publishable_yU4Q1T2RuQfgwOW9Idtf9w__YssVHYe';
@@ -733,10 +763,10 @@ class Component extends DCLogic {
         exchangeRate:$('exchangeRate').value,manualAveragePrice:$('manualAveragePrice').value,sharedFee:$('sharedFee').value};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,paymentEdits,paymentPaid,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -761,8 +791,12 @@ class Component extends DCLogic {
       showPaymentTotal=sheet.showPaymentTotal!==false;
       paymentEdits=sheet.paymentEdits||{};
       paymentPaid=sheet.paymentPaid&&typeof sheet.paymentPaid==='object'?sheet.paymentPaid:{};
+      paymentRefund=sheet.paymentRefund&&typeof sheet.paymentRefund==='object'?sheet.paymentRefund:{};
+      paymentSupplement=sheet.paymentSupplement&&typeof sheet.paymentSupplement==='object'?sheet.paymentSupplement:{};
       sharePaymentTitle=sheet.sharePaymentTitle||`${sheet.name||'未命名项目'} 均摊`; sharePaymentColor=sheet.sharePaymentColor||paymentColor||'#d1466a'; sharePaymentViewMode=sheet.sharePaymentViewMode==='merged'?'merged':'detail'; sharePaymentEdits=sheet.sharePaymentEdits||{};
       sharePaymentPaid=sheet.sharePaymentPaid&&typeof sheet.sharePaymentPaid==='object'?sheet.sharePaymentPaid:{}; shareDeductFixed=sheet.shareDeductFixed===true;
+      sharePaymentRefund=sheet.sharePaymentRefund&&typeof sheet.sharePaymentRefund==='object'?sheet.sharePaymentRefund:{};
+      sharePaymentSupplement=sheet.sharePaymentSupplement&&typeof sheet.sharePaymentSupplement==='object'?sheet.sharePaymentSupplement:{};
       coldCarryBundleColumnIds=(Array.isArray(sheet.coldCarryBundleColumnIds)?sheet.coldCarryBundleColumnIds:[]).map(Number).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
       if(!sharedPaymentQrImg) sharedPaymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
       paymentQrImg=sharedPaymentQrImg;
@@ -922,8 +956,12 @@ class Component extends DCLogic {
             showPaymentTotal=sheet.showPaymentTotal!==false;
             paymentEdits=sheet.paymentEdits||{};
             paymentPaid=sheet.paymentPaid&&typeof sheet.paymentPaid==='object'?sheet.paymentPaid:{};
+            paymentRefund=sheet.paymentRefund&&typeof sheet.paymentRefund==='object'?sheet.paymentRefund:{};
+            paymentSupplement=sheet.paymentSupplement&&typeof sheet.paymentSupplement==='object'?sheet.paymentSupplement:{};
             sharePaymentTitle=sheet.sharePaymentTitle||`${sheet.name||'未命名项目'} 均摊`; sharePaymentColor=sheet.sharePaymentColor||paymentColor||'#d1466a'; sharePaymentViewMode=sheet.sharePaymentViewMode==='merged'?'merged':'detail'; sharePaymentEdits=sheet.sharePaymentEdits||{};
             sharePaymentPaid=sheet.sharePaymentPaid&&typeof sheet.sharePaymentPaid==='object'?sheet.sharePaymentPaid:{}; shareDeductFixed=sheet.shareDeductFixed===true;
+            sharePaymentRefund=sheet.sharePaymentRefund&&typeof sheet.sharePaymentRefund==='object'?sheet.sharePaymentRefund:{};
+            sharePaymentSupplement=sheet.sharePaymentSupplement&&typeof sheet.sharePaymentSupplement==='object'?sheet.sharePaymentSupplement:{};
             coldCarryBundleColumnIds=(Array.isArray(sheet.coldCarryBundleColumnIds)?sheet.coldCarryBundleColumnIds:[]).map(Number).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
             paymentQrImg=sharedPaymentQrImg;
             quantityConfigured=sheet.quantityConfigured===true;
@@ -1024,6 +1062,107 @@ class Component extends DCLogic {
       cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{global:{headers:{'x-sync-code':code}}});
       return cloudClient;
     }
+    function editLockExpired(lock){ return !lock?.expires_at||new Date(lock.expires_at).getTime()<=Date.now(); }
+    function editLockRow(data){ return Array.isArray(data)?(data[0]||null):(data||null); }
+    function stopEditLockTimer(){ if(editLockTimer){ clearInterval(editLockTimer); editLockTimer=null; } }
+    function startEditLockTimer(){
+      stopEditLockTimer();
+      if(!syncCode||editLockSupported===false) return;
+      editLockTimer=setInterval(()=>{ if(editLockOwned) heartbeatEditLock(); else refreshEditLockStatus(); },EDIT_LOCK_CHECK_MS);
+    }
+    function syncEditLockUI(){
+      const guarded=!!syncCode&&editLockSupported!==false&&!editLockOwned;
+      document.documentElement.classList.toggle('cloud-edit-readonly',guarded);
+      $('acquireEditLockBtn').disabled=!syncCode||editLockOwned||cloudBusy;
+      $('releaseEditLockBtn').disabled=!editLockOwned||cloudBusy;
+      $('cloudUploadBtn').disabled=(editLockSupported===true&&!editLockOwned)||cloudBusy;
+      const banner=$('editLockBanner');
+      if(!syncCode){ $('editLockStatus').textContent='未填写同步码 · 本机可编辑'; banner.style.display='none'; return; }
+      if(editLockSupported===null){ $('editLockStatus').textContent='正在检查编辑权…'; banner.textContent='正在确认云端编辑权，请稍候。'; banner.style.display='block'; return; }
+      if(editLockSupported===false){ $('editLockStatus').textContent='编辑锁尚未启用'; banner.textContent='编辑锁 SQL 尚未安装，暂时沿用原同步方式。'; banner.style.display='block'; return; }
+      if(editLockOwned){ $('editLockStatus').textContent=`你正在编辑 · ${editorName||'本机'}`; banner.style.display='none'; return; }
+      if(editLockRecord&&!editLockExpired(editLockRecord)){
+        $('editLockStatus').textContent=`${editLockRecord.holder_name||'其他人'} 正在编辑`;
+        banner.textContent=`${editLockRecord.holder_name||'其他人'} 正在编辑，本机暂时只读；你仍可读取云端查看最新版本。`;
+      }else{
+        $('editLockStatus').textContent='当前无人编辑';
+        banner.textContent='当前尚未取得编辑权，点击“开始编辑”后才可以修改和上传。';
+      }
+      banner.style.display='block';
+      const active=document.activeElement; if(guarded&&active&&!active.closest?.('.cloudbar')) active.blur?.();
+    }
+    function lockFeatureMissing(error){ return ['42P01','42883','PGRST202','PGRST205'].includes(error?.code); }
+    async function refreshEditLockStatus(){
+      const code=normalizedSyncCode();
+      if(!code){ editLockSupported=false; editLockOwned=false; editLockRecord=null; syncEditLockUI(); return; }
+      try{
+        const client=getCloudClient(code), {data,error}=await client.from('ggz_edit_locks').select('holder_id,holder_name,expires_at').eq('sync_code',code).maybeSingle();
+        if(error) throw error;
+        editLockSupported=true; editLockRecord=data&&!editLockExpired(data)?data:null;
+        editLockOwned=!!editLockRecord&&editLockRecord.holder_id===editSessionId;
+        if(editLockOwned) editorName=editLockRecord.holder_name||editorName;
+        syncEditLockUI(); startEditLockTimer();
+      }catch(error){
+        if(lockFeatureMissing(error)){ editLockSupported=false; editLockOwned=false; editLockRecord=null; stopEditLockTimer(); syncEditLockUI(); }
+        else{ $('editLockStatus').textContent='编辑权检查失败，稍后重试'; startEditLockTimer(); }
+      }
+    }
+    async function heartbeatEditLock(){
+      if(!editLockOwned||!syncCode||editLockSupported!==true) return;
+      try{
+        const client=getCloudClient(syncCode), {data,error}=await client.rpc('ggz_try_edit_lock',{p_sync_code:syncCode,p_holder_id:editSessionId,p_holder_name:editorName||'未命名',p_ttl_seconds:EDIT_LOCK_TTL_SECONDS});
+        if(error) throw error;
+        const row=editLockRow(data);
+        if(!row?.acquired){ editLockOwned=false; editLockRecord=row; cloudConflictPaused=true; clearIdleCloudUpload(); setCloudStatus('编辑权已转移，本机修改未上传','warn'); }
+        else editLockRecord=row;
+        syncEditLockUI();
+      }catch(error){
+        if(editLockRecord&&editLockExpired(editLockRecord)){ editLockOwned=false; clearIdleCloudUpload(); setCloudStatus('编辑锁已过期，本机修改未上传','warn'); syncEditLockUI(); }
+        else $('editLockStatus').textContent='编辑权续期失败，正在重试';
+      }
+    }
+    async function confirmEditLockForUpload(code){
+      if(editLockSupported!==true) return true;
+      if(!editLockOwned){ setCloudStatus('本机没有编辑权，已阻止上传','warn'); syncEditLockUI(); return false; }
+      try{
+        const client=getCloudClient(code), {data,error}=await client.rpc('ggz_try_edit_lock',{p_sync_code:code,p_holder_id:editSessionId,p_holder_name:editorName||'未命名',p_ttl_seconds:EDIT_LOCK_TTL_SECONDS});
+        if(error) throw error;
+        const row=editLockRow(data); editLockRecord=row;
+        if(!row?.acquired){ editLockOwned=false; cloudConflictPaused=true; clearIdleCloudUpload(); setCloudStatus('编辑权已转移，已阻止旧页面上传','warn'); syncEditLockUI(); return false; }
+        return true;
+      }catch(error){ setCloudStatus('无法确认编辑权，已暂停上传','warn'); return false; }
+    }
+    async function releaseEditLock(uploadFirst=true,quiet=false){
+      const code=syncCode;
+      if(!editLockOwned||!code) return true;
+      if(uploadFirst&&cloudDirty){ await uploadCloud(false); if(cloudDirty){ if(!quiet) alert('本机修改还没有成功上传，暂不释放编辑权。'); return false; } }
+      try{
+        const client=getCloudClient(code), {error}=await client.rpc('ggz_release_edit_lock',{p_sync_code:code,p_holder_id:editSessionId});
+        if(error) throw error;
+        editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); syncEditLockUI(); startEditLockTimer();
+        if(!quiet) setCloudStatus('已保存并结束编辑');
+        return true;
+      }catch(error){ if(!quiet) alert('结束编辑失败：'+(error.message||error)); return false; }
+    }
+    async function acquireEditLock(){
+      const code=normalizedSyncCode(); if(!code){ alert('请先填写同步码'); return; }
+      const name=String($('editorNameInput').value||'').trim(); if(!name){ alert('请先填写编辑者名字'); $('editorNameInput').focus(); return; }
+      editorName=name; localStorage.setItem('ggzEditorName',editorName); syncCode=code;
+      $('acquireEditLockBtn').disabled=true; $('editLockStatus').textContent='正在取得编辑权…';
+      try{
+        const client=getCloudClient(code), {data,error}=await client.rpc('ggz_try_edit_lock',{p_sync_code:code,p_holder_id:editSessionId,p_holder_name:editorName,p_ttl_seconds:EDIT_LOCK_TTL_SECONDS});
+        if(error) throw error;
+        const row=editLockRow(data); editLockSupported=true; editLockRecord=row;
+        if(!row?.acquired){ editLockOwned=false; syncEditLockUI(); alert(`${row?.holder_name||'其他人'} 正在编辑，请等对方保存并结束后再试。`); return; }
+        editLockOwned=true; cloudConflictPaused=false; syncEditLockUI(); startEditLockTimer();
+        const loaded=await downloadCloud(false);
+        if(loaded===false){ await releaseEditLock(false,true); alert('尚未读取最新云端数据，本次没有进入编辑状态。'); return; }
+        setCloudStatus('已取得编辑权 · 可以开始修改');
+      }catch(error){
+        if(lockFeatureMissing(error)){ editLockSupported=false; editLockOwned=false; syncEditLockUI(); alert('编辑锁尚未安装，请先在 Supabase 执行更新后的 supabase_setup.sql。'); }
+        else{ editLockOwned=false; syncEditLockUI(); alert('取得编辑权失败：'+(error.message||error)); }
+      }
+    }
     function clearIdleCloudUpload(){ if(cloudIdleTimer){ clearTimeout(cloudIdleTimer); cloudIdleTimer=null; } }
     function attemptIdleCloudUpload(){
       cloudIdleTimer=null;
@@ -1040,6 +1179,8 @@ class Component extends DCLogic {
     }
     async function uploadCloud(silent){
       const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先填写同步码',true); return; } if(cloudBusy) return;
+      if(code!==syncCode){ setCloudStatus('同步码已改变，请先确认输入框','warn'); return; }
+      if(!(await confirmEditLockForUpload(code))) return;
       const automatic=silent===true;
       clearIdleCloudUpload();
       cloudBusy=true; setCloudStatus('正在同步云端…');
@@ -1105,7 +1246,7 @@ class Component extends DCLogic {
           if(error) throw error;
         }
         syncCode=code; rememberCloudVersion(code,now); cloudConflictPaused=false; localStorage.setItem('ggzSyncCode',code);
-        if(localRevision===uploadRevision){ cloudDirty=false; setCloudStatus('云端已同步 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})); }
+        if(localRevision===uploadRevision){ cloudDirty=false; setCloudStatus('云端已同步 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})); if(automatic&&editLockOwned) setTimeout(()=>releaseEditLock(false,true),0); }
         else{ cloudDirty=true; setCloudStatus('本机有新修改 · 云端未同步','warn'); }
       }catch(err){
         cloudDirty=true;
@@ -1115,16 +1256,16 @@ class Component extends DCLogic {
       finally{ cloudBusy=false; }
     }
     async function downloadCloud(silent){
-      const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先填写同步码',true); return; } if(cloudBusy) return;
-      if(cloudDirty&&!confirm('本机有尚未上传的内容。读取云端会覆盖本机当前数据，确定继续吗？')) return;
+      const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先填写同步码',true); return false; } if(cloudBusy) return false;
+      if(cloudDirty&&!confirm('本机有尚未上传的内容。读取云端会覆盖本机当前数据，确定继续吗？')) return false;
       clearIdleCloudUpload();
       cloudBusy=true; if(!silent) setCloudStatus('正在读取…');
       try{
         const client=getCloudClient(code);
         const {data,error}=await client.from('ggz_sync_data').select('payload,updated_at').eq('sync_code',code).maybeSingle();
         if(error) throw error;
-        if(!data){ if(!silent) setCloudStatus('云端还没有数据'); return; }
-        if(silent&&lastCloudUpdatedAt&&new Date(data.updated_at)<=new Date(lastCloudUpdatedAt)) return;
+        if(!data){ if(!silent) setCloudStatus('云端还没有数据'); return true; }
+        if(silent&&lastCloudUpdatedAt&&new Date(data.updated_at)<=new Date(lastCloudUpdatedAt)) return true;
         const d=data.payload||{}; if(!Array.isArray(d.sheets)||!d.sheets.length) throw new Error('云端数据为空');
         applyingCloud=true; sheets=d.sheets;
         sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
@@ -1134,8 +1275,8 @@ class Component extends DCLogic {
         if(!sheets.some(s=>s.id===activeSheetId)) activeSheetId=sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
         rememberCloudVersion(code,data.updated_at); syncCode=code; cloudDirty=false; cloudConflictPaused=false; localStorage.setItem('ggzSyncCode',code);
-        saveState(); setCloudStatus('云端已读取 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}));
-      }catch(err){ setCloudStatus('读取失败：'+(err.message||err),true); }
+        saveState(); setCloudStatus('云端已读取 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})); return true;
+      }catch(err){ setCloudStatus('读取失败：'+(err.message||err),true); return false; }
       finally{ applyingCloud=false; cloudBusy=false; }
     }
     function setupCollapsiblePanels(){
@@ -1638,10 +1779,18 @@ class Component extends DCLogic {
       el.innerHTML=`<div class="quantity-section-title">上车名单 <span class="hint">成车范围内算上车，后面的继续等</span></div><div class="quantity-table-wrap"><table class="quantity-table quantity-ride-table"><thead><tr><th>谷子</th><th>状态</th><th>CN</th><th>吃几配</th><th>数量</th><th>位置</th></tr></thead><tbody>${rideRows}</tbody></table></div>`;
     }
 
-    function paymentProgressText(records,paidMap,amountGetter){
-      let paidPeople=0,unpaidPeople=0,paidAmount=0,unpaidAmount=0;
-      records.forEach(record=>{ const amount=Math.max(0,num(amountGetter(record))); if(paidMap[record.key]===true){ paidPeople++; paidAmount+=amount; }else{ unpaidPeople++; unpaidAmount+=amount; } });
-      return `已收：${paidPeople}人 / ${money(paidAmount)}；未收：${unpaidPeople}人 / ${money(unpaidAmount)}`;
+    function refundAmountValue(refundMap,key,fullAmount){ const stored=refundMap[key]; return stored===true?Math.max(0,num(fullAmount)):Math.max(0,num(stored)); }
+    function paymentAdjustmentNote(refund,supplement){
+      if(!(refund>0||supplement>0)) return '';
+      const parts=[];
+      if(refund>0) parts.push(`<span class="payment-adjustment-refund">-${money(refund)}</span>`);
+      if(supplement>0) parts.push(`<span class="payment-adjustment-supplement">+${money(supplement)}</span>`);
+      return `<span class="payment-adjustment-note" data-html2canvas-ignore="true">（${parts.join(' ')}）</span>`;
+    }
+    function paymentProgressText(records,paidMap,refundMap,supplementMap,amountGetter){
+      let paidPeople=0,refundPeople=0,supplementPeople=0,unpaidPeople=0,paidAmount=0,refundAmount=0,supplementAmount=0,unpaidAmount=0;
+      records.forEach(record=>{ const amount=Math.max(0,num(amountGetter(record))), refund=refundAmountValue(refundMap,record.key,amount), supplement=refundAmountValue(supplementMap,record.key,amount); if(paidMap[record.key]===true){ paidPeople++; paidAmount+=amount; }else{ unpaidPeople++; unpaidAmount+=amount; } if(refund>0){ refundPeople++; refundAmount+=refund; } if(supplement>0){ supplementPeople++; supplementAmount+=supplement; } });
+      return `已收：${paidPeople}人 / ${money(paidAmount)}；待退款：${refundPeople}人 / ${money(refundAmount)}；待补款：${supplementPeople}人 / ${money(supplementAmount)}；未收：${unpaidPeople}人 / ${money(unpaidAmount)}`;
     }
     function renderPaymentSummary(){
       const people=new Map();
@@ -1654,39 +1803,42 @@ class Component extends DCLogic {
         const row=people.get(key); row.total+=unitPrice(c); row.items.set(c.name,(row.items.get(c.name)||0)+1);
       }));
       const el=$('paymentSummary');
-      if(!people.size){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('paymentUnpaidCount').textContent='已收：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
+      if(!people.size){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('paymentUnpaidCount').textContent='已收：0人 / ¥0.00；待退款：0人 / ¥0.00；待补款：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
       const feeAmount=total=>Math.ceil(((total<=100?total+0.1:total*1.001)-1e-9)*100)/100;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(paymentEdits,key)?paymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, paid=paymentPaid[data.key]===true, alipayAmount=Math.max(0,num(Object.prototype.hasOwnProperty.call(paymentEdits,'alipay:'+name)?paymentEdits['alipay:'+name]:data.total)), paidClass=paid?' class="payment-paid-row"':'', personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" aria-pressed="${paid?'true':'false'}" title="标记为已收款">${paid?'✓':''}</button><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const name=data.name, paid=paymentPaid[data.key]===true, alipayAmount=Math.max(0,num(Object.prototype.hasOwnProperty.call(paymentEdits,'alipay:'+name)?paymentEdits['alipay:'+name]:data.total)), refundAmount=refundAmountValue(paymentRefund,data.key,alipayAmount), supplementAmount=refundAmountValue(paymentSupplement,data.key,alipayAmount), adjustmentNote=paymentAdjustmentNote(refundAmount,supplementAmount), refund=refundAmount>0, supplement=supplementAmount>0, paidClass=supplement?' class="payment-supplement-row"':(refund?' class="payment-refund-row"':(paid?' class="payment-paid-row"':'')), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" aria-pressed="${paid?'true':'false'}" title="标记为已收款">${paid?'✓':''}</button><button type="button" class="payment-refund-check" data-html2canvas-ignore="true" data-payment-refund="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-refund-amount="${refundAmount}" aria-pressed="${refund?'true':'false'}" title="${refund?'待退款 '+money(refundAmount):'填写退款金额'}">退</button><button type="button" class="payment-supplement-check" data-html2canvas-ignore="true" data-payment-supplement="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-supplement-amount="${supplementAmount}" aria-pressed="${supplement?'true':'false'}" title="${supplement?'待补款 '+money(supplementAmount):'填写补款金额'}">补</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         const items=[...data.items.entries()], span=items.length, payable=feeAmount(data.total);
         if(paymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
-          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,totalQty)}</td><td class="payment-money" ${editAttr('alipay:'+name)}>${edited('alipay:'+name,data.total.toFixed(2))}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
+          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,totalQty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
           return;
         }
         items.forEach(([item,count],index)=>{
           rows+=`<tr${paidClass}${personAttr}>`;
           if(index===0) rows+=`<td class="payment-cn" rowspan="${span}">${paidControl}</td>`;
           rows+=`<td class="payment-item-name" ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
-          if(index===0) rows+=`<td class="payment-money" rowspan="${span}" ${editAttr('alipay:'+name)}>${edited('alipay:'+name,data.total.toFixed(2))}</td><td class="payment-money" rowspan="${span}" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td>`;
+          if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}</td><td class="payment-money" rowspan="${span}" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td>`;
           rows+='</tr>';
         });
       });
       const color=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
-      const paymentTotal=[...people.values()].reduce((sum,data)=>sum+data.total,0);
+      const paymentTotal=[...people.values()].reduce((sum,data)=>{
+        const amount=Math.max(0,num(Object.prototype.hasOwnProperty.call(paymentEdits,'alipay:'+data.name)?paymentEdits['alipay:'+data.name]:data.total));
+        return sum+amount-refundAmountValue(paymentRefund,data.key,amount)+refundAmountValue(paymentSupplement,data.key,amount);
+      },0);
       const totalHtml=showPaymentTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">排单总价</td><td class="payment-total-value">${money(paymentTotal)}</td></tr></tfoot>`:'';
       const visibleKeys=[...people.keys()], paidCount=visibleKeys.filter(key=>paymentPaid[key]===true).length, allPaid=visibleKeys.length>0&&paidCount===visibleKeys.length, partialPaid=paidCount>0&&!allPaid;
-      $('paymentUnpaidCount').textContent=paymentProgressText([...people.values()],paymentPaid,data=>Object.prototype.hasOwnProperty.call(paymentEdits,'alipay:'+data.name)?paymentEdits['alipay:'+data.name]:data.total);
+      $('paymentUnpaidCount').textContent=paymentProgressText([...people.values()],paymentPaid,paymentRefund,paymentSupplement,data=>Object.prototype.hasOwnProperty.call(paymentEdits,'alipay:'+data.name)?paymentEdits['alipay:'+data.name]:data.total);
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-payment-paid-all="1" aria-pressed="${allPaid?'true':'false'}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody>${totalHtml}</table>${qrHtml}</div>`;
     }
     function renderSharePaymentSummary(){
       const el=$('sharePaymentSummary'), sharedText=String($('sharedFee').value||'').trim(), sharedTotal=Math.max(0,num(sharedText));
-      if(!sharedText||sharedTotal<=0){ el.innerHTML='<div class="empty">没有填写均摊金额，这里暂时不用计算</div>'; $('sharePaymentUnpaidCount').textContent='已收：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
+      if(!sharedText||sharedTotal<=0){ el.innerHTML='<div class="empty">没有填写均摊金额，这里暂时不用计算</div>'; $('sharePaymentUnpaidCount').textContent='已收：0人 / ¥0.00；待退款：0人 / ¥0.00；待补款：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
       const people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow);
       let totalQty=0, fixedDeduction=0;
       columns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
@@ -1697,24 +1849,24 @@ class Component extends DCLogic {
         const data=people.get(key); data.qty++; totalQty++; data.items.set(c.name,(data.items.get(c.name)||0)+1);
         if(shareDeductFixed&&c.mode==='fixed') fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
-      if(!people.size||!totalQty){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('sharePaymentUnpaidCount').textContent='已收：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
+      if(!people.size||!totalQty){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('sharePaymentUnpaidCount').textContent='已收：0人 / ¥0.00；待退款：0人 / ¥0.00；待补款：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
       const distributable=Math.max(0,sharedTotal-fixedDeduction), perItem=distributable/totalQty;
       const feeAmount=total=>Math.ceil(((total<=100?total+0.1:total*1.001)-1e-9)*100)/100;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(sharePaymentEdits,key)?sharePaymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-share-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, paid=sharePaymentPaid[data.key]===true, items=[...data.items.entries()], span=items.length, raw=data.qty*perItem, payable=feeAmount(raw), alipayAmount=Math.max(0,num(Object.prototype.hasOwnProperty.call(sharePaymentEdits,'alipay:'+name)?sharePaymentEdits['alipay:'+name]:raw)), paidClass=paid?' class="payment-paid-row"':'', personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" aria-pressed="${paid?'true':'false'}" title="标记为已收款">${paid?'✓':''}</button><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const name=data.name, paid=sharePaymentPaid[data.key]===true, items=[...data.items.entries()], span=items.length, raw=data.qty*perItem, payable=feeAmount(raw), alipayAmount=Math.max(0,num(Object.prototype.hasOwnProperty.call(sharePaymentEdits,'alipay:'+name)?sharePaymentEdits['alipay:'+name]:raw)), refundAmount=refundAmountValue(sharePaymentRefund,data.key,alipayAmount), supplementAmount=refundAmountValue(sharePaymentSupplement,data.key,alipayAmount), adjustmentNote=paymentAdjustmentNote(refundAmount,supplementAmount), refund=refundAmount>0, supplement=supplementAmount>0, paidClass=supplement?' class="payment-supplement-row"':(refund?' class="payment-refund-row"':(paid?' class="payment-paid-row"':'')), personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" aria-pressed="${paid?'true':'false'}" title="标记为已收款">${paid?'✓':''}</button><button type="button" class="payment-refund-check" data-html2canvas-ignore="true" data-share-payment-refund="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-refund-amount="${refundAmount}" aria-pressed="${refund?'true':'false'}" title="${refund?'待退款 '+money(refundAmount):'填写退款金额'}">退</button><button type="button" class="payment-supplement-check" data-html2canvas-ignore="true" data-share-payment-supplement="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-supplement-amount="${supplementAmount}" aria-pressed="${supplement?'true':'false'}" title="${supplement?'待补款 '+money(supplementAmount):'填写补款金额'}">补</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         if(sharePaymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、');
-          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,data.qty)}</td><td class="payment-money" ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
+          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,data.qty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</span>${adjustmentNote}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
           return;
         }
         items.forEach(([item,count],index)=>{
           rows+=`<tr${paidClass}${personAttr}>`;
           if(index===0) rows+=`<td class="payment-cn" rowspan="${span}">${paidControl}</td>`;
           rows+=`<td class="payment-item-name" ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
-          if(index===0) rows+=`<td class="payment-money" rowspan="${span}" ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</td><td class="payment-money" rowspan="${span}" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td>`;
+          if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</span>${adjustmentNote}</td><td class="payment-money" rowspan="${span}" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td>`;
           rows+='</tr>';
         });
       });
@@ -1722,7 +1874,7 @@ class Component extends DCLogic {
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       const note=shareDeductFixed?`均摊 ${money(sharedTotal)}－入均 ${money(fixedDeduction)}＝实际均摊 ${money(distributable)}；共 ${totalQty} 件，每件 ${money(perItem)}`:`直接均摊 ${money(sharedTotal)}；共 ${totalQty} 件，每件 ${money(perItem)}`;
       const visibleKeys=[...people.keys()], paidCount=visibleKeys.filter(key=>sharePaymentPaid[key]===true).length, allPaid=visibleKeys.length>0&&paidCount===visibleKeys.length, partialPaid=paidCount>0&&!allPaid;
-      $('sharePaymentUnpaidCount').textContent=paymentProgressText([...people.values()],sharePaymentPaid,data=>Object.prototype.hasOwnProperty.call(sharePaymentEdits,'alipay:'+data.name)?sharePaymentEdits['alipay:'+data.name]:data.qty*perItem);
+      $('sharePaymentUnpaidCount').textContent=paymentProgressText([...people.values()],sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,data=>Object.prototype.hasOwnProperty.call(sharePaymentEdits,'alipay:'+data.name)?sharePaymentEdits['alipay:'+data.name]:data.qty*perItem);
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-share-payment-paid-all="1" aria-pressed="${allPaid?'true':'false'}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(sharePaymentTitle||'均摊统计')}</div><div class="hint share-calculation-note" data-html2canvas-ignore="true" style="padding:8px 10px;background:#fff8fb;text-align:center;">${escapeHtml(note)}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody></table>${qrHtml}</div>`;
     }
@@ -1892,14 +2044,24 @@ class Component extends DCLogic {
     }
     $('mobileLiteBtn').addEventListener('click',()=>setMobileView(false));
     $('mobileFullBtn').addEventListener('click',()=>setMobileView(true));
-    $('createSyncCodeBtn').addEventListener('click',()=>{
+    $('createSyncCodeBtn').addEventListener('click',async()=>{
+      if(editLockOwned&&!(await releaseEditLock(true,false))) return;
       const bytes=new Uint8Array(6); crypto.getRandomValues(bytes);
       syncCode=[...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
       $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode);
       lastCloudUpdatedAt=localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''; cloudConflictPaused=false;
-      cloudDirty=true; clearIdleCloudUpload(); setCloudStatus('同步码已创建 · 云端未同步','warn');
+      cloudDirty=true; editLockSupported=null; editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); setCloudStatus('同步码已创建 · 云端未同步','warn'); syncEditLockUI(); refreshEditLockStatus();
     });
-    $('syncCodeInput').addEventListener('change',()=>{ syncCode=normalizedSyncCode(); $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode); lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):''; cloudConflictPaused=false; cloudDirty=true; clearIdleCloudUpload(); setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false); });
+    $('syncCodeInput').addEventListener('change',async()=>{
+      const nextCode=normalizedSyncCode();
+      if(nextCode===syncCode) return;
+      $('syncCodeInput').value=syncCode;
+      if(editLockOwned&&!(await releaseEditLock(true,false))) return;
+      syncCode=nextCode; $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode); lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):''; cloudConflictPaused=false; cloudDirty=true; editLockSupported=syncCode?null:false; editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false); syncEditLockUI(); refreshEditLockStatus();
+    });
+    $('editorNameInput').addEventListener('change',()=>{ editorName=String($('editorNameInput').value||'').trim(); localStorage.setItem('ggzEditorName',editorName); if(editLockOwned) heartbeatEditLock(); });
+    $('acquireEditLockBtn').addEventListener('click',acquireEditLock);
+    $('releaseEditLockBtn').addEventListener('click',()=>releaseEditLock(true,false));
     $('cloudUploadBtn').addEventListener('click',()=>uploadCloud(false));
     $('cloudDownloadBtn').addEventListener('click',()=>downloadCloud(false));
 
@@ -2864,10 +3026,22 @@ class Component extends DCLogic {
       syncPaymentControls(); saveState(); renderPaymentSummary(); renderSharePaymentSummary();
     });
     $('paymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
-    function syncRenderedUnpaidCount(rootId,countId,selector){
-      const buttons=[...$(rootId).querySelectorAll(selector)], paid=buttons.filter(button=>button.getAttribute('aria-pressed')==='true'), unpaid=buttons.filter(button=>button.getAttribute('aria-pressed')!=='true');
+    function syncRenderedUnpaidCount(rootId,countId,selector,refundSelector,supplementSelector){
+      const buttons=[...$(rootId).querySelectorAll(selector)], refundButtons=[...$(rootId).querySelectorAll(refundSelector||'')], supplementButtons=[...$(rootId).querySelectorAll(supplementSelector||'')], paid=buttons.filter(button=>button.getAttribute('aria-pressed')==='true'), unpaid=buttons.filter(button=>button.getAttribute('aria-pressed')!=='true'), refunds=refundButtons.filter(button=>Math.max(0,num(button.dataset.refundAmount))>0), supplements=supplementButtons.filter(button=>Math.max(0,num(button.dataset.supplementAmount))>0);
       const total=list=>list.reduce((sum,button)=>sum+Math.max(0,num(button.dataset.paymentAmount)),0);
-      $(countId).textContent=`已收：${paid.length}人 / ${money(total(paid))}；未收：${unpaid.length}人 / ${money(total(unpaid))}`;
+      const refundTotal=refunds.reduce((sum,button)=>sum+Math.max(0,num(button.dataset.refundAmount)),0);
+      const supplementTotal=supplements.reduce((sum,button)=>sum+Math.max(0,num(button.dataset.supplementAmount)),0);
+      $(countId).textContent=`已收：${paid.length}人 / ${money(total(paid))}；待退款：${refunds.length}人 / ${money(refundTotal)}；待补款：${supplements.length}人 / ${money(supplementTotal)}；未收：${unpaid.length}人 / ${money(total(unpaid))}`;
+    }
+    function refreshPaymentRowState(rootId,rowSelector,key,paidMap,refundMap,supplementMap){
+      $(rootId).querySelectorAll(rowSelector).forEach(row=>{
+        const rowKey=row.dataset.paymentPerson||row.dataset.sharePaymentPerson;
+        if(rowKey!==key) return;
+        row.classList.remove('payment-paid-row','payment-refund-row','payment-supplement-row');
+        if(supplementMap[key]===true||Math.max(0,num(supplementMap[key]))>0) row.classList.add('payment-supplement-row');
+        else if(refundMap[key]===true||Math.max(0,num(refundMap[key]))>0) row.classList.add('payment-refund-row');
+        else if(paidMap[key]===true) row.classList.add('payment-paid-row');
+      });
     }
     $('paymentSummary').addEventListener('click',e=>{
       const allButton=e.target.closest('[data-payment-paid-all]');
@@ -2875,9 +3049,25 @@ class Component extends DCLogic {
         e.preventDefault(); e.stopPropagation();
         const rows=[...$('paymentSummary').querySelectorAll('[data-payment-person]')], keys=[...new Set(rows.map(row=>row.dataset.paymentPerson).filter(Boolean))], paid=keys.some(key=>paymentPaid[key]!==true);
         keys.forEach(key=>{ if(paid) paymentPaid[key]=true; else delete paymentPaid[key]; });
-        rows.forEach(row=>row.classList.toggle('payment-paid-row',paid));
+        rows.forEach(row=>refreshPaymentRowState('paymentSummary','[data-payment-person]',row.dataset.paymentPerson,paymentPaid,paymentRefund,paymentSupplement));
         $('paymentSummary').querySelectorAll('[data-payment-paid]').forEach(button=>{ button.setAttribute('aria-pressed',paid?'true':'false'); button.textContent=paid?'✓':''; });
-        allButton.setAttribute('aria-pressed',paid?'true':'false'); allButton.textContent=paid?'✓':''; syncRenderedUnpaidCount('paymentSummary','paymentUnpaidCount','[data-payment-paid]'); saveState(); return;
+        allButton.setAttribute('aria-pressed',paid?'true':'false'); allButton.textContent=paid?'✓':''; syncRenderedUnpaidCount('paymentSummary','paymentUnpaidCount','[data-payment-paid]','[data-payment-refund]','[data-payment-supplement]'); saveState(); return;
+      }
+      const refundButton=e.target.closest('[data-payment-refund]');
+      if(refundButton){
+        e.preventDefault(); e.stopPropagation(); const key=decodeURIComponent(refundButton.dataset.paymentRefund||''); if(!key) return;
+        const fullAmount=Math.max(0,num(refundButton.dataset.paymentAmount)), current=Math.max(0,num(refundButton.dataset.refundAmount)), answer=prompt('填写退款金额（填 0 取消退款）',fmtNum(current>0?current:fullAmount)); if(answer===null) return;
+        const amount=Math.max(0,parseFloat(String(answer).replace(/[^\d.-]/g,''))||0); if(amount>0) paymentRefund[key]=amount; else delete paymentRefund[key];
+        refundButton.dataset.refundAmount=String(amount); refundButton.setAttribute('aria-pressed',amount>0?'true':'false'); refundButton.textContent='退'; refundButton.title=amount>0?'待退款 '+money(amount):'填写退款金额';
+        refreshPaymentRowState('paymentSummary','[data-payment-person]',key,paymentPaid,paymentRefund,paymentSupplement); saveState(); renderPaymentSummary(); return;
+      }
+      const supplementButton=e.target.closest('[data-payment-supplement]');
+      if(supplementButton){
+        e.preventDefault(); e.stopPropagation(); const key=decodeURIComponent(supplementButton.dataset.paymentSupplement||''); if(!key) return;
+        const fullAmount=Math.max(0,num(supplementButton.dataset.paymentAmount)), current=Math.max(0,num(supplementButton.dataset.supplementAmount)), answer=prompt('填写补款金额（填 0 取消补款）',fmtNum(current>0?current:fullAmount)); if(answer===null) return;
+        const amount=Math.max(0,parseFloat(String(answer).replace(/[^\d.-]/g,''))||0); if(amount>0) paymentSupplement[key]=amount; else delete paymentSupplement[key];
+        supplementButton.dataset.supplementAmount=String(amount); supplementButton.setAttribute('aria-pressed',amount>0?'true':'false'); supplementButton.textContent='补'; supplementButton.title=amount>0?'待补款 '+money(amount):'填写补款金额';
+        refreshPaymentRowState('paymentSummary','[data-payment-person]',key,paymentPaid,paymentRefund,paymentSupplement); saveState(); renderPaymentSummary(); return;
       }
       const checkbox=e.target.closest('[data-payment-paid]'); if(!checkbox) return;
       e.preventDefault(); e.stopPropagation();
@@ -2885,10 +3075,10 @@ class Component extends DCLogic {
       const paid=paymentPaid[key]!==true;
       if(paid) paymentPaid[key]=true; else delete paymentPaid[key];
       checkbox.setAttribute('aria-pressed',paid?'true':'false'); checkbox.textContent=paid?'✓':'';
-      $('paymentSummary').querySelectorAll('[data-payment-person]').forEach(row=>{ if(row.dataset.paymentPerson===key) row.classList.toggle('payment-paid-row',paid); });
+      refreshPaymentRowState('paymentSummary','[data-payment-person]',key,paymentPaid,paymentRefund,paymentSupplement);
       const buttons=[...$('paymentSummary').querySelectorAll('[data-payment-paid]')], headerButton=$('paymentSummary').querySelector('[data-payment-paid-all]'), paidCount=buttons.filter(button=>button.getAttribute('aria-pressed')==='true').length;
       if(headerButton){ const all=buttons.length>0&&paidCount===buttons.length; headerButton.setAttribute('aria-pressed',all?'true':'false'); headerButton.textContent=all?'✓':(paidCount>0?'−':''); }
-      syncRenderedUnpaidCount('paymentSummary','paymentUnpaidCount','[data-payment-paid]');
+      syncRenderedUnpaidCount('paymentSummary','paymentUnpaidCount','[data-payment-paid]','[data-payment-refund]','[data-payment-supplement]');
       saveState();
     });
     $('paymentSummary').addEventListener('blur',e=>{
@@ -2902,15 +3092,31 @@ class Component extends DCLogic {
       if(allButton){
         e.preventDefault(); e.stopPropagation();
         const rows=[...$('sharePaymentSummary').querySelectorAll('[data-share-payment-person]')], keys=[...new Set(rows.map(row=>row.dataset.sharePaymentPerson).filter(Boolean))], paid=keys.some(key=>sharePaymentPaid[key]!==true);
-        keys.forEach(key=>{ if(paid) sharePaymentPaid[key]=true; else delete sharePaymentPaid[key]; }); rows.forEach(row=>row.classList.toggle('payment-paid-row',paid));
-        $('sharePaymentSummary').querySelectorAll('[data-share-payment-paid]').forEach(button=>{ button.setAttribute('aria-pressed',paid?'true':'false'); button.textContent=paid?'✓':''; }); allButton.setAttribute('aria-pressed',paid?'true':'false'); allButton.textContent=paid?'✓':''; syncRenderedUnpaidCount('sharePaymentSummary','sharePaymentUnpaidCount','[data-share-payment-paid]'); saveState(); return;
+        keys.forEach(key=>{ if(paid) sharePaymentPaid[key]=true; else delete sharePaymentPaid[key]; }); rows.forEach(row=>refreshPaymentRowState('sharePaymentSummary','[data-share-payment-person]',row.dataset.sharePaymentPerson,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement));
+        $('sharePaymentSummary').querySelectorAll('[data-share-payment-paid]').forEach(button=>{ button.setAttribute('aria-pressed',paid?'true':'false'); button.textContent=paid?'✓':''; }); allButton.setAttribute('aria-pressed',paid?'true':'false'); allButton.textContent=paid?'✓':''; syncRenderedUnpaidCount('sharePaymentSummary','sharePaymentUnpaidCount','[data-share-payment-paid]','[data-share-payment-refund]','[data-share-payment-supplement]'); saveState(); return;
+      }
+      const refundButton=e.target.closest('[data-share-payment-refund]');
+      if(refundButton){
+        e.preventDefault(); e.stopPropagation(); const key=decodeURIComponent(refundButton.dataset.sharePaymentRefund||''); if(!key) return;
+        const fullAmount=Math.max(0,num(refundButton.dataset.paymentAmount)), current=Math.max(0,num(refundButton.dataset.refundAmount)), answer=prompt('填写退款金额（填 0 取消退款）',fmtNum(current>0?current:fullAmount)); if(answer===null) return;
+        const amount=Math.max(0,parseFloat(String(answer).replace(/[^\d.-]/g,''))||0); if(amount>0) sharePaymentRefund[key]=amount; else delete sharePaymentRefund[key];
+        refundButton.dataset.refundAmount=String(amount); refundButton.setAttribute('aria-pressed',amount>0?'true':'false'); refundButton.textContent='退'; refundButton.title=amount>0?'待退款 '+money(amount):'填写退款金额';
+        refreshPaymentRowState('sharePaymentSummary','[data-share-payment-person]',key,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement); saveState(); renderSharePaymentSummary(); return;
+      }
+      const supplementButton=e.target.closest('[data-share-payment-supplement]');
+      if(supplementButton){
+        e.preventDefault(); e.stopPropagation(); const key=decodeURIComponent(supplementButton.dataset.sharePaymentSupplement||''); if(!key) return;
+        const fullAmount=Math.max(0,num(supplementButton.dataset.paymentAmount)), current=Math.max(0,num(supplementButton.dataset.supplementAmount)), answer=prompt('填写补款金额（填 0 取消补款）',fmtNum(current>0?current:fullAmount)); if(answer===null) return;
+        const amount=Math.max(0,parseFloat(String(answer).replace(/[^\d.-]/g,''))||0); if(amount>0) sharePaymentSupplement[key]=amount; else delete sharePaymentSupplement[key];
+        supplementButton.dataset.supplementAmount=String(amount); supplementButton.setAttribute('aria-pressed',amount>0?'true':'false'); supplementButton.textContent='补'; supplementButton.title=amount>0?'待补款 '+money(amount):'填写补款金额';
+        refreshPaymentRowState('sharePaymentSummary','[data-share-payment-person]',key,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement); saveState(); renderSharePaymentSummary(); return;
       }
       const checkbox=e.target.closest('[data-share-payment-paid]'); if(!checkbox) return;
       e.preventDefault(); e.stopPropagation(); const key=decodeURIComponent(checkbox.dataset.sharePaymentPaid||''); if(!key) return; const paid=sharePaymentPaid[key]!==true;
       if(paid) sharePaymentPaid[key]=true; else delete sharePaymentPaid[key]; checkbox.setAttribute('aria-pressed',paid?'true':'false'); checkbox.textContent=paid?'✓':'';
-      $('sharePaymentSummary').querySelectorAll('[data-share-payment-person]').forEach(row=>{ if(row.dataset.sharePaymentPerson===key) row.classList.toggle('payment-paid-row',paid); });
+      refreshPaymentRowState('sharePaymentSummary','[data-share-payment-person]',key,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement);
       const buttons=[...$('sharePaymentSummary').querySelectorAll('[data-share-payment-paid]')], headerButton=$('sharePaymentSummary').querySelector('[data-share-payment-paid-all]'), paidCount=buttons.filter(button=>button.getAttribute('aria-pressed')==='true').length;
-      if(headerButton){ const all=buttons.length>0&&paidCount===buttons.length; headerButton.setAttribute('aria-pressed',all?'true':'false'); headerButton.textContent=all?'✓':(paidCount>0?'−':''); } syncRenderedUnpaidCount('sharePaymentSummary','sharePaymentUnpaidCount','[data-share-payment-paid]'); saveState();
+      if(headerButton){ const all=buttons.length>0&&paidCount===buttons.length; headerButton.setAttribute('aria-pressed',all?'true':'false'); headerButton.textContent=all?'✓':(paidCount>0?'−':''); } syncRenderedUnpaidCount('sharePaymentSummary','sharePaymentUnpaidCount','[data-share-payment-paid]','[data-share-payment-refund]','[data-share-payment-supplement]'); saveState();
     });
     $('sharePaymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-share-payment-key]'); if(!cell) return;
@@ -2958,7 +3164,7 @@ class Component extends DCLogic {
       const exportTable=document.createElement('table'), body=document.createElement('tbody');
       const titleRow=document.createElement('tr'), titleCell=document.createElement('td');
       titleCell.colSpan=5; titleCell.textContent=paymentTitle||'未命名项目'; titleRow.appendChild(titleCell); body.appendChild(titleRow);
-      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]').forEach(el=>el.remove()); body.appendChild(copy); });
+      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove()); body.appendChild(copy); });
       exportTable.appendChild(body);
       const ws=XLSX.utils.table_to_sheet(exportTable,{raw:true});
       ws['!cols']=[{wch:16},{wch:24},{wch:10},{wch:16},{wch:16}];
@@ -2967,7 +3173,7 @@ class Component extends DCLogic {
     });
     $('copyPaymentBtn').addEventListener('click',()=>{
       const table=$('paymentSummary').querySelector('table'); if(!table){ alert('还没有收款数据'); return; }
-      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]').forEach(el=>el.remove());
+      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove());
       const lines=[...cleanTable.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const b=$('copyPaymentBtn'),old=b.textContent;b.textContent='已复制';setTimeout(()=>b.textContent=old,1200); });
     });
@@ -2988,13 +3194,13 @@ class Component extends DCLogic {
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       const exportTable=document.createElement('table'), body=document.createElement('tbody'), titleRow=document.createElement('tr'), titleCell=document.createElement('td');
       titleCell.colSpan=5; titleCell.textContent=sharePaymentTitle||'均摊统计'; titleRow.appendChild(titleCell); body.appendChild(titleRow);
-      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]').forEach(el=>el.remove()); body.appendChild(copy); });
+      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove()); body.appendChild(copy); });
       exportTable.appendChild(body); const ws=XLSX.utils.table_to_sheet(exportTable,{raw:true}); ws['!cols']=[{wch:16},{wch:24},{wch:10},{wch:16},{wch:16}];
       const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'均摊统计'); XLSX.writeFile(wb,(sharePaymentTitle||'均摊统计')+'.xlsx');
     });
     $('copySharePaymentBtn').addEventListener('click',()=>{
       const table=$('sharePaymentSummary').querySelector('table'); if(!table){ alert('还没有均摊数据'); return; }
-      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]').forEach(el=>el.remove());
+      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove());
       const lines=[...cleanTable.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const b=$('copySharePaymentBtn'),old=b.textContent;b.textContent='已复制';setTimeout(()=>b.textContent=old,1200); });
     });
@@ -3259,8 +3465,12 @@ class Component extends DCLogic {
             paymentStartRow=Math.max(1,parseInt(d.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(d.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(d.paymentEndRow,10)):null;
             paymentEdits=d.paymentEdits||{};
             paymentPaid=d.paymentPaid&&typeof d.paymentPaid==='object'?d.paymentPaid:{};
+            paymentRefund=d.paymentRefund&&typeof d.paymentRefund==='object'?d.paymentRefund:{};
+            paymentSupplement=d.paymentSupplement&&typeof d.paymentSupplement==='object'?d.paymentSupplement:{};
             sharePaymentTitle=d.sharePaymentTitle||'均摊统计'; sharePaymentColor=d.sharePaymentColor||paymentColor||'#d1466a'; sharePaymentViewMode=d.sharePaymentViewMode==='merged'?'merged':'detail'; sharePaymentEdits=d.sharePaymentEdits||{};
             sharePaymentPaid=d.sharePaymentPaid&&typeof d.sharePaymentPaid==='object'?d.sharePaymentPaid:{}; shareDeductFixed=d.shareDeductFixed===true;
+            sharePaymentRefund=d.sharePaymentRefund&&typeof d.sharePaymentRefund==='object'?d.sharePaymentRefund:{};
+            sharePaymentSupplement=d.sharePaymentSupplement&&typeof d.sharePaymentSupplement==='object'?d.sharePaymentSupplement:{};
             paymentQrImg=sharedPaymentQrImg;
             quantityConfigured=d.quantityConfigured===true;
             boxSize=quantityConfigured&&Number.isFinite(parseInt(d.boxSize,10))?Math.max(1,parseInt(d.boxSize,10)):null;
@@ -3290,6 +3500,7 @@ class Component extends DCLogic {
     // ---------- boot ----------
     setupCollapsiblePanels();
     $('syncCodeInput').value=syncCode;
+    $('editorNameInput').value=editorName;
     localStorage.removeItem('ggzCloudAuto');
     setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false);
     loadUndoHistory();
@@ -3303,7 +3514,7 @@ class Component extends DCLogic {
     renderColumnList();
     renderColdBundleConfiguration(); syncUndoButton();
     recalc();
-    cloudIdleEnabled=true;
+    cloudIdleEnabled=true; syncEditLockUI(); if(syncCode) refreshEditLockStatus();
   }
 }
 </script>
