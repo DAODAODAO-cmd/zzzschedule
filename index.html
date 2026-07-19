@@ -239,14 +239,14 @@
       <button class="btn-ghost" id="exportBundleQuantityBtn">复制配比数量</button>
       <button class="btn-ghost" id="undoLastApplyBtn" disabled>撤回上次应用</button>
       <details class="data-actions" id="dataActions"><summary>导入导出</summary><div class="data-actions-pop">
-        <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单 Excel</button>
-        <button class="btn-ghost" id="exportAllExcelBtn">导出全部表 Excel</button>
-        <button class="btn-ghost" id="copyTsvBtn">复制表格文本</button>
-        <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前表</button>
-        <button class="btn-ghost" id="exportJsonBtn">备份全部表</button>
-        <button class="btn-ghost" id="exportImportTemplateBtn">下载排单导入模板</button>
-        <label class="btn-ghost filelabel import-backup">导入备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
-        <label class="btn-ghost filelabel">导入 Excel<input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;"></label>
+        <button class="btn-ghost" id="exportJsonBtn">备份全部排单</button>
+        <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前排单</button>
+        <button class="btn-ghost" id="exportAllExcelBtn">导出全部排单表</button>
+        <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单表</button>
+        <label class="btn-ghost filelabel import-backup">导入排单备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
+        <label class="btn-ghost filelabel">导入排单表<input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;"></label>
+        <button class="btn-ghost" id="exportImportTemplateBtn">下载排单表模板</button>
+        <button class="btn-ghost" id="copyTsvBtn">复制排单表文本</button>
       </div></details>
       <button class="btn-danger" id="clearAllBtn">清空排单</button>
     </div>
@@ -599,7 +599,7 @@ class Component extends DCLogic {
 .data-actions summary{ list-style:none; cursor:pointer; padding:8px 13px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); font-size:12.5px; font-weight:800; }
 .data-actions summary::-webkit-details-marker{ display:none; }
 .data-actions-pop{ position:absolute; z-index:30; left:0; bottom:calc(100% + 6px); display:grid; grid-template-columns:1fr 1fr; gap:7px; width:390px; max-width:90vw; padding:9px; border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:0 10px 30px rgba(40,25,48,.16); }
-.data-actions-pop .btn-ghost{ justify-content:center; margin:0; white-space:nowrap; }
+.data-actions-pop .btn-ghost{ justify-content:center; margin:0; white-space:nowrap; font-weight:850; }
 .quantity-controls{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
 .quantity-controls label{ display:flex; align-items:center; gap:7px; margin:0; }
 .count-value-editor{ display:inline-flex; align-items:center; justify-content:center; min-width:68px; min-height:36px; padding:7px 12px; border:1px solid #d9cdd6; border-radius:8px; background:#fff; color:var(--accent); font-size:16px; font-weight:900; cursor:text; }
