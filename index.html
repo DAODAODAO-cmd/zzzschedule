@@ -39,14 +39,16 @@
 
   <div class="cloudbar">
     <input id="syncCodeInput" type="text" maxlength="24" placeholder="同步码">
-    <input id="editorNameInput" type="text" maxlength="20" placeholder="编辑者名字">
     <button id="createSyncCodeBtn" class="btn-ghost">新建同步码</button>
-    <button id="acquireEditLockBtn" class="btn-primary">开始编辑</button>
-    <button id="releaseEditLockBtn" class="btn-ghost" disabled>保存并结束</button>
     <button id="cloudUploadBtn" class="btn-primary">上传云端</button>
     <button id="cloudDownloadBtn" class="btn-ghost">读取云端</button>
     <span id="localStatus">本机已保存</span>
     <span id="cloudStatus">云端未同步</span>
+  </div>
+  <div class="edit-lock-controls">
+    <label>编辑者 <input id="editorNameInput" type="text" maxlength="20" placeholder="填写你的名字"></label>
+    <button id="acquireEditLockBtn" class="btn-primary">开始编辑</button>
+    <button id="releaseEditLockBtn" class="btn-ghost" disabled>保存并结束</button>
     <span id="editLockStatus">编辑锁检查中…</span>
   </div>
   <div id="editLockBanner" class="edit-lock-banner" style="display:none;"></div>
@@ -366,6 +368,9 @@ class Component extends DCLogic {
 .cloudbar{ display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin:-5px 0 12px; padding:8px; border:1px solid var(--line); border-radius:11px; background:#fff; }
 .cloudbar input{ width:150px; }
 #cloudStatus{ color:var(--muted); font-size:12px; text-align:right; white-space:nowrap; }
+.edit-lock-controls{ display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin:-5px 0 12px; padding:8px; border:1px solid var(--line); border-radius:11px; background:#fff; }
+.edit-lock-controls label{ display:flex; align-items:center; gap:7px; color:var(--muted); font-size:12px; font-weight:800; }
+.edit-lock-controls input{ width:150px; }
 #editLockStatus{ margin-left:auto; color:var(--muted); font-size:12px; font-weight:800; white-space:nowrap; }
 .edit-lock-banner{ margin:-5px 0 12px; padding:9px 12px; border:1px solid #e3b35e; border-radius:10px; background:#fff6df; color:#835a12; font-size:13px; font-weight:800; text-align:center; }
 .cloud-edit-readonly .sheetbar button,.cloud-edit-readonly .panel input,.cloud-edit-readonly .panel select,.cloud-edit-readonly .panel textarea,.cloud-edit-readonly .panel button,.cloud-edit-readonly .panel [contenteditable="true"]{ pointer-events:none!important; }
@@ -679,7 +684,10 @@ class Component extends DCLogic {
   .mobile-view-switch button.active{ color:var(--accent); background:#fff0f4; border-color:#efcad5; }
   .cloudbar{ gap:6px; }
   .cloudbar input{ width:calc(50% - 3px); flex:1 1 140px; }
-  .cloudbar #cloudStatus,.cloudbar #editLockStatus{ width:100%; margin-left:0; text-align:left; }
+  .cloudbar #cloudStatus{ width:100%; margin-left:0; text-align:left; }
+  .edit-lock-controls label{ width:100%; }
+  .edit-lock-controls input{ flex:1; width:auto; }
+  #editLockStatus{ width:100%; margin-left:0; white-space:normal; }
   .wrap .panel{ padding:12px; margin-bottom:9px; }
   #matrixPanel .toolbar > *{ display:none!important; }
   #matrixPanel .toolbar #regenBtn,#matrixPanel .toolbar #exportPngBtn,#matrixPanel .toolbar #exportSingleQuantityBtn,#matrixPanel .toolbar #exportBundleQuantityBtn,#matrixPanel .toolbar #undoLastApplyBtn,#matrixPanel .toolbar #dataActions,#matrixPanel .toolbar #clearAllBtn{ display:inline-flex!important; }
@@ -1089,14 +1097,21 @@ class Component extends DCLogic {
         banner.textContent='当前尚未取得编辑权，点击“开始编辑”后才可以修改和上传。';
       }
       banner.style.display='block';
-      const active=document.activeElement; if(guarded&&active&&!active.closest?.('.cloudbar')) active.blur?.();
+      const active=document.activeElement; if(guarded&&active&&!active.closest?.('.cloudbar')&&!active.closest?.('.edit-lock-controls')) active.blur?.();
     }
     function lockFeatureMissing(error){ return ['42P01','42883','PGRST202','PGRST205'].includes(error?.code); }
+    function lockRequest(request,timeoutMs=12000){
+      let timer;
+      return Promise.race([
+        Promise.resolve(request),
+        new Promise((_,reject)=>{ timer=setTimeout(()=>reject(new Error('编辑权确认超时')),timeoutMs); })
+      ]).finally(()=>clearTimeout(timer));
+    }
     async function refreshEditLockStatus(){
       const code=normalizedSyncCode();
       if(!code){ editLockSupported=false; editLockOwned=false; editLockRecord=null; syncEditLockUI(); return; }
       try{
-        const client=getCloudClient(code), {data,error}=await client.from('ggz_edit_locks').select('holder_id,holder_name,expires_at').eq('sync_code',code).maybeSingle();
+        const client=getCloudClient(code), {data,error}=await lockRequest(client.from('ggz_edit_locks').select('holder_id,holder_name,expires_at').eq('sync_code',code).maybeSingle());
         if(error) throw error;
         editLockSupported=true; editLockRecord=data&&!editLockExpired(data)?data:null;
         editLockOwned=!!editLockRecord&&editLockRecord.holder_id===editSessionId;
@@ -1104,13 +1119,13 @@ class Component extends DCLogic {
         syncEditLockUI(); startEditLockTimer();
       }catch(error){
         if(lockFeatureMissing(error)){ editLockSupported=false; editLockOwned=false; editLockRecord=null; stopEditLockTimer(); syncEditLockUI(); }
-        else{ $('editLockStatus').textContent='编辑权检查失败，稍后重试'; startEditLockTimer(); }
+        else{ $('editLockStatus').textContent='编辑权检查失败 · 点击“开始编辑”重试'; $('editLockBanner').textContent='暂时无法连接编辑锁，请检查网络后点击“开始编辑”重试。'; $('editLockBanner').style.display='block'; startEditLockTimer(); }
       }
     }
     async function heartbeatEditLock(){
       if(!editLockOwned||!syncCode||editLockSupported!==true) return;
       try{
-        const client=getCloudClient(syncCode), {data,error}=await client.rpc('ggz_try_edit_lock',{p_sync_code:syncCode,p_holder_id:editSessionId,p_holder_name:editorName||'未命名',p_ttl_seconds:EDIT_LOCK_TTL_SECONDS});
+        const client=getCloudClient(syncCode), {data,error}=await lockRequest(client.rpc('ggz_try_edit_lock',{p_sync_code:syncCode,p_holder_id:editSessionId,p_holder_name:editorName||'未命名',p_ttl_seconds:EDIT_LOCK_TTL_SECONDS}));
         if(error) throw error;
         const row=editLockRow(data);
         if(!row?.acquired){ editLockOwned=false; editLockRecord=row; cloudConflictPaused=true; clearIdleCloudUpload(); setCloudStatus('编辑权已转移，本机修改未上传','warn'); }
@@ -1125,7 +1140,7 @@ class Component extends DCLogic {
       if(editLockSupported!==true) return true;
       if(!editLockOwned){ setCloudStatus('本机没有编辑权，已阻止上传','warn'); syncEditLockUI(); return false; }
       try{
-        const client=getCloudClient(code), {data,error}=await client.rpc('ggz_try_edit_lock',{p_sync_code:code,p_holder_id:editSessionId,p_holder_name:editorName||'未命名',p_ttl_seconds:EDIT_LOCK_TTL_SECONDS});
+        const client=getCloudClient(code), {data,error}=await lockRequest(client.rpc('ggz_try_edit_lock',{p_sync_code:code,p_holder_id:editSessionId,p_holder_name:editorName||'未命名',p_ttl_seconds:EDIT_LOCK_TTL_SECONDS}));
         if(error) throw error;
         const row=editLockRow(data); editLockRecord=row;
         if(!row?.acquired){ editLockOwned=false; cloudConflictPaused=true; clearIdleCloudUpload(); setCloudStatus('编辑权已转移，已阻止旧页面上传','warn'); syncEditLockUI(); return false; }
@@ -1137,7 +1152,7 @@ class Component extends DCLogic {
       if(!editLockOwned||!code) return true;
       if(uploadFirst&&cloudDirty){ await uploadCloud(false); if(cloudDirty){ if(!quiet) alert('本机修改还没有成功上传，暂不释放编辑权。'); return false; } }
       try{
-        const client=getCloudClient(code), {error}=await client.rpc('ggz_release_edit_lock',{p_sync_code:code,p_holder_id:editSessionId});
+        const client=getCloudClient(code), {error}=await lockRequest(client.rpc('ggz_release_edit_lock',{p_sync_code:code,p_holder_id:editSessionId}));
         if(error) throw error;
         editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); syncEditLockUI(); startEditLockTimer();
         if(!quiet) setCloudStatus('已保存并结束编辑');
@@ -1150,7 +1165,7 @@ class Component extends DCLogic {
       editorName=name; localStorage.setItem('ggzEditorName',editorName); syncCode=code;
       $('acquireEditLockBtn').disabled=true; $('editLockStatus').textContent='正在取得编辑权…';
       try{
-        const client=getCloudClient(code), {data,error}=await client.rpc('ggz_try_edit_lock',{p_sync_code:code,p_holder_id:editSessionId,p_holder_name:editorName,p_ttl_seconds:EDIT_LOCK_TTL_SECONDS});
+        const client=getCloudClient(code), {data,error}=await lockRequest(client.rpc('ggz_try_edit_lock',{p_sync_code:code,p_holder_id:editSessionId,p_holder_name:editorName,p_ttl_seconds:EDIT_LOCK_TTL_SECONDS}));
         if(error) throw error;
         const row=editLockRow(data); editLockSupported=true; editLockRecord=row;
         if(!row?.acquired){ editLockOwned=false; syncEditLockUI(); alert(`${row?.holder_name||'其他人'} 正在编辑，请等对方保存并结束后再试。`); return; }
