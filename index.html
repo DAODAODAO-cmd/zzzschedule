@@ -20,7 +20,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </helmet>
 <div class="wrap">
-
+  <aside class="app-sidebar">
   <header>
     <div class="eyebrow">调价 · 排单</div>
     <h1>谷子调排簿</h1>
@@ -31,6 +31,17 @@
     <div id="sheetTabs" class="sheet-tabs"></div>
     <button class="sheet-add" id="addSheetBtn" title="新建表">＋ 新建表</button>
   </div>
+  <nav class="desktop-app-nav" aria-label="功能导航">
+    <button type="button" data-app-section="goods"><span>◇</span><b>谷子</b><small>价格与种类</small></button>
+    <button type="button" data-app-section="order"><span>▦</span><b>排单</b><small>录入、预览与排单表</small></button>
+    <button type="button" data-app-section="stats"><span>▥</span><b>统计</b><small>数量统计与推车图</small></button>
+    <button type="button" data-app-section="payment"><span>¥</span><b>收款</b><small>谷子收款与均摊</small></button>
+    <button type="button" data-app-section="settings"><span>⚙</span><b>设置</b><small>数据与云端</small></button>
+  </nav>
+  </aside>
+
+  <main class="app-main">
+  <section class="cloud-hub" id="cloudHub">
 
   <div class="cloudbar">
     <input id="syncCodeInput" type="text" maxlength="24" placeholder="同步码">
@@ -57,6 +68,14 @@
     </details>
   </div>
   <div id="editLockBanner" class="edit-lock-banner" style="display:none;"></div>
+  </section>
+
+  <div class="mobile-sheet-switch">
+    <label><span>当前排单</span><select id="mobileSheetSelect" aria-label="切换当前排单"></select></label>
+    <button type="button" class="btn-ghost" id="mobileRenameSheetBtn">改名</button>
+    <button type="button" class="btn-ghost" id="mobileAddSheetBtn">新建</button>
+    <button type="button" class="btn-ghost" id="mobileDeleteSheetBtn">删除</button>
+  </div>
 
   <div class="panel desktop-setup" id="costPanel">
     <h2>① 价格</h2>
@@ -243,16 +262,6 @@
       <button class="btn-ghost" id="exportSingleQuantityBtn">复制单领数量</button>
       <button class="btn-ghost" id="exportBundleQuantityBtn">复制配比数量</button>
       <button class="btn-ghost" id="undoLastApplyBtn" disabled>撤回上次应用</button>
-      <details class="data-actions" id="dataActions"><summary>导入导出</summary><div class="data-actions-pop">
-        <button class="btn-ghost" id="exportJsonBtn">备份全部排单</button>
-        <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前排单</button>
-        <button class="btn-ghost" id="exportAllExcelBtn">导出全部排单表</button>
-        <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单表</button>
-        <label class="btn-ghost filelabel import-backup">导入排单备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
-        <label class="btn-ghost filelabel">导入排单表<input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;"></label>
-        <button class="btn-ghost" id="exportImportTemplateBtn">下载排单表模板</button>
-        <button class="btn-ghost" id="copyTsvBtn">复制排单表文本</button>
-      </div></details>
       <button class="btn-danger" id="clearAllBtn">清空排单</button>
     </div>
   </div>
@@ -344,7 +353,31 @@
     </div>
   </div>
 
+  <div class="panel" id="settingsPanel">
+    <h2>设置与数据</h2>
+    <div class="settings-cloud-tip"><strong>实时协作始终显示在页面顶部</strong><span>开启时自动读取协作版本，关闭前会先同步本机修改。</span></div>
+    <details class="data-actions settings-data-actions" id="dataActions" open><summary>排单数据导入导出</summary><div class="data-actions-pop">
+      <button class="btn-ghost" id="exportJsonBtn">备份全部排单</button>
+      <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前排单</button>
+      <button class="btn-ghost" id="exportAllExcelBtn">导出全部排单表</button>
+      <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单表</button>
+      <label class="btn-ghost filelabel import-backup">导入排单备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
+      <label class="btn-ghost filelabel">导入排单表<input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;"></label>
+      <button class="btn-ghost" id="exportImportTemplateBtn">下载排单表模板</button>
+      <button class="btn-ghost" id="copyTsvBtn">复制排单表文本</button>
+    </div></details>
+  </div>
+
   <footer>数据会自动保存在这个浏览器里。换设备或清理浏览器前，记得先导出备份。</footer>
+  </main>
+
+  <nav class="mobile-bottom-nav" aria-label="手机功能导航">
+    <button type="button" data-app-section="goods"><span>◇</span><b>谷子</b></button>
+    <button type="button" data-app-section="order"><span>▦</span><b>排单</b></button>
+    <button type="button" data-app-section="stats"><span>▥</span><b>统计</b></button>
+    <button type="button" data-app-section="payment"><span>¥</span><b>收款</b></button>
+    <button type="button" data-app-section="settings"><span>⚙</span><b>设置</b></button>
+  </nav>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
@@ -363,7 +396,30 @@ class Component extends DCLogic {
   --radius:10px;
 }
 .wrap *{box-sizing:border-box;}
-.wrap{ max-width:1200px; margin:0 auto; padding:24px 18px 44px; font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif; color:var(--text); background:linear-gradient(180deg,#fff 0,#faf8fb 220px); }
+.wrap{ max-width:1600px; margin:0 auto; padding:16px; display:grid; grid-template-columns:238px minmax(0,1fr); gap:16px; align-items:start; font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif; color:var(--text); background:linear-gradient(180deg,#fff 0,#faf8fb 220px); }
+.app-sidebar{ position:sticky; top:16px; display:flex; flex-direction:column; gap:10px; height:calc(100vh - 32px); min-height:520px; padding:15px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.96); box-shadow:0 10px 30px rgba(52,35,62,.08); overflow:hidden; }
+.app-main{ min-width:0; }
+.app-sidebar header{ flex:0 0 auto; margin:0!important; padding:2px 4px 7px; }
+.app-sidebar .sheetbar{ position:static; flex:1 1 auto; min-height:120px; flex-direction:column; align-items:stretch; margin:0; padding:8px; overflow:hidden; background:#faf8fb; box-shadow:none; backdrop-filter:none; }
+.app-sidebar .sheet-tabs{ flex:1 1 auto; flex-direction:column; align-items:stretch; overflow-x:hidden; overflow-y:auto; }
+.app-sidebar .sheet-tab{ width:100%; min-height:38px; }
+.app-sidebar .sheet-tab-name{ max-width:128px; flex:1; text-align:left; }
+.app-sidebar .sheet-add{ width:100%; }
+.desktop-app-nav{ display:grid; flex:0 0 auto; gap:5px; }
+.desktop-app-nav button{ display:grid; grid-template-columns:28px 52px 1fr; align-items:center; min-height:43px; padding:6px 9px; border:0; border-radius:10px; background:transparent; color:var(--muted); text-align:left; cursor:pointer; }
+.desktop-app-nav button>span{ display:grid; place-items:center; width:25px; height:25px; border-radius:7px; background:#f3eff5; color:var(--accent); font-weight:900; }
+.desktop-app-nav button>b{ color:var(--text); font-size:13px; }
+.desktop-app-nav button>small{ overflow:hidden; color:var(--muted); font-size:10px; white-space:nowrap; text-overflow:ellipsis; }
+.desktop-app-nav button.active{ background:#fff0f4; box-shadow:inset 3px 0 0 var(--accent); }
+.desktop-app-nav button.active>span{ background:var(--accent); color:#fff; }
+.cloud-hub{ position:sticky; top:0; z-index:24; padding:1px 0 4px; background:rgba(250,248,251,.94); backdrop-filter:blur(12px); }
+.mobile-sheet-switch,.mobile-bottom-nav{ display:none; }
+.app-section-hidden{ display:none!important; }
+.settings-cloud-tip{ display:flex; flex-direction:column; gap:4px; margin-bottom:12px; padding:12px; border:1px solid #ead9df; border-radius:10px; background:#fff7fa; color:var(--muted); font-size:12px; }
+.settings-cloud-tip strong{ color:var(--accent); }
+.settings-data-actions{ width:100%; }
+.settings-data-actions>summary{ cursor:default; }
+.settings-data-actions>.data-actions-pop{ position:static; width:100%; max-width:none; margin-top:8px; box-shadow:none; grid-template-columns:repeat(2,minmax(0,1fr)); }
 .wrap header{ margin-bottom:14px; }
 .wrap .eyebrow{ font-size:12px; letter-spacing:.2em; color:var(--accent); font-weight:700; }
 .wrap h1{ margin:3px 0 0; font-size:24px; font-weight:800; letter-spacing:.02em; }
@@ -690,17 +746,43 @@ class Component extends DCLogic {
   .wrap .summary{ grid-template-columns:1fr 1fr; }
 }
 @media(max-width:1050px){ .wrap .col-card{ grid-template-columns:42px 76px minmax(125px,1fr) minmax(150px,1fr) 82px 125px 100px 108px; overflow-x:auto; } }
+@media(max-width:760px){
+  body{ padding-bottom:calc(72px + env(safe-area-inset-bottom)); }
+  .wrap{ display:block; max-width:none; padding:10px 9px calc(84px + env(safe-area-inset-bottom)); }
+  .app-sidebar{ display:none; }
+  .app-main{ width:100%; }
+  .cloud-hub{ top:0; margin:-10px -9px 8px; padding:8px 9px 2px; border-bottom:1px solid rgba(220,211,224,.9); background:rgba(250,248,251,.96); }
+  .wrap:not([data-active-section="settings"]) .cloudbar{ display:none; }
+  .edit-lock-controls{ margin:0 0 6px; padding:7px; border-radius:10px; }
+  .edit-lock-controls label{ flex:1 1 145px; width:auto; }
+  .edit-lock-controls input{ min-width:90px; }
+  #collabStatus{ order:5; width:100%; margin-left:0; white-space:normal; }
+  .collab-activity{ margin:0 0 6px; }
+  .mobile-sheet-switch{ position:relative; z-index:18; display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:6px; align-items:end; margin:0 0 9px; padding:9px; border:1px solid var(--line); border-radius:12px; background:#fff; box-shadow:0 4px 14px rgba(55,37,65,.06); }
+  .mobile-sheet-switch label{ display:grid; gap:3px; margin:0; color:var(--muted); font-size:10.5px; font-weight:800; }
+  .mobile-sheet-switch select{ width:100%; min-width:0; height:36px; padding:6px 27px 6px 9px; border-color:#dbcfd9; color:var(--text); font-weight:800; }
+  .mobile-sheet-switch button{ min-width:42px; height:36px; padding:6px 8px; }
+  .mobile-bottom-nav{ position:fixed; z-index:80; left:0; right:0; bottom:0; display:grid; grid-template-columns:repeat(5,1fr); padding:6px 7px calc(6px + env(safe-area-inset-bottom)); border-top:1px solid rgba(220,211,224,.96); background:rgba(255,255,255,.96); box-shadow:0 -8px 24px rgba(47,31,56,.1); backdrop-filter:blur(15px); }
+  .mobile-bottom-nav button{ display:grid; place-items:center; gap:1px; min-width:0; min-height:50px; padding:4px 2px; border:0; border-radius:10px; background:transparent; color:#8b8392; font-size:10px; cursor:pointer; }
+  .mobile-bottom-nav button span{ font-size:18px; font-weight:900; line-height:1; }
+  .mobile-bottom-nav button b{ font-size:10.5px; }
+  .mobile-bottom-nav button.active{ background:#fff0f4; color:var(--accent); }
+  .mobile-bottom-nav button.active b{ font-weight:900; }
+  body.mobile-keyboard-open .mobile-bottom-nav{ display:none; }
+  .settings-data-actions>.data-actions-pop{ position:static; left:auto; right:auto; bottom:auto; width:100%; max-width:none; grid-template-columns:1fr; }
+  footer{ padding-bottom:12px; }
+}
 @media(max-width:620px){
   .wrap{ padding:12px 9px 28px; font-size:13px; }
   .wrap header{ margin-bottom:9px; }
   .wrap h1{ font-size:19px; }
   .wrap h2{ font-size:14px; }
-  .desktop-setup{ display:block!important; }
+  .desktop-setup.app-section-hidden{ display:none!important; }
   .cloudbar{ gap:6px; }
   .cloudbar input{ width:calc(50% - 3px); flex:1 1 140px; }
   .cloudbar #cloudStatus{ width:100%; margin-left:0; text-align:left; }
-  .edit-lock-controls label{ width:100%; }
-  .edit-lock-controls input{ flex:1; width:auto; }
+  .edit-lock-controls label{ flex:1 1 145px; width:auto; }
+  .edit-lock-controls input{ flex:1; min-width:80px; width:auto; }
   #editLockStatus,#collabStatus{ width:100%; margin-left:0; white-space:normal; }
   .wrap .panel{ padding:12px; margin-bottom:9px; }
   #matrixPanel .toolbar > *{ display:inline-flex!important; }
@@ -770,12 +852,14 @@ class Component extends DCLogic {
     const CLOUD_DIRTY_KEY_PREFIX='ggzCloudDirty_';
     const COLLAB_ENABLED_KEY_PREFIX='ggzCollabEnabled_';
     const COLLAB_CONFLICT_KEY_PREFIX='ggzCollabConflict_';
+    const APP_SECTION_KEY='ggzAppSection_v1';
     const COLLAB_POLL_MS=2000;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
     let syncCode=localStorage.getItem('ggzSyncCode')||'';
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
     let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false;
+    let activeAppSection=['goods','order','stats','payment','settings'].includes(localStorage.getItem(APP_SECTION_KEY))?localStorage.getItem(APP_SECTION_KEY):'order';
     const editSessionId=sessionStorage.getItem('ggzEditSessionId')||((crypto.randomUUID&&crypto.randomUUID())||('tab-'+Date.now()+'-'+Math.random().toString(36).slice(2)));
     sessionStorage.setItem('ggzEditSessionId',editSessionId);
     lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):'';
@@ -1028,6 +1112,27 @@ class Component extends DCLogic {
 
     function renderSheetTabs(){
       $('sheetTabs').innerHTML=sheets.map((s,index)=>`<div class="sheet-tab ${s.id===activeSheetId?'active':''}" data-sheet="${s.id}" draggable="true" title="拖动排序，双击改名">${s.id===activeSheetId&&index>0?'<button type="button" class="sheet-move" data-sheet-move="-1" title="向左移动">‹</button>':''}<span class="sheet-tab-name">${escapeHtml(s.name)}</span>${s.id===activeSheetId&&index<sheets.length-1?'<button type="button" class="sheet-move" data-sheet-move="1" title="向右移动">›</button>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`).join('');
+      syncMobileSheetSelect();
+    }
+    function syncMobileSheetSelect(){
+      const select=$('mobileSheetSelect'); if(!select) return;
+      select.innerHTML=sheets.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('');
+      select.value=String(activeSheetId);
+      $('mobileDeleteSheetBtn').disabled=sheets.length<=1;
+    }
+    function setAppSection(section,scrollToTop=true){
+      const groups={
+        goods:['costPanel','columnPanel'],
+        order:['ocrPanel','commentPanel','transferPreviewPanel','cancelPreviewPanel','coldPromotionPreviewPanel','previewPanel','matrixPanel'],
+        stats:['quantityPanel','cartPanel'],
+        payment:['paymentPanel'],
+        settings:['settingsPanel']
+      };
+      if(!groups[section]) section='order'; activeAppSection=section; localStorage.setItem(APP_SECTION_KEY,section);
+      document.querySelector('.wrap').dataset.activeSection=section;
+      Object.entries(groups).forEach(([group,ids])=>ids.forEach(id=>$(id)?.classList.toggle('app-section-hidden',group!==section)));
+      document.querySelectorAll('[data-app-section]').forEach(button=>button.classList.toggle('active',button.dataset.appSection===section));
+      if(scrollToTop) window.scrollTo({top:0,behavior:'smooth'});
     }
     function syncMatrixOptions(){
       const pricing=$('showPricingRow'), unit=$('showUnitPriceRow'), promotion=$('showPromotionPointRow'), complete=$('showCompleteRowColor'), cold=$('showColdPromotionColor');
@@ -2368,6 +2473,22 @@ class Component extends DCLogic {
       captureActiveSheet(); const [moving]=sheets.splice(sourceIndex,1); let insertAt=targetIndex+(after?1:0); if(sourceIndex<insertAt) insertAt--; sheets.splice(Math.max(0,Math.min(insertAt,sheets.length)),0,moving); saveState(); renderSheetTabs();
     });
     $('sheetTabs').addEventListener('dragend',()=>{ draggedSheetId=null; document.querySelectorAll('.sheet-tab.dragging,.sheet-tab.drag-over').forEach(item=>item.classList.remove('dragging','drag-over')); });
+    document.querySelectorAll('[data-app-section]').forEach(button=>button.addEventListener('click',()=>setAppSection(button.dataset.appSection,true)));
+    $('mobileSheetSelect').addEventListener('change',e=>switchSheet(parseInt(e.target.value,10)));
+    $('mobileAddSheetBtn').addEventListener('click',()=>$('addSheetBtn').click());
+    $('mobileRenameSheetBtn').addEventListener('click',()=>{
+      const sheet=sheets.find(item=>item.id===activeSheetId); if(!sheet) return;
+      const name=prompt('给当前排单改个名字',sheet.name);
+      if(name&&name.trim()){ sheet.name=name.trim(); saveState(); renderSheetTabs(); }
+    });
+    $('mobileDeleteSheetBtn').addEventListener('click',()=>{
+      if(sheets.length<=1){ alert('至少要保留一张排单'); return; }
+      document.querySelector(`.sheet-tab[data-sheet="${activeSheetId}"] .sheet-close`)?.click();
+    });
+    if(window.visualViewport){
+      const syncMobileKeyboard=()=>document.body.classList.toggle('mobile-keyboard-open',window.innerWidth<=760&&window.visualViewport.height<window.innerHeight*.72);
+      window.visualViewport.addEventListener('resize',syncMobileKeyboard); syncMobileKeyboard();
+    }
 
     $('parseBtn').addEventListener('click',()=>{
       clearMatrixPreview();
@@ -3743,6 +3864,7 @@ class Component extends DCLogic {
     syncPaymentControls();
     syncMatrixOptions();
     renderSheetTabs();
+    setAppSection(activeAppSection,false);
     renderColumnList();
     renderColdBundleConfiguration(); syncUndoButton();
     recalc();
