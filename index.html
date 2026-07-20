@@ -869,6 +869,7 @@ class Component extends DCLogic {
   body:not(.export-rendering) .payment-heading-tools label{ gap:3px; font-size:10px; }
   body:not(.export-rendering) .payment-search-tools{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px; margin-top:6px; }
   body:not(.export-rendering) .payment-search-tools input{ width:100%; min-width:0; font-size:12px; }
+  body:not(.export-rendering) .payment-search-tools input[type=text]{ font-size:16px!important; }
   body:not(.export-rendering) .payment-unpaid-count{ grid-column:1/-1; width:100%; min-width:0; margin-left:0; padding:5px 6px; font-size:9.5px; line-height:1.45; white-space:normal; overflow-wrap:anywhere; }
   body:not(.export-rendering) .payment-summary{ margin-top:7px; }
   body:not(.export-rendering) .payment-project-title{ padding:7px 9px; font-size:15px; }
@@ -3585,7 +3586,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('paymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-payment-key]'); if(!cell) return;
       const key=decodeURIComponent(cell.dataset.paymentKey), value=(cell.textContent||'').replace(/[\r\n]+/g,' ').trim();
-      paymentEdits[key]=value; saveState(); renderPaymentSummary();
+      paymentEdits[key]=value; saveState(); setTimeout(()=>rerenderPaymentInPlace('paymentSummary',renderPaymentSummary),0);
     },true);
     $('sharePaymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-share-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     $('sharePaymentSummary').addEventListener('click',e=>{
@@ -3619,7 +3620,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('sharePaymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-share-payment-key]'); if(!cell) return;
       const key=decodeURIComponent(cell.dataset.sharePaymentKey), value=(cell.textContent||'').replace(/[\r\n]+/g,' ').trim();
-      sharePaymentEdits[key]=value; saveState(); renderSharePaymentSummary();
+      sharePaymentEdits[key]=value; saveState(); setTimeout(()=>rerenderPaymentInPlace('sharePaymentSummary',renderSharePaymentSummary),0);
     },true);
     $('cartQrInput').addEventListener('change',e=>{
       const file=e.target.files[0]; if(!file) return;
