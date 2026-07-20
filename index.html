@@ -849,6 +849,7 @@ class Component extends DCLogic {
   body:not(.export-rendering) .quantity-section-title{ margin:7px 0 4px; font-size:11px; }
   body:not(.export-rendering) .quantity-table{ font-size:10.5px; }
   body:not(.export-rendering) .quantity-table th,body:not(.export-rendering) .quantity-table td{ padding:4px 5px; }
+  body:not(.export-rendering) .quantity-cn-link,body:not(.export-rendering) .quantity-table button{ padding:2px 4px; font-size:9.5px!important; line-height:1.15; }
   body:not(.export-rendering) .quantity-breakdown{ min-width:72px; }
   body:not(.export-rendering) .quantity-breakdown strong{ font-size:10.5px; }
   body:not(.export-rendering) .quantity-breakdown small,body:not(.export-rendering) .quantity-ride-table .ride-item small,body:not(.export-rendering) .quantity-ride-table .ride-status small{ font-size:8.5px; }
@@ -878,7 +879,15 @@ class Component extends DCLogic {
   body:not(.export-rendering) .wrap .payment-paid-check{ width:16px; height:16px; min-width:16px; font-size:11px; }
   body:not(.export-rendering) .wrap .payment-refund-check,body:not(.export-rendering) .wrap .payment-supplement-check{ width:23px; min-width:23px; height:16px; font-size:9px; }
   body:not(.export-rendering) .payment-adjustment-note,body:not(.export-rendering) .payment-received-note{ font-size:9px; }
-  body:not(.export-rendering) .cart-card .cart-count{ bottom:46px; padding:6px 9px; font-size:14px; border-radius:8px; }
+  body:not(.export-rendering) #cartWrap{ padding:8px; border-radius:10px; }
+  body:not(.export-rendering) #cartHeader{ gap:8px; margin-bottom:8px; padding:8px 9px; border-radius:9px; font-size:14px; }
+  body:not(.export-rendering) #cartQrImage{ width:58px; height:58px; flex-basis:58px; border-radius:6px; }
+  body:not(.export-rendering) #cartGrid{ gap:6px; }
+  body:not(.export-rendering) .cart-card{ border-radius:10px; box-shadow:0 3px 10px rgba(57,38,66,.07); }
+  body:not(.export-rendering) .cart-card .cart-name{ padding:7px 4px 8px; font-size:11px; }
+  body:not(.export-rendering) .cart-card .cart-badge{ padding:5px 7px; border-radius:7px; font-size:12px; box-shadow:0 2px 5px rgba(35,25,40,.13); }
+  body:not(.export-rendering) .cart-card .cart-price{ top:5px; left:5px; }
+  body:not(.export-rendering) .cart-card .cart-count{ right:5px; bottom:34px; padding:5px 7px; font-size:12px; }
 }
 body.export-rendering #matrixTable{ font-size:13px; }
 body.export-rendering #matrixTable td,body.export-rendering #matrixTable th{ min-width:92px; padding:8px 10px; }
