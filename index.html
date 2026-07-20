@@ -860,10 +860,12 @@ class Component extends DCLogic {
   body:not(.export-rendering) .payment-project-title{ padding:7px 9px; font-size:15px; }
   body:not(.export-rendering) .payment-table{ min-width:540px; font-size:10.5px; }
   body:not(.export-rendering) .payment-table th,body:not(.export-rendering) .payment-table td{ padding:4px 5px; font-size:10.5px; }
+  body:not(.export-rendering) .payment-table [contenteditable=true],body:not(.export-rendering) .payment-cn-name,body:not(.export-rendering) .payment-table td.payment-cn,body:not(.export-rendering) .payment-table td.payment-money{ font-size:10.5px!important; }
   body:not(.export-rendering) .payment-cn-controls{ grid-template-columns:16px 23px 23px; gap:2px; width:66px; margin-right:3px; }
   body:not(.export-rendering) .wrap .payment-paid-check{ width:16px; height:16px; min-width:16px; font-size:11px; }
   body:not(.export-rendering) .wrap .payment-refund-check,body:not(.export-rendering) .wrap .payment-supplement-check{ width:23px; min-width:23px; height:16px; font-size:9px; }
   body:not(.export-rendering) .payment-adjustment-note,body:not(.export-rendering) .payment-received-note{ font-size:9px; }
+  body:not(.export-rendering) .cart-card .cart-count{ bottom:46px; padding:6px 9px; font-size:14px; border-radius:8px; }
 }
 body.export-rendering #matrixTable{ font-size:13px; }
 body.export-rendering #matrixTable td,body.export-rendering #matrixTable th{ min-width:92px; padding:8px 10px; }
