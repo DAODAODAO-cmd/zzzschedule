@@ -378,7 +378,7 @@
     <button type="button" data-app-section="payment"><span>¥</span><b>收款</b></button>
     <button type="button" data-app-section="settings"><span>⚙</span><b>设置</b></button>
   </nav>
-  <div id="appConfirmOverlay" class="app-confirm-overlay" hidden>
+  <div id="appConfirmOverlay" class="app-confirm-overlay" hidden style="display:none;">
     <div class="app-confirm-card" role="dialog" aria-modal="true" aria-labelledby="appConfirmTitle">
       <strong id="appConfirmTitle">请确认</strong>
       <p id="appConfirmMessage"></p>
@@ -1228,8 +1228,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function appConfirm(message,title='请确认',okText='确定'){
       return new Promise(resolve=>{
         const overlay=$('appConfirmOverlay'), ok=$('appConfirmOk'), cancel=$('appConfirmCancel');
-        $('appConfirmTitle').textContent=title; $('appConfirmMessage').textContent=message; ok.textContent=okText; overlay.hidden=false;
-        const finish=value=>{ overlay.hidden=true; ok.removeEventListener('click',accept); cancel.removeEventListener('click',reject); overlay.removeEventListener('click',backdrop); document.removeEventListener('keydown',keyboard); resolve(value); };
+        $('appConfirmTitle').textContent=title; $('appConfirmMessage').textContent=message; ok.textContent=okText; overlay.hidden=false; overlay.style.display='grid';
+        const finish=value=>{ overlay.hidden=true; overlay.style.display='none'; ok.removeEventListener('click',accept); cancel.removeEventListener('click',reject); overlay.removeEventListener('click',backdrop); document.removeEventListener('keydown',keyboard); resolve(value); };
         const accept=()=>finish(true), reject=()=>finish(false), backdrop=e=>{ if(e.target===overlay) finish(false); }, keyboard=e=>{ if(e.key==='Escape') finish(false); };
         ok.addEventListener('click',accept); cancel.addEventListener('click',reject); overlay.addEventListener('click',backdrop); document.addEventListener('keydown',keyboard); setTimeout(()=>ok.focus(),0);
       });
