@@ -124,8 +124,8 @@
       <div class="catalog-head"><strong>常用谷子库</strong><input id="catalogSearch" type="text" placeholder="搜索名称、别名或分组"></div>
       <div class="catalog-tools">
         <div class="catalog-filter-tabs"><button type="button" class="active" data-catalog-filter="all">全部</button><button type="button" data-catalog-filter="pinned">置顶</button><button type="button" data-catalog-filter="recent">最近</button></div>
-        <select id="catalogGroupFilter" aria-label="按分组筛选"><option value="all">全部分组</option></select>
-        <label class="catalog-sort-control">排序 <select id="catalogSort"><option value="smart">智能</option><option value="recent">最近使用</option><option value="usage">使用次数</option><option value="name">名称</option></select></label>
+        <select id="catalogGroupFilter" aria-label="按分组筛选"><option value="all">全部分组</option><option value="__ungrouped__">未分组</option></select>
+        <label class="catalog-sort-control">排序 <select id="catalogSort"><option value="smart">智能</option><option value="group">分组</option><option value="recent">最近使用</option><option value="usage">使用次数</option><option value="name">名称</option></select></label>
         <button type="button" class="btn-ghost btn-mini" id="catalogSelectAllBtn">全选当前</button>
         <button type="button" class="btn-primary btn-mini" id="catalogBatchAddBtn" disabled>加入所选</button>
         <span id="catalogSelectionCount" class="catalog-selection-count">已选 0 项</span>
@@ -410,6 +410,7 @@ class Component extends DCLogic {
   --ok:#2f9e5c; --warn:#c0791f; --bad:#c94f6d;
   --radius:10px;
 }
+html{ scrollbar-gutter:stable; }
 .wrap *{box-sizing:border-box;}
 .wrap{ max-width:1600px; margin:0 auto; padding:16px; display:grid; grid-template-columns:238px minmax(0,1fr); gap:16px; align-items:start; font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif; color:var(--text); background:linear-gradient(180deg,#fff 0,#faf8fb 220px); }
 .app-sidebar{ position:sticky; top:16px; display:flex; flex-direction:column; gap:10px; height:calc(100vh - 32px); min-height:520px; padding:15px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.96); box-shadow:0 10px 30px rgba(52,35,62,.08); overflow:hidden; }
@@ -1353,7 +1354,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       document.querySelector('.wrap').dataset.activeSection=section;
       Object.entries(groups).forEach(([group,ids])=>ids.forEach(id=>$(id)?.classList.toggle('app-section-hidden',group!==section)));
       document.querySelectorAll('[data-app-section]').forEach(button=>button.classList.toggle('active',button.dataset.appSection===section));
-      if(scrollToTop) window.scrollTo({top:0,behavior:'smooth'});
+      if(scrollToTop) window.scrollTo(0,0);
     }
     function appConfirm(message,title='请确认',okText='确定'){
       return new Promise(resolve=>{
@@ -1988,8 +1989,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const previousCatalogScroll=catalogListEl?catalogListEl.scrollTop:0;
       const q=($('catalogSearch').value||'').trim().toLowerCase();
       const groups=[...new Set(itemCatalog.map(item=>String(item.catalogGroup||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
-      if(catalogGroup!=='all'&&!groups.includes(catalogGroup)) catalogGroup='all';
-      $('catalogGroupFilter').innerHTML='<option value="all">全部分组</option>'+groups.map(group=>`<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`).join('');
+      if(catalogGroup!=='all'&&catalogGroup!=='__ungrouped__'&&!groups.includes(catalogGroup)) catalogGroup='all';
+      $('catalogGroupFilter').innerHTML='<option value="all">全部分组</option><option value="__ungrouped__">未分组</option>'+groups.map(group=>`<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`).join('');
       $('catalogGroupFilter').value=catalogGroup;
       document.querySelectorAll('[data-catalog-filter]').forEach(button=>button.classList.toggle('active',button.dataset.catalogFilter===catalogFilter));
       $('catalogSort').value=catalogSort;
@@ -1998,13 +1999,20 @@ body.export-rendering .cart-count{ font-size:28px; }
       let list=itemCatalog.filter(item=>{
         const matchesSearch=!q||String(item.name||'').toLowerCase().includes(q)||(item.aliases||[]).some(a=>String(a).toLowerCase().includes(q))||String(item.catalogGroup||'').toLowerCase().includes(q);
         const matchesFilter=catalogFilter==='all'||(catalogFilter==='pinned'&&item.catalogPinned)||(catalogFilter==='recent'&&item.catalogLastUsedAt);
-        return matchesSearch&&matchesFilter&&(catalogGroup==='all'||item.catalogGroup===catalogGroup);
+        const matchesGroup=catalogGroup==='all'||(catalogGroup==='__ungrouped__'&&!String(item.catalogGroup||'').trim())||item.catalogGroup===catalogGroup;
+        return matchesSearch&&matchesFilter&&matchesGroup;
       });
       const byName=(a,b)=>String(a.name||'').localeCompare(String(b.name||''),'zh-CN');
       const recentDifference=(a,b)=>(Date.parse(b.catalogLastUsedAt)||0)-(Date.parse(a.catalogLastUsedAt)||0);
       const byRecent=(a,b)=>recentDifference(a,b)||byName(a,b);
       if(catalogSort==='recent') list.sort(byRecent);
       else if(catalogSort==='usage') list.sort((a,b)=>(b.catalogUsage||0)-(a.catalogUsage||0)||byRecent(a,b));
+      else if(catalogSort==='group') list.sort((a,b)=>{
+        const groupA=String(a.catalogGroup||''),groupB=String(b.catalogGroup||'');
+        if(!groupA&&groupB) return 1;
+        if(groupA&&!groupB) return -1;
+        return groupA.localeCompare(groupB,'zh-CN')||byName(a,b);
+      });
       else if(catalogSort==='name') list.sort(byName);
       else list.sort((a,b)=>Number(b.catalogPinned)-Number(a.catalogPinned)||recentDifference(a,b)||(b.catalogUsage||0)-(a.catalogUsage||0)||byName(a,b));
       if(catalogFilter==='recent') list=list.slice(0,20);
