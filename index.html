@@ -28,8 +28,12 @@
   </header>
 
   <div class="sheetbar">
+    <div class="sheet-library-tools">
+      <input id="sheetSearchInput" type="text" placeholder="搜索排单名称">
+      <div class="sheet-status-tabs"><button type="button" data-sheet-status-filter="ongoing" class="active">进行中</button><button type="button" data-sheet-status-filter="completed">已完成</button><button type="button" data-sheet-status-filter="all">全部</button></div>
+    </div>
     <div id="sheetTabs" class="sheet-tabs"></div>
-    <button class="sheet-add" id="addSheetBtn" title="新建表">＋ 新建表</button>
+    <div class="sheetbar-actions"><button class="sheet-add" id="addSheetBtn" title="新建表">＋ 新建表</button><button class="sheet-complete-toggle" id="toggleSheetCompletedBtn">标记完成</button></div>
   </div>
   <nav class="desktop-app-nav" aria-label="功能导航">
     <button type="button" data-app-section="goods"><span>◇</span><b>谷子</b><small>价格与种类</small></button>
@@ -73,6 +77,7 @@
 
   <div class="mobile-sheet-switch">
     <label><span>当前排单</span><select id="mobileSheetSelect" aria-label="切换当前排单"></select></label>
+    <button type="button" class="btn-ghost" id="mobileToggleSheetCompletedBtn">完成</button>
     <button type="button" class="btn-ghost" id="mobileRenameSheetBtn">改名</button>
     <button type="button" class="btn-ghost" id="mobileAddSheetBtn">新建</button>
     <button type="button" class="btn-ghost" id="mobileDeleteSheetBtn">删除</button>
@@ -314,7 +319,7 @@
       </div>
       <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收齐：0人 / ¥0.00；待退款：0人 / ¥0.00；待补款：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div id="paymentSummary" class="payment-summary"></div>
-      <div class="toolbar"><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div>
+      <div class="toolbar"><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportUnpaidPaymentBtn" data-mobile-label="未肾">导出未肾图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div>
     </div>
     <div id="sharePaymentView" style="display:none;">
       <div class="payment-heading-tools">
@@ -420,7 +425,18 @@ html{ scrollbar-gutter:stable; }
 .app-sidebar .sheet-tabs{ flex:1 1 auto; flex-direction:column; align-items:stretch; overflow-x:hidden; overflow-y:auto; }
 .app-sidebar .sheet-tab{ width:100%; min-height:38px; }
 .app-sidebar .sheet-tab-name{ max-width:128px; flex:1; text-align:left; }
-.app-sidebar .sheet-add{ width:100%; }
+.sheet-library-tools{ display:grid; gap:5px; }
+.sheet-library-tools input{ width:100%; min-width:0; padding:6px 8px; font-size:11px; }
+.sheet-status-tabs{ display:grid; grid-template-columns:repeat(3,1fr); gap:3px; padding:3px; border-radius:8px; background:#f1edf3; }
+.sheet-status-tabs button{ min-width:0; padding:4px 1px; border:0; background:transparent; color:var(--muted); font-size:9.5px; white-space:nowrap; word-break:keep-all; }
+.sheet-status-tabs button.active{ background:#fff; color:var(--accent); box-shadow:0 1px 4px rgba(55,35,65,.09); }
+.sheet-group-label{ padding:7px 7px 3px; color:#9a91a1; font-size:9.5px; font-weight:900; letter-spacing:.05em; }
+.sheet-tab.is-completed{ color:#7d7682; }
+.sheet-tab.is-completed::before{ content:"✓"; display:grid; place-items:center; width:17px; height:17px; margin-right:4px; border-radius:50%; background:#e1f3e6; color:var(--ok); font-size:10px; }
+.sheetbar-actions{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+.app-sidebar .sheet-add,.app-sidebar .sheet-complete-toggle{ width:100%; min-width:0; padding:7px 5px; font-size:10.5px; }
+.sheet-complete-toggle{ border:1px solid #c8dfce; border-radius:8px; background:#eff9f2; color:#258048; font-weight:850; cursor:pointer; }
+.sheet-complete-toggle.is-completed{ border-color:#dfd7e3; background:#f6f3f7; color:#736b78; }
 .desktop-app-nav{ display:grid; flex:0 0 auto; gap:5px; }
 .desktop-app-nav button{ display:grid; grid-template-columns:28px 52px 1fr; align-items:center; min-height:43px; padding:6px 9px; border:0; border-radius:10px; background:transparent; color:var(--muted); text-align:left; cursor:pointer; }
 .desktop-app-nav button>span{ display:grid; place-items:center; width:25px; height:25px; border-radius:7px; background:#f3eff5; color:var(--accent); font-weight:900; }
@@ -801,10 +817,10 @@ html{ scrollbar-gutter:stable; }
   .edit-lock-controls input{ min-width:90px; }
   #collabStatus{ order:5; width:100%; margin-left:0; white-space:normal; }
   .collab-activity{ margin:0 0 6px; }
-  .mobile-sheet-switch{ position:relative; z-index:18; display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:6px; align-items:end; margin:0 0 9px; padding:9px; border:1px solid var(--line); border-radius:12px; background:#fff; box-shadow:0 4px 14px rgba(55,37,65,.06); }
+  .mobile-sheet-switch{ position:relative; z-index:18; display:grid; grid-template-columns:minmax(0,1fr) repeat(4,38px); gap:4px; align-items:end; margin:0 0 9px; padding:7px; border:1px solid var(--line); border-radius:12px; background:#fff; box-shadow:0 4px 14px rgba(55,37,65,.06); }
   .mobile-sheet-switch label{ display:grid; gap:3px; margin:0; color:var(--muted); font-size:10.5px; font-weight:800; }
   .mobile-sheet-switch select{ width:100%; min-width:0; height:36px; padding:6px 27px 6px 9px; border-color:#dbcfd9; color:var(--text); font-weight:800; }
-  .mobile-sheet-switch button{ min-width:42px; height:36px; padding:6px 8px; }
+  .mobile-sheet-switch button{ min-width:0; width:38px; height:36px; padding:5px 2px; font-size:9.5px; }
   .mobile-bottom-nav{ position:fixed; z-index:80; left:0; right:0; bottom:0; display:grid; grid-template-columns:repeat(5,1fr); padding:6px 7px calc(6px + env(safe-area-inset-bottom)); border-top:1px solid rgba(220,211,224,.96); background:rgba(255,255,255,.96); box-shadow:0 -8px 24px rgba(47,31,56,.1); backdrop-filter:blur(15px); }
   .mobile-bottom-nav button{ display:grid; place-items:center; gap:1px; min-width:0; min-height:50px; padding:4px 2px; border:0; border-radius:10px; background:transparent; color:#8b8392; font-size:10px; cursor:pointer; }
   .mobile-bottom-nav button span{ font-size:18px; font-weight:900; line-height:1; }
@@ -1041,6 +1057,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     const COLLAB_ENABLED_KEY_PREFIX='ggzCollabEnabled_';
     const COLLAB_CONFLICT_KEY_PREFIX='ggzCollabConflict_';
     const APP_SECTION_KEY='ggzAppSection_v1';
+    const SHEET_STATUS_FILTER_KEY='ggzSheetStatusFilter_v1';
     const COLLAB_POLL_MS=2000;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
@@ -1048,6 +1065,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
     let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false;
     let activeAppSection='settings';
+    let sheetStatusFilter=['ongoing','completed','all'].includes(localStorage.getItem(SHEET_STATUS_FILTER_KEY))?localStorage.getItem(SHEET_STATUS_FILTER_KEY):'ongoing';
     const editSessionId=sessionStorage.getItem('ggzEditSessionId')||((crypto.randomUUID&&crypto.randomUUID())||('tab-'+Date.now()+'-'+Math.random().toString(36).slice(2)));
     sessionStorage.setItem('ggzEditSessionId',editSessionId);
     lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):'';
@@ -1067,7 +1085,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixTitleCustom:false,matrixColor:'#d1466a',paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixTitleCustom:false,matrixColor:'#d1466a',paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function sheetUsesCustomTitle(sheet,key){
       const flag=sheet?.[key+'Custom'];
@@ -1332,15 +1350,32 @@ body.export-rendering .cart-count{ font-size:28px; }
       const first=blankSheet('表1'); sheets=[first]; activeSheetId=first.id; applySheet(first);
     }
 
+    function isSheetCompleted(sheet){ return sheet?.completed===true; }
+    function completedSheetsByRecent(){ return sheets.filter(isSheetCompleted).sort((a,b)=>(Date.parse(b.completedAt)||0)-(Date.parse(a.completedAt)||0)); }
     function renderSheetTabs(){
-      $('sheetTabs').innerHTML=sheets.map((s,index)=>`<div class="sheet-tab ${s.id===activeSheetId?'active':''}" data-sheet="${s.id}" draggable="true" title="拖动排序，双击改名">${s.id===activeSheetId&&index>0?'<button type="button" class="sheet-move" data-sheet-move="-1" title="向左移动">‹</button>':''}<span class="sheet-tab-name">${escapeHtml(s.name)}</span>${s.id===activeSheetId&&index<sheets.length-1?'<button type="button" class="sheet-move" data-sheet-move="1" title="向右移动">›</button>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`).join('');
+      const query=String($('sheetSearchInput')?.value||'').trim().toLowerCase();
+      const ongoing=sheets.filter(sheet=>!isSheetCompleted(sheet)), completed=completedSheetsByRecent();
+      const matches=sheet=>!query||String(sheet.name||'').toLowerCase().includes(query);
+      const groups=[];
+      if(sheetStatusFilter!=='completed') groups.push({label:`进行中 · ${ongoing.length}`,items:ongoing.filter(matches),movable:true});
+      if(sheetStatusFilter!=='ongoing') groups.push({label:`已完成 · ${completed.length}`,items:completed.filter(matches),movable:false});
+      const tabHtml=(sheet,index,list,movable)=>`<div class="sheet-tab ${sheet.id===activeSheetId?'active':''}${isSheetCompleted(sheet)?' is-completed':''}" data-sheet="${sheet.id}" draggable="${movable?'true':'false'}" title="${isSheetCompleted(sheet)?'已完成排单，双击改名':'拖动排序，双击改名'}">${sheet.id===activeSheetId&&movable&&index>0?'<button type="button" class="sheet-move" data-sheet-move="-1" title="向上移动">‹</button>':''}<span class="sheet-tab-name">${escapeHtml(sheet.name)}</span>${sheet.id===activeSheetId&&movable&&index<list.length-1?'<button type="button" class="sheet-move" data-sheet-move="1" title="向下移动">›</button>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`;
+      $('sheetTabs').innerHTML=groups.map(group=>`<div class="sheet-group-label">${group.label}</div>${group.items.map((sheet,index)=>tabHtml(sheet,index,group.items,group.movable)).join('')}`).join('')||'<div class="sheet-list-empty">没有符合条件的排单</div>';
+      document.querySelectorAll('[data-sheet-status-filter]').forEach(button=>button.classList.toggle('active',button.dataset.sheetStatusFilter===sheetStatusFilter));
       syncMobileSheetSelect();
+      syncSheetCompletionButtons();
     }
     function syncMobileSheetSelect(){
       const select=$('mobileSheetSelect'); if(!select) return;
-      select.innerHTML=sheets.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('');
+      const ongoing=sheets.filter(sheet=>!isSheetCompleted(sheet)),completed=completedSheetsByRecent();
+      select.innerHTML=(ongoing.length?`<optgroup label="进行中">${ongoing.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('')}</optgroup>`:'')+(completed.length?`<optgroup label="已完成">${completed.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('')}</optgroup>`:'');
       select.value=String(activeSheetId);
       $('mobileDeleteSheetBtn').disabled=sheets.length<=1;
+    }
+    function syncSheetCompletionButtons(){
+      const completed=isSheetCompleted(sheets.find(sheet=>sheet.id===activeSheetId));
+      if($('toggleSheetCompletedBtn')){ $('toggleSheetCompletedBtn').textContent=completed?'恢复进行中':'标记完成'; $('toggleSheetCompletedBtn').classList.toggle('is-completed',completed); }
+      if($('mobileToggleSheetCompletedBtn')) $('mobileToggleSheetCompletedBtn').textContent=completed?'恢复':'完成';
     }
     function setAppSection(section,scrollToTop=true){
       const groups={
@@ -2790,14 +2825,42 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('addSheetBtn').addEventListener('click',()=>{
       captureActiveSheet();
       const sheet=blankSheet(`表${sheets.length+1}`);
-      sheets.push(sheet); applySheet(sheet); saveState();
+      sheets.push(sheet); sheetStatusFilter='ongoing'; localStorage.setItem(SHEET_STATUS_FILTER_KEY,sheetStatusFilter); applySheet(sheet); saveState();
     });
     function moveSheetByOffset(id,offset){
-      const index=sheets.findIndex(sheet=>sheet.id===id), target=index+offset;
-      if(index<0||target<0||target>=sheets.length) return;
+      const sheet=sheets.find(item=>item.id===id); if(!sheet||isSheetCompleted(sheet)) return;
+      const peers=sheets.filter(item=>!isSheetCompleted(item)), peerIndex=peers.findIndex(item=>item.id===id), targetPeer=peers[peerIndex+offset];
+      if(peerIndex<0||!targetPeer) return;
+      const index=sheets.findIndex(item=>item.id===id),target=sheets.findIndex(item=>item.id===targetPeer.id);
       captureActiveSheet(); [sheets[index],sheets[target]]=[sheets[target],sheets[index]]; saveState(); renderSheetTabs();
       requestAnimationFrame(()=>document.querySelector(`.sheet-tab[data-sheet="${id}"]`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}));
     }
+    function outstandingPaymentCounts(){
+      const count=selector=>[...document.querySelectorAll(selector)].filter(button=>Math.max(0,num(button.dataset.paymentAmount))>0.005&&button.getAttribute('aria-pressed')!=='true').length;
+      return {goods:count('#paymentSummary [data-payment-paid]'),share:count('#sharePaymentSummary [data-share-payment-paid]')};
+    }
+    async function toggleActiveSheetCompleted(){
+      captureActiveSheet();
+      const sheet=sheets.find(item=>item.id===activeSheetId); if(!sheet) return;
+      if(isSheetCompleted(sheet)){
+        sheet.completed=false; sheet.completedAt=''; sheetStatusFilter='ongoing';
+      }else{
+        const outstanding=outstandingPaymentCounts(),parts=[];
+        if(outstanding.goods) parts.push(`谷子收款还有 ${outstanding.goods} 人未收齐`);
+        if(outstanding.share) parts.push(`均摊收款还有 ${outstanding.share} 人未收齐`);
+        const message=parts.length?`${parts.join('，')}。\n仍要把「${sheet.name}」标记为已完成吗？`:`确认把「${sheet.name}」归入已完成吗？`;
+        if(!await appConfirm(message,'标记排单完成','确认完成')) return;
+        sheet.completed=true; sheet.completedAt=new Date().toISOString(); sheetStatusFilter='completed';
+      }
+      localStorage.setItem(SHEET_STATUS_FILTER_KEY,sheetStatusFilter); saveState(); renderSheetTabs();
+    }
+    $('toggleSheetCompletedBtn').addEventListener('click',toggleActiveSheetCompleted);
+    $('mobileToggleSheetCompletedBtn').addEventListener('click',toggleActiveSheetCompleted);
+    $('sheetSearchInput').addEventListener('input',renderSheetTabs);
+    document.querySelector('.sheet-status-tabs').addEventListener('click',e=>{
+      const button=e.target.closest('[data-sheet-status-filter]'); if(!button) return;
+      sheetStatusFilter=button.dataset.sheetStatusFilter||'ongoing'; localStorage.setItem(SHEET_STATUS_FILTER_KEY,sheetStatusFilter); renderSheetTabs();
+    });
     $('sheetTabs').addEventListener('click',e=>{
       const tab=e.target.closest('[data-sheet]'); if(!tab) return;
       const id=parseInt(tab.dataset.sheet,10);
@@ -2832,17 +2895,19 @@ body.export-rendering .cart-count{ font-size:28px; }
     let draggedSheetId=null;
     $('sheetTabs').addEventListener('dragstart',e=>{
       const tab=e.target.closest('.sheet-tab'); if(!tab||e.target.closest('.sheet-close,.sheet-move')){ e.preventDefault(); return; }
+      const sourceSheet=sheets.find(sheet=>sheet.id===parseInt(tab.dataset.sheet,10)); if(!sourceSheet||isSheetCompleted(sourceSheet)){ e.preventDefault(); return; }
       draggedSheetId=parseInt(tab.dataset.sheet,10); tab.classList.add('dragging'); e.dataTransfer.effectAllowed='move';
       try{ e.dataTransfer.setData('text/plain',String(draggedSheetId)); }catch(_){}
     });
     $('sheetTabs').addEventListener('dragover',e=>{
       const tab=e.target.closest('.sheet-tab'); if(!tab||draggedSheetId==null||parseInt(tab.dataset.sheet,10)===draggedSheetId) return;
+      const targetSheet=sheets.find(sheet=>sheet.id===parseInt(tab.dataset.sheet,10)); if(!targetSheet||isSheetCompleted(targetSheet)) return;
       e.preventDefault(); e.dataTransfer.dropEffect='move'; document.querySelectorAll('.sheet-tab.drag-over').forEach(item=>item.classList.remove('drag-over')); tab.classList.add('drag-over');
     });
     $('sheetTabs').addEventListener('drop',e=>{
       const targetTab=e.target.closest('.sheet-tab'); if(!targetTab||draggedSheetId==null) return;
       e.preventDefault(); const targetId=parseInt(targetTab.dataset.sheet,10), sourceIndex=sheets.findIndex(sheet=>sheet.id===draggedSheetId), targetIndex=sheets.findIndex(sheet=>sheet.id===targetId);
-      if(sourceIndex<0||targetIndex<0||sourceIndex===targetIndex) return;
+      if(sourceIndex<0||targetIndex<0||sourceIndex===targetIndex||isSheetCompleted(sheets[sourceIndex])||isSheetCompleted(sheets[targetIndex])) return;
       const after=e.clientX>targetTab.getBoundingClientRect().left+targetTab.getBoundingClientRect().width/2;
       captureActiveSheet(); const [moving]=sheets.splice(sourceIndex,1); let insertAt=targetIndex+(after?1:0); if(sourceIndex<insertAt) insertAt--; sheets.splice(Math.max(0,Math.min(insertAt,sheets.length)),0,moving); saveState(); renderSheetTabs();
     });
@@ -3910,6 +3975,53 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; sticky.forEach(el=>{ el.style.position=''; });
       });
+    });
+    $('exportUnpaidPaymentBtn').addEventListener('click',async()=>{
+      clearPaymentSearchHighlight();
+      const source=$('paymentSummary'), sourceTable=source.querySelector('table');
+      if(typeof html2canvas==='undefined'||!sourceTable){ alert('还没有收款数据'); return; }
+      const receivedByPerson=new Map([...source.querySelectorAll('[data-payment-paid]')].map(button=>[
+        decodeURIComponent(button.dataset.paymentPaid||''),
+        {total:Math.max(0,num(button.dataset.paymentAmount)),received:Math.max(0,num(button.dataset.paymentReceived))}
+      ]));
+      const clone=source.cloneNode(true); clone.removeAttribute('id'); clone.classList.add('payment-unpaid-export');
+      const cloneTable=clone.querySelector('table'), groupedRows=new Map();
+      cloneTable.querySelectorAll('tbody tr[data-payment-person]').forEach(row=>{
+        const key=row.dataset.paymentPerson||'';
+        if(!groupedRows.has(key)) groupedRows.set(key,[]);
+        groupedRows.get(key).push(row);
+      });
+      let unpaidPeople=0,unpaidTotal=0;
+      groupedRows.forEach((rows,key)=>{
+        const amounts=receivedByPerson.get(key)||{total:0,received:0}, due=Math.max(0,amounts.total-amounts.received);
+        if(due<=0.005){ rows.forEach(row=>row.remove()); return; }
+        unpaidPeople++; unpaidTotal+=due;
+        if(amounts.received>0){
+          const firstRow=rows[0], editable=[...firstRow.querySelectorAll('[data-payment-key]')];
+          const alipay=editable.find(el=>decodeURIComponent(el.dataset.paymentKey||'').startsWith('alipay:'));
+          const wechat=editable.find(el=>decodeURIComponent(el.dataset.paymentKey||'').startsWith('wechat:'));
+          if(alipay) alipay.textContent=due.toFixed(2);
+          if(wechat){ const fee=Math.ceil(((due<=100?due+0.1:due*1.001)-1e-9)*100)/100; wechat.textContent=fee.toFixed(2); }
+        }
+        rows.forEach(row=>row.querySelectorAll('.payment-adjustment-note,.payment-received-note').forEach(note=>note.remove()));
+      });
+      if(!unpaidPeople){ alert('当前范围已经全部收齐'); return; }
+      const title=clone.querySelector('.payment-project-title');
+      if(title) title.textContent=`${paymentTitle||'未命名项目'}｜未肾`;
+      const totalLabel=clone.querySelector('.payment-total-label'),totalValue=clone.querySelector('.payment-total-value');
+      if(totalLabel) totalLabel.textContent=`未交合计（${unpaidPeople}人）`;
+      if(totalValue) totalValue.textContent=money(unpaidTotal);
+      clone.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+      clone.style.position='fixed'; clone.style.left='-10000px'; clone.style.top='0'; clone.style.zIndex='-1'; clone.style.pointerEvents='none'; clone.style.background='#fff';
+      document.body.appendChild(clone);
+      const scroller=clone.querySelector('.payment-table-wrap'), table=clone.querySelector('table'), sticky=[...table.querySelectorAll('th')], width=Math.max(680,table.scrollWidth+4);
+      scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; clone.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
+      const fileName=((paymentTitle||'收款统计')+' 未肾').replace(/[\\/:*?"<>|]/g,' ').trim()||'未肾';
+      try{
+        const canvas=await renderExportCanvas(clone,{backgroundColor:'#ffffff',scale:2,width:clone.scrollWidth,height:clone.scrollHeight,windowWidth:clone.scrollWidth+40,windowHeight:clone.scrollHeight+40});
+        await saveCanvasImage(canvas,fileName+'.png');
+      }catch(err){ alert('导出失败，请重试'); }
+      finally{ clone.remove(); }
     });
     $('exportPaymentExcelBtn').addEventListener('click',()=>{
       const table=$('paymentSummary').querySelector('table');
