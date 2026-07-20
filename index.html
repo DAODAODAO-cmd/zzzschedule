@@ -2010,7 +2010,7 @@ class Component extends DCLogic {
     function paymentReceivedNote(received,total){
       const safeTotal=Math.max(0,num(total)), safeReceived=Math.max(0,num(received));
       if(!(safeReceived>0&&safeReceived<safeTotal-0.005)) return '';
-      return `<span class="payment-received-note">已收 ${money(safeReceived)}，待收 ${money(safeTotal-safeReceived)}</span>`;
+      return `<span class="payment-received-note" data-html2canvas-ignore="true">已收 ${money(safeReceived)}，待收 ${money(safeTotal-safeReceived)}</span>`;
     }
     function paymentAdjustmentNote(refund,supplement){
       if(!(refund>0||supplement>0)) return '';
@@ -3396,7 +3396,7 @@ class Component extends DCLogic {
       const exportTable=document.createElement('table'), body=document.createElement('tbody');
       const titleRow=document.createElement('tr'), titleCell=document.createElement('td');
       titleCell.colSpan=5; titleCell.textContent=paymentTitle||'未命名项目'; titleRow.appendChild(titleCell); body.appendChild(titleRow);
-      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove()); body.appendChild(copy); });
+      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove()); body.appendChild(copy); });
       exportTable.appendChild(body);
       const ws=XLSX.utils.table_to_sheet(exportTable,{raw:true});
       ws['!cols']=[{wch:16},{wch:24},{wch:10},{wch:16},{wch:16}];
@@ -3405,7 +3405,7 @@ class Component extends DCLogic {
     });
     $('copyPaymentBtn').addEventListener('click',()=>{
       const table=$('paymentSummary').querySelector('table'); if(!table){ alert('还没有收款数据'); return; }
-      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove());
+      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove());
       const lines=[...cleanTable.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const b=$('copyPaymentBtn'),old=b.textContent;b.textContent='已复制';setTimeout(()=>b.textContent=old,1200); });
     });
@@ -3426,13 +3426,13 @@ class Component extends DCLogic {
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       const exportTable=document.createElement('table'), body=document.createElement('tbody'), titleRow=document.createElement('tr'), titleCell=document.createElement('td');
       titleCell.colSpan=5; titleCell.textContent=sharePaymentTitle||'均摊统计'; titleRow.appendChild(titleCell); body.appendChild(titleRow);
-      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove()); body.appendChild(copy); });
+      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove()); body.appendChild(copy); });
       exportTable.appendChild(body); const ws=XLSX.utils.table_to_sheet(exportTable,{raw:true}); ws['!cols']=[{wch:16},{wch:24},{wch:10},{wch:16},{wch:16}];
       const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'均摊统计'); XLSX.writeFile(wb,(sharePaymentTitle||'均摊统计')+'.xlsx');
     });
     $('copySharePaymentBtn').addEventListener('click',()=>{
       const table=$('sharePaymentSummary').querySelector('table'); if(!table){ alert('还没有均摊数据'); return; }
-      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove());
+      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove());
       const lines=[...cleanTable.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const b=$('copySharePaymentBtn'),old=b.textContent;b.textContent='已复制';setTimeout(()=>b.textContent=old,1200); });
     });
