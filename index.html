@@ -42,6 +42,7 @@
 
   <main class="app-main">
   <section class="cloud-hub" id="cloudHub">
+  <div id="collabCompactStatus" class="collab-compact-status">○ 实时协作未开启，请先到设置开启</div>
 
   <div class="cloudbar">
     <input id="syncCodeInput" type="text" maxlength="24" placeholder="同步码">
@@ -87,7 +88,7 @@
           <option value="single">单个日元原价</option>
         </select>
       </div>
-      <div class="count-field"><label>谷子数量（可不填，默认=列数）</label><input id="count" type="text" inputmode="numeric" pattern="[0-9]*"></div>
+      <div class="count-field"><label>谷子数量<span class="desktop-field-note">（可不填，默认=列数）</span></label><input id="count" type="text" inputmode="numeric" pattern="[0-9]*"></div>
       <div class="jpy-field"><label>日元原价</label><input id="jpyPrice" type="text" inputmode="decimal"></div>
       <div class="rate-field"><label>汇率</label><input id="exchangeRate" type="text" inputmode="decimal"></div>
       <div class="manual-average-field"><label>手动均价（原价未填时用）</label><input id="manualAveragePrice" type="text" inputmode="decimal"></div>
@@ -328,12 +329,11 @@
     </div>
     <div class="cart-controls">
       <label class="hint hintrow">目标配数
-        <select id="cartTargetMode">
+        <span class="cart-target-inputs"><select id="cartTargetMode">
           <option value="auto">自动（当前最多数量）</option>
           <option value="manual">手动指定</option>
-        </select>
+        </select><input type="number" id="cartTargetNum" min="1" style="width:90px; display:none;"></span>
       </label>
-      <input type="number" id="cartTargetNum" min="1" style="width:90px; display:none;">
       <label class="hint hintrow">图上显示
         <select id="cartCountMode"><option value="short">差多少</option><option value="ordered">排了多少</option></select>
       </label>
@@ -413,7 +413,9 @@ class Component extends DCLogic {
 .desktop-app-nav button.active{ background:#fff0f4; box-shadow:inset 3px 0 0 var(--accent); }
 .desktop-app-nav button.active>span{ background:var(--accent); color:#fff; }
 .cloud-hub{ position:sticky; top:0; z-index:24; padding:1px 0 4px; background:rgba(250,248,251,.94); backdrop-filter:blur(12px); }
-.mobile-sheet-switch,.mobile-bottom-nav{ display:none; }
+.mobile-sheet-switch,.mobile-bottom-nav,.collab-compact-status{ display:none; }
+.wrap:not([data-active-section="settings"]) .cloudbar,.wrap:not([data-active-section="settings"]) .edit-lock-controls,.wrap:not([data-active-section="settings"]) .collab-activity{ display:none!important; }
+.wrap:not([data-active-section="settings"]) .collab-compact-status{ display:block; margin:0 0 7px; padding:8px 11px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--muted); font-size:12px; font-weight:900; text-align:center; }
 .app-section-hidden{ display:none!important; }
 .settings-cloud-tip{ display:flex; flex-direction:column; gap:4px; margin-bottom:12px; padding:12px; border:1px solid #ead9df; border-radius:10px; background:#fff7fa; color:var(--muted); font-size:12px; }
 .settings-cloud-tip strong{ color:var(--accent); }
@@ -726,6 +728,7 @@ class Component extends DCLogic {
 .cart-controls{ display:flex; align-items:center; gap:12px; flex-wrap:nowrap; margin-bottom:12px; }
 .cart-controls label{ margin:0; white-space:nowrap; }
 .cart-controls select{ width:auto; min-width:150px; }
+.cart-target-inputs{ display:flex; align-items:center; gap:5px; }
 #cartGrid{ display:grid; grid-template-columns:repeat(var(--cart-cols,4),minmax(0,1fr)); gap:18px; align-items:start; }
 .cart-card{ position:relative; border:1px solid rgba(225,216,230,.9); border-radius:16px; overflow:hidden; background:#fff; box-shadow:0 7px 20px rgba(57,38,66,.09); }
 .cart-card .cart-img{ width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:#eceaf0; }
@@ -753,6 +756,8 @@ class Component extends DCLogic {
   .app-main{ width:100%; }
   .cloud-hub{ top:0; margin:-10px -9px 8px; padding:8px 9px 2px; border-bottom:1px solid rgba(220,211,224,.9); background:rgba(250,248,251,.96); }
   .wrap:not([data-active-section="settings"]) .cloudbar{ display:none; }
+  .wrap:not([data-active-section="settings"]) .edit-lock-controls,.wrap:not([data-active-section="settings"]) .collab-activity{ display:none!important; }
+  .wrap:not([data-active-section="settings"]) .collab-compact-status{ display:block; margin:0 0 6px; padding:7px 10px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--muted); font-size:11px; font-weight:900; text-align:center; }
   .edit-lock-controls{ margin:0 0 6px; padding:7px; border-radius:10px; }
   .edit-lock-controls label{ flex:1 1 145px; width:auto; }
   .edit-lock-controls input{ min-width:90px; }
@@ -809,7 +814,78 @@ class Component extends DCLogic {
   .cart-card .cart-name{ font-size:14px; }
   .cart-badge{ font-size:19px; }
   .cart-count{ font-size:22px; }
+  body:not(.export-rendering) .desktop-field-note{ display:none; }
+  body:not(.export-rendering) #matrixPanel{ padding:8px; }
+  body:not(.export-rendering) #matrixPanel .matrix-heading-tools{ gap:5px; margin-bottom:6px; }
+  body:not(.export-rendering) #matrixPanel .matrix-heading-tools input{ min-height:32px; padding:5px 7px; }
+  body:not(.export-rendering) #matrixPanel .matrix-options{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:3px; margin:0 0 6px; }
+  body:not(.export-rendering) #matrixPanel .matrix-options .matrix-toggle{ min-width:0; min-height:29px; padding:3px 1px; border-radius:6px; font-size:9px; line-height:1.1; white-space:normal; }
+  body:not(.export-rendering) #matrixPanel .matrix-tip{ margin-bottom:6px; padding:5px 7px; font-size:10px; }
+  body:not(.export-rendering) #matrixPanel .matrix-project-title{ padding:7px 9px; font-size:15px; }
+  body:not(.export-rendering) #matrixTable{ font-size:10.5px; }
+  body:not(.export-rendering) #matrixTable td,body:not(.export-rendering) #matrixTable th{ min-width:70px; padding:4px 5px; }
+  body:not(.export-rendering) #matrixTable td.seq-col,body:not(.export-rendering) #matrixTable th:first-child{ min-width:32px; width:32px; }
+  body:not(.export-rendering) #matrixTable tr.adj-row td:first-child,body:not(.export-rendering) #matrixTable tr.price-row td:first-child,body:not(.export-rendering) #matrixTable tr.promotion-point-row td:first-child{ min-width:46px; width:46px; }
+  body:not(.export-rendering) #matrixTable [contenteditable=true],body:not(.export-rendering) #matrixTable .matrix-price-input{ font-size:11px!important; }
+  body:not(.export-rendering) #quantityPanel{ padding:8px; }
+  body:not(.export-rendering) .quantity-controls{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-bottom:6px; }
+  body:not(.export-rendering) .quantity-controls label{ min-width:0; flex-direction:column; align-items:stretch; gap:3px; font-size:10px; text-align:center; }
+  body:not(.export-rendering) .quantity-controls>.hint{ grid-column:1/-1; font-size:9.5px; text-align:center; }
+  body:not(.export-rendering) .count-value-editor{ width:100%; min-width:0; min-height:29px; padding:3px 4px; border-radius:6px; font-size:12px; }
+  body:not(.export-rendering) .count-value-editor:empty::before{ font-size:9.5px; }
+  body:not(.export-rendering) .quantity-section-title{ margin:7px 0 4px; font-size:11px; }
+  body:not(.export-rendering) .quantity-table{ font-size:10.5px; }
+  body:not(.export-rendering) .quantity-table th,body:not(.export-rendering) .quantity-table td{ padding:4px 5px; }
+  body:not(.export-rendering) .quantity-breakdown{ min-width:72px; }
+  body:not(.export-rendering) .quantity-breakdown strong{ font-size:10.5px; }
+  body:not(.export-rendering) .quantity-breakdown small,body:not(.export-rendering) .quantity-ride-table .ride-item small,body:not(.export-rendering) .quantity-ride-table .ride-status small{ font-size:8.5px; }
+  body:not(.export-rendering) .quantity-ride-table .ride-item,body:not(.export-rendering) .quantity-ride-table .ride-status{ min-width:78px; }
+  body:not(.export-rendering) .cart-controls{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; overflow:visible; padding:0; }
+  body:not(.export-rendering) .cart-controls label{ min-width:0; display:flex; flex-direction:column; align-items:stretch; gap:3px; font-size:9.5px!important; }
+  body:not(.export-rendering) .cart-controls select{ width:100%; min-width:0; height:31px; padding:4px 20px 4px 5px; font-size:10px; }
+  body:not(.export-rendering) .cart-target-inputs{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px; }
+  body:not(.export-rendering) #cartTargetNum{ width:45px!important; min-width:0; height:31px; padding:3px; font-size:10px; }
+  body:not(.export-rendering) #cartTargetInfo{ grid-column:1/-1; min-width:0; font-size:9.5px; white-space:normal; }
+  body:not(.export-rendering) #paymentPanel{ margin-left:-3px; margin-right:-3px; padding:8px; }
+  body:not(.export-rendering) .payment-tabs{ margin-bottom:6px; padding:3px; }
+  body:not(.export-rendering) .payment-tab{ padding:6px 7px; font-size:11px; }
+  body:not(.export-rendering) .payment-range-tools{ gap:5px; margin-top:6px; padding:6px; font-size:10px; }
+  body:not(.export-rendering) .payment-range-tools input[type=number]{ width:52px; padding:4px; font-size:11px; }
+  body:not(.export-rendering) .payment-heading-tools{ gap:5px; }
+  body:not(.export-rendering) .payment-heading-tools label{ gap:3px; font-size:10px; }
+  body:not(.export-rendering) .payment-search-tools{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px; margin-top:6px; }
+  body:not(.export-rendering) .payment-search-tools input{ width:100%; min-width:0; font-size:12px; }
+  body:not(.export-rendering) .payment-unpaid-count{ grid-column:1/-1; width:100%; min-width:0; margin-left:0; padding:5px 6px; font-size:9.5px; line-height:1.45; white-space:normal; overflow-wrap:anywhere; }
+  body:not(.export-rendering) .payment-summary{ margin-top:7px; }
+  body:not(.export-rendering) .payment-project-title{ padding:7px 9px; font-size:15px; }
+  body:not(.export-rendering) .payment-table{ min-width:540px; font-size:10.5px; }
+  body:not(.export-rendering) .payment-table th,body:not(.export-rendering) .payment-table td{ padding:4px 5px; font-size:10.5px; }
+  body:not(.export-rendering) .payment-cn-controls{ grid-template-columns:16px 23px 23px; gap:2px; width:66px; margin-right:3px; }
+  body:not(.export-rendering) .wrap .payment-paid-check{ width:16px; height:16px; min-width:16px; font-size:11px; }
+  body:not(.export-rendering) .wrap .payment-refund-check,body:not(.export-rendering) .wrap .payment-supplement-check{ width:23px; min-width:23px; height:16px; font-size:9px; }
+  body:not(.export-rendering) .payment-adjustment-note,body:not(.export-rendering) .payment-received-note{ font-size:9px; }
 }
+body.export-rendering #matrixTable{ font-size:13px; }
+body.export-rendering #matrixTable td,body.export-rendering #matrixTable th{ min-width:92px; padding:8px 10px; }
+body.export-rendering #matrixTable td.seq-col,body.export-rendering #matrixTable th:first-child{ min-width:38px; width:38px; }
+body.export-rendering #matrixTable tr.adj-row td:first-child,body.export-rendering #matrixTable tr.price-row td:first-child,body.export-rendering #matrixTable tr.promotion-point-row td:first-child{ min-width:58px; width:58px; }
+body.export-rendering #matrixTable [contenteditable=true],body.export-rendering #matrixTable .matrix-price-input{ font-size:14px!important; }
+body.export-rendering .quantity-table{ font-size:13px; }
+body.export-rendering .quantity-table th,body.export-rendering .quantity-table td{ padding:7px 9px; }
+body.export-rendering .quantity-breakdown{ min-width:92px; }
+body.export-rendering .quantity-breakdown strong{ font-size:13px; }
+body.export-rendering .quantity-breakdown small,body.export-rendering .quantity-ride-table .ride-item small,body.export-rendering .quantity-ride-table .ride-status small{ font-size:10.5px; }
+body.export-rendering .quantity-ride-table .ride-item,body.export-rendering .quantity-ride-table .ride-status{ min-width:105px; }
+body.export-rendering .payment-project-title{ padding:11px 14px; font-size:19px; }
+body.export-rendering .payment-table{ min-width:0; font-size:14.5px; }
+body.export-rendering .payment-table th{ padding:7px 8px; font-size:14px; }
+body.export-rendering .payment-table td{ padding:7px 8px; font-size:14.5px; }
+body.export-rendering #cartWrap{ padding:24px; }
+body.export-rendering #cartHeader{ font-size:27px; }
+body.export-rendering #cartGrid{ gap:18px; }
+body.export-rendering .cart-card .cart-name{ font-size:17px; }
+body.export-rendering .cart-badge{ font-size:25px; }
+body.export-rendering .cart-count{ font-size:28px; }
 `;
       document.head.appendChild(st);
     }
@@ -859,7 +935,7 @@ class Component extends DCLogic {
     let syncCode=localStorage.getItem('ggzSyncCode')||'';
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
     let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false;
-    let activeAppSection=['goods','order','stats','payment','settings'].includes(localStorage.getItem(APP_SECTION_KEY))?localStorage.getItem(APP_SECTION_KEY):'order';
+    let activeAppSection='settings';
     const editSessionId=sessionStorage.getItem('ggzEditSessionId')||((crypto.randomUUID&&crypto.randomUUID())||('tab-'+Date.now()+'-'+Math.random().toString(36).slice(2)));
     sessionStorage.setItem('ggzEditSessionId',editSessionId);
     lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):'';
@@ -1358,13 +1434,21 @@ class Component extends DCLogic {
       }finally{ applyingCollab=false; }
     }
     function collabResultRow(data){ return Array.isArray(data)?(data[0]||null):(data||null); }
-    function setCollabStatus(text,tone){ const el=$('collabStatus'); el.textContent=text; el.style.color=tone==='bad'?'var(--bad)':(tone==='warn'?'var(--warn)':(tone==='ok'?'var(--ok)':'var(--muted)')); }
+    function syncCompactCollabStatus(){
+      const compact=$('collabCompactStatus'); if(!compact) return;
+      compact.textContent=collabEnabled?'● 实时协作已开启':'○ 实时协作未开启，请先到设置开启';
+      compact.style.color=collabEnabled?'var(--ok)':'var(--warn)';
+      compact.style.borderColor=collabEnabled?'#b9dfc5':'#ecd3aa';
+      compact.style.background=collabEnabled?'#f0faf3':'#fff9ef';
+    }
+    function setCollabStatus(text,tone){ const el=$('collabStatus'); el.textContent=text; el.style.color=tone==='bad'?'var(--bad)':(tone==='warn'?'var(--warn)':(tone==='ok'?'var(--ok)':'var(--muted)')); syncCompactCollabStatus(); }
     function syncCollabUI(){
       $('startCollabBtn').disabled=collabEnabled||!syncCode;
       $('stopCollabBtn').disabled=!collabEnabled;
       $('collabActivityPanel').style.display=collabEnabled?'block':'none';
       document.documentElement.classList.remove('cloud-edit-readonly');
       $('editLockBanner').style.display='none';
+      syncCompactCollabStatus();
     }
     function stopCollabPolling(){ if(collabPollTimer){ clearInterval(collabPollTimer); collabPollTimer=null; } }
     function startCollabPolling(){ stopCollabPolling(); if(collabEnabled) collabPollTimer=setInterval(pollCollabState,COLLAB_POLL_MS); }
@@ -2489,6 +2573,11 @@ class Component extends DCLogic {
       const syncMobileKeyboard=()=>document.body.classList.toggle('mobile-keyboard-open',window.innerWidth<=760&&window.visualViewport.height<window.innerHeight*.72);
       window.visualViewport.addEventListener('resize',syncMobileKeyboard); syncMobileKeyboard();
     }
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&collabEnabled&&(collabNeedsSend||collabSendTimer)) flushCollabChanges(); });
+    window.addEventListener('beforeunload',e=>{
+      if(!collabEnabled||(!collabNeedsSend&&!collabSending&&!collabSendTimer)) return;
+      e.preventDefault(); e.returnValue='';
+    });
 
     $('parseBtn').addEventListener('click',()=>{
       clearMatrixPreview();
@@ -3575,7 +3664,23 @@ class Component extends DCLogic {
     }
     async function renderExportCanvas(root,options){
       await waitForExportImages(root);
-      return html2canvas(root,{useCORS:true,allowTaint:false,imageTimeout:20000,logging:false,...options});
+      const beforeWidth=root.scrollWidth,beforeHeight=root.scrollHeight;
+      const dynamicWidth=!options.width||Math.abs(options.width-beforeWidth)<2;
+      const dynamicHeight=!options.height||Math.abs(options.height-beforeHeight)<2;
+      const dynamicWindowWidth=dynamicWidth&&options.windowWidth&&options.width&&Math.abs(options.windowWidth-options.width-40)<2;
+      const dynamicWindowHeight=dynamicHeight&&options.windowHeight&&options.height&&Math.abs(options.windowHeight-options.height-40)<2;
+      document.body.classList.add('export-rendering');
+      try{
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        const measured={...options};
+        if(dynamicWidth) measured.width=root.scrollWidth;
+        if(dynamicHeight) measured.height=root.scrollHeight;
+        if(dynamicWindowWidth) measured.windowWidth=measured.width+40;
+        if(dynamicWindowHeight) measured.windowHeight=measured.height+40;
+        return await html2canvas(root,{useCORS:true,allowTaint:false,imageTimeout:20000,logging:false,...measured});
+      }finally{
+        document.body.classList.remove('export-rendering');
+      }
     }
     async function saveCanvasImage(canvas,filename){
       const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
