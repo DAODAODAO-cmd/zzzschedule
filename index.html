@@ -378,6 +378,13 @@
     <button type="button" data-app-section="payment"><span>¥</span><b>收款</b></button>
     <button type="button" data-app-section="settings"><span>⚙</span><b>设置</b></button>
   </nav>
+  <div id="appConfirmOverlay" class="app-confirm-overlay" hidden>
+    <div class="app-confirm-card" role="dialog" aria-modal="true" aria-labelledby="appConfirmTitle">
+      <strong id="appConfirmTitle">请确认</strong>
+      <p id="appConfirmMessage"></p>
+      <div><button type="button" class="btn-ghost" id="appConfirmCancel">取消</button><button type="button" class="btn-primary" id="appConfirmOk">继续开启</button></div>
+    </div>
+  </div>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script>
@@ -422,6 +429,12 @@ class Component extends DCLogic {
 .settings-data-actions{ width:100%; }
 .settings-data-actions>summary{ cursor:default; }
 .settings-data-actions>.data-actions-pop{ position:static; width:100%; max-width:none; margin-top:8px; box-shadow:none; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.app-confirm-overlay{ position:fixed; z-index:200; inset:0; display:grid; place-items:center; padding:18px; background:rgba(35,27,40,.38); backdrop-filter:blur(3px); }
+.app-confirm-overlay[hidden]{ display:none; }
+.app-confirm-card{ width:min(400px,100%); padding:18px; border:1px solid #eadde5; border-radius:15px; background:#fff; box-shadow:0 18px 55px rgba(43,28,50,.22); }
+.app-confirm-card strong{ display:block; color:var(--text); font-size:16px; }
+.app-confirm-card p{ margin:9px 0 16px; color:var(--muted); font-size:13px; line-height:1.65; white-space:pre-wrap; }
+.app-confirm-card>div{ display:flex; justify-content:flex-end; gap:8px; }
 .wrap header{ margin-bottom:14px; }
 .wrap .eyebrow{ font-size:12px; letter-spacing:.2em; color:var(--accent); font-weight:700; }
 .wrap h1{ margin:3px 0 0; font-size:24px; font-weight:800; letter-spacing:.02em; }
@@ -1212,6 +1225,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       document.querySelectorAll('[data-app-section]').forEach(button=>button.classList.toggle('active',button.dataset.appSection===section));
       if(scrollToTop) window.scrollTo({top:0,behavior:'smooth'});
     }
+    function appConfirm(message,title='请确认',okText='确定'){
+      return new Promise(resolve=>{
+        const overlay=$('appConfirmOverlay'), ok=$('appConfirmOk'), cancel=$('appConfirmCancel');
+        $('appConfirmTitle').textContent=title; $('appConfirmMessage').textContent=message; ok.textContent=okText; overlay.hidden=false;
+        const finish=value=>{ overlay.hidden=true; ok.removeEventListener('click',accept); cancel.removeEventListener('click',reject); overlay.removeEventListener('click',backdrop); document.removeEventListener('keydown',keyboard); resolve(value); };
+        const accept=()=>finish(true), reject=()=>finish(false), backdrop=e=>{ if(e.target===overlay) finish(false); }, keyboard=e=>{ if(e.key==='Escape') finish(false); };
+        ok.addEventListener('click',accept); cancel.addEventListener('click',reject); overlay.addEventListener('click',backdrop); document.addEventListener('keydown',keyboard); setTimeout(()=>ok.focus(),0);
+      });
+    }
     function syncMatrixOptions(){
       const pricing=$('showPricingRow'), unit=$('showUnitPriceRow'), promotion=$('showPromotionPointRow'), complete=$('showCompleteRowColor'), cold=$('showColdPromotionColor');
       pricing.textContent=showPricingRow?'隐藏调价':'显示调价';
@@ -1555,7 +1577,10 @@ body.export-rendering .cart-count{ font-size:28px; }
         const initialState=collabProjectSnapshot(), client=getCloudClient(code), {data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),20000);
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作状态为空');
-        if(!autoStart&&!collabStatesEqual(row.out_state,initialState)&&!confirm('协作云端已经有其他人的版本。开启后会先以协作云端为准，确定继续吗？')){ syncCollabUI(); return false; }
+        if(!autoStart&&!collabStatesEqual(row.out_state,initialState)){
+          const accepted=await appConfirm('协作云端已经有其他人的版本。开启后会先以协作云端为准，确定继续吗？','发现协作版本','继续开启');
+          if(!accepted){ syncCollabUI(); return false; }
+        }
         collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=deepClone(row.out_state); installCollabState(row.out_state);
         localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1'); clearIdleCloudUpload(); startCollabPolling(); syncCollabUI(); startCollabPresence(); setCollabStatus(`实时协作已连接 · 版本 ${collabRevision}`,'ok'); setCloudStatus('完整云端备份可手动上传'); return true;
       }catch(error){
