@@ -824,7 +824,7 @@ html{ scrollbar-gutter:stable; }
   .cloud-hub{ top:0; margin:-10px -9px 8px; padding:8px 9px 2px; border-bottom:1px solid rgba(220,211,224,.9); background:rgba(250,248,251,.96); }
   .wrap:not([data-active-section="settings"]) .cloudbar{ display:none; }
   .wrap:not([data-active-section="settings"]) .edit-lock-controls,.wrap:not([data-active-section="settings"]) .collab-activity{ display:none!important; }
-  .wrap:not([data-active-section="settings"]) .collab-compact-status{ display:block; margin:0 0 6px; padding:7px 10px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--muted); font-size:11px; font-weight:900; text-align:center; }
+  .wrap:not([data-active-section="settings"]) .collab-compact-status{ display:block; margin:0 0 6px; padding:6px 8px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--muted); font-size:9.5px; font-weight:900; text-align:center; }
   .edit-lock-controls{ margin:0 0 6px; padding:7px; border-radius:10px; }
   .edit-lock-controls label{ flex:1 1 145px; width:auto; }
   .edit-lock-controls input{ min-width:90px; }
@@ -836,13 +836,13 @@ html{ scrollbar-gutter:stable; }
   .edit-lock-controls label{ gap:4px; font-size:10px; }
   #localStatus,#cloudStatus,#collabStatus{ font-size:9.5px; }
   .mobile-sheet-switch{ position:relative; z-index:18; display:grid; grid-template-columns:minmax(0,1fr) repeat(4,38px); gap:4px; align-items:end; margin:0 0 9px; padding:7px; border:1px solid var(--line); border-radius:12px; background:#fff; box-shadow:0 4px 14px rgba(55,37,65,.06); }
-  .mobile-sheet-switch label{ display:grid; gap:3px; margin:0; color:var(--muted); font-size:10.5px; font-weight:800; }
+  .mobile-sheet-switch label{ display:grid; gap:3px; margin:0; color:var(--muted); font-size:9.5px; font-weight:800; }
   .mobile-sheet-switch select{ width:100%; min-width:0; height:36px; padding:6px 27px 6px 9px; border-color:#dbcfd9; color:var(--text); font-weight:800; }
   .mobile-sheet-switch button{ min-width:0; width:38px; height:36px; padding:5px 2px; font-size:9.5px; }
   .mobile-bottom-nav{ position:fixed; z-index:80; left:0; right:0; bottom:var(--browser-bottom-offset,0px); display:grid; grid-template-columns:repeat(5,1fr); padding:6px 7px calc(6px + constant(safe-area-inset-bottom)); padding-bottom:calc(6px + env(safe-area-inset-bottom)); border-top:1px solid rgba(220,211,224,.96); background:rgba(255,255,255,.96); box-shadow:0 -8px 24px rgba(47,31,56,.1); -webkit-backdrop-filter:blur(15px); backdrop-filter:blur(15px); transform:translateZ(0); }
   .mobile-bottom-nav button{ display:grid; place-items:center; gap:1px; min-width:0; min-height:50px; padding:4px 2px; border:0; border-radius:10px; background:transparent; color:#8b8392; font-size:10px; cursor:pointer; }
   .mobile-bottom-nav button span{ font-size:18px; font-weight:900; line-height:1; }
-  .mobile-bottom-nav button b{ font-size:10.5px; }
+  .mobile-bottom-nav button b{ font-size:9.5px; }
   .mobile-bottom-nav button.active{ background:#fff0f4; color:var(--accent); }
   .mobile-bottom-nav button.active b{ font-weight:900; }
   .custom-select-overlay{ background:rgba(31,24,36,.24); backdrop-filter:blur(1px); }
@@ -851,13 +851,13 @@ html{ scrollbar-gutter:stable; }
   .custom-select-option{ min-height:31px; padding:5px 8px; font-size:11px; }
   body.mobile-keyboard-open .mobile-bottom-nav{ display:none; }
   .settings-data-actions>.data-actions-pop{ position:static; left:auto; right:auto; bottom:auto; width:100%; max-width:none; grid-template-columns:1fr; }
-  footer{ padding-bottom:12px; }
+  footer{ padding:5px 8px 12px; color:var(--muted); font-size:9px; line-height:1.45; text-align:center; }
 }
 @media(max-width:620px){
-  .wrap{ padding:12px 9px calc(84px + constant(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); padding-bottom:calc(84px + env(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); font-size:13px; }
+  .wrap{ padding:12px 9px calc(84px + constant(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); padding-bottom:calc(84px + env(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); font-size:10.5px; }
   .wrap header{ margin-bottom:9px; }
-  .wrap h1{ font-size:19px; }
-  .wrap h2{ font-size:14px; }
+  .wrap h1{ font-size:17px; }
+  .wrap h2{ font-size:12px; }
   .desktop-setup.app-section-hidden{ display:none!important; }
   .cloudbar{ gap:6px; }
   .cloudbar input{ width:calc(50% - 3px); flex:1 1 140px; }
@@ -868,12 +868,12 @@ html{ scrollbar-gutter:stable; }
   .wrap .panel{ padding:12px; margin-bottom:9px; }
   #matrixPanel .toolbar > *{ display:inline-flex!important; }
   .matrix-tip,.matrix-options{ display:flex; }
-  .wrap button,.wrap .btn-ghost,.wrap .btn-primary,.wrap .btn-danger,.wrap label{ font-size:12.5px; }
-  .wrap .hint,.wrap .cost-human-tip{ font-size:11.5px; }
-  .wrap input[type=text],.wrap input[type=number],.wrap textarea,.wrap select{ font-size:14px; }
-  .wrap table{ font-size:12.5px; }
-  #matrixTable [contenteditable=true],.payment-table [contenteditable=true]{ font-size:14px; }
-  .matrix-price-input{ font-size:14px!important; }
+  .wrap button,.wrap .btn-ghost,.wrap .btn-primary,.wrap .btn-danger,.wrap label{ font-size:10px; }
+  .wrap .hint,.wrap .cost-human-tip{ font-size:9.5px; }
+  .wrap input[type=text],.wrap input[type=number],.wrap textarea,.wrap select{ font-size:11px; }
+  .wrap table{ font-size:10.5px; }
+  #matrixTable [contenteditable=true],.payment-table [contenteditable=true]{ font-size:11px; }
+  .matrix-price-input{ font-size:11px!important; }
   #matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child,#matrixTable tr.promotion-point-row td:first-child{ min-width:62px; width:62px; background:#f5f2f6; }
   #matrixTable thead td:first-child,#matrixTable thead th:first-child{ background:#f5f2f6; }
   .cart-controls{ overflow-x:auto; padding-bottom:3px; }
@@ -897,7 +897,7 @@ html{ scrollbar-gutter:stable; }
   body:not(.export-rendering) #matrixPanel .matrix-options{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:3px; margin:0 0 6px; }
   body:not(.export-rendering) #matrixPanel .matrix-options .matrix-toggle{ min-width:0; min-height:29px; padding:3px 1px; border-radius:6px; font-size:9px; line-height:1.1; white-space:normal; }
   body:not(.export-rendering) #matrixPanel .matrix-tip{ margin-bottom:6px; padding:5px 7px; font-size:10px; }
-  body:not(.export-rendering) #matrixPanel .matrix-project-title{ padding:7px 9px; font-size:15px; }
+  body:not(.export-rendering) #matrixPanel .matrix-project-title{ padding:7px 9px; font-size:13px; }
   body:not(.export-rendering) #matrixTable{ font-size:10.5px; }
   body:not(.export-rendering) #matrixTable thead tr.header-row th{ font-size:10.5px; }
   body:not(.export-rendering) #matrixTable td,body:not(.export-rendering) #matrixTable th{ min-width:70px; padding:4px 5px; }
@@ -933,10 +933,10 @@ html{ scrollbar-gutter:stable; }
   body:not(.export-rendering) .payment-heading-tools label{ gap:3px; font-size:10px; }
   body:not(.export-rendering) .payment-search-tools{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px; margin-top:6px; }
   body:not(.export-rendering) .payment-search-tools input{ width:100%; min-width:0; font-size:12px; }
-  body:not(.export-rendering) .payment-search-tools input[type=text]{ font-size:16px!important; }
+  body:not(.export-rendering) .payment-search-tools input[type=text]{ font-size:11px!important; }
   body:not(.export-rendering) .payment-unpaid-count{ grid-column:1/-1; width:100%; min-width:0; margin-left:0; padding:5px 6px; font-size:9.5px; line-height:1.45; white-space:normal; overflow-wrap:anywhere; }
   body:not(.export-rendering) .payment-summary{ margin-top:7px; }
-  body:not(.export-rendering) .payment-project-title{ padding:7px 9px; font-size:15px; }
+  body:not(.export-rendering) .payment-project-title{ padding:7px 9px; font-size:13px; }
   body:not(.export-rendering) .payment-table{ min-width:540px; font-size:10.5px; }
   body:not(.export-rendering) .payment-table th,body:not(.export-rendering) .payment-table td{ padding:4px 5px; font-size:10.5px; }
   body:not(.export-rendering) .payment-table [contenteditable=true],body:not(.export-rendering) .payment-cn-name,body:not(.export-rendering) .payment-table td.payment-cn,body:not(.export-rendering) .payment-table td.payment-money{ font-size:10.5px!important; }
@@ -945,7 +945,7 @@ html{ scrollbar-gutter:stable; }
   body:not(.export-rendering) .wrap .payment-refund-check,body:not(.export-rendering) .wrap .payment-supplement-check{ width:23px; min-width:23px; height:16px; font-size:9px; }
   body:not(.export-rendering) .payment-adjustment-note,body:not(.export-rendering) .payment-received-note{ font-size:9px; }
   body:not(.export-rendering) #cartWrap{ padding:8px; border-radius:10px; }
-  body:not(.export-rendering) #cartHeader{ gap:8px; margin-bottom:8px; padding:8px 9px; border-radius:9px; font-size:14px; }
+  body:not(.export-rendering) #cartHeader{ gap:8px; margin-bottom:8px; padding:8px 9px; border-radius:9px; font-size:12px; }
   body:not(.export-rendering) #cartQrImage{ width:58px; height:58px; flex-basis:58px; border-radius:6px; }
   body:not(.export-rendering) #cartGrid{ gap:6px; }
   body:not(.export-rendering) .cart-card{ border-radius:10px; box-shadow:0 3px 10px rgba(57,38,66,.07); }
@@ -954,7 +954,7 @@ html{ scrollbar-gutter:stable; }
   body:not(.export-rendering) .cart-card .cart-price{ top:5px; left:5px; }
   body:not(.export-rendering) .cart-card .cart-count{ right:5px; bottom:34px; padding:5px 7px; font-size:12px; }
   body:not(.export-rendering) .app-main .panel{ padding:9px; }
-  body:not(.export-rendering) .app-main .panel>h2{ margin-bottom:7px; font-size:12.5px; }
+  body:not(.export-rendering) .app-main .panel>h2{ margin-bottom:7px; font-size:12px; }
   body:not(.export-rendering) .app-main .panel .panel-toggle{ padding:3px 6px; font-size:9px; }
   body:not(.export-rendering) .app-main .toolbar{ gap:4px; margin-top:6px; }
   body:not(.export-rendering) .app-main .toolbar button,body:not(.export-rendering) .app-main .toolbar .btn-ghost,body:not(.export-rendering) .app-main .toolbar .btn-primary,body:not(.export-rendering) .app-main .toolbar .btn-danger,body:not(.export-rendering) .app-main .toolbar label.btn-ghost{ min-height:27px; padding:4px 7px; border-radius:6px; font-size:10px; line-height:1.15; }
@@ -968,6 +968,7 @@ html{ scrollbar-gutter:stable; }
   body:not(.export-rendering) #costPanel label{ margin-bottom:3px; font-size:9.5px; }
   body:not(.export-rendering) #costPanel input,body:not(.export-rendering) #costPanel select{ min-height:32px; padding:4px 6px; }
   body:not(.export-rendering) #costPanel .cost-human-tip{ margin-top:6px; padding:5px 7px; font-size:9.5px; line-height:1.4; }
+  body:not(.export-rendering) #costPanel .warn{ margin-top:6px; padding:5px 7px; border-radius:6px; font-size:9.5px; line-height:1.45; }
   body:not(.export-rendering) #costPanel .summary{ gap:4px; margin:6px 0 2px; }
   body:not(.export-rendering) #costPanel .stat{ padding:5px 6px; border-radius:6px; }
   body:not(.export-rendering) #costPanel .stat span{ margin-bottom:2px; font-size:9px; }
