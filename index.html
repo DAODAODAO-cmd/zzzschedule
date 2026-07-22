@@ -20,32 +20,32 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style id="__ggz_auth_css">
 html.auth-pending body,html.auth-locked body{overflow:hidden;}
-.auth-gate{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(247,245,248,.96);font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif;color:#2a2731;}
+.auth-gate{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px;background:radial-gradient(circle at 18% 16%,rgba(190,176,244,.45),transparent 38%),radial-gradient(circle at 84% 18%,rgba(250,194,216,.46),transparent 42%),linear-gradient(135deg,#f2efff 0%,#fbf2f7 56%,#f8f7ff 100%);font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif;color:#2a2731;}
 .auth-gate *{box-sizing:border-box;}
 .auth-gate[hidden]{display:none!important;}
-.auth-card{width:min(350px,100%);padding:20px;border:1px solid #e6e0ea;border-radius:16px;background:#fff;box-shadow:0 18px 54px rgba(52,35,62,.14);}
-.auth-card h2{margin:0 0 4px;font-size:20px;color:#d1466a;}.auth-card>p{margin:0 0 12px;color:#867f92;font-size:12px;line-height:1.55;}
-.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:12px;padding:3px;border-radius:9px;background:#f4f0f5;}
-.auth-tabs button{min-height:31px;padding:4px 8px;border:0;border-radius:7px;background:transparent;color:#867f92;font-size:12px;font-weight:800;cursor:pointer;}.auth-tabs button.active{background:#fff;color:#d1466a;box-shadow:0 2px 7px rgba(52,35,62,.08);}
-.auth-form{display:grid;gap:8px}.auth-form[hidden]{display:none!important}.auth-form label{display:grid;gap:3px;color:#635c69;font-size:11px;font-weight:800}.auth-form input{display:block;width:100%;height:38px;min-height:38px;padding:6px 10px;border:1px solid #ded6e1;border-radius:8px;background:#fff;color:#2a2731;font-size:16px;line-height:1.2;outline:none}.auth-form input:focus{border-color:#d1466a;box-shadow:0 0 0 3px rgba(209,70,106,.12)}
-.auth-submit{min-height:38px;margin-top:2px;border:0;border-radius:8px;background:#d1466a;color:#fff;font-size:13px;font-weight:900;cursor:pointer}.auth-submit:disabled{opacity:.55;cursor:wait}.auth-message{min-height:18px;margin-top:8px;color:#867f92;font-size:11px;line-height:1.45}.auth-message.bad{color:#c94f6d}.auth-message.ok{color:#2f9e5c}
+.auth-card{position:relative;width:min(350px,100%);padding:25px 24px 21px;border:1px solid rgba(255,255,255,.78);border-radius:20px;background:rgba(255,255,255,.94);box-shadow:0 24px 68px rgba(57,42,75,.18),0 4px 18px rgba(57,42,75,.08);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);}
+.auth-brand-mark{display:grid;width:50px;height:50px;margin:0 auto 12px;place-items:center;border-radius:15px;background:#241d2b;color:#fff;box-shadow:0 10px 24px rgba(36,29,43,.22)}.auth-brand-mark svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.auth-card h2{margin:0 0 4px;color:#30223d;font-size:20px;text-align:center;letter-spacing:.04em}.auth-card>.auth-subtitle{margin:0 0 18px;color:#91889b;font-size:11px;line-height:1.55;text-align:center}
+.auth-form{display:grid;gap:10px}.auth-form[hidden]{display:none!important}.auth-form label{display:grid;gap:4px;color:#564e60;font-size:11px;font-weight:850}.auth-form input{display:block;width:100%;height:42px;min-height:42px;padding:7px 12px;border:1px solid #ddd5e5;border-radius:10px;background:#fff;color:#2a2731;font-size:16px;line-height:1.2;outline:none;transition:border-color .18s,box-shadow .18s}.auth-form input::placeholder{color:#aaa1b5}.auth-form input:focus{border-color:#8d78a4;box-shadow:0 0 0 3px rgba(126,101,150,.12)}
+.auth-submit{min-height:42px;margin-top:3px;border:0;border-radius:10px;background:#241d2b;color:#fff;font-size:13px;font-weight:900;cursor:pointer;box-shadow:0 8px 18px rgba(36,29,43,.14);transition:transform .18s,box-shadow .18s,background .18s}.auth-submit:hover{background:#35283f;box-shadow:0 10px 22px rgba(36,29,43,.2);transform:translateY(-1px)}.auth-submit:disabled{opacity:.55;cursor:wait;transform:none}
+.auth-tabs{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:13px;color:#938a9c;font-size:11px}.auth-tabs button{min-height:24px;padding:2px 3px;border:0;background:transparent;color:#d1466a;font-size:11px;font-weight:900;cursor:pointer}.auth-tabs button:hover{text-decoration:underline}.auth-tabs button[hidden]{display:none!important}
+.auth-message{min-height:17px;margin-top:7px;color:#92899c;font-size:10px;line-height:1.45;text-align:center}.auth-message.bad{color:#c94f6d}.auth-message.ok{color:#2f9e5c}
 .auth-account-badge{display:inline-flex;align-items:center;min-height:34px;padding:6px 10px;border:1px solid #e1d9e4;border-radius:8px;background:#f8f5f9;color:#5f5764;font-size:12px;font-weight:850}.auth-account-badge::before{content:"";width:7px;height:7px;margin-right:7px;border-radius:50%;background:#2f9e5c}
 .workspacebar{display:flex;align-items:end;gap:7px;flex-wrap:wrap;overflow:visible;padding:9px 10px;border:1px solid #e6e0ea;border-radius:10px;background:#fff}.workspace-select-label{display:grid;flex:1 1 220px;gap:3px;min-width:180px;color:#867f92;font-size:10px;font-weight:800}.workspace-select-label select{width:100%;min-height:34px;padding:5px 30px 5px 9px;border:1px solid #ded6e1;border-radius:8px;background:#faf8fb;color:#2a2731;font-size:12px;font-weight:800}.workspacebar button{flex:0 0 auto;min-height:34px;padding:6px 10px;font-size:11px}.workspacebar>span{flex:1 1 100%;align-self:center;color:#867f92;font-size:11px}.workspace-empty-notice{margin-top:7px;padding:10px 12px;border:1px dashed #d9cbdc;border-radius:9px;background:#fbf8fc;color:#746b7a;font-size:12px}.workspace-side-panel{margin-top:7px;padding:10px;border:1px solid #e1d7e5;border-radius:10px;background:#fff}.workspace-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.workspace-panel-head button{min-height:27px;padding:3px 8px;font-size:10px}.workspace-list{display:grid;gap:5px}.workspace-list-row{display:flex;align-items:center;gap:7px;min-height:34px;padding:6px 8px;border-radius:8px;background:#f8f5f9;font-size:11px}.workspace-list-row strong{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-list-row small{color:#867f92}.workspace-list-row .workspace-row-actions{display:flex;gap:5px;margin-left:auto}.workspace-list-row button{min-height:26px;padding:3px 8px;border:1px solid #ded6e1;border-radius:7px;background:#fff;color:#5f5764;font-size:10px;font-weight:800}.workspace-list-row button.primary{border-color:#d1466a;background:#d1466a;color:#fff}.workspace-list-empty{padding:8px;color:#867f92;font-size:11px;text-align:center}
-@media(max-width:620px){.auth-gate{align-items:flex-start;padding:calc(8vh + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}.auth-card{width:min(340px,100%);padding:17px 15px;border-radius:14px}.auth-card h2{font-size:18px}.auth-card>p{font-size:11px}.auth-form input{height:37px;min-height:37px;font-size:16px}}
+@media(max-width:620px){.auth-gate{align-items:flex-start;padding:calc(5vh + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom))}.auth-card{width:min(338px,100%);padding:20px 17px 17px;border-radius:18px}.auth-brand-mark{width:44px;height:44px;margin-bottom:10px;border-radius:13px}.auth-brand-mark svg{width:22px;height:22px}.auth-card h2{font-size:18px}.auth-card>.auth-subtitle{margin-bottom:14px;font-size:10px}.auth-form{gap:8px}.auth-form input{height:40px;min-height:40px;font-size:16px}.auth-submit{min-height:40px}.auth-tabs{margin-top:10px}}
 @media(max-width:620px){.workspacebar{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,auto);gap:5px;padding:7px}.workspace-select-label{grid-column:1/-1;min-width:0}.workspace-select-label select{width:100%;min-height:31px;font-size:11px}.workspacebar button{min-height:29px;padding:4px 7px;font-size:9.5px}.workspacebar #createWorkspaceBtn{grid-column:1/2}.workspacebar>span{grid-column:1/-1;font-size:9.5px}.workspace-side-panel{padding:7px}.workspace-list-row{font-size:10px}}
 </style>
 </helmet>
 <div id="authGate" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
   <div class="auth-card">
-    <h2 id="authTitle">谷子调排簿</h2>
-    <p>登录后才能进入。第一次使用可以自己注册账户名和密码。</p>
-    <div class="auth-tabs">
-      <button type="button" id="authLoginTab" class="active">登录</button>
-      <button type="button" id="authRegisterTab">注册</button>
+    <div class="auth-brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M12 3.5 19.5 7.7v8.6L12 20.5l-7.5-4.2V7.7L12 3.5Z"/><path d="m4.8 7.9 7.2 4.2 7.2-4.2M12 12.1v8.1"/></svg>
     </div>
+    <h2 id="authTitle">谷子调排簿</h2>
+    <p class="auth-subtitle">登录后开始整理你的排单与协作</p>
     <form id="authLoginForm" class="auth-form">
-      <label>账户名<input id="authLoginName" type="text" maxlength="20" autocomplete="username" placeholder="输入账户名"></label>
-      <label>密码<input id="authLoginPassword" type="password" minlength="8" autocomplete="current-password" placeholder="输入密码"></label>
+      <label>账户名<input id="authLoginName" type="text" maxlength="20" autocomplete="username" placeholder="输入你的账户名"></label>
+      <label>密码<input id="authLoginPassword" type="password" minlength="8" autocomplete="current-password" placeholder="输入账户密码"></label>
       <button class="auth-submit" type="submit">登录</button>
     </form>
     <form id="authRegisterForm" class="auth-form" hidden>
@@ -54,6 +54,11 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <label>再次输入密码<input id="authRegisterPasswordAgain" type="password" minlength="8" autocomplete="new-password" placeholder="再输入一次密码"></label>
       <button class="auth-submit" type="submit">注册并进入</button>
     </form>
+    <div class="auth-tabs">
+      <span id="authSwitchText">还没有账户？</span>
+      <button type="button" id="authRegisterTab">去注册</button>
+      <button type="button" id="authLoginTab" hidden>返回登录</button>
+    </div>
     <div id="authMessage" class="auth-message">正在确认登录状态…</div>
   </div>
 </div>
@@ -1218,7 +1223,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function showAuthMode(mode){
       const registering=mode==='register';
-      $('authLoginTab').classList.toggle('active',!registering); $('authRegisterTab').classList.toggle('active',registering);
+      $('authLoginTab').hidden=!registering; $('authRegisterTab').hidden=registering;
+      $('authSwitchText').textContent=registering?'已经有账户？':'还没有账户？';
       $('authLoginForm').hidden=registering; $('authRegisterForm').hidden=!registering;
       setAuthMessage(registering?'注册后，这个账户名也会作为协作编辑者姓名。':'请输入账户名和密码。');
       setTimeout(()=>$(registering?'authRegisterName':'authLoginName').focus(),0);
@@ -1966,6 +1972,57 @@ body.export-rendering .cart-count{ font-size:28px; }
       captureActiveSheet();
       return deepClone({sheets,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg});
     }
+    const cloudImageCompressionCache=new Map();
+    async function compressCloudImageBlob(source,label){
+      if(!window.createImageBitmap) return source;
+      let bitmap=null;
+      try{
+        bitmap=await createImageBitmap(source);
+        const isQr=String(label).includes('qr')||String(label).includes('payment'), maxEdge=isQr?1400:1600;
+        const scale=Math.min(1,maxEdge/Math.max(bitmap.width,bitmap.height));
+        const width=Math.max(1,Math.round(bitmap.width*scale)),height=Math.max(1,Math.round(bitmap.height*scale));
+        const canvas=document.createElement('canvas'); canvas.width=width; canvas.height=height;
+        const context=canvas.getContext('2d',{alpha:true}); if(!context) return source;
+        context.imageSmoothingEnabled=true; context.imageSmoothingQuality='high'; context.drawImage(bitmap,0,0,width,height);
+        const type=isQr?'image/png':'image/webp', quality=isQr?undefined:.82;
+        const compressed=await new Promise(resolve=>canvas.toBlob(resolve,type,quality));
+        if(!compressed||(scale===1&&compressed.size>=source.size)) return source;
+        return compressed;
+      }catch(_){ return source; }
+      finally{ if(bitmap?.close) bitmap.close(); }
+    }
+    async function compressedCloudDataUrl(data,label){
+      if(!data||!String(data).startsWith('data:image/')) return data||'';
+      const key=`${label}|${data.length}|${String(data).slice(-72)}`;
+      if(cloudImageCompressionCache.has(key)) return cloudImageCompressionCache.get(key);
+      const source=await fetch(data).then(response=>response.blob()),compressed=await compressCloudImageBlob(source,label);
+      const result=compressed===source?data:await new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onload=()=>resolve(String(reader.result||'')); reader.onerror=reject; reader.readAsDataURL(compressed); });
+      cloudImageCompressionCache.set(key,result); return result;
+    }
+    async function collabCloudProjectSnapshot(localState){
+      const cloud=deepClone(localState||collabProjectSnapshot());
+      for(const sheet of cloud.sheets||[]) for(const column of sheet.columns||[]) column.img=await compressedCloudDataUrl(column.img,`c${column.id}`);
+      for(const item of cloud.itemCatalog||[]) item.img=await compressedCloudDataUrl(item.img,`library${item.catalogId||item.id||0}`);
+      cloud.sharedCartQrImg=await compressedCloudDataUrl(cloud.sharedCartQrImg,'shared-qr');
+      cloud.sharedPaymentQrImg=await compressedCloudDataUrl(cloud.sharedPaymentQrImg,'shared-payment');
+      return cloud;
+    }
+    function preserveMatchingLocalImages(cloudState,localState,compressedLocalState){
+      const result=deepClone(cloudState),localSheets=new Map((localState?.sheets||[]).map(sheet=>[String(sheet.id),sheet])),compressedSheets=new Map((compressedLocalState?.sheets||[]).map(sheet=>[String(sheet.id),sheet]));
+      for(const sheet of result.sheets||[]){
+        const local=localSheets.get(String(sheet.id)),compressed=compressedSheets.get(String(sheet.id));
+        const localColumns=new Map((local?.columns||[]).map(column=>[String(column.id),column])),compressedColumns=new Map((compressed?.columns||[]).map(column=>[String(column.id),column]));
+        for(const column of sheet.columns||[]){
+          const localColumn=localColumns.get(String(column.id)),compressedColumn=compressedColumns.get(String(column.id));
+          if(String(localColumn?.img||'').startsWith('data:image/')&&column.img===compressedColumn?.img) column.img=localColumn.img;
+        }
+      }
+      const localCatalog=new Map((localState?.itemCatalog||[]).map(item=>[String(item.catalogId||item.id),item])),compressedCatalog=new Map((compressedLocalState?.itemCatalog||[]).map(item=>[String(item.catalogId||item.id),item]));
+      for(const item of result.itemCatalog||[]){ const key=String(item.catalogId||item.id),local=localCatalog.get(key),compressed=compressedCatalog.get(key); if(String(local?.img||'').startsWith('data:image/')&&item.img===compressed?.img) item.img=local.img; }
+      if(String(localState?.sharedCartQrImg||'').startsWith('data:image/')&&result.sharedCartQrImg===compressedLocalState?.sharedCartQrImg) result.sharedCartQrImg=localState.sharedCartQrImg;
+      if(String(localState?.sharedPaymentQrImg||'').startsWith('data:image/')&&result.sharedPaymentQrImg===compressedLocalState?.sharedPaymentQrImg) result.sharedPaymentQrImg=localState.sharedPaymentQrImg;
+      return result;
+    }
     function stableCollabValue(value){
       if(Array.isArray(value)) return value.map(stableCollabValue);
       if(value&&typeof value==='object') return Object.keys(value).sort().reduce((result,key)=>{ result[key]=stableCollabValue(value[key]); return result; },{});
@@ -2130,7 +2187,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       clearTimeout(collabSendTimer); collabSendTimer=null;
       if(!collabEnabled||applyingCollab) return true;
       if(collabSending){ collabNeedsSend=true; return false; }
-      const sentState=collabProjectSnapshot(), ops=collabDiff(collabBaseline||sentState,sentState);
+      const localSentState=collabProjectSnapshot(),sentState=await collabCloudProjectSnapshot(localSentState),ops=collabDiff(collabBaseline||sentState,sentState);
       ops.forEach(op=>{
         const path=Array.isArray(op?.path)?op.path:[];
         if(String(path[0]||'')==='sheets'){
@@ -2144,7 +2201,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const client=getCloudClient(syncCode), {data,error}=await lockRequest(client.rpc('ggz_apply_collab_patch',{p_sync_code:syncCode,p_patch:ops,p_author_name:editorName||'未命名'}),20000);
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
-        const afterState=collabProjectSnapshot(), laterOps=collabDiff(sentState,afterState), serverState=deepClone(row.out_state), displayState=applyCollabOps(deepClone(serverState),laterOps);
+        const localAfterState=collabProjectSnapshot(),afterState=await collabCloudProjectSnapshot(localAfterState),laterOps=collabDiff(sentState,afterState),serverState=deepClone(row.out_state),displayCloudState=applyCollabOps(deepClone(serverState),laterOps),displayState=preserveMatchingLocalImages(displayCloudState,localAfterState,afterState);
         collabBaseline=serverState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState);
         const conflicts=Array.isArray(row.out_conflicts)?row.out_conflicts:[];
         if(conflicts.length){
@@ -2170,7 +2227,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(data&&Number(data.revision)>collabRevision){
           const {data:latest,error:latestError}=await lockRequest(client.from('ggz_collab_projects').select('state,revision,updated_by').eq('sync_code',syncCode).maybeSingle());
           if(latestError) throw latestError;
-          if(latest?.state){ collabBaseline=deepClone(latest.state); collabRevision=Number(latest.revision)||collabRevision; installCollabState(latest.state); setCollabStatus(`${latest.updated_by||'其他人'}刚刚更新 · 版本 ${collabRevision}`,'ok'); }
+          if(latest?.state){ const localState=collabProjectSnapshot(),compressedLocalState=await collabCloudProjectSnapshot(localState),displayState=preserveMatchingLocalImages(latest.state,localState,compressedLocalState); collabBaseline=deepClone(latest.state); collabRevision=Number(latest.revision)||collabRevision; installCollabState(displayState); setCollabStatus(`${latest.updated_by||'其他人'}刚刚更新 · 版本 ${collabRevision}`,'ok'); }
         }
       }catch(error){ setCollabStatus('实时协作连接暂时中断，正在重试','bad'); }
       finally{ collabPolling=false; }
@@ -2180,14 +2237,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       const name=String($('editorNameInput').value||'').trim(); if(!name){ if(!autoStart){ alert('请先填写编辑者名字'); $('editorNameInput').focus(); } return false; }
       syncCode=code; editorName=name; localStorage.setItem('ggzEditorName',editorName); $('startCollabBtn').disabled=true; setCollabStatus('正在连接实时协作…','warn');
       try{
-        const initialState=collabProjectSnapshot(), client=getCloudClient(code), {data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),20000);
+        const localInitialState=collabProjectSnapshot(),initialState=await collabCloudProjectSnapshot(localInitialState),client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),20000);
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作状态为空');
         if(!autoStart&&!collabStatesEqual(row.out_state,initialState)){
           const accepted=await appConfirm('协作云端已经有其他人的版本。开启后会先以协作云端为准，确定继续吗？','发现协作版本','继续开启');
           if(!accepted){ syncCollabUI(); return false; }
         }
-        collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=deepClone(row.out_state); installCollabState(row.out_state);
+        const displayState=preserveMatchingLocalImages(row.out_state,localInitialState,initialState);
+        collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=deepClone(row.out_state); installCollabState(displayState);
         localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1'); clearIdleCloudUpload(); startCollabPolling(); syncCollabUI(); startCollabPresence(); setCollabStatus(`实时协作已连接 · 版本 ${collabRevision}`,'ok'); setCloudStatus('完整云端备份可手动上传'); return true;
       }catch(error){
         collabEnabled=false; syncCollabUI();
@@ -2242,7 +2300,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const cloudCatalog=JSON.parse(JSON.stringify(itemCatalog));
         async function uploadImage(data,label){
           if(!data||!String(data).startsWith('data:image/')) return data||'';
-          const blob=await fetch(data).then(r=>r.blob());
+          const sourceBlob=await fetch(data).then(r=>r.blob()),blob=await compressCloudImageBlob(sourceBlob,label);
           const hashBuf=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer());
           const hash=[...new Uint8Array(hashBuf)].map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,24);
           const ext=blob.type==='image/png'?'png':(blob.type==='image/webp'?'webp':'jpg');
