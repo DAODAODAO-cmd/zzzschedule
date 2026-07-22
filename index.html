@@ -782,6 +782,8 @@ html{ scrollbar-gutter:stable; }
 .quantity-ride-table tr.ride-waiting td{ background:#fff6e8; }
 .quantity-ride-table .ride-item{ min-width:105px; font-weight:900; background:#f6f2f5!important; }
 .quantity-ride-table .ride-item small,.quantity-ride-table .ride-status small{ display:block; margin-top:3px; color:var(--muted); font-size:10.5px; font-weight:700; }
+.quantity-ride-table .ride-item small.ride-missing{ color:#d93025!important; font-size:13px!important; font-weight:900!important; }
+.quantity-ride-table .ride-item small.ride-full{ color:#188038!important; font-size:13px!important; font-weight:900!important; }
 .quantity-ride-table .ride-status{ min-width:105px; }
 .quantity-ride-table .ride-onboard .ride-status strong{ color:var(--ok); }
 .quantity-ride-table .ride-waiting .ride-status strong{ color:var(--warn); }
@@ -2536,10 +2538,10 @@ body.export-rendering .cart-count{ font-size:28px; }
           groups.push({kind:'waiting',label:'继续等',sub:`距第 ${fullCars+1} 车差 ${short}`,people:waiting});
         }
         const rowSpan=groups.reduce((sum,group)=>sum+group.people.length,0);
-        if(!rowSpan){ rideRows+=`<tr class="ride-waiting"><td class="ride-item">${escapeHtml(c.name)}<small>总量 0</small><small>已成 0 车</small><small>差 ${boxSize} 配满盒 </small></td><td>继续等</td><td class="hint">还没人</td><td>0 配</td><td>0</td><td>—</td></tr>`; return; }
+        if(!rowSpan){ rideRows+=`<tr class="ride-waiting"><td class="ride-item">${escapeHtml(c.name)}<small>总量 0</small><small>已成 0 车</small><small class="ride-missing">差 ${boxSize} 配满盒</small></td><td>继续等</td><td class="hint">还没人</td><td>0 配</td><td>0</td><td>—</td></tr>`; return; }
         let itemWritten=false;
         groups.forEach(group=>group.people.forEach((person,index)=>{
-          rideRows+=`<tr class="ride-${group.kind}">${!itemWritten?`<td rowspan="${rowSpan}" class="ride-item">${escapeHtml(c.name)}<small>总量 ${total}</small><small>已成 ${fullCars} 车</small><small> ${total%boxSize===0 ? `已满盒`:`差 ${boxSize-(total%boxSize)} 配满盒`}</small></td>`:''}${index===0?`<td rowspan="${group.people.length}" class="ride-status"><strong>${group.label}</strong><small>${group.sub}</small></td>`:''}<td><button type="button" class="quantity-cn-link${highlightedPerson===person.name?' active':''}" data-highlight-person="${escapeAttr(person.name)}">${escapeHtml(person.name)}</button></td><td><strong>${person.positions.length} 配</strong></td><td>${person.positions.length*groupSize}</td><td>${person.positions.join('、')}</td></tr>`;
+          rideRows+=`<tr class="ride-${group.kind}">${!itemWritten?`<td rowspan="${rowSpan}" class="ride-item">${escapeHtml(c.name)}<small>总量 ${total}</small><small>已成 ${fullCars} 车</small>${total%boxSize===0 ? `<small class="ride-full">已满盒</small>`:`<small class="ride-missing">差 ${boxSize-(total%boxSize)} 配满盒</small>`}</td>`:''}${index===0?`<td rowspan="${group.people.length}" class="ride-status"><strong>${group.label}</strong><small>${group.sub}</small></td>`:''}<td><button type="button" class="quantity-cn-link${highlightedPerson===person.name?' active':''}" data-highlight-person="${escapeAttr(person.name)}">${escapeHtml(person.name)}</button></td><td><strong>${person.positions.length} 配</strong></td><td>${person.positions.length*groupSize}</td><td>${person.positions.join('、')}</td></tr>`;
           itemWritten=true;
         }));
       });
