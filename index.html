@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html class="auth-pending">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -18,7 +18,44 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style id="__ggz_auth_css">
+html.auth-pending body,html.auth-locked body{overflow:hidden;}
+.auth-gate{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(247,245,248,.96);font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif;color:#2a2731;}
+.auth-gate[hidden]{display:none!important;}
+.auth-card{width:min(390px,100%);padding:24px;border:1px solid #e6e0ea;border-radius:18px;background:#fff;box-shadow:0 22px 70px rgba(52,35,62,.16);}
+.auth-card h2{margin:0 0 6px;font-size:22px;color:#d1466a;}.auth-card>p{margin:0 0 18px;color:#867f92;font-size:13px;line-height:1.7;}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:16px;padding:4px;border-radius:10px;background:#f4f0f5;}
+.auth-tabs button{min-height:34px;border:0;border-radius:8px;background:transparent;color:#867f92;font-weight:800;cursor:pointer;}.auth-tabs button.active{background:#fff;color:#d1466a;box-shadow:0 2px 8px rgba(52,35,62,.08);}
+.auth-form{display:grid;gap:12px}.auth-form[hidden]{display:none!important}.auth-form label{display:grid;gap:5px;color:#635c69;font-size:12px;font-weight:800}.auth-form input{width:100%;min-height:42px;padding:9px 11px;border:1px solid #ded6e1;border-radius:9px;background:#fff;color:#2a2731;font-size:16px;outline:none}.auth-form input:focus{border-color:#d1466a;box-shadow:0 0 0 3px rgba(209,70,106,.12)}
+.auth-submit{min-height:42px;border:0;border-radius:9px;background:#d1466a;color:#fff;font-size:14px;font-weight:900;cursor:pointer}.auth-submit:disabled{opacity:.55;cursor:wait}.auth-message{min-height:20px;margin-top:12px;color:#867f92;font-size:12px;line-height:1.55}.auth-message.bad{color:#c94f6d}.auth-message.ok{color:#2f9e5c}
+.auth-account-badge{display:inline-flex;align-items:center;min-height:34px;padding:6px 10px;border:1px solid #e1d9e4;border-radius:8px;background:#f8f5f9;color:#5f5764;font-size:12px;font-weight:850}.auth-account-badge::before{content:"";width:7px;height:7px;margin-right:7px;border-radius:50%;background:#2f9e5c}
+.workspacebar{display:flex;align-items:end;gap:7px;flex-wrap:wrap;padding:9px 10px;border:1px solid #e6e0ea;border-radius:10px;background:#fff}.workspace-select-label{display:grid;gap:3px;min-width:210px;color:#867f92;font-size:10px;font-weight:800}.workspace-select-label select{min-height:34px;padding:5px 30px 5px 9px;border:1px solid #ded6e1;border-radius:8px;background:#faf8fb;color:#2a2731;font-size:12px;font-weight:800}.workspacebar button{min-height:34px;padding:6px 10px;font-size:11px}.workspacebar>span{align-self:center;color:#867f92;font-size:11px}.workspace-empty-notice{margin-top:7px;padding:10px 12px;border:1px dashed #d9cbdc;border-radius:9px;background:#fbf8fc;color:#746b7a;font-size:12px}.workspace-side-panel{margin-top:7px;padding:10px;border:1px solid #e1d7e5;border-radius:10px;background:#fff}.workspace-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.workspace-panel-head button{min-height:27px;padding:3px 8px;font-size:10px}.workspace-list{display:grid;gap:5px}.workspace-list-row{display:flex;align-items:center;gap:7px;min-height:34px;padding:6px 8px;border-radius:8px;background:#f8f5f9;font-size:11px}.workspace-list-row strong{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-list-row small{color:#867f92}.workspace-list-row .workspace-row-actions{display:flex;gap:5px;margin-left:auto}.workspace-list-row button{min-height:26px;padding:3px 8px;border:1px solid #ded6e1;border-radius:7px;background:#fff;color:#5f5764;font-size:10px;font-weight:800}.workspace-list-row button.primary{border-color:#d1466a;background:#d1466a;color:#fff}.workspace-list-empty{padding:8px;color:#867f92;font-size:11px;text-align:center}
+@media(max-width:620px){.auth-gate{align-items:flex-start;padding:calc(11vh + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom))}.auth-card{padding:19px 16px;border-radius:15px}.auth-card h2{font-size:18px}.auth-form input{min-height:40px;font-size:16px}}
+@media(max-width:620px){.workspacebar{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,auto);gap:5px;padding:7px}.workspace-select-label{grid-column:1/-1;min-width:0}.workspace-select-label select{width:100%;min-height:31px;font-size:11px}.workspacebar button{min-height:29px;padding:4px 7px;font-size:9.5px}.workspacebar #createWorkspaceBtn{grid-column:1/2}.workspacebar>span{grid-column:1/-1;font-size:9.5px}.workspace-side-panel{padding:7px}.workspace-list-row{font-size:10px}}
+</style>
 </helmet>
+<div id="authGate" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+  <div class="auth-card">
+    <h2 id="authTitle">谷子调排簿</h2>
+    <p>登录后才能进入。第一次使用可以自己注册账户名和密码。</p>
+    <div class="auth-tabs">
+      <button type="button" id="authLoginTab" class="active">登录</button>
+      <button type="button" id="authRegisterTab">注册</button>
+    </div>
+    <form id="authLoginForm" class="auth-form">
+      <label>账户名<input id="authLoginName" type="text" maxlength="20" autocomplete="username" placeholder="输入账户名"></label>
+      <label>密码<input id="authLoginPassword" type="password" minlength="8" autocomplete="current-password" placeholder="输入密码"></label>
+      <button class="auth-submit" type="submit">登录</button>
+    </form>
+    <form id="authRegisterForm" class="auth-form" hidden>
+      <label>设置账户名<input id="authRegisterName" type="text" maxlength="20" autocomplete="username" placeholder="2—20个字，可使用中文"></label>
+      <label>设置密码<input id="authRegisterPassword" type="password" minlength="8" autocomplete="new-password" placeholder="至少8位"></label>
+      <label>再次输入密码<input id="authRegisterPasswordAgain" type="password" minlength="8" autocomplete="new-password" placeholder="再输入一次密码"></label>
+      <button class="auth-submit" type="submit">注册并进入</button>
+    </form>
+    <div id="authMessage" class="auth-message">正在确认登录状态…</div>
+  </div>
+</div>
 <div class="wrap">
   <aside class="app-sidebar">
   <header>
@@ -46,20 +83,40 @@
 
   <main class="app-main">
   <section class="cloud-hub" id="cloudHub">
-  <div id="collabCompactStatus" class="collab-compact-status">○ 实时协作未开启，请先到设置开启</div>
+  <div id="collabCompactStatus" class="collab-compact-status">○ 登录后自动连接所属协作组</div>
+
+  <div class="workspacebar">
+    <label class="workspace-select-label"><span>当前协作组</span><select id="workspaceSelect" disabled><option value="">正在读取…</option></select></label>
+    <button id="createWorkspaceBtn" class="btn-primary" type="button">新建协作组</button>
+    <button id="inviteWorkspaceMemberBtn" class="btn-ghost" type="button" disabled>邀请成员</button>
+    <button id="showWorkspaceMembersBtn" class="btn-ghost" type="button" disabled>成员</button>
+    <button id="showWorkspaceInvitesBtn" class="btn-ghost" type="button">邀请 <span id="workspaceInviteCount">0</span></button>
+    <span id="workspaceStatus">登录后自动读取</span>
+  </div>
+  <div id="workspaceEmptyNotice" class="workspace-empty-notice" hidden>你还没有协作组。可以新建一个组，再按账户名邀请其他人。</div>
+  <div id="workspaceInvitesPanel" class="workspace-side-panel" hidden>
+    <div class="workspace-panel-head"><strong>待处理邀请</strong><button type="button" class="btn-ghost" data-close-workspace-panel>关闭</button></div>
+    <div id="workspaceInviteList" class="workspace-list"></div>
+  </div>
+  <div id="workspaceMembersPanel" class="workspace-side-panel" hidden>
+    <div class="workspace-panel-head"><strong>协作组成员</strong><button type="button" class="btn-ghost" data-close-workspace-panel>关闭</button></div>
+    <div id="workspaceMemberList" class="workspace-list"></div>
+  </div>
 
   <div class="cloudbar">
-    <input id="syncCodeInput" type="text" maxlength="24" placeholder="同步码">
-    <button id="createSyncCodeBtn" class="btn-ghost">新建同步码</button>
+    <input id="syncCodeInput" type="hidden">
+    <button id="createSyncCodeBtn" type="button" hidden></button>
     <button id="cloudUploadBtn" class="btn-primary">上传云端</button>
     <button id="cloudDownloadBtn" class="btn-ghost">读取云端</button>
     <span id="localStatus">本机已保存</span>
-    <span id="cloudStatus">云端未同步</span>
+    <span id="cloudStatus">尚未选择协作组</span>
   </div>
   <div class="edit-lock-controls">
-    <label>编辑者 <input id="editorNameInput" type="text" maxlength="20" placeholder="填写你的名字"></label>
-    <button id="startCollabBtn" class="btn-primary">开启实时协作</button>
-    <button id="stopCollabBtn" class="btn-ghost" disabled>关闭实时协作</button>
+    <input id="editorNameInput" type="hidden">
+    <span id="authAccountBadge" class="auth-account-badge">正在确认账户</span>
+    <button id="authLogoutBtn" class="btn-ghost" type="button">退出登录</button>
+    <button id="startCollabBtn" class="btn-primary" disabled>重新连接</button>
+    <button id="stopCollabBtn" class="btn-ghost" disabled>暂停协作</button>
     <span id="collabStatus">尚未开启实时协作</span>
     <button id="acquireEditLockBtn" type="button" style="display:none;"></button>
     <button id="releaseEditLockBtn" type="button" style="display:none;"></button>
@@ -1092,7 +1149,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     const COLLAB_POLL_MS=2000;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
-    let syncCode=localStorage.getItem('ggzSyncCode')||'';
+    const WORKSPACE_STORAGE_KEY='ggzActiveWorkspace_v1';
+    const storedSyncCode=localStorage.getItem('ggzSyncCode')||'';
+    const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let legacySyncCode=UUID_RE.test(storedSyncCode)?'':storedSyncCode;
+    let syncCode=UUID_RE.test(storedSyncCode)?storedSyncCode:'';
+    let workspaces=[],workspaceInvites=[],activeWorkspaceId=localStorage.getItem(WORKSPACE_STORAGE_KEY)||syncCode,workspaceLoading=false;
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
     let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false;
     let activeAppSection='settings';
@@ -1103,6 +1165,189 @@ body.export-rendering .cart-count{ font-size:28px; }
     if(syncCode) cloudDirty=rememberedCloudDirty(syncCode,lastCloudUpdatedAt);
     const SUPABASE_URL='https://fzxabmdnrkvpgraztcwi.supabase.co';
     const SUPABASE_KEY='sb_publishable_yU4Q1T2RuQfgwOW9Idtf9w__YssVHYe';
+    const AUTH_STORAGE_KEY='ggz-auth-session-v1';
+    let authClient=null, authCurrentUser=null, authReady=false;
+
+    function getAuthClient(){
+      if(authClient) return authClient;
+      if(!window.supabase||!window.supabase.createClient) throw new Error('登录组件尚未加载，请检查网络后刷新');
+      authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:AUTH_STORAGE_KEY,persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+      return authClient;
+    }
+    function normalizedAccountName(value){ return String(value||'').normalize('NFKC').trim().replace(/\s+/g,' '); }
+    async function accountLoginEmail(value){
+      const normalized=normalizedAccountName(value).toLocaleLowerCase('zh-CN');
+      const bytes=new TextEncoder().encode('ggz-account-v1:'+normalized);
+      let hex='';
+      if(window.crypto?.subtle){
+        const digest=await crypto.subtle.digest('SHA-256',bytes);
+        hex=[...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');
+      }else{
+        let h1=2166136261,h2=2246822519;
+        bytes.forEach(n=>{ h1=Math.imul(h1^n,16777619); h2=Math.imul(h2^n,3266489917); });
+        hex=(h1>>>0).toString(16).padStart(8,'0')+(h2>>>0).toString(16).padStart(8,'0');
+      }
+      return `ggz-${hex.slice(0,48)}@users.ggz.app`;
+    }
+    function setAuthMessage(text,tone=''){
+      const el=$('authMessage'); if(!el) return;
+      el.textContent=text||''; el.className='auth-message'+(tone?' '+tone:'');
+    }
+    function setAuthBusy(form,busy){
+      form?.querySelectorAll('button,input').forEach(el=>{ el.disabled=!!busy; });
+    }
+    function readableAuthError(error){
+      const text=String(error?.message||error||'').toLowerCase();
+      if(text.includes('invalid login credentials')) return '账户名或密码不正确';
+      if(text.includes('user already registered')||text.includes('already been registered')||text.includes('username_taken')||text.includes('database error saving new user')) return '这个账户名已经被使用，请换一个，或直接登录';
+      if(text.includes('email not confirmed')) return '账户已注册，但 Supabase 仍要求邮箱验证。请先在后台关闭“Confirm email”后再登录';
+      if(text.includes('could not find the function')||text.includes('ggz_username_available')||text.includes('pgrst202')) return '注册功能尚未安装，请先在 Supabase 执行新版完整 SQL';
+      if(text.includes('password')&&text.includes('least')) return '密码长度不足，请至少填写8位';
+      if(text.includes('fetch')||text.includes('network')) return '暂时连接不到登录服务，请检查网络后重试';
+      return error?.message||'操作失败，请稍后重试';
+    }
+    function showAuthMode(mode){
+      const registering=mode==='register';
+      $('authLoginTab').classList.toggle('active',!registering); $('authRegisterTab').classList.toggle('active',registering);
+      $('authLoginForm').hidden=registering; $('authRegisterForm').hidden=!registering;
+      setAuthMessage(registering?'注册后，这个账户名也会作为协作编辑者姓名。':'请输入账户名和密码。');
+      setTimeout(()=>$(registering?'authRegisterName':'authLoginName').focus(),0);
+    }
+    function authAccountName(user){
+      return normalizedAccountName(user?.user_metadata?.account_name||user?.user_metadata?.username||localStorage.getItem('ggzEditorName')||'');
+    }
+    function readableWorkspaceError(error){
+      const raw=String(error?.message||error||''),text=raw.toUpperCase();
+      if(text.includes('USERNAME_NOT_FOUND')) return '没有找到这个账户名，请确认文字完全一致';
+      if(text.includes('ALREADY_GROUP_MEMBER')) return '这个人已经在协作组里了';
+      if(text.includes('CANNOT_INVITE_SELF')) return '不用邀请自己，你已经在组里了';
+      if(text.includes('NOT_GROUP_MANAGER')) return '只有组主或管理员可以邀请和移除成员';
+      if(text.includes('USERNAME_TAKEN')) return '这个账户名已经被使用，请换一个';
+      if(text.includes('GROUP_ACCESS_DENIED')) return '你已经不在这个协作组中，无法读取数据';
+      if(text.includes('PGRST202')||text.includes('GGZ_WORKSPACE_OVERVIEW')||text.includes('COULD NOT FIND THE FUNCTION')) return '协作组功能尚未安装，请先在 Supabase 执行新版完整 SQL';
+      return raw||'协作组操作失败，请稍后重试';
+    }
+    function setWorkspaceStatus(text,tone=''){
+      const el=$('workspaceStatus'); if(!el) return;
+      el.textContent=text||''; el.style.color=tone==='bad'?'var(--bad)':(tone==='ok'?'var(--ok)':'var(--muted)');
+    }
+    function currentWorkspace(){ return workspaces.find(group=>group.id===activeWorkspaceId)||null; }
+    function renderWorkspaceUI(){
+      const select=$('workspaceSelect'),group=currentWorkspace();
+      select.innerHTML=workspaces.length?workspaces.map(item=>`<option value="${escapeAttr(item.id)}"${item.id===activeWorkspaceId?' selected':''}>${escapeHtml(item.name)}</option>`).join(''):'<option value="">还没有协作组</option>';
+      select.disabled=workspaceLoading||!workspaces.length;
+      $('workspaceEmptyNotice').hidden=!!workspaces.length;
+      $('inviteWorkspaceMemberBtn').disabled=!group||!['owner','admin'].includes(group.role);
+      $('showWorkspaceMembersBtn').disabled=!group;
+      $('workspaceInviteCount').textContent=String(workspaceInvites.length);
+      $('showWorkspaceInvitesBtn').classList.toggle('btn-primary',workspaceInvites.length>0);
+      $('workspaceInviteList').innerHTML=workspaceInvites.length?workspaceInvites.map(invite=>`<div class="workspace-list-row" data-workspace-invite="${escapeAttr(invite.id)}"><div><strong>${escapeHtml(invite.group_name)}</strong><br><small>${escapeHtml(invite.invited_by_name)} 邀请你加入</small></div><span class="workspace-row-actions"><button type="button" data-invite-action="decline">拒绝</button><button type="button" class="primary" data-invite-action="accept">接受</button></span></div>`).join(''):'<div class="workspace-list-empty">暂时没有新邀请</div>';
+      $('syncCodeInput').value=syncCode;
+      $('cloudUploadBtn').disabled=!group||cloudBusy;
+      $('cloudDownloadBtn').disabled=!group||cloudBusy||collabEnabled;
+      syncCollabUI();
+    }
+    async function disconnectCurrentWorkspace(){
+      if(!collabEnabled) return true;
+      await flushCollabChanges();
+      if(collabNeedsSend){ alert('当前协作组还有修改没有同步成功，请稍后再切换。'); return false; }
+      await leaveCollabPresence(); collabEnabled=false; stopCollabPolling(); stopCollabPresence();
+      clearTimeout(collabSendTimer); collabSendTimer=null; collabBaseline=null; syncCollabUI();
+      return true;
+    }
+    async function activateWorkspace(groupId,autoConnect=true){
+      const next=String(groupId||''); if(!next||!workspaces.some(group=>group.id===next)) return false;
+      if(next!==syncCode&&!(await disconnectCurrentWorkspace())) return false;
+      activeWorkspaceId=next; syncCode=next; localStorage.setItem(WORKSPACE_STORAGE_KEY,next); localStorage.setItem('ggzSyncCode',next);
+      lastCloudUpdatedAt=localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+next)||''; cloudConflictPaused=false; cloudDirty=rememberedCloudDirty(next,lastCloudUpdatedAt);
+      $('syncCodeInput').value=next; renderWorkspaceUI(); setWorkspaceStatus(`已进入「${currentWorkspace()?.name||'协作组'}」`,'ok');
+      setCloudStatus(cloudDirty?'云端完整备份未更新':'云端完整备份已同步',cloudDirty?'warn':'');
+      if(autoConnect&&!collabEnabled) await startCollab(true);
+      return true;
+    }
+    async function loadWorkspaceOverview(autoConnect=true){
+      if(!authCurrentUser||workspaceLoading) return;
+      workspaceLoading=true; setWorkspaceStatus('正在读取协作组…'); renderWorkspaceUI();
+      try{
+        const {data,error}=await getAuthClient().rpc('ggz_workspace_overview'); if(error) throw error;
+        const overview=data&&typeof data==='object'?data:{};
+        workspaces=Array.isArray(overview.groups)?overview.groups:[]; workspaceInvites=Array.isArray(overview.invites)?overview.invites:[];
+        if(overview.username){ editorName=String(overview.username); localStorage.setItem('ggzEditorName',editorName); $('editorNameInput').value=editorName; $('authAccountBadge').textContent=editorName; }
+        if(!workspaces.some(group=>group.id===activeWorkspaceId)) activeWorkspaceId=workspaces[0]?.id||'';
+        workspaceLoading=false; renderWorkspaceUI();
+        if(activeWorkspaceId) await activateWorkspace(activeWorkspaceId,autoConnect);
+        else{ syncCode=''; $('syncCodeInput').value=''; setWorkspaceStatus(workspaceInvites.length?'请先处理协作组邀请':'请新建协作组，或等待别人邀请你'); setCloudStatus('尚未加入协作组'); }
+      }catch(error){
+        workspaceLoading=false; workspaces=[]; workspaceInvites=[]; activeWorkspaceId=''; syncCode=''; renderWorkspaceUI(); setWorkspaceStatus(readableWorkspaceError(error),'bad');
+      }
+    }
+    async function createWorkspace(){
+      const name=normalizedAccountName(prompt('给新的协作组取个名字，例如“夏剧排单组”','')||''); if(!name) return;
+      let legacy=null;
+      if(legacySyncCode){
+        const useLegacy=await appConfirm('检测到这台设备以前使用过同步码。新建协作组时一起带入原来的云端排单吗？','带入原有排单','带入并新建');
+        if(useLegacy) legacy=legacySyncCode;
+      }
+      const button=$('createWorkspaceBtn'); button.disabled=true; setWorkspaceStatus('正在新建协作组…');
+      try{
+        const {data,error}=await getAuthClient().rpc('ggz_create_group',{p_name:name,p_legacy_sync_code:legacy}); if(error) throw error;
+        const row=Array.isArray(data)?data[0]:data; activeWorkspaceId=row?.group_id||''; legacySyncCode='';
+        await loadWorkspaceOverview(true);
+      }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); }
+      finally{ button.disabled=false; }
+    }
+    async function inviteWorkspaceMember(){
+      const group=currentWorkspace(); if(!group) return;
+      const username=normalizedAccountName(prompt('输入对方完整的账户名','')||''); if(!username) return;
+      const button=$('inviteWorkspaceMemberBtn'); button.disabled=true; setWorkspaceStatus('正在发送邀请…');
+      try{
+        const {data,error}=await getAuthClient().rpc('ggz_invite_group_member',{p_group_id:group.id,p_username:username}); if(error) throw error;
+        const row=Array.isArray(data)?data[0]:data; setWorkspaceStatus(`已邀请 ${row?.invited_username||username}`,'ok');
+      }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); }
+      finally{ button.disabled=false; }
+    }
+    async function respondWorkspaceInvite(inviteId,accept){
+      setWorkspaceStatus(accept?'正在加入协作组…':'正在拒绝邀请…');
+      try{
+        const {error}=await getAuthClient().rpc('ggz_respond_group_invite',{p_invite_id:inviteId,p_accept:!!accept}); if(error) throw error;
+        $('workspaceInvitesPanel').hidden=true; await loadWorkspaceOverview(true);
+      }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); }
+    }
+    async function showWorkspaceMembers(){
+      const group=currentWorkspace(); if(!group) return;
+      $('workspaceMembersPanel').hidden=false; $('workspaceInvitesPanel').hidden=true; $('workspaceMemberList').innerHTML='<div class="workspace-list-empty">正在读取成员…</div>';
+      try{
+        const {data,error}=await getAuthClient().rpc('ggz_group_member_list',{p_group_id:group.id}); if(error) throw error;
+        const rows=Array.isArray(data)?data:[],canManage=['owner','admin'].includes(group.role);
+        $('workspaceMemberList').innerHTML=rows.length?rows.map(row=>`<div class="workspace-list-row" data-member-id="${escapeAttr(row.user_id)}"><strong>${escapeHtml(row.username)}${row.user_id===authCurrentUser?.id?'（我）':''}</strong><small>${row.role==='owner'?'组主':(row.role==='admin'?'管理员':'成员')}</small>${canManage&&row.role!=='owner'?'<span class="workspace-row-actions"><button type="button" data-remove-member>移除</button></span>':''}</div>`).join(''):'<div class="workspace-list-empty">暂时没有成员</div>';
+      }catch(error){ $('workspaceMemberList').innerHTML=`<div class="workspace-list-empty">${escapeHtml(readableWorkspaceError(error))}</div>`; }
+    }
+    function applyAuthSession(session){
+      authCurrentUser=session?.user||null; authReady=true;
+      if(!authCurrentUser){
+        document.documentElement.classList.remove('auth-pending'); document.documentElement.classList.add('auth-locked');
+        $('authGate').hidden=false; $('authAccountBadge').textContent='尚未登录';
+        setAuthMessage('请输入账户名和密码。'); return;
+      }
+      const name=authAccountName(authCurrentUser)||'已登录用户';
+      editorName=name; localStorage.setItem('ggzEditorName',name); $('editorNameInput').value=name; $('authAccountBadge').textContent=name;
+      $('authGate').hidden=true; document.documentElement.classList.remove('auth-pending','auth-locked');
+      setTimeout(()=>loadWorkspaceOverview(true),0);
+    }
+    async function initAuthGate(){
+      try{
+        const client=getAuthClient();
+        const {data,error}=await client.auth.getSession(); if(error) throw error;
+        applyAuthSession(data?.session||null);
+        client.auth.onAuthStateChange((event,session)=>{
+          if(event==='SIGNED_IN'||event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED') applyAuthSession(session);
+          else if(event==='SIGNED_OUT') applyAuthSession(null);
+        });
+      }catch(error){
+        document.documentElement.classList.remove('auth-pending'); document.documentElement.classList.add('auth-locked');
+        $('authGate').hidden=false; setAuthMessage(readableAuthError(error),'bad');
+      }
+    }
 
     const COST_DEFAULTS={priceType:'total',count:'',jpyPrice:'',exchangeRate:'',manualAveragePrice:'',sharedFee:''};
 
@@ -1216,7 +1461,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         localRevision++; cloudDirty=true; rememberCloudDirty(syncCode,true);
         if(collabEnabled){ scheduleCollabSync(); setCloudStatus('实时协作中 · 完整备份未更新','warn'); }
         else if(syncCode&&cloudIdleEnabled) scheduleIdleCloudUpload();
-        else setCloudStatus(syncCode?'云端未同步':'未填写同步码',syncCode?'warn':false);
+        else setCloudStatus(syncCode?'云端完整备份未更新':'尚未加入协作组',syncCode?'warn':false);
       }
       return localSaved;
     }
@@ -1541,7 +1786,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       applySheet(sheet); saveState();
     }
     function setCloudStatus(text,tone){ const el=$('cloudStatus'); el.textContent=text; el.style.color=tone==='warn'?'var(--warn)':(tone?'var(--bad)':'var(--muted)'); }
-    function normalizedSyncCode(){ return String($('syncCodeInput').value||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24); }
+    function normalizedSyncCode(){ return UUID_RE.test(String(activeWorkspaceId||syncCode))?String(activeWorkspaceId||syncCode):''; }
     function rememberCloudVersion(code,updatedAt){ lastCloudUpdatedAt=updatedAt||''; if(code&&updatedAt) localStorage.setItem(CLOUD_VERSION_KEY_PREFIX+code,updatedAt); }
     function rememberedCloudDirty(code,knownVersion){ const stored=code?localStorage.getItem(CLOUD_DIRTY_KEY_PREFIX+code):null; return stored===null?!knownVersion:stored==='1'; }
     function rememberCloudDirty(code,dirty){ if(code) localStorage.setItem(CLOUD_DIRTY_KEY_PREFIX+code,dirty?'1':'0'); }
@@ -1552,7 +1797,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function getCloudClient(code){
       if(!window.supabase||!window.supabase.createClient) throw new Error('云同步组件尚未加载');
-      cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{global:{headers:{'x-sync-code':code}}});
+      cloudClient=getAuthClient();
       return cloudClient;
     }
     function editLockExpired(lock){ return !lock?.expires_at||new Date(lock.expires_at).getTime()<=Date.now(); }
@@ -1629,7 +1874,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }catch(error){ if(!quiet) alert('结束编辑失败：'+(error.message||error)); return false; }
     }
     async function acquireEditLock(){
-      const code=normalizedSyncCode(); if(!code){ alert('请先填写同步码'); return; }
+      const code=normalizedSyncCode(); if(!code){ alert('请先加入或新建协作组'); return; }
       const name=String($('editorNameInput').value||'').trim(); if(!name){ alert('请先填写编辑者名字'); $('editorNameInput').focus(); return; }
       editorName=name; localStorage.setItem('ggzEditorName',editorName); syncCode=code;
       $('acquireEditLockBtn').disabled=true; $('editLockStatus').textContent='正在取得编辑权…';
@@ -1726,7 +1971,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function collabResultRow(data){ return Array.isArray(data)?(data[0]||null):(data||null); }
     function syncCompactCollabStatus(){
       const compact=$('collabCompactStatus'); if(!compact) return;
-      compact.textContent=collabEnabled?'● 实时协作已开启':'○ 实时协作未开启，请先到设置开启';
+      const hasGroup=!!currentWorkspace();
+      compact.textContent=collabEnabled?`● ${currentWorkspace()?.name||'协作组'} · 实时同步中`:(hasGroup?'○ 协作暂时未连接':'○ 尚未加入协作组');
       compact.style.color=collabEnabled?'var(--ok)':'var(--warn)';
       compact.style.borderColor=collabEnabled?'#b9dfc5':'#ecd3aa';
       compact.style.background=collabEnabled?'#f0faf3':'#fff9ef';
@@ -1836,7 +2082,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       finally{ collabPolling=false; }
     }
     async function startCollab(autoStart=false){
-      const code=normalizedSyncCode(); if(!code){ if(!autoStart) alert('请先填写同步码'); return false; }
+      const code=normalizedSyncCode(); if(!code){ if(!autoStart) alert('请先加入或新建协作组'); return false; }
       const name=String($('editorNameInput').value||'').trim(); if(!name){ if(!autoStart){ alert('请先填写编辑者名字'); $('editorNameInput').focus(); } return false; }
       syncCode=code; editorName=name; localStorage.setItem('ggzEditorName',editorName); $('startCollabBtn').disabled=true; setCollabStatus('正在连接实时协作…','warn');
       try{
@@ -1876,8 +2122,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       cloudIdleTimer=setTimeout(attemptIdleCloudUpload,CLOUD_IDLE_UPLOAD_MS);
     }
     async function uploadCloud(silent){
-      const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先填写同步码',true); return; } if(cloudBusy) return;
-      if(code!==syncCode){ setCloudStatus('同步码已改变，请先确认输入框','warn'); return; }
+      const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先加入或新建协作组',true); return; } if(cloudBusy) return;
+      if(code!==syncCode){ setCloudStatus('协作组已切换，请稍后重试','warn'); return; }
       if(!(await confirmEditLockForUpload(code))) return;
       const automatic=silent===true;
       clearIdleCloudUpload();
@@ -1954,7 +2200,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       finally{ cloudBusy=false; }
     }
     async function downloadCloud(silent){
-      const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先填写同步码',true); return false; } if(cloudBusy) return false;
+      const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先加入或新建协作组',true); return false; } if(cloudBusy) return false;
       if(cloudDirty&&!confirm('本机有尚未上传的内容。读取云端会覆盖本机当前数据，确定继续吗？')) return false;
       clearIdleCloudUpload();
       cloudBusy=true; if(!silent) setCloudStatus('正在读取…');
@@ -2841,22 +3087,84 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderQuantitySummary(); saveState();
     });
     $('matrixColorInput').addEventListener('input',e=>{ matrixColor=e.target.value; renderMatrixHeading(); saveState(); });
-    $('createSyncCodeBtn').addEventListener('click',async()=>{
-      if(collabEnabled){ await stopCollab(); if(collabEnabled) return; }
-      const bytes=new Uint8Array(6); crypto.getRandomValues(bytes);
-      syncCode=[...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
-      $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode);
-      lastCloudUpdatedAt=localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''; cloudConflictPaused=false;
-      cloudDirty=true; rememberCloudDirty(syncCode,true); editLockSupported=false; editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); setCloudStatus('同步码已创建 · 云端未同步','warn'); syncEditLockUI(); syncCollabUI();
+    $('createSyncCodeBtn').addEventListener('click',()=>{});
+    $('workspaceSelect').addEventListener('change',async event=>{
+      const previous=activeWorkspaceId,next=String(event.target.value||'');
+      if(!next||next===previous) return;
+      if(!(await activateWorkspace(next,true))){ activeWorkspaceId=previous; renderWorkspaceUI(); }
     });
-    $('syncCodeInput').addEventListener('change',async()=>{
-      const nextCode=normalizedSyncCode();
-      if(nextCode===syncCode) return;
-      $('syncCodeInput').value=syncCode;
-      if(collabEnabled){ await stopCollab(); if(collabEnabled) return; }
-      syncCode=nextCode; $('syncCodeInput').value=syncCode; localStorage.setItem('ggzSyncCode',syncCode); lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):''; cloudConflictPaused=false; cloudDirty=syncCode?rememberedCloudDirty(syncCode,lastCloudUpdatedAt):true; editLockSupported=false; editLockOwned=false; editLockRecord=null; clearIdleCloudUpload(); setCloudStatus(syncCode?(cloudDirty?'云端未同步':'云端已同步'):'未填写同步码',syncCode&&cloudDirty?'warn':false); syncEditLockUI(); syncCollabUI();
+    $('createWorkspaceBtn').addEventListener('click',createWorkspace);
+    $('inviteWorkspaceMemberBtn').addEventListener('click',inviteWorkspaceMember);
+    $('showWorkspaceInvitesBtn').addEventListener('click',async()=>{
+      await loadWorkspaceOverview(false);
+      $('workspaceInvitesPanel').hidden=!$('workspaceInvitesPanel').hidden; $('workspaceMembersPanel').hidden=true;
+    });
+    $('showWorkspaceMembersBtn').addEventListener('click',showWorkspaceMembers);
+    document.querySelectorAll('[data-close-workspace-panel]').forEach(button=>button.addEventListener('click',()=>{ button.closest('.workspace-side-panel').hidden=true; }));
+    $('workspaceInviteList').addEventListener('click',event=>{
+      const button=event.target.closest('[data-invite-action]'),row=button?.closest('[data-workspace-invite]'); if(!button||!row) return;
+      respondWorkspaceInvite(row.dataset.workspaceInvite,button.dataset.inviteAction==='accept');
+    });
+    $('workspaceMemberList').addEventListener('click',async event=>{
+      const button=event.target.closest('[data-remove-member]'),row=button?.closest('[data-member-id]'),group=currentWorkspace(); if(!button||!row||!group) return;
+      if(!await appConfirm('确定把这位成员移出当前协作组吗？','移除协作成员','确认移除')) return;
+      button.disabled=true;
+      try{
+        const {error}=await getAuthClient().rpc('ggz_remove_group_member',{p_group_id:group.id,p_user_id:row.dataset.memberId}); if(error) throw error;
+        await showWorkspaceMembers(); setWorkspaceStatus('成员已移除','ok');
+      }catch(error){ button.disabled=false; setWorkspaceStatus(readableWorkspaceError(error),'bad'); }
     });
     $('editorNameInput').addEventListener('change',()=>{ editorName=String($('editorNameInput').value||'').trim(); localStorage.setItem('ggzEditorName',editorName); if(collabEnabled) refreshCollabActivity(); });
+    $('authLoginTab').addEventListener('click',()=>showAuthMode('login'));
+    $('authRegisterTab').addEventListener('click',()=>showAuthMode('register'));
+    $('authLoginForm').addEventListener('submit',async event=>{
+      event.preventDefault();
+      const form=event.currentTarget, name=normalizedAccountName($('authLoginName').value), password=$('authLoginPassword').value;
+      if(name.length<2){ setAuthMessage('账户名至少填写2个字','bad'); $('authLoginName').focus(); return; }
+      if(password.length<8){ setAuthMessage('密码至少填写8位','bad'); $('authLoginPassword').focus(); return; }
+      setAuthBusy(form,true); setAuthMessage('正在登录…');
+      try{
+        const email=await accountLoginEmail(name), {data,error}=await getAuthClient().auth.signInWithPassword({email,password});
+        if(error) throw error; if(!data?.session) throw new Error('登录状态为空，请重试');
+        applyAuthSession(data.session);
+      }catch(error){ setAuthMessage(readableAuthError(error),'bad'); }
+      finally{ setAuthBusy(form,false); }
+    });
+    $('authRegisterForm').addEventListener('submit',async event=>{
+      event.preventDefault();
+      const form=event.currentTarget, name=normalizedAccountName($('authRegisterName').value), password=$('authRegisterPassword').value, again=$('authRegisterPasswordAgain').value;
+      if(name.length<2||name.length>20){ setAuthMessage('账户名请填写2—20个字','bad'); $('authRegisterName').focus(); return; }
+      if(password.length<8){ setAuthMessage('密码至少填写8位','bad'); $('authRegisterPassword').focus(); return; }
+      if(password!==again){ setAuthMessage('两次输入的密码不一样','bad'); $('authRegisterPasswordAgain').focus(); return; }
+      setAuthBusy(form,true); setAuthMessage('正在注册…');
+      try{
+        const client=getAuthClient(),availability=await client.rpc('ggz_username_available',{p_username:name});
+        if(availability.error) throw availability.error;
+        if(availability.data!==true) throw new Error('USERNAME_TAKEN');
+        const email=await accountLoginEmail(name);
+        const {data,error}=await client.auth.signUp({email,password,options:{data:{username:name,account_name:name}}});
+        if(error) throw error;
+        if(data?.session){ applyAuthSession(data.session); }
+        else{
+          const login=await client.auth.signInWithPassword({email,password});
+          if(login.error) throw login.error;
+          if(!login.data?.session) throw new Error('注册完成，但尚未建立登录状态');
+          applyAuthSession(login.data.session);
+        }
+      }catch(error){ setAuthMessage(readableAuthError(error),'bad'); }
+      finally{ setAuthBusy(form,false); }
+    });
+    $('authLogoutBtn').addEventListener('click',async()=>{
+      if(collabEnabled){
+        await flushCollabChanges();
+        if(collabNeedsSend){ alert('还有协作修改没有同步成功，暂时不能退出登录。'); return; }
+        await leaveCollabPresence();
+      }
+      const button=$('authLogoutBtn'); button.disabled=true;
+      try{
+        await getAuthClient().auth.signOut(); localStorage.removeItem('ggzEditorName'); location.reload();
+      }catch(error){ button.disabled=false; alert('退出失败：'+readableAuthError(error)); }
+    });
     $('startCollabBtn').addEventListener('click',()=>startCollab(false));
     $('stopCollabBtn').addEventListener('click',stopCollab);
     $('acquireEditLockBtn').addEventListener('click',acquireEditLock);
@@ -4502,10 +4810,12 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     // ---------- boot ----------
     setupCollapsiblePanels();
+    $('authRegisterForm').hidden=true; $('authLoginForm').hidden=false;
+    $('workspaceInvitesPanel').hidden=true; $('workspaceMembersPanel').hidden=true;
     $('syncCodeInput').value=syncCode;
     $('editorNameInput').value=editorName;
     localStorage.removeItem('ggzCloudAuto');
-    setCloudStatus(syncCode?(cloudDirty?'云端未同步':`云端已同步 ${lastCloudUpdatedAt?new Date(lastCloudUpdatedAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}):''}`):'未填写同步码',syncCode&&cloudDirty?'warn':false);
+    setCloudStatus('登录后自动读取协作组');
     loadUndoHistory();
     loadState();
     migrateLegacyColdPromotionDraft();
@@ -4518,8 +4828,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     renderColumnList();
     renderColdBundleConfiguration(); syncUndoButton();
     recalc();
-    cloudIdleEnabled=true; syncEditLockUI(); syncCollabUI();
-    if(syncCode&&editorName&&localStorage.getItem(COLLAB_ENABLED_KEY_PREFIX+syncCode)==='1') setTimeout(()=>startCollab(true),0);
+    cloudIdleEnabled=true; syncEditLockUI(); renderWorkspaceUI(); syncCollabUI();
+    initAuthGate();
   }
 }
 </script>
