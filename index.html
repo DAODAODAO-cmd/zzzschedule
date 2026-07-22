@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="description" content="谷子调排簿：调价、排单、推车图、收款统计与双端同步。">
 <meta name="theme-color" content="#d1466a">
 <title>谷子调排簿</title>
@@ -28,15 +28,19 @@
   </header>
 
   <div class="sheetbar">
+    <div class="sheet-library-tools">
+      <input id="sheetSearchInput" type="text" placeholder="搜索排单名称">
+      <div class="sheet-status-tabs"><button type="button" data-sheet-status-filter="ongoing" class="active">进行中</button><button type="button" data-sheet-status-filter="completed">已完成</button><button type="button" data-sheet-status-filter="all">全部</button></div>
+    </div>
     <div id="sheetTabs" class="sheet-tabs"></div>
-    <button class="sheet-add" id="addSheetBtn" title="新建表">＋ 新建表</button>
+    <div class="sheetbar-actions"><button class="sheet-add" id="addSheetBtn" title="新建表">＋ 新建表</button><button class="sheet-complete-toggle" id="toggleSheetCompletedBtn">标记完成</button></div>
   </div>
   <nav class="desktop-app-nav" aria-label="功能导航">
     <button type="button" data-app-section="goods"><span>◇</span><b>谷子</b><small>价格与种类</small></button>
     <button type="button" data-app-section="order"><span>▦</span><b>排单</b><small>录入、预览与排单表</small></button>
     <button type="button" data-app-section="stats"><span>▥</span><b>统计</b><small>数量统计与推车图</small></button>
     <button type="button" data-app-section="payment"><span>¥</span><b>收款</b><small>谷子收款与均摊</small></button>
-    <button type="button" data-app-section="settings"><span>⚙</span><b>设置</b><small>数据与云端</small></button>
+    <button type="button" data-app-section="settings"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M11 4v6M4 17h4m4 0h8M8 14v6"/></svg></span><b>设置</b><small>数据与云端</small></button>
   </nav>
   </aside>
 
@@ -73,6 +77,7 @@
 
   <div class="mobile-sheet-switch">
     <label><span>当前排单</span><select id="mobileSheetSelect" aria-label="切换当前排单"></select></label>
+    <button type="button" class="btn-ghost" id="mobileToggleSheetCompletedBtn">完成</button>
     <button type="button" class="btn-ghost" id="mobileRenameSheetBtn">改名</button>
     <button type="button" class="btn-ghost" id="mobileAddSheetBtn">新建</button>
     <button type="button" class="btn-ghost" id="mobileDeleteSheetBtn">删除</button>
@@ -121,7 +126,15 @@
       <span class="hint">粘贴文字时，新名字会自动追加为列；也可以先建好列、设置别名合并、选择定价方式。</span>
     </div>
     <div id="catalogPanel" class="catalog-panel" style="display:none;">
-      <div class="catalog-head"><strong>常用谷子库</strong><input id="catalogSearch" type="text" placeholder="搜索谷子"></div>
+      <div class="catalog-head"><strong>常用谷子库</strong><input id="catalogSearch" type="text" placeholder="搜索名称、别名或分组"></div>
+      <div class="catalog-tools">
+        <div class="catalog-filter-tabs"><button type="button" class="active" data-catalog-filter="all">全部</button><button type="button" data-catalog-filter="pinned">置顶</button><button type="button" data-catalog-filter="recent">最近</button></div>
+        <select id="catalogGroupFilter" aria-label="按分组筛选"><option value="all">全部分组</option><option value="__ungrouped__">未分组</option></select>
+        <label class="catalog-sort-control">排序 <select id="catalogSort"><option value="smart">智能</option><option value="group">分组</option><option value="recent">最近使用</option><option value="usage">使用次数</option><option value="name">名称</option></select></label>
+        <button type="button" class="btn-ghost btn-mini" id="catalogSelectAllBtn">全选当前</button>
+        <button type="button" class="btn-primary btn-mini" id="catalogBatchAddBtn" disabled>加入所选</button>
+        <span id="catalogSelectionCount" class="catalog-selection-count">已选 0 项</span>
+      </div>
       <div id="catalogList"></div>
     </div>
   </div>
@@ -258,12 +271,12 @@
       <div id="matrixEmpty" class="empty">还没有生成配比表，先粘贴，或在上方添加列后点「重新生成」。</div>
     </div>
     <div class="toolbar">
-      <button class="btn-ghost" id="regenBtn">刷新表格</button>
-      <button class="btn-ghost" id="exportPngBtn">导出配比图</button>
-      <button class="btn-ghost" id="exportSingleQuantityBtn">复制单领数量</button>
-      <button class="btn-ghost" id="exportBundleQuantityBtn">复制配比数量</button>
-      <button class="btn-ghost" id="undoLastApplyBtn" disabled>撤回上次应用</button>
-      <button class="btn-danger" id="clearAllBtn">清空排单</button>
+      <button class="btn-ghost" id="regenBtn" data-mobile-label="刷新">刷新表格</button>
+      <button class="btn-ghost" id="exportPngBtn" data-mobile-label="导出图片">导出配比图</button>
+      <button class="btn-ghost" id="exportSingleQuantityBtn" data-mobile-label="单领数量">复制单领数量</button>
+      <button class="btn-ghost" id="exportBundleQuantityBtn" data-mobile-label="配比数量">复制配比数量</button>
+      <button class="btn-ghost" id="undoLastApplyBtn" data-mobile-label="撤回" disabled>撤回上次应用</button>
+      <button class="btn-danger" id="clearAllBtn" data-mobile-label="清空">清空排单</button>
     </div>
   </div>
 
@@ -280,8 +293,8 @@
     </div>
     <div id="quantitySummary"></div>
     <div class="toolbar">
-      <button class="btn-ghost" id="exportQuantityPngBtn">导出图片</button>
-      <button class="btn-ghost" id="exportQuantityExcelBtn">导出表格</button>
+      <button class="btn-ghost" id="exportQuantityPngBtn" data-mobile-label="图片">导出图片</button>
+      <button class="btn-ghost" id="exportQuantityExcelBtn" data-mobile-label="表格">导出表格</button>
     </div>
   </div>
 
@@ -306,7 +319,7 @@
       </div>
       <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收齐：0人 / ¥0.00；待退款：0人 / ¥0.00；待补款：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div id="paymentSummary" class="payment-summary"></div>
-      <div class="toolbar"><button type="button" class="btn-ghost" id="showPaymentTotalBtn">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn">导出收款图</button><button class="btn-ghost" id="exportPaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn">复制表格</button></div>
+      <div class="toolbar"><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportUnpaidPaymentBtn" data-mobile-label="未肾">导出未肾图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div>
     </div>
     <div id="sharePaymentView" style="display:none;">
       <div class="payment-heading-tools">
@@ -316,7 +329,7 @@
       </div>
       <div class="payment-search-tools"><input id="sharePaymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="sharePaymentSearchBtn">查找</button><span class="payment-unpaid-count" id="sharePaymentUnpaidCount">已收齐：0人 / ¥0.00；待退款：0人 / ¥0.00；待补款：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div id="sharePaymentSummary" class="payment-summary"></div>
-      <div class="toolbar"><button type="button" class="btn-ghost payment-calc-toggle" id="shareDeductFixedBtn">入均计算：未开启</button><button class="btn-ghost" id="exportSharePaymentBtn">导出均摊图</button><button class="btn-ghost" id="exportSharePaymentExcelBtn">导出 Excel</button><button class="btn-ghost" id="copySharePaymentBtn">复制表格</button></div>
+      <div class="toolbar"><button type="button" class="btn-ghost payment-calc-toggle" id="shareDeductFixedBtn" data-mobile-label="入均计算">入均计算：未开启</button><button class="btn-ghost" id="exportSharePaymentBtn" data-mobile-label="导出图片">导出均摊图</button><button class="btn-ghost" id="exportSharePaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copySharePaymentBtn" data-mobile-label="复制">复制表格</button></div>
     </div>
   </div>
 
@@ -348,8 +361,8 @@
       <div id="cartGrid"></div>
     </div>
     <div class="toolbar">
-      <button class="btn-ghost" id="cartRefreshBtn">刷新推车图</button>
-      <button class="btn-ghost" id="cartExportPngBtn">导出推车图</button>
+      <button class="btn-ghost" id="cartRefreshBtn" data-mobile-label="刷新">刷新推车图</button>
+      <button class="btn-ghost" id="cartExportPngBtn" data-mobile-label="导出图片">导出推车图</button>
     </div>
   </div>
 
@@ -376,7 +389,7 @@
     <button type="button" data-app-section="order"><span>▦</span><b>排单</b></button>
     <button type="button" data-app-section="stats"><span>▥</span><b>统计</b></button>
     <button type="button" data-app-section="payment"><span>¥</span><b>收款</b></button>
-    <button type="button" data-app-section="settings"><span>⚙</span><b>设置</b></button>
+    <button type="button" data-app-section="settings"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M11 4v6M4 17h4m4 0h8M8 14v6"/></svg></span><b>设置</b></button>
   </nav>
   <div id="appConfirmOverlay" class="app-confirm-overlay" hidden style="display:none;">
     <div class="app-confirm-card" role="dialog" aria-modal="true" aria-labelledby="appConfirmTitle">
@@ -384,6 +397,9 @@
       <p id="appConfirmMessage"></p>
       <div><button type="button" class="btn-ghost" id="appConfirmCancel">取消</button><button type="button" class="btn-primary" id="appConfirmOk">继续开启</button></div>
     </div>
+  </div>
+  <div id="customSelectOverlay" class="custom-select-overlay" hidden style="display:none;">
+    <div id="customSelectMenu" class="custom-select-menu" role="listbox" aria-label="选择选项"></div>
   </div>
 </div>
 </x-dc>
@@ -402,6 +418,8 @@ class Component extends DCLogic {
   --ok:#2f9e5c; --warn:#c0791f; --bad:#c94f6d;
   --radius:10px;
 }
+html{ scrollbar-gutter:stable; }
+@supports(-webkit-touch-callout:none){ html,body{ min-height:-webkit-fill-available; } }
 .wrap *{box-sizing:border-box;}
 .wrap{ max-width:1600px; margin:0 auto; padding:16px; display:grid; grid-template-columns:238px minmax(0,1fr); gap:16px; align-items:start; font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif; color:var(--text); background:linear-gradient(180deg,#fff 0,#faf8fb 220px); }
 .app-sidebar{ position:sticky; top:16px; display:flex; flex-direction:column; gap:10px; height:calc(100vh - 32px); min-height:520px; padding:15px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.96); box-shadow:0 10px 30px rgba(52,35,62,.08); overflow:hidden; }
@@ -411,15 +429,28 @@ class Component extends DCLogic {
 .app-sidebar .sheet-tabs{ flex:1 1 auto; flex-direction:column; align-items:stretch; overflow-x:hidden; overflow-y:auto; }
 .app-sidebar .sheet-tab{ width:100%; min-height:38px; }
 .app-sidebar .sheet-tab-name{ max-width:128px; flex:1; text-align:left; }
-.app-sidebar .sheet-add{ width:100%; }
+.sheet-library-tools{ display:grid; gap:5px; }
+.sheet-library-tools input{ width:100%; min-width:0; padding:6px 8px; font-size:11px; }
+.sheet-status-tabs{ display:grid; grid-template-columns:repeat(3,1fr); gap:3px; padding:3px; border-radius:8px; background:#f1edf3; }
+.sheet-status-tabs button{ min-width:0; padding:4px 1px; border:0; background:transparent; color:var(--muted); font-size:9.5px; white-space:nowrap; word-break:keep-all; }
+.sheet-status-tabs button.active{ background:#fff; color:var(--accent); box-shadow:0 1px 4px rgba(55,35,65,.09); }
+.sheet-group-label{ padding:7px 7px 3px; color:#9a91a1; font-size:9.5px; font-weight:900; letter-spacing:.05em; }
+.sheet-tab.is-completed{ color:#7d7682; }
+.sheet-tab.is-completed::before{ content:"✓"; display:grid; place-items:center; width:17px; height:17px; margin-right:4px; border-radius:50%; background:#e1f3e6; color:var(--ok); font-size:10px; }
+.sheetbar-actions{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+.app-sidebar .sheet-add,.app-sidebar .sheet-complete-toggle{ width:100%; min-width:0; padding:7px 5px; font-size:10.5px; }
+.sheet-complete-toggle{ border:1px solid #c8dfce; border-radius:8px; background:#eff9f2; color:#258048; font-weight:850; cursor:pointer; }
+.sheet-complete-toggle.is-completed{ border-color:#dfd7e3; background:#f6f3f7; color:#736b78; }
 .desktop-app-nav{ display:grid; flex:0 0 auto; gap:5px; }
 .desktop-app-nav button{ display:grid; grid-template-columns:28px 52px 1fr; align-items:center; min-height:43px; padding:6px 9px; border:0; border-radius:10px; background:transparent; color:var(--muted); text-align:left; cursor:pointer; }
 .desktop-app-nav button>span{ display:grid; place-items:center; width:25px; height:25px; border-radius:7px; background:#f3eff5; color:var(--accent); font-weight:900; }
+.desktop-app-nav button>span svg,.mobile-bottom-nav button>span svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .desktop-app-nav button>b{ color:var(--text); font-size:13px; }
 .desktop-app-nav button>small{ overflow:hidden; color:var(--muted); font-size:10px; white-space:nowrap; text-overflow:ellipsis; }
 .desktop-app-nav button.active{ background:#fff0f4; box-shadow:inset 3px 0 0 var(--accent); }
 .desktop-app-nav button.active>span{ background:var(--accent); color:#fff; }
 .cloud-hub{ position:sticky; top:0; z-index:24; padding:1px 0 4px; background:rgba(250,248,251,.94); backdrop-filter:blur(12px); }
+.wrap[data-active-section="settings"] .cloud-hub{ position:static; }
 .mobile-sheet-switch,.mobile-bottom-nav,.collab-compact-status{ display:none; }
 .wrap:not([data-active-section="settings"]) .cloudbar,.wrap:not([data-active-section="settings"]) .edit-lock-controls,.wrap:not([data-active-section="settings"]) .collab-activity{ display:none!important; }
 .wrap:not([data-active-section="settings"]) .collab-compact-status{ display:block; margin:0 0 7px; padding:8px 11px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--muted); font-size:12px; font-weight:900; text-align:center; }
@@ -435,6 +466,14 @@ class Component extends DCLogic {
 .app-confirm-card strong{ display:block; color:var(--text); font-size:16px; }
 .app-confirm-card p{ margin:9px 0 16px; color:var(--muted); font-size:13px; line-height:1.65; white-space:pre-wrap; }
 .app-confirm-card>div{ display:flex; justify-content:flex-end; gap:8px; }
+.custom-select-overlay{ position:fixed; z-index:260; inset:0; background:rgba(31,24,36,.18); }
+.custom-select-overlay[hidden]{ display:none; }
+.custom-select-menu{ position:fixed; display:grid; max-height:min(340px,70vh); padding:5px; overflow:auto; border:1px solid #ded5e2; border-radius:10px; background:#fff; box-shadow:0 14px 38px rgba(40,27,47,.22); overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+.custom-select-group{ padding:7px 9px 4px; color:#968d9c; font-size:10px; font-weight:900; }
+.custom-select-option{ display:grid; grid-template-columns:minmax(0,1fr) 18px; align-items:center; gap:8px; width:100%; min-height:35px; padding:7px 9px; border:0; border-radius:7px; background:#fff; color:var(--text); font:inherit; font-size:12px; text-align:left; cursor:pointer; }
+.custom-select-option:hover,.custom-select-option.selected{ background:#fff0f4; color:var(--accent); }
+.custom-select-option.selected::after{ content:"✓"; color:var(--accent); font-weight:900; text-align:center; }
+.custom-select-option:disabled{ background:#f7f5f8; color:#aaa2ae; cursor:not-allowed; }
 .wrap header{ margin-bottom:14px; }
 .wrap .eyebrow{ font-size:12px; letter-spacing:.2em; color:var(--accent); font-weight:700; }
 .wrap h1{ margin:3px 0 0; font-size:24px; font-weight:800; letter-spacing:.02em; }
@@ -549,11 +588,26 @@ class Component extends DCLogic {
 .wrap .col-actions .btn-mini{ padding:4px 7px; }
 .catalog-panel{ margin-top:10px; padding:10px; border:1px solid var(--line); border-radius:10px; background:#faf8fb; }
 .catalog-head{ display:grid; grid-template-columns:auto minmax(150px,280px); justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; }
+.catalog-tools{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:7px; padding:6px; border:1px solid var(--line); border-radius:9px; background:#fff; }
+.catalog-filter-tabs{ display:flex; gap:3px; padding:3px; border-radius:7px; background:var(--panel-2); }
+.catalog-filter-tabs button{ padding:5px 9px; background:transparent; color:var(--muted); }
+.catalog-filter-tabs button.active{ background:#fff; color:var(--accent); box-shadow:0 1px 4px rgba(60,40,70,.1); }
+.catalog-tools select{ width:auto; min-width:105px; padding:5px 25px 5px 7px; }
+.catalog-sort-control{ display:flex!important; align-items:center; gap:4px; margin:0!important; }
+.catalog-selection-count{ color:var(--muted); font-size:11px; font-weight:800; }
 .catalog-list-empty{ padding:14px; color:var(--muted); text-align:center; font-size:12px; }
-.catalog-item{ display:grid; grid-template-columns:42px minmax(100px,1fr) minmax(120px,1fr) auto auto; gap:8px; align-items:center; padding:7px; border-top:1px solid var(--line); }
+.catalog-item{ display:grid; grid-template-columns:22px 30px 42px minmax(100px,1fr) 118px minmax(120px,1fr) 76px auto auto; gap:7px; align-items:center; padding:7px; border-top:1px solid var(--line); }
 .catalog-item:first-child{ border-top:0; }
 .catalog-item img,.catalog-item .catalog-img-empty{ width:38px; height:38px; border-radius:6px; object-fit:cover; background:#eeeaf0; display:grid; place-items:center; color:var(--muted); font-size:10px; }
+.catalog-select{ width:16px; height:16px; }
+.catalog-pin{ display:grid; place-items:center; width:27px; height:27px; padding:0!important; border:1px solid var(--line)!important; background:#fff!important; color:#b1a7b5; }
+.catalog-pin.active{ border-color:#e9bd5e!important; background:#fff8de!important; color:#ba7a00; }
+.catalog-main{ display:grid; min-width:0; gap:2px; }
+.catalog-main strong{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.catalog-group-label{ color:var(--accent-2); font-size:10px; font-weight:800; }
+.catalog-group-edit{ width:100%; min-width:0; padding:5px 6px!important; font-size:12px!important; }
 .catalog-item .catalog-price{ color:var(--muted); font-size:12px; white-space:nowrap; }
+.catalog-usage{ color:var(--muted); font-size:10px; line-height:1.3; text-align:center; }
 #catalogList{ max-height:380px; overflow:auto; scrollbar-gutter:stable; }
 .wrap .col-thumb{ width:38px; height:38px; border-radius:6px; object-fit:cover; border:1px solid var(--line); background:var(--panel-2); }
 .wrap .col-thumb-empty{ width:38px; height:38px; border-radius:6px; border:1px dashed var(--line); background:var(--panel-2); display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); text-align:center; line-height:1.1; }
@@ -763,38 +817,47 @@ class Component extends DCLogic {
 }
 @media(max-width:1050px){ .wrap .col-card{ grid-template-columns:42px 76px minmax(125px,1fr) minmax(150px,1fr) 82px 125px 100px 108px; overflow-x:auto; } }
 @media(max-width:760px){
-  body{ padding-bottom:calc(72px + env(safe-area-inset-bottom)); }
-  .wrap{ display:block; max-width:none; padding:10px 9px calc(84px + env(safe-area-inset-bottom)); }
+  body{ min-height:100vh; min-height:100dvh; padding-bottom:0; }
+  .wrap{ display:block; max-width:none; min-height:100vh; min-height:100dvh; padding:10px 9px calc(84px + constant(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); padding-bottom:calc(84px + env(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); }
   .app-sidebar{ display:none; }
   .app-main{ width:100%; }
   .cloud-hub{ top:0; margin:-10px -9px 8px; padding:8px 9px 2px; border-bottom:1px solid rgba(220,211,224,.9); background:rgba(250,248,251,.96); }
   .wrap:not([data-active-section="settings"]) .cloudbar{ display:none; }
   .wrap:not([data-active-section="settings"]) .edit-lock-controls,.wrap:not([data-active-section="settings"]) .collab-activity{ display:none!important; }
-  .wrap:not([data-active-section="settings"]) .collab-compact-status{ display:block; margin:0 0 6px; padding:7px 10px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--muted); font-size:11px; font-weight:900; text-align:center; }
+  .wrap:not([data-active-section="settings"]) .collab-compact-status{ display:block; margin:0 0 6px; padding:6px 8px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--muted); font-size:9.5px; font-weight:900; text-align:center; }
   .edit-lock-controls{ margin:0 0 6px; padding:7px; border-radius:10px; }
   .edit-lock-controls label{ flex:1 1 145px; width:auto; }
   .edit-lock-controls input{ min-width:90px; }
   #collabStatus{ order:5; width:100%; margin-left:0; white-space:normal; }
   .collab-activity{ margin:0 0 6px; }
-  .mobile-sheet-switch{ position:relative; z-index:18; display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:6px; align-items:end; margin:0 0 9px; padding:9px; border:1px solid var(--line); border-radius:12px; background:#fff; box-shadow:0 4px 14px rgba(55,37,65,.06); }
-  .mobile-sheet-switch label{ display:grid; gap:3px; margin:0; color:var(--muted); font-size:10.5px; font-weight:800; }
+  .cloudbar{ gap:4px; margin:0 0 6px; padding:6px; border-radius:9px; }
+  .wrap .cloudbar input,.wrap .edit-lock-controls input{ height:29px; min-height:29px; padding:4px 6px; }
+  .wrap .cloudbar button,.wrap .edit-lock-controls button{ min-height:28px; padding:4px 7px; border-radius:6px; font-size:10px; line-height:1.1; white-space:nowrap; }
+  .edit-lock-controls label{ gap:4px; font-size:10px; }
+  #localStatus,#cloudStatus,#collabStatus{ font-size:9.5px; }
+  .mobile-sheet-switch{ position:relative; z-index:18; display:grid; grid-template-columns:minmax(0,1fr) repeat(4,38px); gap:4px; align-items:end; margin:0 0 9px; padding:7px; border:1px solid var(--line); border-radius:12px; background:#fff; box-shadow:0 4px 14px rgba(55,37,65,.06); }
+  .mobile-sheet-switch label{ display:grid; gap:3px; margin:0; color:var(--muted); font-size:9.5px; font-weight:800; }
   .mobile-sheet-switch select{ width:100%; min-width:0; height:36px; padding:6px 27px 6px 9px; border-color:#dbcfd9; color:var(--text); font-weight:800; }
-  .mobile-sheet-switch button{ min-width:42px; height:36px; padding:6px 8px; }
-  .mobile-bottom-nav{ position:fixed; z-index:80; left:0; right:0; bottom:0; display:grid; grid-template-columns:repeat(5,1fr); padding:6px 7px calc(6px + env(safe-area-inset-bottom)); border-top:1px solid rgba(220,211,224,.96); background:rgba(255,255,255,.96); box-shadow:0 -8px 24px rgba(47,31,56,.1); backdrop-filter:blur(15px); }
+  .mobile-sheet-switch button{ min-width:0; width:38px; height:36px; padding:5px 2px; font-size:9.5px; }
+  .mobile-bottom-nav{ position:fixed; z-index:80; left:0; right:0; bottom:var(--browser-bottom-offset,0px); display:grid; grid-template-columns:repeat(5,1fr); padding:6px 7px calc(6px + constant(safe-area-inset-bottom)); padding-bottom:calc(6px + env(safe-area-inset-bottom)); border-top:1px solid rgba(220,211,224,.96); background:rgba(255,255,255,.96); box-shadow:0 -8px 24px rgba(47,31,56,.1); -webkit-backdrop-filter:blur(15px); backdrop-filter:blur(15px); transform:translateZ(0); }
   .mobile-bottom-nav button{ display:grid; place-items:center; gap:1px; min-width:0; min-height:50px; padding:4px 2px; border:0; border-radius:10px; background:transparent; color:#8b8392; font-size:10px; cursor:pointer; }
   .mobile-bottom-nav button span{ font-size:18px; font-weight:900; line-height:1; }
-  .mobile-bottom-nav button b{ font-size:10.5px; }
+  .mobile-bottom-nav button b{ font-size:9.5px; }
   .mobile-bottom-nav button.active{ background:#fff0f4; color:var(--accent); }
   .mobile-bottom-nav button.active b{ font-weight:900; }
+  .custom-select-overlay{ background:rgba(31,24,36,.24); backdrop-filter:blur(1px); }
+  .custom-select-menu{ max-height:min(330px,58vh); max-height:min(330px,58dvh); padding:4px; border-radius:10px; }
+  .custom-select-group{ padding:6px 8px 3px; font-size:9px; }
+  .custom-select-option{ min-height:31px; padding:5px 8px; font-size:11px; }
   body.mobile-keyboard-open .mobile-bottom-nav{ display:none; }
   .settings-data-actions>.data-actions-pop{ position:static; left:auto; right:auto; bottom:auto; width:100%; max-width:none; grid-template-columns:1fr; }
-  footer{ padding-bottom:12px; }
+  footer{ padding:5px 8px 12px; color:var(--muted); font-size:9px; line-height:1.45; text-align:center; }
 }
 @media(max-width:620px){
-  .wrap{ padding:12px 9px 28px; font-size:13px; }
+  .wrap{ padding:12px 9px calc(84px + constant(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); padding-bottom:calc(84px + env(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); font-size:10.5px; }
   .wrap header{ margin-bottom:9px; }
-  .wrap h1{ font-size:19px; }
-  .wrap h2{ font-size:14px; }
+  .wrap h1{ font-size:17px; }
+  .wrap h2{ font-size:12px; }
   .desktop-setup.app-section-hidden{ display:none!important; }
   .cloudbar{ gap:6px; }
   .cloudbar input{ width:calc(50% - 3px); flex:1 1 140px; }
@@ -805,12 +868,12 @@ class Component extends DCLogic {
   .wrap .panel{ padding:12px; margin-bottom:9px; }
   #matrixPanel .toolbar > *{ display:inline-flex!important; }
   .matrix-tip,.matrix-options{ display:flex; }
-  .wrap button,.wrap .btn-ghost,.wrap .btn-primary,.wrap .btn-danger,.wrap label{ font-size:12.5px; }
-  .wrap .hint,.wrap .cost-human-tip{ font-size:11.5px; }
-  .wrap input[type=text],.wrap input[type=number],.wrap textarea,.wrap select{ font-size:14px; }
-  .wrap table{ font-size:12.5px; }
-  #matrixTable [contenteditable=true],.payment-table [contenteditable=true]{ font-size:14px; }
-  .matrix-price-input{ font-size:14px!important; }
+  .wrap button,.wrap .btn-ghost,.wrap .btn-primary,.wrap .btn-danger,.wrap label{ font-size:10px; }
+  .wrap .hint,.wrap .cost-human-tip{ font-size:9.5px; }
+  .wrap input[type=text],.wrap input[type=number],.wrap textarea,.wrap select{ font-size:11px; }
+  .wrap table{ font-size:10.5px; }
+  #matrixTable [contenteditable=true],.payment-table [contenteditable=true]{ font-size:11px; }
+  .matrix-price-input{ font-size:11px!important; }
   #matrixTable tr.adj-row td:first-child,#matrixTable tr.price-row td:first-child,#matrixTable tr.promotion-point-row td:first-child{ min-width:62px; width:62px; background:#f5f2f6; }
   #matrixTable thead td:first-child,#matrixTable thead th:first-child{ background:#f5f2f6; }
   .cart-controls{ overflow-x:auto; padding-bottom:3px; }
@@ -830,12 +893,13 @@ class Component extends DCLogic {
   body:not(.export-rendering) .desktop-field-note{ display:none; }
   body:not(.export-rendering) #matrixPanel{ padding:8px; }
   body:not(.export-rendering) #matrixPanel .matrix-heading-tools{ gap:5px; margin-bottom:6px; }
-  body:not(.export-rendering) #matrixPanel .matrix-heading-tools input{ min-height:32px; padding:5px 7px; }
+  body:not(.export-rendering) #matrixPanel .matrix-heading-tools input:not([type=color]){ min-height:32px; padding:5px 7px; }
   body:not(.export-rendering) #matrixPanel .matrix-options{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:3px; margin:0 0 6px; }
   body:not(.export-rendering) #matrixPanel .matrix-options .matrix-toggle{ min-width:0; min-height:29px; padding:3px 1px; border-radius:6px; font-size:9px; line-height:1.1; white-space:normal; }
   body:not(.export-rendering) #matrixPanel .matrix-tip{ margin-bottom:6px; padding:5px 7px; font-size:10px; }
-  body:not(.export-rendering) #matrixPanel .matrix-project-title{ padding:7px 9px; font-size:15px; }
+  body:not(.export-rendering) #matrixPanel .matrix-project-title{ padding:7px 9px; font-size:13px; }
   body:not(.export-rendering) #matrixTable{ font-size:10.5px; }
+  body:not(.export-rendering) #matrixTable thead tr.header-row th{ font-size:10.5px; }
   body:not(.export-rendering) #matrixTable td,body:not(.export-rendering) #matrixTable th{ min-width:70px; padding:4px 5px; }
   body:not(.export-rendering) #matrixTable td.seq-col,body:not(.export-rendering) #matrixTable th:first-child{ min-width:32px; width:32px; }
   body:not(.export-rendering) #matrixTable tr.adj-row td:first-child,body:not(.export-rendering) #matrixTable tr.price-row td:first-child,body:not(.export-rendering) #matrixTable tr.promotion-point-row td:first-child{ min-width:46px; width:46px; }
@@ -869,10 +933,10 @@ class Component extends DCLogic {
   body:not(.export-rendering) .payment-heading-tools label{ gap:3px; font-size:10px; }
   body:not(.export-rendering) .payment-search-tools{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px; margin-top:6px; }
   body:not(.export-rendering) .payment-search-tools input{ width:100%; min-width:0; font-size:12px; }
-  body:not(.export-rendering) .payment-search-tools input[type=text]{ font-size:16px!important; }
+  body:not(.export-rendering) .payment-search-tools input[type=text]{ font-size:11px!important; }
   body:not(.export-rendering) .payment-unpaid-count{ grid-column:1/-1; width:100%; min-width:0; margin-left:0; padding:5px 6px; font-size:9.5px; line-height:1.45; white-space:normal; overflow-wrap:anywhere; }
   body:not(.export-rendering) .payment-summary{ margin-top:7px; }
-  body:not(.export-rendering) .payment-project-title{ padding:7px 9px; font-size:15px; }
+  body:not(.export-rendering) .payment-project-title{ padding:7px 9px; font-size:13px; }
   body:not(.export-rendering) .payment-table{ min-width:540px; font-size:10.5px; }
   body:not(.export-rendering) .payment-table th,body:not(.export-rendering) .payment-table td{ padding:4px 5px; font-size:10.5px; }
   body:not(.export-rendering) .payment-table [contenteditable=true],body:not(.export-rendering) .payment-cn-name,body:not(.export-rendering) .payment-table td.payment-cn,body:not(.export-rendering) .payment-table td.payment-money{ font-size:10.5px!important; }
@@ -881,7 +945,7 @@ class Component extends DCLogic {
   body:not(.export-rendering) .wrap .payment-refund-check,body:not(.export-rendering) .wrap .payment-supplement-check{ width:23px; min-width:23px; height:16px; font-size:9px; }
   body:not(.export-rendering) .payment-adjustment-note,body:not(.export-rendering) .payment-received-note{ font-size:9px; }
   body:not(.export-rendering) #cartWrap{ padding:8px; border-radius:10px; }
-  body:not(.export-rendering) #cartHeader{ gap:8px; margin-bottom:8px; padding:8px 9px; border-radius:9px; font-size:14px; }
+  body:not(.export-rendering) #cartHeader{ gap:8px; margin-bottom:8px; padding:8px 9px; border-radius:9px; font-size:12px; }
   body:not(.export-rendering) #cartQrImage{ width:58px; height:58px; flex-basis:58px; border-radius:6px; }
   body:not(.export-rendering) #cartGrid{ gap:6px; }
   body:not(.export-rendering) .cart-card{ border-radius:10px; box-shadow:0 3px 10px rgba(57,38,66,.07); }
@@ -889,6 +953,67 @@ class Component extends DCLogic {
   body:not(.export-rendering) .cart-card .cart-badge{ padding:5px 7px; border-radius:7px; font-size:12px; box-shadow:0 2px 5px rgba(35,25,40,.13); }
   body:not(.export-rendering) .cart-card .cart-price{ top:5px; left:5px; }
   body:not(.export-rendering) .cart-card .cart-count{ right:5px; bottom:34px; padding:5px 7px; font-size:12px; }
+  body:not(.export-rendering) .app-main .panel{ padding:9px; }
+  body:not(.export-rendering) .app-main .panel>h2{ margin-bottom:7px; font-size:12px; }
+  body:not(.export-rendering) .app-main .panel .panel-toggle{ padding:3px 6px; font-size:9px; }
+  body:not(.export-rendering) .app-main .toolbar{ gap:4px; margin-top:6px; }
+  body:not(.export-rendering) .app-main .toolbar button,body:not(.export-rendering) .app-main .toolbar .btn-ghost,body:not(.export-rendering) .app-main .toolbar .btn-primary,body:not(.export-rendering) .app-main .toolbar .btn-danger,body:not(.export-rendering) .app-main .toolbar label.btn-ghost{ min-height:27px; padding:4px 7px; border-radius:6px; font-size:10px; line-height:1.15; }
+  body:not(.export-rendering) .upload-button,body:not(.export-rendering) .qr-upload{ min-height:27px!important; padding:4px 7px!important; border-radius:6px; font-size:10px!important; }
+  body:not(.export-rendering) .payment-qr-tools{ gap:4px; margin-top:5px; }
+  body:not(.export-rendering) .wrap input[type=text],body:not(.export-rendering) .wrap input[type=number],body:not(.export-rendering) .wrap textarea{ font-size:11px!important; }
+  body:not(.export-rendering) .wrap select{ font-size:11px!important; }
+  body:not(.export-rendering) .wrap [contenteditable=true]:focus{ font-size:11px!important; }
+  body:not(.export-rendering) #costPanel{ padding:8px; }
+  body:not(.export-rendering) #costPanel .grid{ gap:5px; }
+  body:not(.export-rendering) #costPanel label{ margin-bottom:3px; font-size:9.5px; }
+  body:not(.export-rendering) #costPanel input,body:not(.export-rendering) #costPanel select{ min-height:32px; padding:4px 6px; }
+  body:not(.export-rendering) #costPanel .cost-human-tip{ margin-top:6px; padding:5px 7px; font-size:9.5px; line-height:1.4; }
+  body:not(.export-rendering) #costPanel .warn{ margin-top:6px; padding:5px 7px; border-radius:6px; font-size:9.5px; line-height:1.45; }
+  body:not(.export-rendering) #costPanel .summary{ gap:4px; margin:6px 0 2px; }
+  body:not(.export-rendering) #costPanel .stat{ padding:5px 6px; border-radius:6px; }
+  body:not(.export-rendering) #costPanel .stat span{ margin-bottom:2px; font-size:9px; }
+  body:not(.export-rendering) #costPanel .stat strong{ font-size:12px; }
+  body:not(.export-rendering) .payment-heading-tools{ grid-template-columns:minmax(0,1fr) auto auto; gap:4px; }
+  body:not(.export-rendering) .matrix-heading-tools{ grid-template-columns:minmax(0,1fr) auto; }
+  body:not(.export-rendering) .payment-heading-tools>#paymentTitleInput,body:not(.export-rendering) .payment-heading-tools>#sharePaymentTitleInput,body:not(.export-rendering) .payment-heading-tools>#matrixTitleInput{ grid-column:auto; min-width:0; }
+  body:not(.export-rendering) .payment-heading-tools label{ gap:2px; font-size:9px; }
+  body:not(.export-rendering) .payment-heading-tools select{ width:68px; min-width:68px; padding-left:4px; padding-right:18px; }
+  body:not(.export-rendering) .payment-heading-tools input[type=color]{ width:30px; height:30px; padding:2px; }
+  body:not(.export-rendering) .payment-qr-tools button{ min-height:27px; padding:4px 7px; border-radius:6px; font-size:10px; }
+  body:not(.export-rendering) .cart-controls select{ font-size:10px!important; }
+  body:not(.export-rendering) .app-main button[data-mobile-label]{ font-size:0!important; white-space:nowrap; }
+  body:not(.export-rendering) .app-main button[data-mobile-label]::after{ content:attr(data-mobile-label); font-size:10px; line-height:1.15; }
+  body:not(.export-rendering) .catalog-panel{ margin-top:6px; padding:6px; }
+  body:not(.export-rendering) .catalog-head{ grid-template-columns:auto minmax(0,1fr); gap:6px; margin-bottom:5px; font-size:10.5px; }
+  body:not(.export-rendering) .catalog-head input{ min-width:0; height:31px; padding:4px 6px; }
+  body:not(.export-rendering) .catalog-tools{ display:grid; grid-template-columns:auto minmax(68px,1fr) auto auto; gap:3px; padding:4px; align-items:center; }
+  body:not(.export-rendering) .catalog-filter-tabs{ gap:1px; padding:2px; }
+  body:not(.export-rendering) .catalog-filter-tabs button{ min-height:25px; padding:3px 4px; font-size:9px; }
+  body:not(.export-rendering) .catalog-tools select{ width:100%; min-width:0; height:27px; padding:2px 17px 2px 4px; font-size:9px!important; }
+  body:not(.export-rendering) .catalog-sort-control{ display:none!important; }
+  body:not(.export-rendering) #catalogBatchAddBtn,body:not(.export-rendering) #catalogSelectAllBtn{ min-height:27px; padding:3px 4px; font-size:9px; white-space:nowrap; }
+  body:not(.export-rendering) .catalog-selection-count{ display:none; }
+  body:not(.export-rendering) .catalog-item{ grid-template-columns:18px 25px 30px minmax(30px,1fr) minmax(52px,70px) 27px 25px; grid-template-rows:auto; gap:4px; padding:4px 2px; }
+  body:not(.export-rendering) .catalog-item img,body:not(.export-rendering) .catalog-item .catalog-img-empty{ width:28px; height:28px; border-radius:5px; font-size:8px; }
+  body:not(.export-rendering) .catalog-select{ width:14px; height:14px; }
+  body:not(.export-rendering) .catalog-pin{ width:23px; height:23px; font-size:11px!important; }
+  body:not(.export-rendering) .catalog-main strong{ font-size:10.5px; }
+  body:not(.export-rendering) .catalog-group-label{ display:none; }
+  body:not(.export-rendering) .catalog-group-edit{ display:block; grid-column:5; grid-row:1; width:100%; height:20px; min-height:20px; padding:0 14px 0 3px!important; border-radius:4px; font-size:8px!important; line-height:1; }
+  body:not(.export-rendering) .catalog-price,body:not(.export-rendering) .catalog-usage{ display:none; }
+  body:not(.export-rendering) .catalog-add,body:not(.export-rendering) .catalog-delete{ min-width:23px; width:23px; height:23px; padding:0!important; font-size:0!important; }
+  body:not(.export-rendering) .catalog-add::after{ content:"＋"; font-size:13px; }
+  body:not(.export-rendering) .catalog-delete::after{ content:"×"; font-size:13px; }
+  body:not(.export-rendering) .cold-bundle-bar{ gap:4px; margin-top:5px; padding:4px 6px; border-radius:6px; font-size:9.5px; }
+  body:not(.export-rendering) .cold-bundle-bar #selectColdBundleBtn{ min-height:23px; padding:3px 6px; font-size:9px; }
+  body:not(.export-rendering) .cold-bundle-chooser{ margin-top:5px; padding:6px; border-radius:7px; }
+  body:not(.export-rendering) .cold-bundle-chooser>strong{ font-size:10px; }
+  body:not(.export-rendering) .cold-bundle-list{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:3px; margin-top:5px; }
+  body:not(.export-rendering) .cold-bundle-list label{ min-width:0; min-height:25px; gap:3px; padding:3px 5px; border-radius:5px; font-size:9.5px; white-space:nowrap; }
+  body:not(.export-rendering) .cold-bundle-list label input{ flex:0 0 auto; width:12px; height:12px; margin:0; }
+  body:not(.export-rendering) .cold-bundle-list label span{ min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  body:not(.export-rendering) .cold-bundle-chooser>.toolbar{ gap:3px; margin-top:5px; }
+  body:not(.export-rendering) .cold-bundle-chooser>.toolbar button{ min-height:23px; padding:3px 6px; font-size:9px; }
 }
 body.export-rendering #matrixTable{ font-size:13px; }
 body.export-rendering #matrixTable td,body.export-rendering #matrixTable th{ min-width:92px; padding:8px 10px; }
@@ -948,12 +1073,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let undoHistoryBySheet={};
     let itemCatalog=[], catalogIdSeed=1;
+    let catalogFilter='all', catalogSort='smart', catalogGroup='all', catalogSelectedIds=new Set(), catalogVisibleIds=[];
     const CLOUD_IDLE_UPLOAD_MS=5*60*1000;
     const CLOUD_VERSION_KEY_PREFIX='ggzCloudVersion_';
     const CLOUD_DIRTY_KEY_PREFIX='ggzCloudDirty_';
     const COLLAB_ENABLED_KEY_PREFIX='ggzCollabEnabled_';
     const COLLAB_CONFLICT_KEY_PREFIX='ggzCollabConflict_';
     const APP_SECTION_KEY='ggzAppSection_v1';
+    const SHEET_STATUS_FILTER_KEY='ggzSheetStatusFilter_v1';
     const COLLAB_POLL_MS=2000;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
@@ -961,6 +1088,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
     let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false;
     let activeAppSection='settings';
+    let sheetStatusFilter=['ongoing','completed','all'].includes(localStorage.getItem(SHEET_STATUS_FILTER_KEY))?localStorage.getItem(SHEET_STATUS_FILTER_KEY):'ongoing';
     const editSessionId=sessionStorage.getItem('ggzEditSessionId')||((crypto.randomUUID&&crypto.randomUUID())||('tab-'+Date.now()+'-'+Math.random().toString(36).slice(2)));
     sessionStorage.setItem('ggzEditSessionId',editSessionId);
     lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):'';
@@ -976,10 +1104,22 @@ body.export-rendering .cart-count{ font-size:28px; }
         exchangeRate:$('exchangeRate').value,manualAveragePrice:$('manualAveragePrice').value,sharedFee:$('sharedFee').value};
     }
     function snapshotSheet(){
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixColor,paymentTitle,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
+      const sheet=sheets.find(s=>s.id===activeSheetId);
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixColor:'#d1466a',paymentTitle:'',paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixTitleCustom:false,matrixColor:'#d1466a',paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+    }
+    function sheetUsesCustomTitle(sheet,key){
+      const flag=sheet?.[key+'Custom'];
+      if(typeof flag==='boolean') return flag;
+      const saved=String(sheet?.[key]||'').trim(), sheetName=String(sheet?.name||'').trim();
+      return !!saved&&saved!==sheetName;
+    }
+    function resolvedSheetTitle(sheet,key){
+      const custom=sheetUsesCustomTitle(sheet,key);
+      sheet[key+'Custom']=custom;
+      return custom?String(sheet[key]||''):String(sheet.name||'');
     }
     function captureActiveSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -998,8 +1138,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
       if(!sharedCartQrImg) sharedCartQrImg=sheet.cartQrImg||'';
       cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sharedCartQrImg;
-      matrixTitle=sheet.matrixTitle||sheet.name||''; matrixColor=sheet.matrixColor||'#d1466a';
-      paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
+      matrixTitle=resolvedSheetTitle(sheet,'matrixTitle'); matrixColor=sheet.matrixColor||'#d1466a';
+      paymentTitle=resolvedSheetTitle(sheet,'paymentTitle'); paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
       paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
       showPaymentTotal=sheet.showPaymentTotal!==false;
       paymentEdits=sheet.paymentEdits||{};
@@ -1145,6 +1285,27 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!Array.isArray(c.aliases)) c.aliases=[];
       return c;
     }
+    function migrateCatalogItem(item){
+      const c=migrateColumn(item||{});
+      c.name=String(c.name||'').trim()||'未命名谷子';
+      c.aliases=(c.aliases||[]).map(alias=>String(alias||'').trim()).filter(Boolean);
+      c.catalogPinned=c.catalogPinned===true;
+      c.catalogGroup=String(c.catalogGroup||'').trim();
+      c.catalogUsage=Math.max(0,parseInt(c.catalogUsage,10)||0);
+      c.catalogLastUsedAt=String(c.catalogLastUsedAt||'');
+      return c;
+    }
+    function migrateCatalogItems(items){
+      const list=(Array.isArray(items)?items:[]).map(migrateCatalogItem), used=new Set();
+      let nextId=Math.max(1,...list.map(item=>(Number.isInteger(Number(item.catalogId))&&Number(item.catalogId)>0)?Number(item.catalogId)+1:1));
+      list.forEach(item=>{
+        const id=Number(item.catalogId);
+        if(Number.isInteger(id)&&id>0&&!used.has(id)){ item.catalogId=id; used.add(id); return; }
+        while(used.has(nextId)) nextId++;
+        item.catalogId=nextId++; used.add(item.catalogId);
+      });
+      return list;
+    }
     function loadState(){
       try{
         const raw=localStorage.getItem(STORAGE_KEY);
@@ -1155,7 +1316,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
             sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||'';
             sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
-            itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[];
+            itemCatalog=migrateCatalogItems(d.itemCatalog);
             catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1));
             sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
             activeSheetId=sheets.some(s=>s.id===d.activeSheetId)?d.activeSheetId:sheets[0].id;
@@ -1164,8 +1325,8 @@ body.export-rendering .cart-count{ font-size:28px; }
             allocations=sheet.allocations||{}; cartNote=sheet.cartNote||'';
             cartTargetMode=sheet.cartTargetMode||'auto'; cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
             cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sharedCartQrImg;
-            matrixTitle=sheet.matrixTitle||sheet.name||''; matrixColor=sheet.matrixColor||'#d1466a';
-            paymentTitle=sheet.paymentTitle||sheet.name||''; paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
+            matrixTitle=resolvedSheetTitle(sheet,'matrixTitle'); matrixColor=sheet.matrixColor||'#d1466a';
+            paymentTitle=resolvedSheetTitle(sheet,'paymentTitle'); paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
             paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
             showPaymentTotal=sheet.showPaymentTotal!==false;
             paymentEdits=sheet.paymentEdits||{};
@@ -1200,26 +1361,44 @@ body.export-rendering .cart-count{ font-size:28px; }
             first.coldPromotionDraftRows=Array.isArray(d.coldPromotionDraftRows)?deepClone(d.coldPromotionDraftRows):[]; first.coldPromotionDraftApplied=d.coldPromotionDraftApplied===true;
             first.coldPromotionDraftBaseAllocations=d.coldPromotionDraftBaseAllocations&&typeof d.coldPromotionDraftBaseAllocations==='object'?deepClone(d.coldPromotionDraftBaseAllocations):null;
             first.coldCarryBundleColumnIds=Array.isArray(d.coldCarryBundleColumnIds)?d.coldCarryBundleColumnIds.map(Number):[];
-            first.matrixTitle=d.matrixTitle||''; first.matrixColor=d.matrixColor||'#d1466a';
+            first.matrixTitle=d.matrixTitle||''; first.matrixTitleCustom=!!String(first.matrixTitle).trim()&&String(first.matrixTitle).trim()!==first.name; first.matrixColor=d.matrixColor||'#d1466a';
+            first.paymentTitle=d.paymentTitle||''; first.paymentTitleCustom=!!String(first.paymentTitle).trim()&&String(first.paymentTitle).trim()!==first.name; first.paymentColor=d.paymentColor||'#d1466a';
             sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             sheets=[first]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=first.matrixTitle; matrixColor=first.matrixColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldPromotionDraftBaseAllocations=deepClone(first.coldPromotionDraftBaseAllocations); coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=resolvedSheetTitle(first,'matrixTitle'); matrixColor=first.matrixColor; paymentTitle=resolvedSheetTitle(first,'paymentTitle'); paymentColor=first.paymentColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldPromotionDraftBaseAllocations=deepClone(first.coldPromotionDraftBaseAllocations); coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
           }
           return;
         }
       }catch(e){ console.warn('读取失败',e); }
-      const first=blankSheet('表1'); sheets=[first]; activeSheetId=first.id; applyCost(first.cost);
+      const first=blankSheet('表1'); sheets=[first]; activeSheetId=first.id; applySheet(first);
     }
 
+    function isSheetCompleted(sheet){ return sheet?.completed===true; }
+    function completedSheetsByRecent(){ return sheets.filter(isSheetCompleted).sort((a,b)=>(Date.parse(b.completedAt)||0)-(Date.parse(a.completedAt)||0)); }
     function renderSheetTabs(){
-      $('sheetTabs').innerHTML=sheets.map((s,index)=>`<div class="sheet-tab ${s.id===activeSheetId?'active':''}" data-sheet="${s.id}" draggable="true" title="拖动排序，双击改名">${s.id===activeSheetId&&index>0?'<button type="button" class="sheet-move" data-sheet-move="-1" title="向左移动">‹</button>':''}<span class="sheet-tab-name">${escapeHtml(s.name)}</span>${s.id===activeSheetId&&index<sheets.length-1?'<button type="button" class="sheet-move" data-sheet-move="1" title="向右移动">›</button>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`).join('');
+      const query=String($('sheetSearchInput')?.value||'').trim().toLowerCase();
+      const ongoing=sheets.filter(sheet=>!isSheetCompleted(sheet)), completed=completedSheetsByRecent();
+      const matches=sheet=>!query||String(sheet.name||'').toLowerCase().includes(query);
+      const groups=[];
+      if(sheetStatusFilter!=='completed') groups.push({label:`进行中 · ${ongoing.length}`,items:ongoing.filter(matches),movable:true});
+      if(sheetStatusFilter!=='ongoing') groups.push({label:`已完成 · ${completed.length}`,items:completed.filter(matches),movable:false});
+      const tabHtml=(sheet,index,list,movable)=>`<div class="sheet-tab ${sheet.id===activeSheetId?'active':''}${isSheetCompleted(sheet)?' is-completed':''}" data-sheet="${sheet.id}" draggable="${movable?'true':'false'}" title="${isSheetCompleted(sheet)?'已完成排单，双击改名':'拖动排序，双击改名'}">${sheet.id===activeSheetId&&movable&&index>0?'<button type="button" class="sheet-move" data-sheet-move="-1" title="向上移动">‹</button>':''}<span class="sheet-tab-name">${escapeHtml(sheet.name)}</span>${sheet.id===activeSheetId&&movable&&index<list.length-1?'<button type="button" class="sheet-move" data-sheet-move="1" title="向下移动">›</button>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`;
+      $('sheetTabs').innerHTML=groups.map(group=>`<div class="sheet-group-label">${group.label}</div>${group.items.map((sheet,index)=>tabHtml(sheet,index,group.items,group.movable)).join('')}`).join('')||'<div class="sheet-list-empty">没有符合条件的排单</div>';
+      document.querySelectorAll('[data-sheet-status-filter]').forEach(button=>button.classList.toggle('active',button.dataset.sheetStatusFilter===sheetStatusFilter));
       syncMobileSheetSelect();
+      syncSheetCompletionButtons();
     }
     function syncMobileSheetSelect(){
       const select=$('mobileSheetSelect'); if(!select) return;
-      select.innerHTML=sheets.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('');
+      const ongoing=sheets.filter(sheet=>!isSheetCompleted(sheet)),completed=completedSheetsByRecent();
+      select.innerHTML=(ongoing.length?`<optgroup label="进行中">${ongoing.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('')}</optgroup>`:'')+(completed.length?`<optgroup label="已完成">${completed.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('')}</optgroup>`:'');
       select.value=String(activeSheetId);
       $('mobileDeleteSheetBtn').disabled=sheets.length<=1;
+    }
+    function syncSheetCompletionButtons(){
+      const completed=isSheetCompleted(sheets.find(sheet=>sheet.id===activeSheetId));
+      if($('toggleSheetCompletedBtn')){ $('toggleSheetCompletedBtn').textContent=completed?'恢复进行中':'标记完成'; $('toggleSheetCompletedBtn').classList.toggle('is-completed',completed); }
+      if($('mobileToggleSheetCompletedBtn')) $('mobileToggleSheetCompletedBtn').textContent=completed?'恢复':'完成';
     }
     function setAppSection(section,scrollToTop=true){
       const groups={
@@ -1233,7 +1412,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       document.querySelector('.wrap').dataset.activeSection=section;
       Object.entries(groups).forEach(([group,ids])=>ids.forEach(id=>$(id)?.classList.toggle('app-section-hidden',group!==section)));
       document.querySelectorAll('[data-app-section]').forEach(button=>button.classList.toggle('active',button.dataset.appSection===section));
-      if(scrollToTop) window.scrollTo({top:0,behavior:'smooth'});
+      if(scrollToTop) window.scrollTo(0,0);
     }
     function appConfirm(message,title='请确认',okText='确定'){
       return new Promise(resolve=>{
@@ -1244,6 +1423,61 @@ body.export-rendering .cart-count{ font-size:28px; }
         ok.addEventListener('click',accept); cancel.addEventListener('click',reject); overlay.addEventListener('click',backdrop); document.addEventListener('keydown',keyboard); setTimeout(()=>ok.focus(),0);
       });
     }
+    let customSelectTarget=null;
+    function mobileCustomSelectEnabled(){ return window.innerWidth<=760; }
+    function closeCustomSelect(){
+      customSelectTarget=null;
+      const overlay=$('customSelectOverlay');
+      overlay.hidden=true; overlay.style.display='none'; $('customSelectMenu').innerHTML='';
+    }
+    function appendCustomSelectOption(menu,option,index){
+      const button=document.createElement('button');
+      button.type='button'; button.className='custom-select-option'+(option.selected?' selected':''); button.textContent=option.textContent||option.label||'';
+      button.dataset.optionIndex=String(index); button.disabled=option.disabled; button.setAttribute('role','option'); button.setAttribute('aria-selected',option.selected?'true':'false');
+      menu.appendChild(button);
+    }
+    function openCustomSelect(select){
+      if(!select||select.disabled||!mobileCustomSelectEnabled()) return;
+      const overlay=$('customSelectOverlay'),menu=$('customSelectMenu');
+      customSelectTarget=select; menu.innerHTML='';
+      [...select.children].forEach(child=>{
+        if(child.tagName==='OPTGROUP'){
+          const label=document.createElement('div'); label.className='custom-select-group'; label.textContent=child.label||''; menu.appendChild(label);
+          [...child.children].forEach(option=>appendCustomSelectOption(menu,option,[...select.options].indexOf(option)));
+        }else if(child.tagName==='OPTION') appendCustomSelectOption(menu,child,[...select.options].indexOf(child));
+      });
+      overlay.hidden=false; overlay.style.display='block';
+      const rect=select.getBoundingClientRect(),visual=window.visualViewport,viewportLeft=visual?.offsetLeft||0,viewportWidth=visual?.width||window.innerWidth,viewportTop=visual?.offsetTop||0,viewportHeight=visual?.height||window.innerHeight,viewportBottom=viewportTop+viewportHeight;
+      const width=Math.min(Math.max(rect.width,170),viewportWidth-16),left=Math.max(viewportLeft+8,Math.min(rect.left,viewportLeft+viewportWidth-width-8));
+      menu.style.width=width+'px'; menu.style.left=left+'px'; menu.style.top='auto'; menu.style.bottom='auto';
+      const estimatedHeight=Math.min(menu.scrollHeight,Math.min(330,viewportHeight*.58)),spaceBelow=viewportBottom-rect.bottom-6;
+      if(spaceBelow>=Math.min(estimatedHeight,150)) menu.style.top=Math.max(viewportTop+6,rect.bottom+4)+'px';
+      else menu.style.bottom=Math.max(6,window.innerHeight-rect.top+4)+'px';
+      requestAnimationFrame(()=>menu.querySelector('.custom-select-option.selected')?.scrollIntoView({block:'nearest'}));
+    }
+    function interceptNativeSelect(e){
+      if(!mobileCustomSelectEnabled()) return;
+      const select=e.target?.closest?.('select'); if(!select||select.disabled) return;
+      e.preventDefault(); e.stopPropagation();
+      if(customSelectTarget!==select||$('customSelectOverlay').hidden) openCustomSelect(select);
+    }
+    document.addEventListener('pointerdown',interceptNativeSelect,true);
+    if(!window.PointerEvent) document.addEventListener('touchstart',interceptNativeSelect,{capture:true,passive:false});
+    document.addEventListener('click',e=>{
+      if(mobileCustomSelectEnabled()&&e.target?.closest?.('select')){ e.preventDefault(); e.stopPropagation(); }
+    },true);
+    document.addEventListener('keydown',e=>{
+      if(mobileCustomSelectEnabled()&&e.target?.matches?.('select')&&(e.key==='Enter'||e.key===' '||e.key==='ArrowDown')){ e.preventDefault(); openCustomSelect(e.target); }
+      else if(e.key==='Escape'&&!$('customSelectOverlay').hidden) closeCustomSelect();
+    });
+    $('customSelectOverlay').addEventListener('pointerdown',e=>{ if(e.target===$('customSelectOverlay')){ e.preventDefault(); closeCustomSelect(); } });
+    $('customSelectMenu').addEventListener('click',e=>{
+      const button=e.target.closest('[data-option-index]'); if(!button||button.disabled||!customSelectTarget) return;
+      const select=customSelectTarget,index=parseInt(button.dataset.optionIndex,10),option=select.options[index]; if(!option||option.disabled) return;
+      closeCustomSelect(); select.selectedIndex=index; select.dispatchEvent(new Event('input',{bubbles:true})); select.dispatchEvent(new Event('change',{bubbles:true}));
+    });
+    window.addEventListener('resize',closeCustomSelect);
+    window.addEventListener('scroll',()=>{ if(!$('customSelectOverlay').hidden) closeCustomSelect(); },{passive:true});
     function syncMatrixOptions(){
       const pricing=$('showPricingRow'), unit=$('showUnitPriceRow'), promotion=$('showPromotionPointRow'), complete=$('showCompleteRowColor'), cold=$('showColdPromotionColor');
       pricing.textContent=showPricingRow?'隐藏调价':'显示调价';
@@ -1459,8 +1693,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       applyingCollab=true;
       try{
         sheets=deepClone(state.sheets); sheetIdSeed=Number(state.sheetIdSeed)||Math.max(...sheets.map(s=>(Number(s.id)||0)+1));
-        itemCatalog=Array.isArray(state.itemCatalog)?deepClone(state.itemCatalog).map(migrateColumn):[];
-        catalogIdSeed=Number(state.catalogIdSeed)||Math.max(1,...itemCatalog.map(x=>(Number(x.catalogId)||0)+1));
+        itemCatalog=migrateCatalogItems(deepClone(Array.isArray(state.itemCatalog)?state.itemCatalog:[]));
+        catalogIdSeed=Math.max(Number(state.catalogIdSeed)||1,...itemCatalog.map(x=>(Number(x.catalogId)||0)+1));
         sharedCartQrImg=state.sharedCartQrImg||''; sharedPaymentQrImg=state.sharedPaymentQrImg||'';
         activeSheetId=sheets.some(s=>s.id===preferredSheet)?preferredSheet:sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
@@ -1722,7 +1956,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
         sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||'';
         sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
-        itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[]; catalogIdSeed=d.catalogIdSeed||Math.max(1,...itemCatalog.map(x=>(x.catalogId||0)+1)); activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
+        itemCatalog=migrateCatalogItems(d.itemCatalog); catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
         if(!sheets.some(s=>s.id===activeSheetId)) activeSheetId=sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
         rememberCloudVersion(code,data.updated_at); syncCode=code; cloudDirty=false; rememberCloudDirty(code,false); cloudConflictPaused=false; localStorage.setItem('ggzSyncCode',code);
@@ -1849,16 +2083,82 @@ body.export-rendering .cart-count{ font-size:28px; }
       else if(c.avgOverride!==null&&c.avgOverride!=='') price=`独立均价 ${money(c.avgOverride)}`;
       return `${price} · 提配${fmtPoint(c.promotionPoints)}点`;
     }
+    function catalogLastUsedText(value){
+      if(!value) return '尚未使用';
+      const time=new Date(value), diff=Date.now()-time.getTime();
+      if(!Number.isFinite(time.getTime())) return '尚未使用';
+      if(diff<60000) return '刚刚使用';
+      if(diff<3600000) return `${Math.max(1,Math.floor(diff/60000))}分钟前`;
+      if(diff<86400000) return `${Math.max(1,Math.floor(diff/3600000))}小时前`;
+      if(diff<604800000) return `${Math.max(1,Math.floor(diff/86400000))}天前`;
+      return `${time.getFullYear()}-${String(time.getMonth()+1).padStart(2,'0')}-${String(time.getDate()).padStart(2,'0')}`;
+    }
+    function markCatalogUsed(item){
+      item.catalogUsage=Math.max(0,parseInt(item.catalogUsage,10)||0)+1;
+      item.catalogLastUsedAt=new Date().toISOString();
+    }
     function renderCatalog(){
+      const catalogListEl=$('catalogList');
+      const previousCatalogScroll=catalogListEl?catalogListEl.scrollTop:0;
       const q=($('catalogSearch').value||'').trim().toLowerCase();
-      const list=itemCatalog.filter(item=>!q||item.name.toLowerCase().includes(q)||(item.aliases||[]).some(a=>a.toLowerCase().includes(q)));
-      $('catalogList').innerHTML=list.length?list.map(item=>`<div class="catalog-item" data-catalog-id="${item.catalogId}">${item.img?`<img src="${item.img}">`:'<span class="catalog-img-empty">无图</span>'}<strong>${escapeHtml(item.name)}</strong><span class="catalog-price">${escapeHtml(catalogPriceText(item))}</span><button class="btn-primary btn-mini catalog-add">加入本表</button><button class="btn-danger btn-mini catalog-delete">删除</button></div>`).join(''):'<div class="catalog-list-empty">还没有常用谷子</div>';
+      const groups=[...new Set(itemCatalog.map(item=>String(item.catalogGroup||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
+      if(catalogGroup!=='all'&&catalogGroup!=='__ungrouped__'&&!groups.includes(catalogGroup)) catalogGroup='all';
+      $('catalogGroupFilter').innerHTML='<option value="all">全部分组</option><option value="__ungrouped__">未分组</option>'+groups.map(group=>`<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`).join('');
+      $('catalogGroupFilter').value=catalogGroup;
+      document.querySelectorAll('[data-catalog-filter]').forEach(button=>button.classList.toggle('active',button.dataset.catalogFilter===catalogFilter));
+      $('catalogSort').value=catalogSort;
+      const existingIds=new Set(itemCatalog.map(item=>item.catalogId));
+      catalogSelectedIds.forEach(id=>{ if(!existingIds.has(id)) catalogSelectedIds.delete(id); });
+      let list=itemCatalog.filter(item=>{
+        const matchesSearch=!q||String(item.name||'').toLowerCase().includes(q)||(item.aliases||[]).some(a=>String(a).toLowerCase().includes(q))||String(item.catalogGroup||'').toLowerCase().includes(q);
+        const matchesFilter=catalogFilter==='all'||(catalogFilter==='pinned'&&item.catalogPinned)||(catalogFilter==='recent'&&item.catalogLastUsedAt);
+        const matchesGroup=catalogGroup==='all'||(catalogGroup==='__ungrouped__'&&!String(item.catalogGroup||'').trim())||item.catalogGroup===catalogGroup;
+        return matchesSearch&&matchesFilter&&matchesGroup;
+      });
+      const byName=(a,b)=>String(a.name||'').localeCompare(String(b.name||''),'zh-CN');
+      const recentDifference=(a,b)=>(Date.parse(b.catalogLastUsedAt)||0)-(Date.parse(a.catalogLastUsedAt)||0);
+      const byRecent=(a,b)=>recentDifference(a,b)||byName(a,b);
+      if(catalogSort==='recent') list.sort(byRecent);
+      else if(catalogSort==='usage') list.sort((a,b)=>(b.catalogUsage||0)-(a.catalogUsage||0)||byRecent(a,b));
+      else if(catalogSort==='group') list.sort((a,b)=>{
+        const groupA=String(a.catalogGroup||''),groupB=String(b.catalogGroup||'');
+        if(!groupA&&groupB) return 1;
+        if(groupA&&!groupB) return -1;
+        return groupA.localeCompare(groupB,'zh-CN')||byName(a,b);
+      });
+      else if(catalogSort==='name') list.sort(byName);
+      else list.sort((a,b)=>Number(b.catalogPinned)-Number(a.catalogPinned)||recentDifference(a,b)||(b.catalogUsage||0)-(a.catalogUsage||0)||byName(a,b));
+      if(catalogFilter==='recent') list=list.slice(0,20);
+      catalogVisibleIds=list.map(item=>item.catalogId);
+      const allVisibleSelected=catalogVisibleIds.length>0&&catalogVisibleIds.every(id=>catalogSelectedIds.has(id));
+      $('catalogSelectAllBtn').textContent=allVisibleSelected?'取消全选':'全选当前';
+      $('catalogSelectAllBtn').disabled=catalogVisibleIds.length===0;
+      $('catalogSelectionCount').textContent=`已选 ${catalogSelectedIds.size} 项`;
+      $('catalogBatchAddBtn').disabled=catalogSelectedIds.size===0;
+      catalogListEl.innerHTML=list.length?list.map(item=>`<div class="catalog-item" data-catalog-id="${item.catalogId}">
+        <input class="catalog-select" type="checkbox" data-catalog-select aria-label="选择 ${escapeHtml(item.name)}" ${catalogSelectedIds.has(item.catalogId)?'checked':''}>
+        <button type="button" class="catalog-pin${item.catalogPinned?' active':''}" title="${item.catalogPinned?'取消置顶':'置顶'}" aria-label="${item.catalogPinned?'取消置顶':'置顶'}">★</button>
+        ${item.img?`<img src="${item.img}" alt="">`:'<span class="catalog-img-empty">无图</span>'}
+        <span class="catalog-main"><strong>${escapeHtml(item.name)}</strong><small class="catalog-group-label">${escapeHtml(item.catalogGroup||'未分组')}</small></span>
+        <select class="catalog-group-edit" aria-label="${escapeHtml(item.name)}的分组">
+          <option value="" ${item.catalogGroup?'':'selected'}>未分组</option>
+          ${groups.map(group=>`<option value="${escapeHtml(group)}" ${item.catalogGroup===group?'selected':''}>${escapeHtml(group)}</option>`).join('')}
+          <option value="__new__">＋ 新建分组…</option>
+        </select>
+        <span class="catalog-price">${escapeHtml(catalogPriceText(item))}</span>
+        <span class="catalog-usage">使用 ${item.catalogUsage||0} 次<br>${escapeHtml(catalogLastUsedText(item.catalogLastUsedAt))}</span>
+        <button class="btn-primary btn-mini catalog-add" data-mobile-label="+">加入本表</button>
+        <button class="btn-danger btn-mini catalog-delete" data-mobile-label="×">删除</button>
+      </div>`).join(''):'<div class="catalog-list-empty">没有符合条件的常用谷子</div>';
+      if(previousCatalogScroll>0) requestAnimationFrame(()=>{
+        catalogListEl.scrollTop=Math.min(previousCatalogScroll,Math.max(0,catalogListEl.scrollHeight-catalogListEl.clientHeight));
+      });
     }
     function saveColumnsToCatalog(){
       columns.forEach(c=>{
         const found=itemCatalog.find(x=>x.name.trim().toLowerCase()===c.name.trim().toLowerCase());
         const data={name:c.name,aliases:[...(c.aliases||[])],mode:c.mode,priceAdj:c.priceAdj||0,fixedPrice:c.fixedPrice||0,avgOverride:c.avgOverride??null,sourceJpyPrice:c.sourceJpyPrice||0,promotionPoints:Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1,img:c.img||null};
-        if(found) Object.assign(found,data); else itemCatalog.push({catalogId:catalogIdSeed++,...data});
+        if(found) Object.assign(found,data); else itemCatalog.push({catalogId:catalogIdSeed++,catalogPinned:false,catalogGroup:'',catalogUsage:0,catalogLastUsedAt:'',...data});
       });
       saveState(); renderCatalog();
     }
@@ -2509,7 +2809,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(continuePreview) startColdPromotionPreview();
     });
     $('undoLastApplyBtn').addEventListener('click',undoLastApplication);
-    $('matrixTitleInput').addEventListener('input',e=>{ matrixTitle=e.target.value; renderMatrixHeading(); saveState(); });
+    $('matrixTitleInput').addEventListener('input',e=>{
+      matrixTitle=e.target.value;
+      const sheet=sheets.find(s=>s.id===activeSheetId);
+      if(sheet) sheet.matrixTitleCustom=String(matrixTitle).trim()!==String(sheet.name||'').trim()&&String(matrixTitle).trim()!=='';
+      renderMatrixHeading(); saveState();
+    });
     $('matrixColorInput').addEventListener('input',e=>{ matrixColor=e.target.value; renderMatrixHeading(); saveState(); });
     $('createSyncCodeBtn').addEventListener('click',async()=>{
       if(collabEnabled){ await stopCollab(); if(collabEnabled) return; }
@@ -2540,30 +2845,100 @@ body.export-rendering .cart-count{ font-size:28px; }
       const panel=$('catalogPanel'),open=panel.style.display!=='none'; panel.style.display=open?'none':'block';
       $('toggleCatalogBtn').textContent=open?'打开常用谷子库':'收起常用谷子库'; if(!open) renderCatalog();
     });
-    $('catalogSearch').addEventListener('input',renderCatalog);
+    $('catalogSearch').addEventListener('input',()=>{ catalogSelectedIds.clear(); renderCatalog(); });
+    document.querySelector('.catalog-filter-tabs').addEventListener('click',e=>{
+      const button=e.target.closest('[data-catalog-filter]'); if(!button) return;
+      catalogFilter=button.dataset.catalogFilter||'all'; catalogSelectedIds.clear(); renderCatalog();
+    });
+    $('catalogGroupFilter').addEventListener('change',e=>{ catalogGroup=e.target.value||'all'; catalogSelectedIds.clear(); renderCatalog(); });
+    $('catalogSort').addEventListener('change',e=>{ catalogSort=e.target.value||'smart'; renderCatalog(); });
+    $('catalogSelectAllBtn').addEventListener('click',()=>{
+      const allSelected=catalogVisibleIds.length>0&&catalogVisibleIds.every(id=>catalogSelectedIds.has(id));
+      catalogVisibleIds.forEach(id=>allSelected?catalogSelectedIds.delete(id):catalogSelectedIds.add(id));
+      renderCatalog();
+    });
+    $('catalogBatchAddBtn').addEventListener('click',()=>{
+      let added=0,skipped=0;
+      itemCatalog.filter(item=>catalogSelectedIds.has(item.catalogId)).forEach(item=>{
+        if(addCatalogItemToSheet(item)){ markCatalogUsed(item); added++; } else skipped++;
+      });
+      catalogSelectedIds.clear();
+      if(added){ saveState(); renderColumnList(); recalc(); }
+      renderCatalog();
+      const button=$('catalogBatchAddBtn'), old='加入所选';
+      button.textContent=added?`已加入 ${added} 项${skipped?`，跳过 ${skipped} 项`:''}`:`已跳过 ${skipped} 项`;
+      setTimeout(()=>button.textContent=old,1500);
+    });
+    $('catalogList').addEventListener('change',e=>{
+      const row=e.target.closest('[data-catalog-id]'); if(!row) return;
+      const id=parseInt(row.dataset.catalogId,10),item=itemCatalog.find(x=>x.catalogId===id); if(!item) return;
+      if(e.target.matches('[data-catalog-select]')){
+        if(e.target.checked) catalogSelectedIds.add(id); else catalogSelectedIds.delete(id);
+        $('catalogSelectionCount').textContent=`已选 ${catalogSelectedIds.size} 项`;
+        $('catalogBatchAddBtn').disabled=catalogSelectedIds.size===0;
+      }else if(e.target.matches('.catalog-group-edit')){
+        let nextGroup=String(e.target.value||'').trim();
+        if(nextGroup==='__new__'){
+          const entered=prompt('请输入新的分组名称',item.catalogGroup||'');
+          if(entered===null){ renderCatalog(); return; }
+          nextGroup=String(entered).trim();
+        }
+        item.catalogGroup=nextGroup; saveState(); renderCatalog();
+      }
+    });
     $('catalogList').addEventListener('click',e=>{
       const row=e.target.closest('[data-catalog-id]'); if(!row) return;
       const id=parseInt(row.dataset.catalogId,10), item=itemCatalog.find(x=>x.catalogId===id); if(!item) return;
-      if(e.target.closest('.catalog-add')){
+      if(e.target.closest('.catalog-pin')){
+        item.catalogPinned=!item.catalogPinned; saveState(); renderCatalog();
+      }else if(e.target.closest('.catalog-add')){
         if(!addCatalogItemToSheet(item)){ alert('本表已经有这个谷子'); return; }
-        saveState(); renderColumnList(); recalc();
+        markCatalogUsed(item); saveState(); renderColumnList(); recalc(); renderCatalog();
       }else if(e.target.closest('.catalog-delete')){
         if(!confirm('从常用谷子库删除这一项吗？')) return;
-        itemCatalog=itemCatalog.filter(x=>x.catalogId!==id); saveState(); renderCatalog();
+        itemCatalog=itemCatalog.filter(x=>x.catalogId!==id); catalogSelectedIds.delete(id); saveState(); renderCatalog();
       }
     });
 
     $('addSheetBtn').addEventListener('click',()=>{
       captureActiveSheet();
       const sheet=blankSheet(`表${sheets.length+1}`);
-      sheets.push(sheet); applySheet(sheet); saveState();
+      sheets.push(sheet); sheetStatusFilter='ongoing'; localStorage.setItem(SHEET_STATUS_FILTER_KEY,sheetStatusFilter); applySheet(sheet); saveState();
     });
     function moveSheetByOffset(id,offset){
-      const index=sheets.findIndex(sheet=>sheet.id===id), target=index+offset;
-      if(index<0||target<0||target>=sheets.length) return;
+      const sheet=sheets.find(item=>item.id===id); if(!sheet||isSheetCompleted(sheet)) return;
+      const peers=sheets.filter(item=>!isSheetCompleted(item)), peerIndex=peers.findIndex(item=>item.id===id), targetPeer=peers[peerIndex+offset];
+      if(peerIndex<0||!targetPeer) return;
+      const index=sheets.findIndex(item=>item.id===id),target=sheets.findIndex(item=>item.id===targetPeer.id);
       captureActiveSheet(); [sheets[index],sheets[target]]=[sheets[target],sheets[index]]; saveState(); renderSheetTabs();
       requestAnimationFrame(()=>document.querySelector(`.sheet-tab[data-sheet="${id}"]`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}));
     }
+    function outstandingPaymentCounts(){
+      const count=selector=>[...document.querySelectorAll(selector)].filter(button=>Math.max(0,num(button.dataset.paymentAmount))>0.005&&button.getAttribute('aria-pressed')!=='true').length;
+      return {goods:count('#paymentSummary [data-payment-paid]'),share:count('#sharePaymentSummary [data-share-payment-paid]')};
+    }
+    async function toggleActiveSheetCompleted(){
+      captureActiveSheet();
+      const sheet=sheets.find(item=>item.id===activeSheetId); if(!sheet) return;
+      if(isSheetCompleted(sheet)){
+        sheet.completed=false; sheet.completedAt=''; sheetStatusFilter='ongoing';
+      }else{
+        const outstanding=outstandingPaymentCounts(),parts=[];
+        if(outstanding.goods) parts.push(`谷子收款还有 ${outstanding.goods} 人未收齐`);
+        if(outstanding.share) parts.push(`均摊收款还有 ${outstanding.share} 人未收齐`);
+        const message=parts.length?`${parts.join('，')}。\n仍要把「${sheet.name}」标记为已完成吗？`:`确认把「${sheet.name}」归入已完成吗？`;
+        if(!await appConfirm(message,'标记排单完成','确认完成')) return;
+        sheet.completed=true; sheet.completedAt=new Date().toISOString(); sheetStatusFilter='completed';
+      }
+      localStorage.setItem(SHEET_STATUS_FILTER_KEY,sheetStatusFilter); saveState(); renderSheetTabs();
+    }
+    $('toggleSheetCompletedBtn').addEventListener('click',toggleActiveSheetCompleted);
+    $('mobileToggleSheetCompletedBtn').addEventListener('click',toggleActiveSheetCompleted);
+    $('sheetSearchInput').addEventListener('input',renderSheetTabs);
+    document.querySelector('.sheet-status-tabs').addEventListener('click',e=>{
+      const button=e.target.closest('[data-sheet-status-filter]'); if(!button) return;
+      sheetStatusFilter=button.dataset.sheetStatusFilter||'ongoing'; localStorage.setItem(SHEET_STATUS_FILTER_KEY,sheetStatusFilter); renderSheetTabs();
+    });
     $('sheetTabs').addEventListener('click',e=>{
       const tab=e.target.closest('[data-sheet]'); if(!tab) return;
       const id=parseInt(tab.dataset.sheet,10);
@@ -2583,22 +2958,34 @@ body.export-rendering .cart-count{ font-size:28px; }
       const tab=e.target.closest('[data-sheet]'); if(!tab||e.target.closest('.sheet-close,.sheet-move')) return;
       const sheet=sheets.find(s=>s.id===parseInt(tab.dataset.sheet,10)); if(!sheet) return;
       const name=prompt('给这张表改个名字',sheet.name);
-      if(name&&name.trim()){ sheet.name=name.trim(); saveState(); renderSheetTabs(); }
+      if(name&&name.trim()){
+        const nextName=name.trim(), matrixFollows=!sheetUsesCustomTitle(sheet,'matrixTitle'), paymentFollows=!sheetUsesCustomTitle(sheet,'paymentTitle');
+        sheet.name=nextName;
+        if(matrixFollows){ sheet.matrixTitle=nextName; sheet.matrixTitleCustom=false; }
+        if(paymentFollows){ sheet.paymentTitle=nextName; sheet.paymentTitleCustom=false; }
+        if(sheet.id===activeSheetId){
+          if(matrixFollows){ matrixTitle=nextName; $('matrixTitleInput').value=nextName; renderMatrixHeading(); }
+          if(paymentFollows){ paymentTitle=nextName; $('paymentTitleInput').value=nextName; renderPaymentSummary(); }
+        }
+        saveState(); renderSheetTabs();
+      }
     });
     let draggedSheetId=null;
     $('sheetTabs').addEventListener('dragstart',e=>{
       const tab=e.target.closest('.sheet-tab'); if(!tab||e.target.closest('.sheet-close,.sheet-move')){ e.preventDefault(); return; }
+      const sourceSheet=sheets.find(sheet=>sheet.id===parseInt(tab.dataset.sheet,10)); if(!sourceSheet||isSheetCompleted(sourceSheet)){ e.preventDefault(); return; }
       draggedSheetId=parseInt(tab.dataset.sheet,10); tab.classList.add('dragging'); e.dataTransfer.effectAllowed='move';
       try{ e.dataTransfer.setData('text/plain',String(draggedSheetId)); }catch(_){}
     });
     $('sheetTabs').addEventListener('dragover',e=>{
       const tab=e.target.closest('.sheet-tab'); if(!tab||draggedSheetId==null||parseInt(tab.dataset.sheet,10)===draggedSheetId) return;
+      const targetSheet=sheets.find(sheet=>sheet.id===parseInt(tab.dataset.sheet,10)); if(!targetSheet||isSheetCompleted(targetSheet)) return;
       e.preventDefault(); e.dataTransfer.dropEffect='move'; document.querySelectorAll('.sheet-tab.drag-over').forEach(item=>item.classList.remove('drag-over')); tab.classList.add('drag-over');
     });
     $('sheetTabs').addEventListener('drop',e=>{
       const targetTab=e.target.closest('.sheet-tab'); if(!targetTab||draggedSheetId==null) return;
       e.preventDefault(); const targetId=parseInt(targetTab.dataset.sheet,10), sourceIndex=sheets.findIndex(sheet=>sheet.id===draggedSheetId), targetIndex=sheets.findIndex(sheet=>sheet.id===targetId);
-      if(sourceIndex<0||targetIndex<0||sourceIndex===targetIndex) return;
+      if(sourceIndex<0||targetIndex<0||sourceIndex===targetIndex||isSheetCompleted(sheets[sourceIndex])||isSheetCompleted(sheets[targetIndex])) return;
       const after=e.clientX>targetTab.getBoundingClientRect().left+targetTab.getBoundingClientRect().width/2;
       captureActiveSheet(); const [moving]=sheets.splice(sourceIndex,1); let insertAt=targetIndex+(after?1:0); if(sourceIndex<insertAt) insertAt--; sheets.splice(Math.max(0,Math.min(insertAt,sheets.length)),0,moving); saveState(); renderSheetTabs();
     });
@@ -2609,16 +2996,29 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('mobileRenameSheetBtn').addEventListener('click',()=>{
       const sheet=sheets.find(item=>item.id===activeSheetId); if(!sheet) return;
       const name=prompt('给当前排单改个名字',sheet.name);
-      if(name&&name.trim()){ sheet.name=name.trim(); saveState(); renderSheetTabs(); }
+      if(name&&name.trim()){
+        const nextName=name.trim(), matrixFollows=!sheetUsesCustomTitle(sheet,'matrixTitle'), paymentFollows=!sheetUsesCustomTitle(sheet,'paymentTitle');
+        sheet.name=nextName;
+        if(matrixFollows){ sheet.matrixTitle=nextName; sheet.matrixTitleCustom=false; matrixTitle=nextName; $('matrixTitleInput').value=nextName; renderMatrixHeading(); }
+        if(paymentFollows){ sheet.paymentTitle=nextName; sheet.paymentTitleCustom=false; paymentTitle=nextName; $('paymentTitleInput').value=nextName; renderPaymentSummary(); }
+        saveState(); renderSheetTabs();
+      }
     });
     $('mobileDeleteSheetBtn').addEventListener('click',()=>{
       if(sheets.length<=1){ alert('至少要保留一张排单'); return; }
       document.querySelector(`.sheet-tab[data-sheet="${activeSheetId}"] .sheet-close`)?.click();
     });
-    if(window.visualViewport){
-      const syncMobileKeyboard=()=>document.body.classList.toggle('mobile-keyboard-open',window.innerWidth<=760&&window.visualViewport.height<window.innerHeight*.72);
-      window.visualViewport.addEventListener('resize',syncMobileKeyboard); syncMobileKeyboard();
+    function syncMobileVisualViewport(){
+      const visual=window.visualViewport,layoutHeight=Math.max(window.innerHeight,document.documentElement.clientHeight),visibleHeight=visual?.height||window.innerHeight,visibleBottom=(visual?.offsetTop||0)+visibleHeight;
+      const keyboardOpen=window.innerWidth<=760&&visibleHeight<layoutHeight*.72;
+      const browserBottomOffset=keyboardOpen?0:Math.min(90,Math.max(0,layoutHeight-visibleBottom));
+      document.documentElement.style.setProperty('--browser-bottom-offset',browserBottomOffset+'px');
+      document.documentElement.style.setProperty('--app-visible-height',visibleHeight+'px');
+      document.body.classList.toggle('mobile-keyboard-open',keyboardOpen);
+      if(!$('customSelectOverlay').hidden) closeCustomSelect();
     }
+    if(window.visualViewport){ window.visualViewport.addEventListener('resize',syncMobileVisualViewport); window.visualViewport.addEventListener('scroll',syncMobileVisualViewport); }
+    window.addEventListener('resize',syncMobileVisualViewport); syncMobileVisualViewport();
     document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&collabEnabled&&(collabNeedsSend||collabSendTimer)) flushCollabChanges(); });
     window.addEventListener('beforeunload',e=>{
       if(!collabEnabled||(!collabNeedsSend&&!collabSending&&!collabSendTimer)) return;
@@ -3468,7 +3868,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('cartTargetNum').addEventListener('input',e=>{ const v=parseInt(e.target.value,10); cartTargetNum=Number.isFinite(v)?v:null; saveState(); renderCart(); });
     $('cartCountMode').addEventListener('change',e=>{ cartCountMode=e.target.value; saveState(); renderCart(); });
     $('cartColumns').addEventListener('change',e=>{ cartColumns=Math.max(2,parseInt(e.target.value,10)||4); saveState(); renderCart(); });
-    $('paymentTitleInput').addEventListener('input',e=>{ paymentTitle=e.target.value; saveState(); renderPaymentSummary(); });
+    $('paymentTitleInput').addEventListener('input',e=>{
+      paymentTitle=e.target.value;
+      const sheet=sheets.find(s=>s.id===activeSheetId);
+      if(sheet) sheet.paymentTitleCustom=String(paymentTitle).trim()!==String(sheet.name||'').trim()&&String(paymentTitle).trim()!=='';
+      saveState(); renderPaymentSummary();
+    });
     $('paymentColorInput').addEventListener('input',e=>{ paymentColor=e.target.value; saveState(); renderPaymentSummary(); });
     $('paymentViewMode').addEventListener('change',e=>{ paymentViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderPaymentSummary(); });
     $('showPaymentTotalBtn').addEventListener('click',()=>{ showPaymentTotal=!showPaymentTotal; saveState(); syncPaymentControls(); renderPaymentSummary(); });
@@ -3655,6 +4060,53 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; sticky.forEach(el=>{ el.style.position=''; });
       });
+    });
+    $('exportUnpaidPaymentBtn').addEventListener('click',async()=>{
+      clearPaymentSearchHighlight();
+      const source=$('paymentSummary'), sourceTable=source.querySelector('table');
+      if(typeof html2canvas==='undefined'||!sourceTable){ alert('还没有收款数据'); return; }
+      const receivedByPerson=new Map([...source.querySelectorAll('[data-payment-paid]')].map(button=>[
+        decodeURIComponent(button.dataset.paymentPaid||''),
+        {total:Math.max(0,num(button.dataset.paymentAmount)),received:Math.max(0,num(button.dataset.paymentReceived))}
+      ]));
+      const clone=source.cloneNode(true); clone.removeAttribute('id'); clone.classList.add('payment-unpaid-export');
+      const cloneTable=clone.querySelector('table'), groupedRows=new Map();
+      cloneTable.querySelectorAll('tbody tr[data-payment-person]').forEach(row=>{
+        const key=row.dataset.paymentPerson||'';
+        if(!groupedRows.has(key)) groupedRows.set(key,[]);
+        groupedRows.get(key).push(row);
+      });
+      let unpaidPeople=0,unpaidTotal=0;
+      groupedRows.forEach((rows,key)=>{
+        const amounts=receivedByPerson.get(key)||{total:0,received:0}, due=Math.max(0,amounts.total-amounts.received);
+        if(due<=0.005){ rows.forEach(row=>row.remove()); return; }
+        unpaidPeople++; unpaidTotal+=due;
+        if(amounts.received>0){
+          const firstRow=rows[0], editable=[...firstRow.querySelectorAll('[data-payment-key]')];
+          const alipay=editable.find(el=>decodeURIComponent(el.dataset.paymentKey||'').startsWith('alipay:'));
+          const wechat=editable.find(el=>decodeURIComponent(el.dataset.paymentKey||'').startsWith('wechat:'));
+          if(alipay) alipay.textContent=due.toFixed(2);
+          if(wechat){ const fee=Math.ceil(((due<=100?due+0.1:due*1.001)-1e-9)*100)/100; wechat.textContent=fee.toFixed(2); }
+        }
+        rows.forEach(row=>row.querySelectorAll('.payment-adjustment-note,.payment-received-note').forEach(note=>note.remove()));
+      });
+      if(!unpaidPeople){ alert('当前范围已经全部收齐'); return; }
+      const title=clone.querySelector('.payment-project-title');
+      if(title) title.textContent=`${paymentTitle||'未命名项目'}｜未肾`;
+      const totalLabel=clone.querySelector('.payment-total-label'),totalValue=clone.querySelector('.payment-total-value');
+      if(totalLabel) totalLabel.textContent=`未交合计（${unpaidPeople}人）`;
+      if(totalValue) totalValue.textContent=money(unpaidTotal);
+      clone.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+      clone.style.position='fixed'; clone.style.left='-10000px'; clone.style.top='0'; clone.style.zIndex='-1'; clone.style.pointerEvents='none'; clone.style.background='#fff';
+      document.body.appendChild(clone);
+      const scroller=clone.querySelector('.payment-table-wrap'), table=clone.querySelector('table'), sticky=[...table.querySelectorAll('th')], width=Math.max(680,table.scrollWidth+4);
+      scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; clone.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
+      const fileName=((paymentTitle||'收款统计')+' 未肾').replace(/[\\/:*?"<>|]/g,' ').trim()||'未肾';
+      try{
+        const canvas=await renderExportCanvas(clone,{backgroundColor:'#ffffff',scale:2,width:clone.scrollWidth,height:clone.scrollHeight,windowWidth:clone.scrollWidth+40,windowHeight:clone.scrollHeight+40});
+        await saveCanvasImage(canvas,fileName+'.png');
+      }catch(err){ alert('导出失败，请重试'); }
+      finally{ clone.remove(); }
     });
     $('exportPaymentExcelBtn').addEventListener('click',()=>{
       const table=$('paymentSummary').querySelector('table');
@@ -3963,7 +4415,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         try{
           const d=JSON.parse(reader.result);
           if(Array.isArray(d.sheets)&&d.sheets.length){
-            sheets=d.sheets; itemCatalog=Array.isArray(d.itemCatalog)?d.itemCatalog.map(migrateColumn):[]; catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
+            sheets=d.sheets; itemCatalog=migrateCatalogItems(d.itemCatalog); catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
             sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
             sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||'';
             sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
@@ -3975,8 +4427,13 @@ body.export-rendering .cart-count{ font-size:28px; }
             cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null; applyCost(d.cost);
             sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=sharedCartQrImg;
-            matrixTitle=d.matrixTitle||''; matrixColor=d.matrixColor||'#d1466a';
-            paymentTitle=d.paymentTitle||''; paymentColor=d.paymentColor||'#d1466a'; paymentViewMode=d.paymentViewMode==='merged'?'merged':'detail';
+            const importedTargetSheet=sheets.find(s=>s.id===activeSheetId), importedSheetName=String(importedTargetSheet?.name||'表1');
+            matrixTitle=d.matrixTitle||importedSheetName; matrixColor=d.matrixColor||'#d1466a';
+            paymentTitle=d.paymentTitle||importedSheetName; paymentColor=d.paymentColor||'#d1466a'; paymentViewMode=d.paymentViewMode==='merged'?'merged':'detail';
+            if(importedTargetSheet){
+              importedTargetSheet.matrixTitleCustom=!!String(d.matrixTitle||'').trim()&&String(d.matrixTitle).trim()!==importedSheetName;
+              importedTargetSheet.paymentTitleCustom=!!String(d.paymentTitle||'').trim()&&String(d.paymentTitle).trim()!==importedSheetName;
+            }
             paymentStartRow=Math.max(1,parseInt(d.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(d.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(d.paymentEndRow,10)):null;
             paymentEdits=d.paymentEdits||{};
             paymentPaid=d.paymentPaid&&typeof d.paymentPaid==='object'?d.paymentPaid:{};
