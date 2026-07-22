@@ -282,6 +282,9 @@
 
   <div class="panel mobile-core" id="quantityPanel">
     <h2>⑥ 数量统计</h2>
+    <div class="payment-heading-tools quantity-heading-tools">
+      <input id="quantityTitleInput" type="text" placeholder="填写项目名称">
+    </div>
     <div class="quantity-controls">
       <input id="boxSizeInput" type="hidden" value="">
       <input id="groupSizeInput" type="hidden" value="">
@@ -743,6 +746,7 @@ html{ scrollbar-gutter:stable; }
 .data-actions summary::-webkit-details-marker{ display:none; }
 .data-actions-pop{ position:absolute; z-index:30; left:0; bottom:calc(100% + 6px); display:grid; grid-template-columns:1fr 1fr; gap:7px; width:390px; max-width:90vw; padding:9px; border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:0 10px 30px rgba(40,25,48,.16); }
 .data-actions-pop .btn-ghost{ justify-content:center; margin:0; white-space:nowrap; font-weight:850; }
+.quantity-heading-tools{ grid-template-columns:minmax(180px,1fr); margin-bottom:10px; }
 .quantity-controls{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
 .quantity-controls label{ display:flex; align-items:center; gap:7px; margin:0; }
 .count-value-editor{ display:inline-flex; align-items:center; justify-content:center; min-width:68px; min-height:36px; padding:7px 12px; border:1px solid #d9cdd6; border-radius:8px; background:#fff; color:var(--accent); font-size:16px; font-weight:900; cursor:text; }
@@ -879,7 +883,7 @@ html{ scrollbar-gutter:stable; }
   .cart-controls{ overflow-x:auto; padding-bottom:3px; }
   .cart-editor-row{ flex-wrap:wrap; }
   .payment-heading-tools{ grid-template-columns:1fr 1fr; }
-  .payment-heading-tools > #paymentTitleInput,.payment-heading-tools > #matrixTitleInput{ grid-column:1/-1; }
+  .payment-heading-tools > #paymentTitleInput,.payment-heading-tools > #matrixTitleInput,.payment-heading-tools > #quantityTitleInput{ grid-column:1/-1; }
   .transfer-row{ grid-template-columns:1fr auto; }
   .transfer-row .hint{ grid-column:1/-1; }
   .data-actions-pop{ position:fixed; left:10px; right:10px; bottom:70px; width:auto; max-width:none; grid-template-columns:1fr; }
@@ -975,7 +979,8 @@ html{ scrollbar-gutter:stable; }
   body:not(.export-rendering) #costPanel .stat strong{ font-size:12px; }
   body:not(.export-rendering) .payment-heading-tools{ grid-template-columns:minmax(0,1fr) auto auto; gap:4px; }
   body:not(.export-rendering) .matrix-heading-tools{ grid-template-columns:minmax(0,1fr) auto; }
-  body:not(.export-rendering) .payment-heading-tools>#paymentTitleInput,body:not(.export-rendering) .payment-heading-tools>#sharePaymentTitleInput,body:not(.export-rendering) .payment-heading-tools>#matrixTitleInput{ grid-column:auto; min-width:0; }
+  body:not(.export-rendering) .quantity-heading-tools{ grid-template-columns:minmax(0,1fr); }
+  body:not(.export-rendering) .payment-heading-tools>#paymentTitleInput,body:not(.export-rendering) .payment-heading-tools>#sharePaymentTitleInput,body:not(.export-rendering) .payment-heading-tools>#matrixTitleInput,body:not(.export-rendering) .payment-heading-tools>#quantityTitleInput{ grid-column:auto; min-width:0; }
   body:not(.export-rendering) .payment-heading-tools label{ gap:2px; font-size:9px; }
   body:not(.export-rendering) .payment-heading-tools select{ width:68px; min-width:68px; padding-left:4px; padding-right:18px; }
   body:not(.export-rendering) .payment-heading-tools input[type=color]{ width:30px; height:30px; padding:2px; }
@@ -1062,6 +1067,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
     let matrixTitle='', matrixColor='#d1466a';
+    let quantityTitle='';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', showPaymentTotal=true;
     let paymentEdits={}, paymentPaid={}, paymentRefund={}, paymentSupplement={}, sharePaymentTitle='', sharePaymentColor='#d1466a', sharePaymentViewMode='detail', sharePaymentEdits={}, sharePaymentPaid={}, sharePaymentRefund={}, sharePaymentSupplement={}, shareDeductFixed=false;
     let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='';
@@ -1105,10 +1111,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function snapshotSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
+      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixTitleCustom:false,matrixColor:'#d1466a',paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixTitleCustom:false,matrixColor:'#d1466a',quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function sheetUsesCustomTitle(sheet,key){
       const flag=sheet?.[key+'Custom'];
@@ -1139,6 +1145,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!sharedCartQrImg) sharedCartQrImg=sheet.cartQrImg||'';
       cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sharedCartQrImg;
       matrixTitle=resolvedSheetTitle(sheet,'matrixTitle'); matrixColor=sheet.matrixColor||'#d1466a';
+      quantityTitle=resolvedSheetTitle(sheet,'quantityTitle');
       paymentTitle=resolvedSheetTitle(sheet,'paymentTitle'); paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
       paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
       showPaymentTotal=sheet.showPaymentTotal!==false;
@@ -1159,6 +1166,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
       groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
       completeMultiple=quantityConfigured&&Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
+      $('quantityTitleInput').value=quantityTitle;
       $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
       showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false; showPromotionPointRow=sheet.showPromotionPointRow!==false; showCompleteRowColor=sheet.showCompleteRowColor!==false; showColdPromotionColor=sheet.showColdPromotionColor!==false;
       coldPromotionHighlights=sheet.coldPromotionHighlights&&typeof sheet.coldPromotionHighlights==='object'?deepClone(sheet.coldPromotionHighlights):{completeRows:[],pendingRows:[]};
@@ -1326,6 +1334,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             cartTargetMode=sheet.cartTargetMode||'auto'; cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
             cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sharedCartQrImg;
             matrixTitle=resolvedSheetTitle(sheet,'matrixTitle'); matrixColor=sheet.matrixColor||'#d1466a';
+            quantityTitle=resolvedSheetTitle(sheet,'quantityTitle');
             paymentTitle=resolvedSheetTitle(sheet,'paymentTitle'); paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
             paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
             showPaymentTotal=sheet.showPaymentTotal!==false;
@@ -1343,6 +1352,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
             groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
             completeMultiple=quantityConfigured&&Number.isFinite(parseInt(sheet.completeMultiple,10))?Math.max(1,parseInt(sheet.completeMultiple,10)):null;
+            $('quantityTitleInput').value=quantityTitle;
             $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
             showPricingRow=sheet.showPricingRow!==false; showUnitPriceRow=sheet.showUnitPriceRow!==false; showPromotionPointRow=sheet.showPromotionPointRow!==false; showCompleteRowColor=sheet.showCompleteRowColor!==false; showColdPromotionColor=sheet.showColdPromotionColor!==false;
             coldPromotionHighlights=sheet.coldPromotionHighlights&&typeof sheet.coldPromotionHighlights==='object'?deepClone(sheet.coldPromotionHighlights):{completeRows:[],pendingRows:[]};
@@ -1362,10 +1372,11 @@ body.export-rendering .cart-count{ font-size:28px; }
             first.coldPromotionDraftBaseAllocations=d.coldPromotionDraftBaseAllocations&&typeof d.coldPromotionDraftBaseAllocations==='object'?deepClone(d.coldPromotionDraftBaseAllocations):null;
             first.coldCarryBundleColumnIds=Array.isArray(d.coldCarryBundleColumnIds)?d.coldCarryBundleColumnIds.map(Number):[];
             first.matrixTitle=d.matrixTitle||''; first.matrixTitleCustom=!!String(first.matrixTitle).trim()&&String(first.matrixTitle).trim()!==first.name; first.matrixColor=d.matrixColor||'#d1466a';
+            first.quantityTitle=d.quantityTitle||''; first.quantityTitleCustom=!!String(first.quantityTitle).trim()&&String(first.quantityTitle).trim()!==first.name;
             first.paymentTitle=d.paymentTitle||''; first.paymentTitleCustom=!!String(first.paymentTitle).trim()&&String(first.paymentTitle).trim()!==first.name; first.paymentColor=d.paymentColor||'#d1466a';
             sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||'';
             sheets=[first]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=resolvedSheetTitle(first,'matrixTitle'); matrixColor=first.matrixColor; paymentTitle=resolvedSheetTitle(first,'paymentTitle'); paymentColor=first.paymentColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldPromotionDraftBaseAllocations=deepClone(first.coldPromotionDraftBaseAllocations); coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=resolvedSheetTitle(first,'matrixTitle'); matrixColor=first.matrixColor; quantityTitle=resolvedSheetTitle(first,'quantityTitle'); paymentTitle=resolvedSheetTitle(first,'paymentTitle'); paymentColor=first.paymentColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldPromotionDraftBaseAllocations=deepClone(first.coldPromotionDraftBaseAllocations); coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
           }
           return;
         }
@@ -2444,7 +2455,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       const transferPreviewCells=new Map((matrixPreviewHighlights.transferCells||[]).map(item=>[`${item.col}:${Number(item.row)}`,item]));
       const cancelPreviewRows=new Set((matrixPreviewHighlights.cancelRows||[]).map(Number));
       notice.style.display=isPreview?'block':'none'; notice.textContent=isPreview?`正在预览：${matrixPreviewLabel}（尚未写入正式排单）`:''; table.classList.toggle('is-preview',isPreview);
-      if(displayColumns.length===0){ thead.innerHTML=''; tbody.innerHTML=''; emptyEl.style.display='block'; $('paymentSummary').innerHTML=''; renderSharePaymentSummary(); renderQuantitySummary(); renderCart(); return; }
+      if(displayColumns.length===0){
+        thead.innerHTML=''; tbody.innerHTML=''; emptyEl.style.display='block';
+        $('matrixProjectTitle').style.display='none';
+        $('paymentSummary').innerHTML=''; renderSharePaymentSummary(); renderQuantitySummary(); renderCart(); return;
+      }
+      $('matrixProjectTitle').style.display='block';
       emptyEl.style.display='none';
       const maxRows=Math.max(0,...displayColumns.map(c=>(displayAllocations[c.id]||[]).length));
       const displayRows=maxRows+1;
@@ -2527,7 +2543,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           itemWritten=true;
         }));
       });
-      el.innerHTML=`<div class="quantity-section-title">上车名单 <span class="hint">成车范围内算上车，后面的继续等</span></div><div class="quantity-table-wrap"><table class="quantity-table quantity-ride-table"><thead><tr><th>谷子</th><th>状态</th><th>CN</th><th>吃几配</th><th>数量</th><th>位置</th></tr></thead><tbody>${rideRows}</tbody></table></div>`;
+      const color=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
+      el.innerHTML=`<div class="matrix-project-title" style="background:${color}">${escapeHtml(quantityTitle||'未命名项目')}</div><div class="quantity-table-wrap"><table class="quantity-table quantity-ride-table"><thead><tr><th>谷子</th><th>状态</th><th>CN</th><th>吃几配</th><th>数量</th><th>位置</th></tr></thead><tbody>${rideRows}</tbody></table></div>`;
     }
 
     function refundAmountValue(refundMap,key,fullAmount){ const stored=refundMap[key]; return stored===true?Math.max(0,num(fullAmount)):Math.max(0,num(stored)); }
@@ -2815,6 +2832,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(sheet) sheet.matrixTitleCustom=String(matrixTitle).trim()!==String(sheet.name||'').trim()&&String(matrixTitle).trim()!=='';
       renderMatrixHeading(); saveState();
     });
+    $('quantityTitleInput').addEventListener('input',e=>{
+      quantityTitle=e.target.value;
+      const sheet=sheets.find(s=>s.id===activeSheetId);
+      if(sheet) sheet.quantityTitleCustom=String(quantityTitle).trim()!==String(sheet.name||'').trim()&&String(quantityTitle).trim()!=='';
+      renderQuantitySummary(); saveState();
+    });
     $('matrixColorInput').addEventListener('input',e=>{ matrixColor=e.target.value; renderMatrixHeading(); saveState(); });
     $('createSyncCodeBtn').addEventListener('click',async()=>{
       if(collabEnabled){ await stopCollab(); if(collabEnabled) return; }
@@ -2959,12 +2982,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sheet=sheets.find(s=>s.id===parseInt(tab.dataset.sheet,10)); if(!sheet) return;
       const name=prompt('给这张表改个名字',sheet.name);
       if(name&&name.trim()){
-        const nextName=name.trim(), matrixFollows=!sheetUsesCustomTitle(sheet,'matrixTitle'), paymentFollows=!sheetUsesCustomTitle(sheet,'paymentTitle');
+        const nextName=name.trim(), matrixFollows=!sheetUsesCustomTitle(sheet,'matrixTitle'), quantityFollows=!sheetUsesCustomTitle(sheet,'quantityTitle'), paymentFollows=!sheetUsesCustomTitle(sheet,'paymentTitle');
         sheet.name=nextName;
         if(matrixFollows){ sheet.matrixTitle=nextName; sheet.matrixTitleCustom=false; }
+        if(quantityFollows){ sheet.quantityTitle=nextName; sheet.quantityTitleCustom=false; }
         if(paymentFollows){ sheet.paymentTitle=nextName; sheet.paymentTitleCustom=false; }
         if(sheet.id===activeSheetId){
           if(matrixFollows){ matrixTitle=nextName; $('matrixTitleInput').value=nextName; renderMatrixHeading(); }
+          if(quantityFollows){ quantityTitle=nextName; $('quantityTitleInput').value=nextName; renderQuantitySummary(); }
           if(paymentFollows){ paymentTitle=nextName; $('paymentTitleInput').value=nextName; renderPaymentSummary(); }
         }
         saveState(); renderSheetTabs();
@@ -2997,9 +3022,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sheet=sheets.find(item=>item.id===activeSheetId); if(!sheet) return;
       const name=prompt('给当前排单改个名字',sheet.name);
       if(name&&name.trim()){
-        const nextName=name.trim(), matrixFollows=!sheetUsesCustomTitle(sheet,'matrixTitle'), paymentFollows=!sheetUsesCustomTitle(sheet,'paymentTitle');
+        const nextName=name.trim(), matrixFollows=!sheetUsesCustomTitle(sheet,'matrixTitle'), quantityFollows=!sheetUsesCustomTitle(sheet,'quantityTitle'), paymentFollows=!sheetUsesCustomTitle(sheet,'paymentTitle');
         sheet.name=nextName;
         if(matrixFollows){ sheet.matrixTitle=nextName; sheet.matrixTitleCustom=false; matrixTitle=nextName; $('matrixTitleInput').value=nextName; renderMatrixHeading(); }
+        if(quantityFollows){ sheet.quantityTitle=nextName; sheet.quantityTitleCustom=false; quantityTitle=nextName; $('quantityTitleInput').value=nextName; renderQuantitySummary(); }
         if(paymentFollows){ sheet.paymentTitle=nextName; sheet.paymentTitleCustom=false; paymentTitle=nextName; $('paymentTitleInput').value=nextName; renderPaymentSummary(); }
         saveState(); renderSheetTabs();
       }
@@ -4207,8 +4233,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       setTimeout(()=>{ a.remove(); URL.revokeObjectURL(url); },1500);
     }
     function quantityExportName(ext){
-      const sheet=sheets.find(item=>item.id===activeSheetId), name=String(sheet&&sheet.name||'数量统计').replace(/[\\/:*?"<>|]/g,' ').trim()||'数量统计';
-      return `${name}-上车名单.${ext}`;
+      const name=String(quantityTitle||sheets.find(item=>item.id===activeSheetId)?.name||'数量统计').replace(/[\\/:*?"<>|]/g,' ').trim()||'数量统计';
+      return `${name}-数量统计.${ext}`;
     }
     $('exportQuantityPngBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出组件尚未加载完成，请确认联网后重试'); return; }
@@ -4429,9 +4455,11 @@ body.export-rendering .cart-count{ font-size:28px; }
             cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=sharedCartQrImg;
             const importedTargetSheet=sheets.find(s=>s.id===activeSheetId), importedSheetName=String(importedTargetSheet?.name||'表1');
             matrixTitle=d.matrixTitle||importedSheetName; matrixColor=d.matrixColor||'#d1466a';
+            quantityTitle=d.quantityTitle||importedSheetName;
             paymentTitle=d.paymentTitle||importedSheetName; paymentColor=d.paymentColor||'#d1466a'; paymentViewMode=d.paymentViewMode==='merged'?'merged':'detail';
             if(importedTargetSheet){
               importedTargetSheet.matrixTitleCustom=!!String(d.matrixTitle||'').trim()&&String(d.matrixTitle).trim()!==importedSheetName;
+              importedTargetSheet.quantityTitle=quantityTitle; importedTargetSheet.quantityTitleCustom=!!String(d.quantityTitle||'').trim()&&String(d.quantityTitle).trim()!==importedSheetName;
               importedTargetSheet.paymentTitleCustom=!!String(d.paymentTitle||'').trim()&&String(d.paymentTitle).trim()!==importedSheetName;
             }
             paymentStartRow=Math.max(1,parseInt(d.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(d.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(d.paymentEndRow,10)):null;
@@ -4448,7 +4476,8 @@ body.export-rendering .cart-count{ font-size:28px; }
             boxSize=quantityConfigured&&Number.isFinite(parseInt(d.boxSize,10))?Math.max(1,parseInt(d.boxSize,10)):null;
             groupSize=quantityConfigured&&Number.isFinite(parseInt(d.groupSize,10))?Math.max(1,parseInt(d.groupSize,10)):null;
             completeMultiple=quantityConfigured&&Number.isFinite(parseInt(d.completeMultiple,10))?Math.max(1,parseInt(d.completeMultiple,10)):null;
-            $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
+            $('quantityTitleInput').value=quantityTitle;
+      $('boxSizeInput').value=boxSize||''; $('groupSizeInput').value=groupSize||''; $('completeMultipleInput').value=completeMultiple||''; syncQuantityControlLabels();
             showPricingRow=d.showPricingRow!==false; showUnitPriceRow=d.showUnitPriceRow!==false; showPromotionPointRow=d.showPromotionPointRow!==false; showCompleteRowColor=d.showCompleteRowColor!==false; showColdPromotionColor=d.showColdPromotionColor!==false;
             coldPromotionHighlights=d.coldPromotionHighlights&&typeof d.coldPromotionHighlights==='object'?deepClone(d.coldPromotionHighlights):{completeRows:[],pendingRows:[]};
             coldPromotionBatches=Array.isArray(d.coldPromotionBatches)?deepClone(d.coldPromotionBatches):[]; coldPromotionSeriesBaseAllocations=d.coldPromotionSeriesBaseAllocations&&typeof d.coldPromotionSeriesBaseAllocations==='object'?deepClone(d.coldPromotionSeriesBaseAllocations):null; coldPromotionSeriesBaseHighlights=d.coldPromotionSeriesBaseHighlights&&typeof d.coldPromotionSeriesBaseHighlights==='object'?deepClone(d.coldPromotionSeriesBaseHighlights):null; coldPromotionSeriesFormalSignature=String(d.coldPromotionSeriesFormalSignature||'');
