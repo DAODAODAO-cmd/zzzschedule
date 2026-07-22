@@ -92,6 +92,8 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button id="inviteWorkspaceMemberBtn" class="btn-ghost" type="button" disabled>邀请成员</button>
     <button id="showWorkspaceMembersBtn" class="btn-ghost" type="button" disabled>成员</button>
     <button id="showWorkspaceInvitesBtn" class="btn-ghost" type="button">邀请 <span id="workspaceInviteCount">0</span></button>
+    <button id="deleteWorkspaceBtn" class="btn-ghost" type="button" hidden>删除协作组</button>
+    <button id="restoreWorkspaceBtn" class="btn-ghost" type="button" hidden>恢复协作组</button>
     <span id="workspaceStatus">登录后自动读取</span>
   </div>
   <div id="workspaceEmptyNotice" class="workspace-empty-notice" hidden>你还没有协作组。可以新建一个组，再按账户名邀请其他人。</div>
@@ -103,21 +105,23 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="workspace-panel-head"><strong>协作组成员</strong><button type="button" class="btn-ghost" data-close-workspace-panel>关闭</button></div>
     <div id="workspaceMemberList" class="workspace-list"></div>
   </div>
-
-  <div class="cloudbar">
-    <input id="syncCodeInput" type="hidden">
-    <button id="createSyncCodeBtn" type="button" hidden></button>
-    <button id="cloudUploadBtn" class="btn-primary">上传云端</button>
-    <button id="cloudDownloadBtn" class="btn-ghost">读取云端</button>
-    <span id="localStatus">本机已保存</span>
-    <span id="cloudStatus">尚未选择协作组</span>
+  <div id="workspaceArchivesPanel" class="workspace-side-panel" hidden>
+    <div class="workspace-panel-head"><strong>云端已删除协作组</strong><span><button type="button" class="btn-ghost" id="restoreWorkspaceByCodeBtn">按代码恢复</button><button type="button" class="btn-ghost" data-close-workspace-panel>关闭</button></span></div>
+    <div id="workspaceArchiveList" class="workspace-list"></div>
   </div>
+
+  <input id="syncCodeInput" type="hidden">
+  <button id="createSyncCodeBtn" type="button" hidden></button>
   <div class="edit-lock-controls">
     <input id="editorNameInput" type="hidden">
     <span id="authAccountBadge" class="auth-account-badge">正在确认账户</span>
     <button id="authLogoutBtn" class="btn-ghost" type="button">退出登录</button>
     <button id="startCollabBtn" class="btn-primary" disabled>重新连接</button>
     <button id="stopCollabBtn" class="btn-ghost" disabled>暂停协作</button>
+    <button id="cloudUploadBtn" class="btn-primary">上传云端</button>
+    <button id="cloudDownloadBtn" class="btn-ghost">读取云端</button>
+    <span id="localStatus">本机已保存</span>
+    <span id="cloudStatus">尚未选择协作组</span>
     <span id="collabStatus">尚未开启实时协作</span>
     <button id="acquireEditLockBtn" type="button" style="display:none;"></button>
     <button id="releaseEditLockBtn" type="button" style="display:none;"></button>
@@ -513,7 +517,7 @@ html{ scrollbar-gutter:stable; }
 .cloud-hub{ position:sticky; top:0; z-index:24; padding:1px 0 4px; background:rgba(250,248,251,.94); backdrop-filter:blur(12px); }
 .wrap[data-active-section="settings"] .cloud-hub{ position:static; }
 .mobile-sheet-switch,.mobile-bottom-nav,.collab-compact-status{ display:none; }
-.wrap:not([data-active-section="settings"]) .cloudbar,.wrap:not([data-active-section="settings"]) .edit-lock-controls,.wrap:not([data-active-section="settings"]) .collab-activity{ display:none!important; }
+.wrap:not([data-active-section="settings"]) .workspacebar,.wrap:not([data-active-section="settings"]) .workspace-empty-notice,.wrap:not([data-active-section="settings"]) .workspace-side-panel,.wrap:not([data-active-section="settings"]) .cloudbar,.wrap:not([data-active-section="settings"]) .edit-lock-controls,.wrap:not([data-active-section="settings"]) .collab-activity{ display:none!important; }
 .wrap:not([data-active-section="settings"]) .collab-compact-status{ display:block; margin:0 0 7px; padding:8px 11px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--muted); font-size:12px; font-weight:900; text-align:center; }
 .app-section-hidden{ display:none!important; }
 .settings-cloud-tip{ display:flex; flex-direction:column; gap:4px; margin-bottom:12px; padding:12px; border:1px solid #ead9df; border-radius:10px; background:#fff7fa; color:var(--muted); font-size:12px; }
@@ -1155,7 +1159,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     let legacySyncCode=UUID_RE.test(storedSyncCode)?'':storedSyncCode;
     let syncCode=UUID_RE.test(storedSyncCode)?storedSyncCode:'';
-    let workspaces=[],workspaceInvites=[],activeWorkspaceId=localStorage.getItem(WORKSPACE_STORAGE_KEY)||syncCode,workspaceLoading=false;
+    let workspaces=[],workspaceInvites=[],archivedWorkspaces=[],activeWorkspaceId=localStorage.getItem(WORKSPACE_STORAGE_KEY)||syncCode,workspaceLoading=false,appAdmin=false;
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
     let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false;
     let activeAppSection='settings';
@@ -1223,6 +1227,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(text.includes('ALREADY_GROUP_MEMBER')) return '这个人已经在协作组里了';
       if(text.includes('CANNOT_INVITE_SELF')) return '不用邀请自己，你已经在组里了';
       if(text.includes('NOT_GROUP_MANAGER')) return '只有组主或管理员可以邀请和移除成员';
+      if(text.includes('NOT_GROUP_OWNER')) return '只有创建这个协作组的人可以删除它';
+      if(text.includes('APP_ADMIN_REQUIRED')) return '当前账户没有恢复权限';
+      if(text.includes('INVALID_GROUP_CODE')) return '组代码格式不正确';
+      if(text.includes('ARCHIVED_GROUP_NOT_FOUND')) return '没有找到可以恢复的协作组';
       if(text.includes('USERNAME_TAKEN')) return '这个账户名已经被使用，请换一个';
       if(text.includes('GROUP_ACCESS_DENIED')) return '你已经不在这个协作组中，无法读取数据';
       if(text.includes('PGRST202')||text.includes('GGZ_WORKSPACE_OVERVIEW')||text.includes('COULD NOT FIND THE FUNCTION')) return '协作组功能尚未安装，请先在 Supabase 执行新版完整 SQL';
@@ -1240,6 +1248,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('workspaceEmptyNotice').hidden=!!workspaces.length;
       $('inviteWorkspaceMemberBtn').disabled=!group||!['owner','admin'].includes(group.role);
       $('showWorkspaceMembersBtn').disabled=!group;
+      $('showWorkspaceMembersBtn').textContent=group?`成员 ${Math.max(0,Number(group.member_count)||0)}`:'成员';
+      $('deleteWorkspaceBtn').hidden=!group||group.role!=='owner';
+      $('deleteWorkspaceBtn').disabled=!group||group.role!=='owner'||workspaceLoading;
+      $('restoreWorkspaceBtn').hidden=!appAdmin;
+      $('restoreWorkspaceBtn').disabled=workspaceLoading;
+      $('workspaceArchiveList').innerHTML=archivedWorkspaces.length?archivedWorkspaces.map(item=>`<div class="workspace-list-row" data-archived-workspace="${escapeAttr(item.id)}"><div><strong>${escapeHtml(item.name)}</strong><br><small>创建者：${escapeHtml(item.owner_name||'未知账户')} · ${Number(item.member_count)||0} 人 · ${escapeHtml(new Date(item.deleted_at).toLocaleString('zh-CN'))}<br>代码 ${escapeHtml(item.id)}</small></div><span class="workspace-row-actions"><button type="button" class="primary" data-restore-archived>恢复</button></span></div>`).join(''):'<div class="workspace-list-empty">暂无已删除协作组</div>';
       $('workspaceInviteCount').textContent=String(workspaceInvites.length);
       $('showWorkspaceInvitesBtn').classList.toggle('btn-primary',workspaceInvites.length>0);
       $('workspaceInviteList').innerHTML=workspaceInvites.length?workspaceInvites.map(invite=>`<div class="workspace-list-row" data-workspace-invite="${escapeAttr(invite.id)}"><div><strong>${escapeHtml(invite.group_name)}</strong><br><small>${escapeHtml(invite.invited_by_name)} 邀请你加入</small></div><span class="workspace-row-actions"><button type="button" data-invite-action="decline">拒绝</button><button type="button" class="primary" data-invite-action="accept">接受</button></span></div>`).join(''):'<div class="workspace-list-empty">暂时没有新邀请</div>';
@@ -1272,6 +1286,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       try{
         const {data,error}=await getAuthClient().rpc('ggz_workspace_overview'); if(error) throw error;
         const overview=data&&typeof data==='object'?data:{};
+        appAdmin=overview.is_app_admin===true;
+        archivedWorkspaces=appAdmin&&Array.isArray(overview.archived_groups)?overview.archived_groups:[];
         workspaces=Array.isArray(overview.groups)?overview.groups:[]; workspaceInvites=Array.isArray(overview.invites)?overview.invites:[];
         if(overview.username){ editorName=String(overview.username); localStorage.setItem('ggzEditorName',editorName); $('editorNameInput').value=editorName; $('authAccountBadge').textContent=editorName; }
         if(!workspaces.some(group=>group.id===activeWorkspaceId)) activeWorkspaceId=workspaces[0]?.id||'';
@@ -1279,7 +1295,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(activeWorkspaceId) await activateWorkspace(activeWorkspaceId,autoConnect);
         else{ syncCode=''; $('syncCodeInput').value=''; setWorkspaceStatus(workspaceInvites.length?'请先处理协作组邀请':'请新建协作组，或等待别人邀请你'); setCloudStatus('尚未加入协作组'); }
       }catch(error){
-        workspaceLoading=false; workspaces=[]; workspaceInvites=[]; activeWorkspaceId=''; syncCode=''; renderWorkspaceUI(); setWorkspaceStatus(readableWorkspaceError(error),'bad');
+        workspaceLoading=false; workspaces=[]; workspaceInvites=[]; archivedWorkspaces=[]; activeWorkspaceId=''; syncCode=''; appAdmin=false; renderWorkspaceUI(); setWorkspaceStatus(readableWorkspaceError(error),'bad');
       }
     }
     async function createWorkspace(){
@@ -1322,6 +1338,35 @@ body.export-rendering .cart-count{ font-size:28px; }
         const rows=Array.isArray(data)?data:[],canManage=['owner','admin'].includes(group.role);
         $('workspaceMemberList').innerHTML=rows.length?rows.map(row=>`<div class="workspace-list-row" data-member-id="${escapeAttr(row.user_id)}"><strong>${escapeHtml(row.username)}${row.user_id===authCurrentUser?.id?'（我）':''}</strong><small>${row.role==='owner'?'组主':(row.role==='admin'?'管理员':'成员')}</small>${canManage&&row.role!=='owner'?'<span class="workspace-row-actions"><button type="button" data-remove-member>移除</button></span>':''}</div>`).join(''):'<div class="workspace-list-empty">暂时没有成员</div>';
       }catch(error){ $('workspaceMemberList').innerHTML=`<div class="workspace-list-empty">${escapeHtml(readableWorkspaceError(error))}</div>`; }
+    }
+    async function deleteCurrentWorkspace(){
+      const group=currentWorkspace();
+      if(!group||group.role!=='owner') return;
+      const accepted=await appConfirm(`确定删除“${group.name}”吗？\n\n删除后，该协作组将从成员列表中移除。`,'删除协作组','确认删除');
+      if(!accepted) return;
+      const button=$('deleteWorkspaceBtn'); button.disabled=true; setWorkspaceStatus('正在删除协作组…');
+      try{
+        if(!(await disconnectCurrentWorkspace())) return;
+        const {error}=await getAuthClient().rpc('ggz_delete_group',{p_group_id:group.id}); if(error) throw error;
+        localStorage.setItem('ggzLastArchivedGroupCode',group.id);
+        [WORKSPACE_STORAGE_KEY,'ggzSyncCode',COLLAB_ENABLED_KEY_PREFIX+group.id,CLOUD_VERSION_KEY_PREFIX+group.id,CLOUD_DIRTY_KEY_PREFIX+group.id,COLLAB_CONFLICT_KEY_PREFIX+group.id].forEach(key=>localStorage.removeItem(key));
+        activeWorkspaceId=''; syncCode=''; lastCloudUpdatedAt=''; cloudDirty=false; cloudConflictPaused=false;
+        installCollabState(blankCollabProjectSnapshot());
+        await loadWorkspaceOverview(true);
+      }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); button.disabled=false; }
+    }
+    async function restoreWorkspace(requestedCode=''){
+      if(!appAdmin) return;
+      const code=String(requestedCode||prompt('输入要恢复的协作组代码',localStorage.getItem('ggzLastArchivedGroupCode')||archivedWorkspaces[0]?.id||'')||'').trim();
+      if(!code) return;
+      const button=$('restoreWorkspaceBtn'); button.disabled=true; setWorkspaceStatus('正在恢复云端协作组…');
+      try{
+        const {data,error}=await getAuthClient().rpc('ggz_restore_group',{p_group_code:code}); if(error) throw error;
+        const row=Array.isArray(data)?data[0]:data;
+        activeWorkspaceId=row?.group_id||''; localStorage.setItem(WORKSPACE_STORAGE_KEY,activeWorkspaceId);
+        $('workspaceArchivesPanel').hidden=true;
+        await loadWorkspaceOverview(true);
+      }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); button.disabled=false; }
     }
     function applyAuthSession(session){
       authCurrentUser=session?.user||null; authReady=true;
@@ -2007,13 +2052,26 @@ body.export-rendering .cart-count{ font-size:28px; }
     function describeCollabPatch(patch){
       const labels=new Set();
       (Array.isArray(patch)?patch:[]).forEach(op=>{
-        const root=String(op?.path?.[0]||'');
-        if(root==='sheets') labels.add('排单内容');
+        const path=Array.isArray(op?.path)?op.path.map(String):[], root=path[0]||'', field=path[2]||'';
+        if(root==='sheets'){
+          if(['paymentPaid','sharePaymentPaid'].includes(field)) labels.add('收款状态');
+          else if(['paymentRefund','sharePaymentRefund'].includes(field)) labels.add('退款记录');
+          else if(['paymentSupplement','sharePaymentSupplement'].includes(field)) labels.add('补款记录');
+          else if(['paymentEdits','sharePaymentEdits'].includes(field)) labels.add('收款金额');
+          else if(field==='allocations') labels.add('排单人员');
+          else if(field==='columns') labels.add('谷子种类');
+          else if(field==='cost') labels.add('价格与均摊');
+          else if(field.startsWith('coldPromotion')||field==='coldCarryBundleColumnIds') labels.add('带冷提');
+          else if(field==='completed'||field==='completedAt') labels.add('排单完成状态');
+          else if(['matrixTitle','quantityTitle','paymentTitle','sharePaymentTitle','matrixColor','paymentColor','sharePaymentColor'].includes(field)) labels.add('标题与颜色');
+          else labels.add('排单表');
+        }
         else if(root==='itemCatalog') labels.add('常用谷子库');
-        else if(root==='sharedCartQrImg'||root==='sharedPaymentQrImg') labels.add('二维码');
+        else if(root==='sharedCartQrImg') labels.add('群二维码');
+        else if(root==='sharedPaymentQrImg') labels.add('收款码');
         else labels.add('协作数据');
       });
-      return [...labels].slice(0,2).join('、')||'排单内容';
+      return [...labels].slice(0,4).join('、')||'排单内容';
     }
     async function refreshCollabActivity(){
       if(!collabEnabled||!syncCode) return;
@@ -2023,13 +2081,13 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(touchError) throw touchError;
         const [{data:people,error:peopleError},{data:changes,error:changesError}]=await Promise.all([
           lockRequest(client.from('ggz_collab_presence').select('editor_name,last_seen').eq('sync_code',syncCode).gte('last_seen',cutoff).order('last_seen',{ascending:false}),12000),
-          lockRequest(client.from('ggz_collab_changes').select('revision,author_name,created_at,patch').eq('sync_code',syncCode).order('revision',{ascending:false}).limit(8),12000)
+          lockRequest(client.rpc('ggz_collab_activity',{p_group_id:syncCode,p_limit:30}),12000)
         ]);
         if(peopleError) throw peopleError;
         const unique=new Map(); (people||[]).forEach(row=>{ const name=row.editor_name||'未命名'; if(!unique.has(name)) unique.set(name,row); });
         $('collabOnlinePeople').textContent=unique.size?[...unique.keys()].map(name=>name===editorName?`${name}（我）`:name).join('、'):'暂无活跃人员';
         if(!changesError){
-          $('collabRecentChanges').innerHTML=(changes||[]).length?(changes||[]).map(row=>`<div class="collab-recent-item"><span><b>${escapeHtml(row.author_name||'未命名')}</b> 修改了${escapeHtml(describeCollabPatch(row.patch))} · 版本 ${Number(row.revision)||0}</span><time>${escapeHtml(collabRelativeTime(row.created_at))}</time></div>`).join(''):'暂无修改记录';
+          $('collabRecentChanges').innerHTML=(changes||[]).length?(changes||[]).map(row=>`<div class="collab-recent-item"><span><b>${escapeHtml(row.author_name||'未命名')}</b> 修改了${escapeHtml(row.is_detailed?describeCollabPatch(row.patch):'排单内容')} · 版本 ${Number(row.revision)||0}</span><time>${escapeHtml(collabRelativeTime(row.created_at))}</time></div>`).join(''):'暂无修改记录';
         }
       }catch(error){
         $('collabOnlinePeople').textContent='名单尚未启用，请执行更新后的 SQL';
@@ -3105,9 +3163,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('inviteWorkspaceMemberBtn').addEventListener('click',inviteWorkspaceMember);
     $('showWorkspaceInvitesBtn').addEventListener('click',async()=>{
       await loadWorkspaceOverview(false);
-      $('workspaceInvitesPanel').hidden=!$('workspaceInvitesPanel').hidden; $('workspaceMembersPanel').hidden=true;
+      $('workspaceInvitesPanel').hidden=!$('workspaceInvitesPanel').hidden; $('workspaceMembersPanel').hidden=true; $('workspaceArchivesPanel').hidden=true;
     });
-    $('showWorkspaceMembersBtn').addEventListener('click',showWorkspaceMembers);
+    $('showWorkspaceMembersBtn').addEventListener('click',()=>{ $('workspaceArchivesPanel').hidden=true; showWorkspaceMembers(); });
+    $('deleteWorkspaceBtn').addEventListener('click',deleteCurrentWorkspace);
+    $('restoreWorkspaceBtn').addEventListener('click',()=>{ if(!appAdmin) return; $('workspaceArchivesPanel').hidden=!$('workspaceArchivesPanel').hidden; $('workspaceInvitesPanel').hidden=true; $('workspaceMembersPanel').hidden=true; });
+    $('restoreWorkspaceByCodeBtn').addEventListener('click',()=>restoreWorkspace(''));
+    $('workspaceArchiveList').addEventListener('click',event=>{ const button=event.target.closest('[data-restore-archived]'),row=button?.closest('[data-archived-workspace]'); if(button&&row) restoreWorkspace(row.dataset.archivedWorkspace); });
     document.querySelectorAll('[data-close-workspace-panel]').forEach(button=>button.addEventListener('click',()=>{ button.closest('.workspace-side-panel').hidden=true; }));
     $('workspaceInviteList').addEventListener('click',event=>{
       const button=event.target.closest('[data-invite-action]'),row=button?.closest('[data-workspace-invite]'); if(!button||!row) return;
