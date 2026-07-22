@@ -429,7 +429,8 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   <div class="panel" id="settingsPanel">
     <h2>设置与数据</h2>
     <div class="settings-cloud-tip"><strong>实时协作始终显示在页面顶部</strong><span>开启时自动读取协作版本，关闭前会先同步本机修改。</span></div>
-    <details class="data-actions settings-data-actions" id="dataActions" open><summary>排单数据导入导出</summary><div class="data-actions-pop">
+    <div class="settings-tool-grid">
+    <details class="data-actions settings-data-actions" id="dataActions"><summary>排单数据导入导出</summary><div class="data-actions-pop">
       <button class="btn-ghost" id="exportJsonBtn">备份全部排单</button>
       <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前排单</button>
       <button class="btn-ghost" id="exportAllExcelBtn">导出全部排单表</button>
@@ -443,6 +444,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button type="button" class="btn-ghost" id="restoreWorkspaceByCodeBtn">按代码恢复</button>
       <div id="workspaceArchiveList" class="workspace-list" style="grid-column:1/-1;"></div>
     </div></details>
+    </div>
   </div>
 
   <footer>数据会自动保存在这个浏览器里。换设备或清理浏览器前，记得先导出备份。</footer>
@@ -520,11 +522,12 @@ html{ scrollbar-gutter:stable; }
 .wrap:not([data-active-section="settings"]) .workspacebar,.wrap:not([data-active-section="settings"]) .workspace-empty-notice,.wrap:not([data-active-section="settings"]) .workspace-side-panel,.wrap:not([data-active-section="settings"]) .cloudbar,.wrap:not([data-active-section="settings"]) .edit-lock-controls,.wrap:not([data-active-section="settings"]) .collab-activity{ display:none!important; }
 .wrap:not([data-active-section="settings"]) .collab-compact-status{ display:block; margin:0 0 7px; padding:8px 11px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--muted); font-size:12px; font-weight:900; text-align:center; }
 .app-section-hidden{ display:none!important; }
-.settings-cloud-tip{ display:flex; flex-direction:column; gap:4px; margin-bottom:12px; padding:12px; border:1px solid #ead9df; border-radius:10px; background:#fff7fa; color:var(--muted); font-size:12px; }
+.settings-cloud-tip{ display:flex; align-items:center; gap:8px; max-width:920px; margin-bottom:8px; padding:8px 10px; border:1px solid #ead9df; border-radius:9px; background:#fff7fa; color:var(--muted); font-size:11px; }
 .settings-cloud-tip strong{ color:var(--accent); }
+.settings-tool-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:8px; max-width:920px; }
 .settings-data-actions{ width:100%; }
-.settings-data-actions>summary{ cursor:default; }
-.settings-data-actions>.data-actions-pop{ position:static; width:100%; max-width:none; margin-top:8px; box-shadow:none; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.settings-data-actions>summary{ min-height:34px; padding:7px 10px; cursor:pointer; font-size:11.5px; }
+.settings-data-actions>.data-actions-pop{ position:static; width:100%; max-width:none; margin-top:6px; padding:7px; box-shadow:none; grid-template-columns:repeat(2,minmax(0,1fr)); }
 .app-confirm-overlay{ position:fixed; z-index:200; inset:0; display:grid; place-items:center; padding:18px; background:rgba(35,27,40,.38); backdrop-filter:blur(3px); }
 .app-confirm-overlay[hidden]{ display:none; }
 .app-confirm-card{ width:min(400px,100%); padding:18px; border:1px solid #eadde5; border-radius:15px; background:#fff; box-shadow:0 18px 55px rgba(43,28,50,.22); }
@@ -918,6 +921,8 @@ html{ scrollbar-gutter:stable; }
   .custom-select-group{ padding:6px 8px 3px; font-size:9px; }
   .custom-select-option{ min-height:31px; padding:5px 8px; font-size:11px; }
   body.mobile-keyboard-open .mobile-bottom-nav{ display:none; }
+  .settings-tool-grid{ grid-template-columns:1fr; gap:6px; max-width:none; }
+  .settings-cloud-tip{ align-items:flex-start; flex-direction:column; gap:2px; max-width:none; margin-bottom:6px; padding:7px 8px; font-size:10px; }
   .settings-data-actions>.data-actions-pop{ position:static; left:auto; right:auto; bottom:auto; width:100%; max-width:none; grid-template-columns:1fr; }
   footer{ padding:5px 8px 12px; color:var(--muted); font-size:9px; line-height:1.45; text-align:center; }
 }
