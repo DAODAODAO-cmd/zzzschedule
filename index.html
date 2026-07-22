@@ -30,7 +30,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 .auth-form{display:grid;gap:8px}.auth-form[hidden]{display:none!important}.auth-form label{display:grid;gap:3px;color:#635c69;font-size:11px;font-weight:800}.auth-form input{display:block;width:100%;height:38px;min-height:38px;padding:6px 10px;border:1px solid #ded6e1;border-radius:8px;background:#fff;color:#2a2731;font-size:16px;line-height:1.2;outline:none}.auth-form input:focus{border-color:#d1466a;box-shadow:0 0 0 3px rgba(209,70,106,.12)}
 .auth-submit{min-height:38px;margin-top:2px;border:0;border-radius:8px;background:#d1466a;color:#fff;font-size:13px;font-weight:900;cursor:pointer}.auth-submit:disabled{opacity:.55;cursor:wait}.auth-message{min-height:18px;margin-top:8px;color:#867f92;font-size:11px;line-height:1.45}.auth-message.bad{color:#c94f6d}.auth-message.ok{color:#2f9e5c}
 .auth-account-badge{display:inline-flex;align-items:center;min-height:34px;padding:6px 10px;border:1px solid #e1d9e4;border-radius:8px;background:#f8f5f9;color:#5f5764;font-size:12px;font-weight:850}.auth-account-badge::before{content:"";width:7px;height:7px;margin-right:7px;border-radius:50%;background:#2f9e5c}
-.workspacebar{display:flex;align-items:end;gap:7px;flex-wrap:wrap;padding:9px 10px;border:1px solid #e6e0ea;border-radius:10px;background:#fff}.workspace-select-label{display:grid;gap:3px;min-width:210px;color:#867f92;font-size:10px;font-weight:800}.workspace-select-label select{min-height:34px;padding:5px 30px 5px 9px;border:1px solid #ded6e1;border-radius:8px;background:#faf8fb;color:#2a2731;font-size:12px;font-weight:800}.workspacebar button{min-height:34px;padding:6px 10px;font-size:11px}.workspacebar>span{align-self:center;color:#867f92;font-size:11px}.workspace-empty-notice{margin-top:7px;padding:10px 12px;border:1px dashed #d9cbdc;border-radius:9px;background:#fbf8fc;color:#746b7a;font-size:12px}.workspace-side-panel{margin-top:7px;padding:10px;border:1px solid #e1d7e5;border-radius:10px;background:#fff}.workspace-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.workspace-panel-head button{min-height:27px;padding:3px 8px;font-size:10px}.workspace-list{display:grid;gap:5px}.workspace-list-row{display:flex;align-items:center;gap:7px;min-height:34px;padding:6px 8px;border-radius:8px;background:#f8f5f9;font-size:11px}.workspace-list-row strong{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-list-row small{color:#867f92}.workspace-list-row .workspace-row-actions{display:flex;gap:5px;margin-left:auto}.workspace-list-row button{min-height:26px;padding:3px 8px;border:1px solid #ded6e1;border-radius:7px;background:#fff;color:#5f5764;font-size:10px;font-weight:800}.workspace-list-row button.primary{border-color:#d1466a;background:#d1466a;color:#fff}.workspace-list-empty{padding:8px;color:#867f92;font-size:11px;text-align:center}
+.workspacebar{display:flex;align-items:end;gap:7px;flex-wrap:wrap;overflow:visible;padding:9px 10px;border:1px solid #e6e0ea;border-radius:10px;background:#fff}.workspace-select-label{display:grid;flex:1 1 220px;gap:3px;min-width:180px;color:#867f92;font-size:10px;font-weight:800}.workspace-select-label select{width:100%;min-height:34px;padding:5px 30px 5px 9px;border:1px solid #ded6e1;border-radius:8px;background:#faf8fb;color:#2a2731;font-size:12px;font-weight:800}.workspacebar button{flex:0 0 auto;min-height:34px;padding:6px 10px;font-size:11px}.workspacebar>span{flex:1 1 100%;align-self:center;color:#867f92;font-size:11px}.workspace-empty-notice{margin-top:7px;padding:10px 12px;border:1px dashed #d9cbdc;border-radius:9px;background:#fbf8fc;color:#746b7a;font-size:12px}.workspace-side-panel{margin-top:7px;padding:10px;border:1px solid #e1d7e5;border-radius:10px;background:#fff}.workspace-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.workspace-panel-head button{min-height:27px;padding:3px 8px;font-size:10px}.workspace-list{display:grid;gap:5px}.workspace-list-row{display:flex;align-items:center;gap:7px;min-height:34px;padding:6px 8px;border-radius:8px;background:#f8f5f9;font-size:11px}.workspace-list-row strong{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-list-row small{color:#867f92}.workspace-list-row .workspace-row-actions{display:flex;gap:5px;margin-left:auto}.workspace-list-row button{min-height:26px;padding:3px 8px;border:1px solid #ded6e1;border-radius:7px;background:#fff;color:#5f5764;font-size:10px;font-weight:800}.workspace-list-row button.primary{border-color:#d1466a;background:#d1466a;color:#fff}.workspace-list-empty{padding:8px;color:#867f92;font-size:11px;text-align:center}
 @media(max-width:620px){.auth-gate{align-items:flex-start;padding:calc(8vh + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}.auth-card{width:min(340px,100%);padding:17px 15px;border-radius:14px}.auth-card h2{font-size:18px}.auth-card>p{font-size:11px}.auth-form input{height:37px;min-height:37px;font-size:16px}}
 @media(max-width:620px){.workspacebar{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,auto);gap:5px;padding:7px}.workspace-select-label{grid-column:1/-1;min-width:0}.workspace-select-label select{width:100%;min-height:31px;font-size:11px}.workspacebar button{min-height:29px;padding:4px 7px;font-size:9.5px}.workspacebar #createWorkspaceBtn{grid-column:1/2}.workspacebar>span{grid-column:1/-1;font-size:9.5px}.workspace-side-panel{padding:7px}.workspace-list-row{font-size:10px}}
 </style>
@@ -94,7 +94,6 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button id="showWorkspaceMembersBtn" class="btn-ghost" type="button" disabled>成员</button>
     <button id="showWorkspaceInvitesBtn" class="btn-ghost" type="button">邀请 <span id="workspaceInviteCount">0</span></button>
     <button id="deleteWorkspaceBtn" class="btn-ghost" type="button" hidden>删除协作组</button>
-    <button id="restoreWorkspaceBtn" class="btn-ghost" type="button" hidden>恢复协作组</button>
     <span id="workspaceStatus">登录后自动读取</span>
   </div>
   <div id="workspaceEmptyNotice" class="workspace-empty-notice" hidden>你还没有协作组。可以新建一个组，再按账户名邀请其他人。</div>
@@ -105,10 +104,6 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   <div id="workspaceMembersPanel" class="workspace-side-panel" hidden>
     <div class="workspace-panel-head"><strong>协作组成员</strong><button type="button" class="btn-ghost" data-close-workspace-panel>关闭</button></div>
     <div id="workspaceMemberList" class="workspace-list"></div>
-  </div>
-  <div id="workspaceArchivesPanel" class="workspace-side-panel" hidden>
-    <div class="workspace-panel-head"><strong>云端已删除协作组</strong><span><button type="button" class="btn-ghost" id="restoreWorkspaceByCodeBtn">按代码恢复</button><button type="button" class="btn-ghost" data-close-workspace-panel>关闭</button></span></div>
-    <div id="workspaceArchiveList" class="workspace-list"></div>
   </div>
 
   <input id="syncCodeInput" type="hidden">
@@ -443,6 +438,10 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <label class="btn-ghost filelabel">导入排单表<input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;"></label>
       <button class="btn-ghost" id="exportImportTemplateBtn">下载排单表模板</button>
       <button class="btn-ghost" id="copyTsvBtn">复制排单表文本</button>
+    </div></details>
+    <details class="data-actions settings-data-actions" id="archiveMaintenance" hidden><summary>云端维护</summary><div class="data-actions-pop">
+      <button type="button" class="btn-ghost" id="restoreWorkspaceByCodeBtn">按代码恢复</button>
+      <div id="workspaceArchiveList" class="workspace-list" style="grid-column:1/-1;"></div>
     </div></details>
   </div>
 
@@ -1255,8 +1254,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('showWorkspaceMembersBtn').textContent=group?`成员 ${Math.max(0,Number(group.member_count)||0)}`:'成员';
       $('deleteWorkspaceBtn').hidden=!group||group.role!=='owner';
       $('deleteWorkspaceBtn').disabled=!group||group.role!=='owner'||workspaceLoading;
-      $('restoreWorkspaceBtn').hidden=!archiveAccess;
-      $('restoreWorkspaceBtn').disabled=workspaceLoading;
+      $('archiveMaintenance').hidden=!archiveAccess;
       $('workspaceArchiveList').innerHTML=archivedWorkspaces.length?archivedWorkspaces.map(item=>`<div class="workspace-list-row" data-archived-workspace="${escapeAttr(item.id)}"><div><strong>${escapeHtml(item.name)}</strong><br><small>创建者：${escapeHtml(item.owner_name||'未知账户')} · ${Number(item.member_count)||0} 人 · ${escapeHtml(new Date(item.deleted_at).toLocaleString('zh-CN'))}<br>代码 ${escapeHtml(item.id)}</small></div><span class="workspace-row-actions"><button type="button" class="primary" data-restore-archived>恢复</button></span></div>`).join(''):'<div class="workspace-list-empty">暂无已删除协作组</div>';
       $('workspaceInviteCount').textContent=String(workspaceInvites.length);
       $('showWorkspaceInvitesBtn').classList.toggle('btn-primary',workspaceInvites.length>0);
@@ -1373,12 +1371,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!archiveAccess) return;
       const code=String(requestedCode||prompt('输入要恢复的协作组代码',localStorage.getItem('ggzLastArchivedGroupCode')||archivedWorkspaces[0]?.id||'')||'').trim();
       if(!code) return;
-      const button=$('restoreWorkspaceBtn'); button.disabled=true; setWorkspaceStatus('正在恢复云端协作组…');
+      const button=$('restoreWorkspaceByCodeBtn'); button.disabled=true; setWorkspaceStatus('正在恢复云端协作组…');
       try{
         const {data,error}=await getAuthClient().rpc('ggz_restore_group',{p_group_code:code}); if(error) throw error;
         const row=Array.isArray(data)?data[0]:data;
         activeWorkspaceId=row?.group_id||''; localStorage.setItem(WORKSPACE_STORAGE_KEY,activeWorkspaceId);
-        $('workspaceArchivesPanel').hidden=true;
+        $('archiveMaintenance').open=false;
         await loadWorkspaceOverview(true);
       }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); button.disabled=false; }
     }
@@ -3188,11 +3186,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('inviteWorkspaceMemberBtn').addEventListener('click',inviteWorkspaceMember);
     $('showWorkspaceInvitesBtn').addEventListener('click',async()=>{
       await loadWorkspaceOverview(false);
-      $('workspaceInvitesPanel').hidden=!$('workspaceInvitesPanel').hidden; $('workspaceMembersPanel').hidden=true; $('workspaceArchivesPanel').hidden=true;
+      $('workspaceInvitesPanel').hidden=!$('workspaceInvitesPanel').hidden; $('workspaceMembersPanel').hidden=true;
     });
-    $('showWorkspaceMembersBtn').addEventListener('click',()=>{ $('workspaceArchivesPanel').hidden=true; showWorkspaceMembers(); });
+    $('showWorkspaceMembersBtn').addEventListener('click',showWorkspaceMembers);
     $('deleteWorkspaceBtn').addEventListener('click',deleteCurrentWorkspace);
-    $('restoreWorkspaceBtn').addEventListener('click',()=>{ if(!archiveAccess) return; $('workspaceArchivesPanel').hidden=!$('workspaceArchivesPanel').hidden; $('workspaceInvitesPanel').hidden=true; $('workspaceMembersPanel').hidden=true; });
     $('restoreWorkspaceByCodeBtn').addEventListener('click',()=>restoreWorkspace(''));
     $('workspaceArchiveList').addEventListener('click',event=>{ const button=event.target.closest('[data-restore-archived]'),row=button?.closest('[data-archived-workspace]'); if(button&&row) restoreWorkspace(row.dataset.archivedWorkspace); });
     document.querySelectorAll('[data-close-workspace-panel]').forEach(button=>button.addEventListener('click',()=>{ button.closest('.workspace-side-panel').hidden=true; }));
