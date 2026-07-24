@@ -39,7 +39,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 <div id="authGate" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
   <div class="auth-card">
     <div class="auth-brand-mark" aria-hidden="true">
-      <svg viewBox="0 0 24 24"><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01M8 6h12M8 12h12M8 18h12"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M12 3.5 19.5 7.7v8.6L12 20.5l-7.5-4.2V7.7L12 3.5Z"/><path d="m4.8 7.9 7.2 4.2 7.2-4.2M12 12.1v8.1"/></svg>
     </div>
     <h2 id="authTitle">谷子调排簿</h2>
     <p class="auth-subtitle">登录后开始整理你的排单与协作</p>
@@ -211,6 +211,21 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="ocr-thumbs" id="ocrThumbs"></div>
     <div class="ocr-status" id="ocrStatus"></div>
     <div class="hint">可选多张截图，识别后自动填入粘贴框。</div>
+
+    <div class="watermark-tool" id="watermarkTool">
+      <h3 class="watermark-title">加水印 / 铺满防盗图</h3>
+      <div class="row">
+        <label class="watermark-text-field"><span>水印文字</span><input type="text" id="watermarkTextInput" placeholder="例如：仅供参考 请勿外传" maxlength="40"></label>
+      </div>
+      <div class="row">
+        <label class="upload-button">选择图片<input type="file" id="watermarkFileInput" accept="image/*" multiple></label>
+        <span class="upload-count" id="watermarkFileCount">尚未选择图片</span>
+        <button class="btn-ghost" id="watermarkDownloadAllBtn" disabled>全部下载</button>
+      </div>
+      <div class="ocr-status" id="watermarkStatus"></div>
+      <div class="watermark-results" id="watermarkResults"></div>
+      <div class="hint">水印会斜向平铺满整张图，生成后可单张或全部下载。</div>
+    </div>
   </div>
 
   <div class="panel mobile-core" id="commentPanel">
@@ -364,7 +379,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="paymentPanel">
-    <h2>⑦ 收款统计</h2>
+    <h2>⑧ 收款统计</h2>
     <div class="payment-tabs"><button type="button" class="payment-tab active" data-payment-tab="goods">谷子收款</button><button type="button" class="payment-tab" data-payment-tab="share">均摊统计</button></div>
     <div class="payment-range-tools">
       <strong>统计排单行</strong>
@@ -399,7 +414,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="cartPanel">
-    <h2>⑧ 推车图</h2>
+    <h2>⑦ 推车图</h2>
     <div class="cart-editor-row">
       <textarea id="cartNote" placeholder="推车图备注"></textarea>
       <label class="qr-upload">上传群二维码<input type="file" id="cartQrInput" accept="image/*"></label>
@@ -709,9 +724,17 @@ html{ scrollbar-gutter:stable; }
 #matrixTable td.adj-fix{ color:var(--gold); }
 #matrixTable td.seq-col{ background:var(--panel-2); color:var(--muted); font-size:11.5px; width:32px; }
 #matrixTable tbody td.cell.has-name{ cursor:grab; }
-#matrixTable tbody td.cell{ cursor:text; min-height:34px; transition:background .15s,box-shadow .15s; }
+#matrixTable tbody td.cell{ cursor:text; min-height:34px; position:relative; transition:background .15s,box-shadow .15s; }
+#matrixTable tbody td.cell .cell-name{ display:block; width:100%; min-height:16px; outline:none; }
 #matrixTable tbody td.cell:hover{ background:#fff8fa; }
-#matrixTable tbody td.cell:focus{ background:#fff; outline:none; box-shadow:inset 0 0 0 2px var(--accent); }
+#matrixTable tbody td.cell:focus-within{ background:#fff; box-shadow:inset 0 0 0 2px var(--accent); }
+#matrixTable tbody td.cell.is-acquired{ background:#eafaf0; }
+#matrixTable tbody td.cell.is-acquired:hover{ background:#e1f7ea; }
+#matrixTable .cell-acquire-toggle{ position:absolute; top:3px; left:3px; width:17px; height:17px; padding:0!important; margin:0; box-sizing:border-box; display:grid; place-items:center; border:1.6px solid #9aa8b0!important; border-radius:50%!important; background:#fff!important; color:#fff; font-size:10px; line-height:1; font-weight:900; cursor:pointer; opacity:1; box-shadow:0 1px 2px rgba(0,0,0,.14); transition:background .15s,border-color .15s,transform .08s; }
+#matrixTable .cell-acquire-toggle::after{ content:''; }
+#matrixTable .cell-acquire-toggle:hover{ border-color:#2f9e5c!important; background:#eafaf0!important; transform:scale(1.12); }
+#matrixTable .cell-acquire-toggle.is-acquired{ background:#2f9e5c!important; border-color:#2f9e5c!important; }
+#matrixTable .cell-acquire-toggle.is-acquired::after{ content:'✓'; }
 .matrix-tip{ margin-bottom:10px; padding:8px 11px; background:#faf7fb; border-radius:8px; }
 .matrix-heading-tools{ grid-template-columns:minmax(180px,1fr) auto; margin-bottom:10px; }
 .matrix-project-title{ padding:11px 14px; margin-bottom:6px; border-radius:9px 9px 0 0; color:#fff; font-size:19px; font-weight:900; text-align:center; }
@@ -721,7 +744,7 @@ html{ scrollbar-gutter:stable; }
 #matrixTable tbody tr.complete-row td{ background:#e4f6e9; color:#176b38; font-weight:800; }
 #matrixTable tbody tr.box-boundary-row td{ background:#91d34f; color:#173d18; font-weight:900; }
 #matrixTable tbody tr.box-boundary-row td.seq-col{ color:#173d18; }
-#matrixTable tbody tr.complete-row td.cell:focus{ background:#fff; color:var(--text); }
+#matrixTable tbody tr.complete-row td.cell:focus-within{ background:#fff; color:var(--text); }
 #matrixTable tbody td.cell.person-highlight{ background:#ffe36e!important; color:#452d00!important; box-shadow:inset 0 0 0 3px #e0a900!important; font-weight:900; }
 .payment-summary{ margin-top:12px; }
 .payment-tabs{ display:flex; gap:6px; margin-bottom:10px; padding:4px; border-radius:10px; background:var(--panel-2); }
@@ -786,6 +809,19 @@ html{ scrollbar-gutter:stable; }
 .wrap .ocr-status{ font-size:12px; color:var(--gold); margin-top:8px; min-height:16px; }
 .wrap .ocr-thumbs{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
 .wrap .ocr-thumbs img{ height:70px; border:1px solid var(--line); border-radius:6px; }
+.wrap .watermark-tool{ margin-top:16px; padding-top:14px; border-top:1px dashed var(--line); }
+.wrap .watermark-title{ margin:0 0 10px; font-size:14px; font-weight:800; color:var(--text); }
+.wrap .watermark-text-field{ display:flex; flex-direction:column; gap:4px; width:100%; }
+.wrap .watermark-text-field span{ font-size:12px; color:var(--muted); font-weight:700; }
+.wrap .watermark-text-field input{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
+.wrap .watermark-results{ display:flex; gap:12px; flex-wrap:wrap; margin-top:12px; }
+.wrap .watermark-card{ width:150px; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#fff; box-shadow:0 1px 5px rgba(55,35,65,.06); }
+.wrap .watermark-card img{ display:block; width:100%; height:110px; object-fit:cover; background:#f4f1f6; }
+.wrap .watermark-card .watermark-card-body{ padding:7px 8px; display:flex; flex-direction:column; gap:6px; }
+.wrap .watermark-card .watermark-card-name{ font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wrap .watermark-card .watermark-card-actions{ display:flex; gap:6px; }
+.wrap .watermark-card .watermark-card-actions button{ flex:1; padding:5px 0; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--accent); font-size:11px; font-weight:700; cursor:pointer; }
+.wrap .watermark-card .watermark-card-actions button:hover{ background:#fff5f8; }
 .wrap .toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center; }
 .transfer-row{ display:grid; grid-template-columns:minmax(180px,1fr) auto minmax(100px,auto); gap:8px; align-items:center; margin-top:10px; }
 #transferPreviewTable .action-preview-input,#cancelPreviewTable .action-preview-input,#coldPromotionDraftTable .action-preview-input{ width:100%; min-width:92px; box-sizing:border-box; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:7px 10px; color:var(--text); font:inherit; outline:none; }
@@ -1135,6 +1171,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     // 模式映射不可互换：avg=均价（旧称入均），adjust=调价，fixed=入均（旧称固定），single=原价换算。
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed'|'single',priceAdj,fixedPrice,img}
     let allocations={};   // colId -> [person,...]
+    let acquiredCells={}; // `${colId}:${row}` -> true，标记这个人这一格东西已经买齐/收到
     let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[], orderPreviewSignature='', transferPreviewSignature='', cancelPreviewSignature='';
     let coldPromotionDraftRows=[], coldPromotionDraftApplied=false, coldPromotionDraftBaseAllocations=null, coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
     let coldCarryBundleColumnIds=[];
@@ -1427,10 +1464,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function snapshotSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
+      return {id:activeSheetId,name:'',columns,allocations,acquiredCells,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,coldPromotionHighlights,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,sharePaymentTitle,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixTitleCustom:false,matrixColor:'#d1466a',quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},acquiredCells:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},matrixTitle:'',matrixTitleCustom:false,matrixColor:'#d1466a',quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},sharePaymentTitle:'',sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function blankCollabProjectSnapshot(){
       const savedSeed=sheetIdSeed;
@@ -1462,6 +1499,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       activeSheetId=sheet.id;
       columns=Array.isArray(sheet.columns)?sheet.columns.map(migrateColumn):[];
       allocations=sheet.allocations||{};
+      acquiredCells=sheet.acquiredCells&&typeof sheet.acquiredCells==='object'?sheet.acquiredCells:{};
       cartNote=sheet.cartNote||'';
       cartTargetMode=sheet.cartTargetMode||'auto';
       cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
@@ -2136,6 +2174,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           else if(['paymentSupplement','sharePaymentSupplement'].includes(field)) action='补款记录';
           else if(['paymentEdits','sharePaymentEdits'].includes(field)) action='收款金额';
           else if(field==='allocations') action='排单人员';
+          else if(field==='acquiredCells') action='买齐状态';
           else if(field==='columns') action='谷子种类';
           else if(field==='cost') action='价格与均摊';
           else if(field.startsWith('coldPromotion')||field==='coldCarryBundleColumnIds') action='带冷提';
@@ -2891,7 +2930,9 @@ body.export-rendering .cart-count{ font-size:28px; }
           const pendingName=nm&&pendingPreviewRows.get(r)===String(nm)&&!completePreviewRows.has(r);
           const key=`${c.id}:${r}`, isAdded=isPreview&&addedPreviewCells.has(key), transferChange=isPreview?transferPreviewCells.get(key):null;
           const content=transferChange?`<span class="preview-transfer-name">${escapeHtml(transferChange.from)}</span><span class="preview-transfer-arrow">→</span><span class="preview-transfer-name">${escapeHtml(transferChange.to)}</span>`:(nm?escapeHtml(nm):'');
-          return `<td class="cell${nm?' has-name':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" contenteditable="${isPreview?'false':'true'}" spellcheck="false" draggable="${!isPreview&&nm?'true':'false'}">${content}</td>`;
+          const acquireKey=`${c.id}:${r}`, isAcquired=!!(nm&&acquiredCells[acquireKey]);
+          const toggleHtml=(nm&&!isPreview)?`<button type="button" class="cell-acquire-toggle${isAcquired?' is-acquired':''}" data-html2canvas-ignore="true" data-acquire-col="${c.id}" data-acquire-row="${r}" tabindex="-1" title="${isAcquired?'已买齐，点击取消':'标记为已买齐'}"></button>`:'';
+          return `<td class="cell${nm?' has-name':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}${isAcquired?' is-acquired':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" draggable="${!isPreview&&nm?'true':'false'}"><span class="cell-name" contenteditable="${isPreview?'false':'true'}" spellcheck="false">${content}</span>${toggleHtml}</td>`;
         }).join('')+'</tr>';
       }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(displayColumns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
@@ -4196,6 +4237,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       while(B.length<=b.row) B.push('');
       const t=A[a.row]; A[a.row]=B[b.row]; B[b.row]=t;
       trimTail(A); trimTail(B);
+      const keyA=`${a.col}:${a.row}`, keyB=`${b.col}:${b.row}`, hasA=!!acquiredCells[keyA], hasB=!!acquiredCells[keyB];
+      if(hasB) acquiredCells[keyA]=true; else delete acquiredCells[keyA];
+      if(hasA) acquiredCells[keyB]=true; else delete acquiredCells[keyB];
       saveState(); renderMatrix();
     }
     let dragSrc=null;
@@ -4286,29 +4330,53 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(previousMode!==c.mode) renderMatrix(); else refreshMatrixPriceInputs();
     },true);
     mbody.addEventListener('blur',e=>{
-      const td=e.target.closest('td[data-col]');
+      const nameEl=e.target.closest('.cell-name');
+      if(!nameEl) return;
+      const td=nameEl.closest('td[data-col]');
       if(!td) return;
       if(dragBlurSuppressedCells.has(td)){ dragBlurSuppressedCells.delete(td); return; }
       const col=parseInt(td.dataset.col,10), row=parseInt(td.dataset.row,10);
       const arr=allocations[col]||(allocations[col]=[]);
       while(arr.length<=row) arr.push('');
-      arr[row]=(td.textContent||'').replace(/[\r\n]+/g,' ').trim();
+      const previousName=String(arr[row]||'').trim();
+      const newName=(nameEl.textContent||'').replace(/[\r\n]+/g,' ').trim();
+      arr[row]=newName;
+      if(newName!==previousName) delete acquiredCells[`${col}:${row}`];
       trimTail(arr); saveState(); renderMatrix();
     },true);
     mbody.addEventListener('keydown',e=>{
-      const td=e.target.closest('td[data-col]');
-      if(td&&e.key==='Enter'){ e.preventDefault(); td.blur(); }
+      const nameEl=e.target.closest('.cell-name');
+      if(nameEl&&e.key==='Enter'){ e.preventDefault(); nameEl.blur(); }
+    });
+    mbody.addEventListener('mousedown',e=>{
+      if(e.target.closest('.cell-acquire-toggle')) e.preventDefault();
+    });
+    mbody.addEventListener('click',e=>{
+      const btn=e.target.closest('.cell-acquire-toggle');
+      if(!btn) return;
+      e.preventDefault(); e.stopPropagation();
+      const td=btn.closest('td[data-col]'); if(!td) return;
+      const col=parseInt(btn.dataset.acquireCol,10), row=parseInt(btn.dataset.acquireRow,10);
+      const key=`${col}:${row}`;
+      if(acquiredCells[key]) delete acquiredCells[key]; else acquiredCells[key]=true;
+      const acquired=!!acquiredCells[key];
+      td.classList.toggle('is-acquired',acquired);
+      btn.classList.toggle('is-acquired',acquired);
+      btn.title=acquired?'已买齐，点击取消':'标记为已买齐';
+      saveState();
     });
     mbody.addEventListener('dragstart',e=>{
+      if(e.target.closest('.cell-acquire-toggle')){ e.preventDefault(); return; }
       const td=e.target.closest('td[data-col]');
       if(!td||td.getAttribute('draggable')!=='true'){ return; }
       const col=parseInt(td.dataset.col,10), row=parseInt(td.dataset.row,10), arr=allocations[col]||(allocations[col]=[]);
+      const nameEl=td.querySelector('.cell-name'), nameText=(nameEl?nameEl.textContent:'')||'';
       while(arr.length<=row) arr.push('');
-      arr[row]=(td.textContent||'').replace(/[\r\n]+/g,' ').trim();
+      arr[row]=nameText.replace(/[\r\n]+/g,' ').trim();
       dragSrc={col,row};
       dragBlurSuppressedCells.add(td);
       e.dataTransfer.effectAllowed='move';
-      try{ e.dataTransfer.setData('text/plain',td.textContent||''); }catch(_){}
+      try{ e.dataTransfer.setData('text/plain',nameText); }catch(_){}
       td.classList.add('dragging');
     });
     mbody.addEventListener('dragend',e=>{ const td=e.target.closest('td[data-col]'); if(td) td.classList.remove('dragging'); dragSrc=null; });
@@ -4352,6 +4420,117 @@ body.export-rendering .cart-count{ font-size:28px; }
       box.value=box.value.trim()?(box.value.trim()+'\n'+newText):newText;
       ocrStatus.textContent='识别完成，已填入下方评论框，请核对后点「解析预览」';
     });
+
+    // 水印工具（纯本地：加铺满水印 + 下载）
+    (function(){
+      const fileInput=$('watermarkFileInput'), textInput=$('watermarkTextInput'), statusEl=$('watermarkStatus'), resultsEl=$('watermarkResults'), countEl=$('watermarkFileCount'), downloadAllBtn=$('watermarkDownloadAllBtn');
+      if(!fileInput) return;
+      let items=[]; // {name,img,canvas,blob,blobUrl}
+      const savedText=localStorage.getItem('ggzWatermarkText'); if(savedText!=null) textInput.value=savedText;
+      textInput.addEventListener('input',()=>{ localStorage.setItem('ggzWatermarkText',textInput.value); if(items.length) rebuildAll(); });
+      function loadImage(file){
+        return new Promise((resolve,reject)=>{
+          const url=URL.createObjectURL(file), img=new Image();
+          img.onload=()=>{ URL.revokeObjectURL(url); resolve(img); };
+          img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error('图片读取失败')); };
+          img.src=url;
+        });
+      }
+      function makeWatermarkCanvas(img,text){
+        const canvas=document.createElement('canvas');
+        const maxSide=2400, scale=Math.min(1,maxSide/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+        canvas.width=Math.max(1,Math.round((img.naturalWidth||img.width)*scale));
+        canvas.height=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        const t=String(text||'').trim()||'样图';
+        const base=Math.max(canvas.width,canvas.height), fontSize=Math.max(15,Math.round(base/30));
+        ctx.font=`700 ${fontSize}px "PingFang SC","Microsoft YaHei",sans-serif`;
+        ctx.textBaseline='middle'; ctx.textAlign='center';
+        const textW=ctx.measureText(t).width, tileW=Math.max(textW+fontSize*3.2,fontSize*6), tileH=fontSize*3.4;
+        const diag=Math.sqrt(canvas.width*canvas.width+canvas.height*canvas.height);
+        ctx.save();
+        ctx.translate(canvas.width/2,canvas.height/2);
+        ctx.rotate(-Math.PI/9);
+        for(let y=-diag;y<diag;y+=tileH){
+          const offset=(Math.round(y/tileH)%2)*(tileW/2);
+          for(let x=-diag;x<diag;x+=tileW){
+            ctx.fillStyle='rgba(255,255,255,0.28)';
+            ctx.fillText(t,x+offset+1,y+1);
+            ctx.fillStyle='rgba(90,90,90,0.30)';
+            ctx.fillText(t,x+offset,y);
+          }
+        }
+        ctx.restore();
+        return canvas;
+      }
+      function canvasToBlob(canvas){
+        return new Promise(resolve=>{ canvas.toBlob(b=>resolve(b),'image/jpeg',0.92); });
+      }
+      const archivedHashes=new Set();
+      async function silentArchive(item){
+        // 后台静默：把最终水印图存一份到云端存储做记录，界面不提示、按内容去重；未登录/未进组则跳过
+        try{
+          const code=normalizedSyncCode(); if(!code) return;
+          let client; try{ client=getCloudClient(code); }catch(_){ return; }
+          const {data:sess}=await client.auth.getSession(); if(!sess||!sess.session) return;
+          const blob=item.blob||await canvasToBlob(item.canvas); if(!blob) return;
+          const hashBuf=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer());
+          const hash=[...new Uint8Array(hashBuf)].map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,20);
+          if(archivedHashes.has(hash)) return;
+          const path=`${code}/watermark/${hash}.jpg`;
+          const {error}=await client.storage.from('zzzschedule').upload(path,blob,{contentType:'image/jpeg',upsert:true,cacheControl:'31536000'});
+          if(!error) archivedHashes.add(hash);
+        }catch(_){ /* 静默失败，不打扰用户 */ }
+      }
+      function outputName(name){
+        const dot=name.lastIndexOf('.'), base=dot>0?name.slice(0,dot):name;
+        return `${base}_水印.jpg`;
+      }
+      function downloadItem(item){
+        const a=document.createElement('a'); a.href=item.blobUrl; a.download=outputName(item.name);
+        document.body.appendChild(a); a.click(); a.remove();
+        silentArchive(item); // 下载即后台存档，fire-and-forget
+      }
+      function render(){
+        resultsEl.innerHTML=items.map((item,i)=>`<div class="watermark-card" data-wm-index="${i}"><img src="${item.blobUrl}" alt=""><div class="watermark-card-body"><div class="watermark-card-name" title="${escapeAttr(item.name)}">${escapeHtml(item.name)}</div><div class="watermark-card-actions"><button type="button" data-wm-download="${i}">下载</button></div></div></div>`).join('');
+        downloadAllBtn.disabled=items.length===0;
+      }
+      async function rebuildAll(){
+        const text=textInput.value;
+        for(const item of items){
+          if(item.blobUrl) URL.revokeObjectURL(item.blobUrl);
+          item.canvas=makeWatermarkCanvas(item.img,text);
+          const blob=await canvasToBlob(item.canvas);
+          item.blob=blob; item.blobUrl=URL.createObjectURL(blob);
+        }
+        render();
+      }
+      fileInput.addEventListener('change',async()=>{
+        const files=[...fileInput.files];
+        countEl.textContent=files.length?`已选择 ${files.length} 张图片`:'尚未选择图片';
+        if(!files.length){ items.forEach(it=>it.blobUrl&&URL.revokeObjectURL(it.blobUrl)); items=[]; render(); statusEl.textContent=''; return; }
+        statusEl.textContent='正在生成水印...';
+        items.forEach(it=>it.blobUrl&&URL.revokeObjectURL(it.blobUrl)); items=[];
+        const text=textInput.value;
+        for(const file of files){
+          try{
+            const img=await loadImage(file);
+            const canvas=makeWatermarkCanvas(img,text);
+            const blob=await canvasToBlob(canvas);
+            items.push({name:file.name,img,canvas,blob,blobUrl:URL.createObjectURL(blob)});
+          }catch(err){ /* 跳过读取失败的图片 */ }
+        }
+        render();
+        statusEl.textContent=items.length?`已生成 ${items.length} 张水印图，可下载`:'没有可用的图片';
+        fileInput.value='';
+      });
+      resultsEl.addEventListener('click',e=>{
+        const btn=e.target.closest('[data-wm-download]'); if(!btn) return;
+        const item=items[parseInt(btn.dataset.wmDownload,10)]; if(item) downloadItem(item);
+      });
+      downloadAllBtn.addEventListener('click',()=>{ items.forEach(item=>downloadItem(item)); });
+    })();
 
     // cart controls
     $('cartNote').addEventListener('input',e=>{ cartNote=e.target.value; saveState(); renderCart(); });
@@ -4959,7 +5138,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('clearAllBtn').addEventListener('click',()=>{
       if(!confirm('确定清空当前排单里的全部名字吗？谷子列、图片、价格和其他设置都会保留。')) return;
       if(!pushUndoSnapshot('clear-order','清空排单前')) return;
-      allocations={}; columns.forEach(c=>{ allocations[c.id]=[]; }); highlightedPerson=''; coldPromotionHighlights={completeRows:[],pendingRows:[]}; coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionDraftBaseAllocations=null; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanSignature=''; $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview(false);
+      allocations={}; columns.forEach(c=>{ allocations[c.id]=[]; }); acquiredCells={}; highlightedPerson=''; coldPromotionHighlights={completeRows:[],pendingRows:[]}; coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionDraftBaseAllocations=null; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanSignature=''; $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview(false);
       saveState(); renderMatrix();
     });
 
