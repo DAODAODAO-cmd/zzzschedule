@@ -202,7 +202,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel desktop-setup" id="ocrPanel">
-    <h2>③ 截图识别/防盗水印</h2>
+    <h2>③ 截图识别</h2>
     <div class="row">
       <label class="upload-button">选择截图<input type="file" id="ocrFileInput" accept="image/*" multiple></label>
       <span class="upload-count" id="ocrFileCount">尚未选择截图</span>
@@ -379,7 +379,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="paymentPanel">
-    <h2>⑧ 收款统计</h2>
+    <h2>⑦ 收款统计</h2>
     <div class="payment-tabs"><button type="button" class="payment-tab active" data-payment-tab="goods">谷子收款</button><button type="button" class="payment-tab" data-payment-tab="share">均摊统计</button></div>
     <div class="payment-range-tools">
       <strong>统计排单行</strong>
@@ -414,7 +414,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="cartPanel">
-    <h2>⑦ 推车图</h2>
+    <h2>⑧ 推车图</h2>
     <div class="cart-editor-row">
       <textarea id="cartNote" placeholder="推车图备注"></textarea>
       <label class="qr-upload">上传群二维码<input type="file" id="cartQrInput" accept="image/*"></label>
@@ -1215,15 +1215,15 @@ body.export-rendering .cart-count{ font-size:28px; }
     sessionStorage.setItem('ggzEditSessionId',editSessionId);
     lastCloudUpdatedAt=syncCode?(localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+syncCode)||''):'';
     if(syncCode) cloudDirty=rememberedCloudDirty(syncCode,lastCloudUpdatedAt);
-    const SUPABASE_URL='https://fzxabmdnrkvpgraztcwi.supabase.co';
-    const SUPABASE_KEY='sb_publishable_yU4Q1T2RuQfgwOW9Idtf9w__YssVHYe';
+    const CLOUD_URL='https://fzxabmdnrkvpgraztcwi.supabase.co';
+    const CLOUD_KEY='sb_publishable_yU4Q1T2RuQfgwOW9Idtf9w__YssVHYe';
     const AUTH_STORAGE_KEY='ggz-auth-session-v1';
     let authClient=null, authCurrentUser=null, authReady=false;
 
     function getAuthClient(){
       if(authClient) return authClient;
       if(!window.supabase||!window.supabase.createClient) throw new Error('登录组件尚未加载，请检查网络后刷新');
-      authClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:AUTH_STORAGE_KEY,persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+      authClient=window.supabase.createClient(CLOUD_URL,CLOUD_KEY,{auth:{storageKey:AUTH_STORAGE_KEY,persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
       return authClient;
     }
     function normalizedAccountName(value){ return String(value||'').normalize('NFKC').trim().replace(/\s+/g,' '); }
@@ -1252,8 +1252,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const text=String(error?.message||error||'').toLowerCase();
       if(text.includes('invalid login credentials')) return '账户名或密码不正确';
       if(text.includes('user already registered')||text.includes('already been registered')||text.includes('username_taken')||text.includes('database error saving new user')) return '这个账户名已经被使用，请换一个，或直接登录';
-      if(text.includes('email not confirmed')) return '账户已注册，但 Supabase 仍要求邮箱验证。请先在后台关闭“Confirm email”后再登录';
-      if(text.includes('could not find the function')||text.includes('ggz_username_available')||text.includes('pgrst202')) return '注册功能尚未安装，请先在 Supabase 执行新版完整 SQL';
+      if(text.includes('could not find the function')||text.includes('ggz_username_available')||text.includes('pgrst202')) return '注册功能尚未安装，请先在后台执行新版完整 SQL';
       if(text.includes('password')&&text.includes('least')) return '密码长度不足，请至少填写8位';
       if(text.includes('fetch')||text.includes('network')) return '暂时连接不到登录服务，请检查网络后重试';
       return error?.message||'操作失败，请稍后重试';
@@ -1282,7 +1281,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(text.includes('ARCHIVED_GROUP_NOT_FOUND')) return '没有找到可以恢复的协作组';
       if(text.includes('USERNAME_TAKEN')) return '这个账户名已经被使用，请换一个';
       if(text.includes('GROUP_ACCESS_DENIED')) return '你已经不在这个协作组中，无法读取数据';
-      if(text.includes('PGRST202')||text.includes('GGZ_WORKSPACE_OVERVIEW')||text.includes('COULD NOT FIND THE FUNCTION')) return '协作组功能尚未安装，请先在 Supabase 执行新版完整 SQL';
+      if(text.includes('PGRST202')||text.includes('GGZ_WORKSPACE_OVERVIEW')||text.includes('COULD NOT FIND THE FUNCTION')) return '协作组功能尚未安装，请先在后台执行新版完整 SQL';
       return raw||'协作组操作失败，请稍后重试';
     }
     function setWorkspaceStatus(text,tone=''){
@@ -1753,8 +1752,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const matches=sheet=>!query||String(sheet.name||'').toLowerCase().includes(query);
       const groups=[];
       if(sheetStatusFilter!=='completed') groups.push({label:`进行中 · ${ongoing.length}`,items:ongoing.filter(matches),movable:true});
-      if(sheetStatusFilter!=='ongoing') groups.push({label:`已完成 · ${completed.length}`,items:completed.filter(matches),movable:false});
-      const tabHtml=(sheet,index,list,movable)=>`<div class="sheet-tab ${sheet.id===activeSheetId?'active':''}${isSheetCompleted(sheet)?' is-completed':''}" data-sheet="${sheet.id}" draggable="${movable?'true':'false'}" title="${isSheetCompleted(sheet)?'已完成排单，双击改名':'拖动排序，双击改名'}">${sheet.id===activeSheetId&&movable&&index>0?'<button type="button" class="sheet-move" data-sheet-move="-1" title="向上移动">‹</button>':''}<span class="sheet-tab-name">${escapeHtml(sheet.name)}</span>${sheet.id===activeSheetId&&movable&&index<list.length-1?'<button type="button" class="sheet-move" data-sheet-move="1" title="向下移动">›</button>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`;
+      if(sheetStatusFilter!=='ongoing') groups.push({label:`已完成 · ${completed.length}`,items:completed.filter(matches),movable:true});
+      const tabHtml=(sheet,index,list,movable)=>`<div class="sheet-tab ${sheet.id===activeSheetId?'active':''}${isSheetCompleted(sheet)?' is-completed':''}" data-sheet="${sheet.id}" draggable="${movable?'true':'false'}" title="${movable?'拖动排序，双击改名':'双击改名'}">${sheet.id===activeSheetId&&movable&&index>0?'<button type="button" class="sheet-move" data-sheet-move="-1" title="向上移动">‹</button>':''}<span class="sheet-tab-name">${escapeHtml(sheet.name)}</span>${sheet.id===activeSheetId&&movable&&index<list.length-1?'<button type="button" class="sheet-move" data-sheet-move="1" title="向下移动">›</button>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`;
       $('sheetTabs').innerHTML=groups.map(group=>`<div class="sheet-group-label">${group.label}</div>${group.items.map((sheet,index)=>tabHtml(sheet,index,group.items,group.movable)).join('')}`).join('')||'<div class="sheet-list-empty">没有符合条件的排单</div>';
       document.querySelectorAll('[data-sheet-status-filter]').forEach(button=>button.classList.toggle('active',button.dataset.sheetStatusFilter===sheetStatusFilter));
       syncMobileSheetSelect();
@@ -2002,7 +2001,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(loaded===false){ await releaseEditLock(false,true); alert('尚未读取最新云端数据，本次没有进入编辑状态。'); return; }
         setCloudStatus('已取得编辑权 · 可以开始修改');
       }catch(error){
-        if(lockFeatureMissing(error)){ editLockSupported=false; editLockOwned=false; syncEditLockUI(); alert('编辑锁尚未安装，请先在 Supabase 执行更新后的 supabase_setup.sql。'); }
+        if(lockFeatureMissing(error)){ editLockSupported=false; editLockOwned=false; syncEditLockUI(); alert('编辑锁尚未安装，请先在后台执行更新后的数据库脚本。'); }
         else{ editLockOwned=false; syncEditLockUI(); alert('取得编辑权失败：'+(error.message||error)); }
       }
     }
@@ -2288,7 +2287,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1'); clearIdleCloudUpload(); startCollabPolling(); syncCollabUI(); startCollabPresence(); setCollabStatus(`实时协作已连接 · 版本 ${collabRevision}`,'ok'); setCloudStatus('完整云端备份可手动上传'); return true;
       }catch(error){
         collabEnabled=false; syncCollabUI();
-        if(lockFeatureMissing(error)) alert('实时协作 SQL 尚未安装，请在 Supabase 执行最新的完整 supabase_setup.sql。');
+        if(lockFeatureMissing(error)) alert('实时协作 SQL 尚未安装，请在后台执行最新的完整数据库脚本。');
         else if(!autoStart) alert('开启实时协作失败：'+(error.message||error));
         setCollabStatus('实时协作尚未连接','bad'); return false;
       }
@@ -3129,7 +3128,6 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     // ---------- cart ----------
     function colOrderedCount(c){ return (allocations[c.id]||[]).length; }
-    function currentMatchCount(){ const counts=columns.map(colOrderedCount); return counts.length?Math.min(...counts):0; }
     function currentMaxCount(){ const counts=columns.map(colOrderedCount); return counts.length?Math.max(...counts):0; }
     function cartTarget(){
       if(cartTargetMode==='manual'&&Number.isFinite(cartTargetNum)&&cartTargetNum>0) return cartTargetNum;
@@ -3435,8 +3433,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       sheets.push(sheet); sheetStatusFilter='ongoing'; localStorage.setItem(SHEET_STATUS_FILTER_KEY,sheetStatusFilter); applySheet(sheet); saveState();
     });
     function moveSheetByOffset(id,offset){
-      const sheet=sheets.find(item=>item.id===id); if(!sheet||isSheetCompleted(sheet)) return;
-      const peers=sheets.filter(item=>!isSheetCompleted(item)), peerIndex=peers.findIndex(item=>item.id===id), targetPeer=peers[peerIndex+offset];
+      const sheet=sheets.find(item=>item.id===id); if(!sheet) return;
+      const completedFlag=isSheetCompleted(sheet), peers=sheets.filter(item=>isSheetCompleted(item)===completedFlag), peerIndex=peers.findIndex(item=>item.id===id), targetPeer=peers[peerIndex+offset];
       if(peerIndex<0||!targetPeer) return;
       const index=sheets.findIndex(item=>item.id===id),target=sheets.findIndex(item=>item.id===targetPeer.id);
       captureActiveSheet(); [sheets[index],sheets[target]]=[sheets[target],sheets[index]]; saveState(); renderSheetTabs();
@@ -3504,19 +3502,19 @@ body.export-rendering .cart-count{ font-size:28px; }
     let draggedSheetId=null;
     $('sheetTabs').addEventListener('dragstart',e=>{
       const tab=e.target.closest('.sheet-tab'); if(!tab||e.target.closest('.sheet-close,.sheet-move')){ e.preventDefault(); return; }
-      const sourceSheet=sheets.find(sheet=>sheet.id===parseInt(tab.dataset.sheet,10)); if(!sourceSheet||isSheetCompleted(sourceSheet)){ e.preventDefault(); return; }
+      const sourceSheet=sheets.find(sheet=>sheet.id===parseInt(tab.dataset.sheet,10)); if(!sourceSheet){ e.preventDefault(); return; }
       draggedSheetId=parseInt(tab.dataset.sheet,10); tab.classList.add('dragging'); e.dataTransfer.effectAllowed='move';
       try{ e.dataTransfer.setData('text/plain',String(draggedSheetId)); }catch(_){}
     });
     $('sheetTabs').addEventListener('dragover',e=>{
       const tab=e.target.closest('.sheet-tab'); if(!tab||draggedSheetId==null||parseInt(tab.dataset.sheet,10)===draggedSheetId) return;
-      const targetSheet=sheets.find(sheet=>sheet.id===parseInt(tab.dataset.sheet,10)); if(!targetSheet||isSheetCompleted(targetSheet)) return;
+      const targetSheet=sheets.find(sheet=>sheet.id===parseInt(tab.dataset.sheet,10)), draggedSheet=sheets.find(sheet=>sheet.id===draggedSheetId); if(!targetSheet||!draggedSheet||isSheetCompleted(targetSheet)!==isSheetCompleted(draggedSheet)) return;
       e.preventDefault(); e.dataTransfer.dropEffect='move'; document.querySelectorAll('.sheet-tab.drag-over').forEach(item=>item.classList.remove('drag-over')); tab.classList.add('drag-over');
     });
     $('sheetTabs').addEventListener('drop',e=>{
       const targetTab=e.target.closest('.sheet-tab'); if(!targetTab||draggedSheetId==null) return;
       e.preventDefault(); const targetId=parseInt(targetTab.dataset.sheet,10), sourceIndex=sheets.findIndex(sheet=>sheet.id===draggedSheetId), targetIndex=sheets.findIndex(sheet=>sheet.id===targetId);
-      if(sourceIndex<0||targetIndex<0||sourceIndex===targetIndex||isSheetCompleted(sheets[sourceIndex])||isSheetCompleted(sheets[targetIndex])) return;
+      if(sourceIndex<0||targetIndex<0||sourceIndex===targetIndex||isSheetCompleted(sheets[sourceIndex])!==isSheetCompleted(sheets[targetIndex])) return;
       const after=e.clientX>targetTab.getBoundingClientRect().left+targetTab.getBoundingClientRect().width/2;
       captureActiveSheet(); const [moving]=sheets.splice(sourceIndex,1); let insertAt=targetIndex+(after?1:0); if(sourceIndex<insertAt) insertAt--; sheets.splice(Math.max(0,Math.min(insertAt,sheets.length)),0,moving); saveState(); renderSheetTabs();
     });
@@ -4591,13 +4589,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       syncPaymentControls(); saveState(); renderPaymentSummary(); renderSharePaymentSummary();
     });
     $('paymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
-    function syncRenderedUnpaidCount(rootId,countId,selector,refundSelector,supplementSelector){
-      const buttons=[...$(rootId).querySelectorAll(selector)], refundButtons=[...$(rootId).querySelectorAll(refundSelector||'')], supplementButtons=[...$(rootId).querySelectorAll(supplementSelector||'')], paid=buttons.filter(button=>button.getAttribute('aria-pressed')==='true'), unpaid=buttons.filter(button=>button.getAttribute('aria-pressed')!=='true'), refunds=refundButtons.filter(button=>Math.max(0,num(button.dataset.refundAmount))>0), supplements=supplementButtons.filter(button=>Math.max(0,num(button.dataset.supplementAmount))>0);
-      const total=list=>list.reduce((sum,button)=>sum+Math.max(0,num(button.dataset.paymentAmount)),0);
-      const refundTotal=refunds.reduce((sum,button)=>sum+Math.max(0,num(button.dataset.refundAmount)),0);
-      const supplementTotal=supplements.reduce((sum,button)=>sum+Math.max(0,num(button.dataset.supplementAmount)),0);
-      $(countId).textContent=`已收：${paid.length}人 / ${money(total(paid))}；待退款：${refunds.length}人 / ${money(refundTotal)}；待补款：${supplements.length}人 / ${money(supplementTotal)}；未收：${unpaid.length}人 / ${money(total(unpaid))}`;
-    }
     function refreshPaymentRowState(rootId,rowSelector,key,paidMap,refundMap,supplementMap){
       $(rootId).querySelectorAll(rowSelector).forEach(row=>{
         const rowKey=row.dataset.paymentPerson||row.dataset.sharePaymentPerson;
