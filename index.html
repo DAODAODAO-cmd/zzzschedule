@@ -792,6 +792,9 @@ html{ scrollbar-gutter:stable; }
 .payment-table tr.payment-partial-row td.payment-cn,.payment-table tr.payment-partial-row td.payment-money{ background:#fff1c8; color:#835a12; }
 .payment-received-note{ display:block; margin-top:3px; color:#a46d18; font-size:11px; font-weight:800; white-space:nowrap; }
 .payment-bought-note{ display:block; margin-top:3px; color:#4e7390; font-size:10.5px; font-weight:800; line-height:1.35; white-space:normal; }
+.payment-item-line{ display:block; line-height:1.55; }
+.payment-item-line+.payment-item-line{ margin-top:2px; }
+.payment-bought-inline{ display:inline-block; margin-left:5px; padding:1px 4px; border-radius:4px; background:#eef6fc; color:#4e7390; font-size:10px; font-weight:850; white-space:nowrap; }
 .payment-bought-money{ display:block; margin-top:3px; padding:2px 5px; border-radius:5px; background:#eef6fc; color:#386f99; font-size:10.5px; font-weight:900; line-height:1.35; white-space:normal; }
 .payment-bought-money.refund{ background:#fdebed; color:#b43e50; }
 .payment-bought-money.due{ background:#fff2d8; color:#996312; }
@@ -3062,13 +3065,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       return `<span class="payment-adjustment-note" data-html2canvas-ignore="true">（${parts.join(' ')}）</span>`;
     }
     function paymentBoughtItemNote(data,itemName=''){
-      if(!showBoughtSettlement) return '';
-      if(itemName){
-        const planned=Math.max(0,num(data.items.get(itemName))), bought=Math.max(0,num(data.boughtItems.get(itemName)));
-        return `<span class="payment-bought-note" data-html2canvas-ignore="true">买到 ${bought}/${planned}</span>`;
-      }
-      const details=[...data.boughtItems.entries()].filter(([,count])=>count>0).map(([item,count])=>`${item}×${count}`).join('、')||'尚未勾选买齐';
-      return `<span class="payment-bought-note" data-html2canvas-ignore="true">买到 ${data.boughtQty}/${data.requestedQty} 件：${escapeHtml(details)}</span>`;
+      if(!showBoughtSettlement||!itemName) return '';
+      const planned=Math.max(0,num(data.items.get(itemName))), bought=Math.max(0,num(data.boughtItems.get(itemName)));
+      const missing=Math.max(0,planned-bought);
+      return `<span class="payment-bought-inline" data-html2canvas-ignore="true">买到 ${bought}/${planned} · ${missing>0?`差${missing}`:'已齐'}</span>`;
+    }
+    function paymentMergedItemsDisplay(data,items,fallback){
+      if(!showBoughtSettlement) return escapeHtml(fallback);
+      return items.map(([item,count])=>`<span class="payment-item-line">${escapeHtml(item)}×${count}${paymentBoughtItemNote(data,item)}</span>`).join('');
     }
     function paymentBoughtMoneyNote(data,receivedAmount){
       if(!showBoughtSettlement) return '';
@@ -3107,17 +3111,18 @@ body.export-rendering .cart-count{ font-size:28px; }
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, alipayAmount=Math.max(0,num(Object.prototype.hasOwnProperty.call(paymentEdits,'alipay:'+name)?paymentEdits['alipay:'+name]:data.total)), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), boughtMoneyNote=paymentBoughtMoneyNote(data,receivedAmount), refundAmount=refundAmountValue(paymentRefund,data.key,alipayAmount), supplementAmount=refundAmountValue(paymentSupplement,data.key,alipayAmount), adjustmentNote=paymentAdjustmentNote(refundAmount,supplementAmount), refund=refundAmount>0, supplement=supplementAmount>0, paidClass=supplement?' class="payment-supplement-row"':(refund?' class="payment-refund-row"':(paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''))), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button><button type="button" class="payment-refund-check" data-html2canvas-ignore="true" data-payment-refund="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-refund-amount="${refundAmount}" aria-pressed="${refund?'true':'false'}" title="${refund?'待退款 '+money(refundAmount):'填写退款金额'}">退</button><button type="button" class="payment-supplement-check" data-html2canvas-ignore="true" data-payment-supplement="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-supplement-amount="${supplementAmount}" aria-pressed="${supplement?'true':'false'}" title="${supplement?'待补款 '+money(supplementAmount):'填写补款金额'}">补</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>${paymentBoughtItemNote(data)}`;
+        const name=data.name, alipayAmount=Math.max(0,num(Object.prototype.hasOwnProperty.call(paymentEdits,'alipay:'+name)?paymentEdits['alipay:'+name]:data.total)), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), boughtMoneyNote=paymentBoughtMoneyNote(data,receivedAmount), refundAmount=refundAmountValue(paymentRefund,data.key,alipayAmount), supplementAmount=refundAmountValue(paymentSupplement,data.key,alipayAmount), adjustmentNote=paymentAdjustmentNote(refundAmount,supplementAmount), refund=refundAmount>0, supplement=supplementAmount>0, paidClass=supplement?' class="payment-supplement-row"':(refund?' class="payment-refund-row"':(paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''))), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button><button type="button" class="payment-refund-check" data-html2canvas-ignore="true" data-payment-refund="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-refund-amount="${refundAmount}" aria-pressed="${refund?'true':'false'}" title="${refund?'待退款 '+money(refundAmount):'填写退款金额'}">退</button><button type="button" class="payment-supplement-check" data-html2canvas-ignore="true" data-payment-supplement="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-supplement-amount="${supplementAmount}" aria-pressed="${supplement?'true':'false'}" title="${supplement?'待补款 '+money(supplementAmount):'填写补款金额'}">补</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         const items=[...data.items.entries()], span=items.length, payable=feeAmount(data.total);
         if(paymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
-          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,totalQty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}${receivedNote}${boughtMoneyNote}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
+          const itemKey='merged-items:'+name, itemDisplay=Object.prototype.hasOwnProperty.call(paymentEdits,itemKey)?escapeHtml(paymentEdits[itemKey]):paymentMergedItemsDisplay(data,items,itemText);
+          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr(itemKey)}>${itemDisplay}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,totalQty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}${receivedNote}${boughtMoneyNote}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
           return;
         }
         items.forEach(([item,count],index)=>{
           rows+=`<tr${paidClass}${personAttr}>`;
           if(index===0) rows+=`<td class="payment-cn" rowspan="${span}">${paidControl}</td>`;
-          rows+=`<td class="payment-item-name" ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
+          rows+=`<td class="payment-item-name"><span ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</span>${paymentBoughtItemNote(data,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
           if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}${receivedNote}${boughtMoneyNote}</td><td class="payment-money" rowspan="${span}" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td>`;
           rows+='</tr>';
         });
@@ -4660,7 +4665,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('paymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-payment-key]'); if(!cell) return;
-      const key=decodeURIComponent(cell.dataset.paymentKey), value=(cell.textContent||'').replace(/[\r\n]+/g,' ').trim();
+      const key=decodeURIComponent(cell.dataset.paymentKey);
+      let value='';
+      if(key.startsWith('merged-items:')&&cell.querySelector('.payment-item-line')){
+        value=[...cell.querySelectorAll('.payment-item-line')].map(line=>{
+          const copy=line.cloneNode(true); copy.querySelectorAll('.payment-bought-inline').forEach(note=>note.remove());
+          return (copy.textContent||'').trim();
+        }).filter(Boolean).join('、');
+      }else value=(cell.textContent||'').replace(/[\r\n]+/g,' ').trim();
       paymentEdits[key]=value; saveState(); setTimeout(()=>rerenderPaymentInPlace('paymentSummary',renderPaymentSummary),0);
     },true);
     $('sharePaymentSummary').addEventListener('keydown',e=>{ if(e.target.matches('[data-share-payment-key]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
