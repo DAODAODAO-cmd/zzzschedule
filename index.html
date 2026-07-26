@@ -795,6 +795,8 @@ html{ scrollbar-gutter:stable; }
 .payment-item-line{ display:block; line-height:1.55; }
 .payment-item-line+.payment-item-line{ margin-top:2px; }
 .payment-bought-inline{ display:inline-block; margin-left:5px; padding:1px 4px; border-radius:4px; background:#eef6fc; color:#4e7390; font-size:10px; font-weight:850; white-space:nowrap; }
+.payment-bought-inline.is-missing{ background:#fff0dc; color:#a45f0b; }
+.payment-bought-inline.is-complete{ background:#eaf5ed; color:#2b7547; }
 .payment-bought-money{ display:block; margin-top:3px; padding:2px 5px; border-radius:5px; background:#eef6fc; color:#386f99; font-size:10.5px; font-weight:900; line-height:1.35; white-space:normal; }
 .payment-bought-money.refund{ background:#fdebed; color:#b43e50; }
 .payment-bought-money.due{ background:#fff2d8; color:#996312; }
@@ -3068,7 +3070,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!showBoughtSettlement||!itemName) return '';
       const planned=Math.max(0,num(data.items.get(itemName))), bought=Math.max(0,num(data.boughtItems.get(itemName)));
       const missing=Math.max(0,planned-bought);
-      return `<span class="payment-bought-inline" data-html2canvas-ignore="true">买到 ${bought}/${planned} · ${missing>0?`差${missing}`:'已齐'}</span>`;
+      return `<span class="payment-bought-inline ${missing>0?'is-missing':'is-complete'}" data-html2canvas-ignore="true">买到 ${bought}/${planned} · ${missing>0?`差${missing}`:'已齐'}</span>`;
     }
     function paymentMergedItemsDisplay(data,items,fallback){
       if(!showBoughtSettlement) return escapeHtml(fallback);
