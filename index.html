@@ -68,7 +68,7 @@
   color:#a83153!important;
   box-shadow:0 0 0 2px rgba(209,70,106,.08);
 }
-#toggleSettlementDashboardBtn[hidden],#markBoughtModeBtn[hidden]{display:none!important}
+#toggleSettlementDashboardBtn[hidden]{display:none!important}
 </style>
 
 <style id="v5-1-status-unified">
@@ -3451,7 +3451,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         settlementModeBtn.setAttribute('aria-pressed',showBoughtSettlement?'true':'false');
       }
       const boughtMarkBtn=$('markBoughtModeBtn');
-      if(boughtMarkBtn) boughtMarkBtn.hidden=!showBoughtSettlement;
+      if(boughtMarkBtn) boughtMarkBtn.hidden=false;
       $('paymentStartRow').value=paymentStartRow;
       $('paymentEndRow').value=paymentEndRow===null?'':paymentEndRow;
       $('clearPaymentQrBtn').style.display=paymentQrImg?'':'none';
@@ -5046,7 +5046,6 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('toggleBoughtSettlementBtn').addEventListener('click',()=>{
       showBoughtSettlement=!showBoughtSettlement;
       settlementDashboardOpen=showBoughtSettlement;
-      if(!showBoughtSettlement) matrixBuyMarkMode=false;
       saveState();
       syncPaymentControls();
       renderMatrix();
