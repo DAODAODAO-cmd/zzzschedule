@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="description" content="谷子调排簿：调价、排单、推车图、收款统计与双端同步。">
 <meta name="theme-color" content="#d1466a">
-<title>谷子调排簿｜结算中心 V7</title>
+<title>谷子调排簿｜拼盒排单 V14.5 检查通过版</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛒</text></svg>">
 <script src="./support.js"></script>
 <style id="v5-settlement-final-css">
@@ -95,8 +95,22 @@
 }
 .settlement-status-label{cursor:default!important;}
 </style>
+
+<style id="v8-pricing-groups-css">
+.pricing-group-section{margin-top:12px;padding:12px;border:1px solid #e3dbe7;border-radius:12px;background:#fbf9fc}
+.pricing-group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}.pricing-group-head strong{font-size:14px}.pricing-group-head span{display:block;margin-top:2px;color:var(--muted);font-size:10px}
+.pricing-group-list{display:grid;gap:8px}.pricing-group-card{padding:11px;border:1px solid #e4dce8;border-radius:10px;background:#fff}.pricing-group-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.pricing-group-card-title{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.pricing-group-card-title b{font-size:13px}.pricing-group-badge{padding:3px 7px;border-radius:999px;background:#fff0f4;color:#a83153;font-size:9px;font-weight:900}.pricing-group-members{margin-top:5px;color:#665d6c;font-size:11px;line-height:1.55}
+.pricing-group-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:9px}.pricing-group-money>div{padding:7px 8px;border:1px solid #ebe4ee;border-radius:8px;background:#faf8fb}.pricing-group-money span{display:block;color:var(--muted);font-size:9px}.pricing-group-money b{display:block;margin-top:2px;font-size:12px}.pricing-group-adjust-input{width:100%!important;min-height:30px!important;padding:4px 7px!important;background:#fff!important;text-align:center;font-weight:900}.pricing-group-final b{color:#a83153}
+.pricing-group-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.pricing-group-actions button{min-height:29px;padding:4px 8px;font-size:10px}.pricing-group-empty{padding:12px;border:1px dashed #ded4e2;border-radius:9px;color:var(--muted);font-size:11px;text-align:center}
+.pricing-group-balance{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:10px;padding-top:10px;border-top:1px dashed #ddd3e1}.pricing-group-balance>div{padding:8px;border-radius:8px;background:#fff}.pricing-group-balance span{display:block;color:var(--muted);font-size:9px}.pricing-group-balance b{display:block;margin-top:2px;font-size:12px}.pricing-group-balance .ok{background:#edf8f0;color:#287247}.pricing-group-balance .bad{background:#fff0f2;color:#b4364c}
+.pricing-group-overlay{position:fixed;inset:0;z-index:12000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(35,26,41,.42)}.pricing-group-overlay[hidden]{display:none!important}.pricing-group-dialog{width:min(560px,100%);max-height:min(88vh,720px);overflow:auto;padding:16px;border:1px solid #e1d8e5;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(40,26,48,.24)}.pricing-group-dialog h3{margin:0 0 4px;font-size:17px}.pricing-group-dialog>.hint{margin-bottom:12px}.pricing-group-form{display:grid;gap:10px}.pricing-group-form>label{display:grid;gap:4px;color:#625969;font-size:11px;font-weight:850}.pricing-group-form input{width:100%;min-height:38px;padding:7px 9px;border:1px solid #ddd4e1;border-radius:9px;background:#fff;color:#2a2731;font:inherit}.pricing-group-member-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.pricing-group-member-option{display:flex;align-items:center;gap:6px;min-height:36px;padding:7px 8px;border:1px solid #e5dee8;border-radius:8px;background:#faf8fb;font-size:11px}.pricing-group-member-option input{width:auto;min-height:0}.pricing-group-preview{padding:10px;border:1px solid #e3dbe6;border-radius:10px;background:#fbf9fc;font-size:11px;line-height:1.65}.pricing-group-preview strong{color:#a83153}.pricing-group-dialog-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:12px}
+.cart-combo-strip{padding:5px 7px 7px;border-top:1px dashed #eadfe4;background:#fff8fa;color:#8f3551;font-size:10px;font-weight:900;text-align:center;line-height:1.35}.cart-combo-strip small{display:block;color:#8a7f8d;font-size:8.5px;font-weight:800}.cart-combo-badge{top:5px!important;left:5px!important;max-width:calc(100% - 10px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#9a3d5d!important;font-size:11px!important;padding:5px 7px!important;border-radius:7px!important}
+@media(max-width:620px){.pricing-group-member-grid{grid-template-columns:1fr 1fr}.pricing-group-dialog{padding:12px}.pricing-group-card-top{display:block}.pricing-group-money{grid-template-columns:1fr 1fr 1fr}.pricing-group-balance{grid-template-columns:1fr 1fr}.pricing-group-head{align-items:flex-start}.cart-combo-strip{font-size:9px}}
+.combo-image-grid{display:grid;width:100%;aspect-ratio:1/1;background:#eceaf0;overflow:hidden}.combo-image-grid.count-2{grid-template-columns:1fr 1fr}.combo-image-grid.count-3,.combo-image-grid.count-4,.combo-image-grid.count-many{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}.combo-image-cell{position:relative;min-width:0;min-height:0;overflow:hidden;border:1px solid rgba(255,255,255,.85);background:#eceaf0}.combo-image-cell img{width:100%;height:100%;object-fit:cover;display:block}.combo-image-cell span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:4px;color:#7f7486;font-size:10px;text-align:center}.combo-image-more{position:absolute!important;right:4px!important;bottom:4px!important;inset:auto!important;width:auto!important;height:auto!important;padding:3px 5px!important;border-radius:999px;background:rgba(35,29,43,.78);color:#fff!important;font-size:9px!important;font-weight:900}.matrix-combo-image{width:54px;height:54px;margin:0 auto 4px;border:1px solid #d8d3e0;border-radius:7px;overflow:hidden}.matrix-combo-image .combo-image-grid{height:100%;aspect-ratio:auto}.matrix-combo-image .combo-image-cell span{font-size:7px}.cart-card>.combo-image-grid{width:100%;aspect-ratio:1/1}.cart-card.combo-card .cart-name{white-space:normal;line-height:1.25}
+</style>
+
 </head>
-<body data-version="v5">
+<body data-version="v14.4">
 <x-dc>
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -168,6 +182,11 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   .settlement-empty{padding:18px;color:var(--muted);text-align:center;font-weight:600}
   @media(max-width:760px){.settlement-dashboard-head{align-items:flex-start;flex-direction:column}.settlement-head-actions{justify-content:flex-start}.settlement-ledger{grid-template-columns:1fr}.settlement-dashboard{padding:10px}.settlement-filter-bar{flex-wrap:nowrap;overflow:auto;padding-bottom:3px}.settlement-status-btn,.settlement-status-label{min-width:94px}.settlement-result-box{min-width:132px}}
 
+
+</style>
+<style id="v12-combo-order-css">
+.pricing-group-card-title:before{content:"整组出售";display:inline-flex;align-items:center;padding:3px 6px;border-radius:999px;background:#2f9e5c;color:#fff;font-size:8px;font-weight:900}
+#matrixTable th small{white-space:normal;line-height:1.25}
 </style>
 </helmet>
 <div id="authGate" class="auth-gate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -321,13 +340,18 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel desktop-setup" id="columnPanel">
-    <h2>② 谷子 / 种类 列</h2>
+    <h2>② 谷子 / 种类 列</h2><div class="hint" style="margin:-4px 0 10px">已加入拼盒的单品会从这里隐藏，排单默认只显示组合；未拼盒的单品仍可单独排。</div>
     <div id="columnList"></div>
     <div class="toolbar">
       <button class="btn-ghost" id="addColumnBtn">+ 手动添加一列</button>
       <button class="btn-ghost" id="saveColumnsToCatalogBtn">保存到常用谷子</button>
       <button class="btn-ghost" id="toggleCatalogBtn">打开常用谷子库</button>
       <span class="hint">粘贴文字时，新名字会自动追加为列；也可以先建好列、设置别名合并、选择定价方式。</span>
+    </div>
+    <div class="pricing-group-section">
+      <div class="pricing-group-head"><div><strong>拼盒组合</strong><span>最终按整组出售：每组可选择 2 件或更多。保存后，组内单品隐藏，排单、统计、收款和推车图均直接显示组合。</span></div><button type="button" class="btn-primary btn-mini" id="openPricingGroupBtn">＋ 新建组合</button></div>
+      <div id="pricingGroupList" class="pricing-group-list"></div>
+      <div id="pricingGroupBalance" class="pricing-group-balance"></div>
     </div>
     <div id="catalogPanel" class="catalog-panel" style="display:none;">
       <div class="catalog-head"><strong>常用谷子库</strong><input id="catalogSearch" type="text" placeholder="搜索名称、别名或分组"></div>
@@ -478,6 +502,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="toolbar">
       <button class="btn-ghost" id="regenBtn" data-mobile-label="刷新">刷新表格</button>
       <button class="btn-ghost" id="exportPngBtn" data-mobile-label="导出图片">导出配比图</button>
+      <button class="btn-ghost" id="copyMatrixTsvBtn" data-mobile-label="复制整表">复制整表</button>
       <button class="btn-ghost" id="exportSingleQuantityBtn" data-mobile-label="单领数量">复制单领数量</button>
       <button class="btn-ghost" id="exportBundleQuantityBtn" data-mobile-label="配比数量">复制配比数量</button>
       <button class="btn-ghost" id="undoLastApplyBtn" data-mobile-label="撤回" disabled>撤回上次应用</button>
@@ -605,6 +630,19 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button type="button" data-app-section="payment"><span>¥</span><b>收款</b></button>
     <button type="button" data-app-section="settings"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M11 4v6M4 17h4m4 0h8M8 14v6"/></svg></span><b>设置</b></button>
   </nav>
+  <div id="pricingGroupOverlay" class="pricing-group-overlay" hidden style="display:none;">
+    <div class="pricing-group-dialog" role="dialog" aria-modal="true" aria-labelledby="pricingGroupDialogTitle">
+      <h3 id="pricingGroupDialogTitle">新建拼盒组合</h3>
+      <div class="hint">选择一起拼的谷子。一般选 2 个，也可以选 3 个；每个谷子只能进入一个组合。</div>
+      <div class="pricing-group-form">
+        <label>组合名称<input id="pricingGroupName" type="text" maxlength="30" placeholder="不填会自动使用成员名称"></label>
+        <label>选择成员<div id="pricingGroupMemberGrid" class="pricing-group-member-grid"></div></label>
+        <label>整体调价<input id="pricingGroupAdjust" type="text" inputmode="decimal" placeholder="例如 +20、-8 或 0"></label>
+        <div id="pricingGroupPreview" class="pricing-group-preview">请选择至少 2 个谷子。</div>
+      </div>
+      <div class="pricing-group-dialog-actions"><button type="button" class="btn-ghost" id="closePricingGroupBtn">取消</button><button type="button" class="btn-primary" id="savePricingGroupBtn">保存组合</button></div>
+    </div>
+  </div>
   <div id="appConfirmOverlay" class="app-confirm-overlay" hidden style="display:none;">
     <div class="app-confirm-card" role="dialog" aria-modal="true" aria-labelledby="appConfirmTitle">
       <strong id="appConfirmTitle">请确认</strong>
@@ -1073,6 +1111,12 @@ html{ scrollbar-gutter:stable; }
 .cart-card{ position:relative; border:1px solid rgba(225,216,230,.9); border-radius:16px; overflow:hidden; background:#fff; box-shadow:0 7px 20px rgba(57,38,66,.09); }
 .cart-card .cart-img{ width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:#eceaf0; }
 .cart-card .cart-img-empty{ width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:12px; background:#eceaf0; }
+/* 导出时：没有照片的谷子仍保留，只隐藏图片占位区域 */
+#cartWrap.hide-empty-export-images .cart-card[data-has-photo="0"] .cart-img-empty,
+#cartWrap.hide-empty-export-images .cart-card[data-has-photo="0"] > .combo-image-grid{ display:none!important; }
+#cartWrap.hide-empty-export-images .cart-card[data-has-photo="0"]{ min-height:72px; display:flex; align-items:flex-end; justify-content:center; }
+#cartWrap.hide-empty-export-images .cart-card[data-has-photo="0"] .cart-name{ width:100%; padding-top:34px; }
+#matrixWrap.hide-empty-export-images #matrixTable thead th[data-has-photo="0"] .matrix-combo-image{ display:none!important; }
 .cart-card .cart-name{ padding:13px 8px 14px; font-size:17px; font-weight:800; text-align:center; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cart-badge{ position:absolute; padding:9px 14px; border-radius:999px; font-size:25px; font-weight:900; color:#fff; box-shadow:0 3px 9px rgba(35,25,40,.18); line-height:1; }
 .cart-price{ top:9px; left:9px; }
@@ -1332,6 +1376,7 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     // 模式映射不可互换：avg=均价（旧称入均），adjust=调价，fixed=入均（旧称固定），single=原价换算。
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed'|'single',priceAdj,fixedPrice,img}
+    let pricingGroups=[], pricingGroupIdSeed=1, editingPricingGroupId=null;
     let allocations={};   // colId -> [person,...]
     let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[], orderPreviewSignature='', transferPreviewSignature='', cancelPreviewSignature='';
     let coldPromotionDraftRows=[], coldPromotionDraftApplied=false, coldPromotionDraftBaseAllocations=null, coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
@@ -1625,10 +1670,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function snapshotSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
-      return {id:activeSheetId,name:'',columns,allocations,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,matrixBoughtCells,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,showBoughtSettlement,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,paymentNotes,settlementDashboardOpen,sharePaymentTitle,sharePaymentTitleCustom,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
+      return {id:activeSheetId,name:'',columns,allocations,pricingGroups,pricingGroupIdSeed,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,matrixBoughtCells,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,showBoughtSettlement,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,paymentNotes,settlementDashboardOpen,sharePaymentTitle,sharePaymentTitleCustom,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:'#d1466a',matrixBoughtCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},pricingGroups:[],pricingGroupIdSeed:1,cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:'#d1466a',matrixBoughtCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function blankCollabProjectSnapshot(){
       const savedSeed=sheetIdSeed;
@@ -1672,6 +1717,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       activeSheetId=sheet.id;
       columns=Array.isArray(sheet.columns)?sheet.columns.map(migrateColumn):[];
       allocations=sheet.allocations||{};
+      pricingGroups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
+      pricingGroupIdSeed=Math.max(Number(sheet.pricingGroupIdSeed)||1,...pricingGroups.map(g=>(Number(g.id)||0)+1));
       cartNote=sheet.cartNote||'';
       cartTargetMode=sheet.cartTargetMode||'auto';
       cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
@@ -1726,7 +1773,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       syncPaymentControls();
       syncMatrixOptions();
       renderColdBundleConfiguration(); syncUndoButton();
-      renderColumnList(); if($('catalogPanel').style.display!=='none') renderCatalog(); recalc(); renderSheetTabs();
+      renderColumnList(); renderPricingGroups(); if($('catalogPanel').style.display!=='none') renderCatalog(); recalc(); renderSheetTabs();
       isLoadingSheet=false;
     }
     function applyCost(c){
@@ -2680,13 +2727,98 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(c.mode==='avg'&&c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))) return Math.max(0,Number(c.avgOverride));
       return avgPrice;
     }
+    // ---------- box pricing groups (V9) ----------
+    function migratePricingGroup(group){
+      if(!group||typeof group!=='object') return null;
+      const g={...group};
+      g.id=Number(g.id)||pricingGroupIdSeed++;
+      g.memberIds=(Array.isArray(g.memberIds)?g.memberIds:[]).map(Number).filter(Number.isFinite);
+      const legacyCurrent=g.memberIds.map(id=>columns.find(c=>c.id===id)).filter(Boolean).reduce((sum,c)=>sum+unitPrice(c),0);
+      g.adjustment=Number.isFinite(Number(g.adjustment))?num(g.adjustment):(Number.isFinite(Number(g.targetTotal))?num(g.targetTotal)-legacyCurrent:0);
+      g.name=String(g.name||'').trim();
+      return g;
+    }
+    function pricingGroupMemberColumns(group){ return (group?.memberIds||[]).map(id=>columns.find(c=>c.id===Number(id))).filter(Boolean); }
+    function pricingGroupBaseTotal(group){ return pricingGroupMemberColumns(group).reduce((sum,c)=>sum+unitPrice(c),0); }
+    function pricingGroupFinalTotal(group){ return pricingGroupBaseTotal(group)+num(group?.adjustment); }
+    function groupForColumn(id){ return pricingGroups.find(g=>(g.memberIds||[]).includes(Number(id))); }
+    function comboOrderColumn(group){
+      const members=pricingGroupMemberColumns(group), id=900000000+Number(group.id);
+      if(!Array.isArray(allocations[id])) allocations[id]=[];
+      return {id,name:group.name||defaultPricingGroupName(group.memberIds)||`组合${group.id}`,aliases:[],mode:'fixed',fixedPrice:pricingGroupFinalTotal(group),priceAdj:0,avgOverride:null,sourceJpyPrice:0,promotionPoints:members.reduce((s,c)=>s+Math.max(0,num(c.promotionPoints)||1),0),img:null,isPricingCombo:true,comboGroupId:group.id,comboMemberNames:members.map(c=>c.name),comboMembers:members,comboAdjustment:num(group.adjustment),comboBaseTotal:pricingGroupBaseTotal(group)};
+    }
+    function orderDisplayColumns(){
+      const grouped=new Set(pricingGroups.flatMap(g=>g.memberIds||[]));
+      const result=[];
+      const emitted=new Set();
+      columns.forEach(c=>{
+        const g=groupForColumn(c.id);
+        if(g){ if(!emitted.has(g.id)){ result.push(comboOrderColumn(g)); emitted.add(g.id); } }
+        else result.push(c);
+      });
+      pricingGroups.forEach(g=>{ if(!emitted.has(g.id)){ result.push(comboOrderColumn(g)); emitted.add(g.id); } });
+      return result;
+    }
+    function defaultPricingGroupName(memberIds){ return memberIds.map(id=>columns.find(c=>c.id===id)?.name).filter(Boolean).join(' + '); }
+    function renderPricingGroups(){
+      const el=$('pricingGroupList'), balance=$('pricingGroupBalance'); if(!el||!balance) return;
+      pricingGroups=pricingGroups.map(migratePricingGroup).filter(Boolean).map(g=>({...g,memberIds:g.memberIds.filter(id=>columns.some(c=>c.id===id))})).filter(g=>g.memberIds.length>=2);
+      if(!pricingGroups.length){
+        el.innerHTML='<div class="pricing-group-empty">还没有拼盒组合。点击“新建组合”，每组可选择 2 件或更多。</div>';
+        balance.innerHTML='<div><span>组合数</span><b>0</b></div><div><span>已分组</span><b>0 / '+columns.length+'</b></div><div><span>组合调价合计</span><b>¥0.00</b></div><div class="ok"><span>状态</span><b>尚未分组</b></div>';
+        return;
+      }
+      el.innerHTML=pricingGroups.map(g=>{
+        const members=pricingGroupMemberColumns(g), base=pricingGroupBaseTotal(g), final=pricingGroupFinalTotal(g), name=g.name||defaultPricingGroupName(g.memberIds)||`组合${g.id}`;
+        return `<div class="pricing-group-card"><div class="pricing-group-card-top"><div><div class="pricing-group-card-title"><b>${escapeHtml(name)}</b><span class="pricing-group-badge">${members.length}件一组</span></div><div class="pricing-group-members">${members.map(c=>escapeHtml(c.name)).join(' ＋ ')}</div></div></div><div class="pricing-group-money"><div><span>基础承担</span><b>${money(base)}</b></div><div><span>整体调价</span><input class="pricing-group-adjust-input" data-pricing-group-adjust="${g.id}" type="text" inputmode="decimal" value="${escapeAttr((num(g.adjustment)>0?'+':'')+fmtNum(num(g.adjustment)))}"></div><div class="pricing-group-final"><span>最终承担</span><b>${money(final)}</b></div></div><div class="pricing-group-actions"><button class="btn-ghost" onclick="ggz.openPricingGroup(${g.id})">编辑成员</button><button class="btn-danger" onclick="ggz.removePricingGroup(${g.id})">删除</button></div></div>`;
+      }).join('');
+      const groupedIds=new Set(pricingGroups.flatMap(g=>g.memberIds)), baseTotal=pricingGroups.reduce((s,g)=>s+pricingGroupBaseTotal(g),0), finalTotal=pricingGroups.reduce((s,g)=>s+pricingGroupFinalTotal(g),0), adjustment=finalTotal-baseTotal, balanced=Math.abs(adjustment)<0.005;
+      balance.innerHTML=`<div><span>组合数</span><b>${pricingGroups.length}</b></div><div><span>已分组</span><b>${groupedIds.size} / ${columns.length}</b></div><div><span>组合调价合计</span><b>${adjustment>0?'+':''}${money(adjustment)}</b></div><div class="${balanced?'ok':'bad'}"><span>状态</span><b>${balanced?'✓ 已平衡':`还差 ${adjustment>0?'-':'+'}${money(Math.abs(adjustment))}`}</b></div>`;
+    }
+    function selectedPricingGroupIds(){ return [...document.querySelectorAll('#pricingGroupMemberGrid input:checked')].map(input=>Number(input.value)); }
+    function updatePricingGroupPreview(){
+      const ids=selectedPricingGroupIds(), preview=$('pricingGroupPreview');
+      if(ids.length<2){ preview.textContent='请选择至少 2 个谷子。'; return; }
+      const draft={memberIds:ids,adjustment:num($('pricingGroupAdjust').value)}, base=pricingGroupBaseTotal(draft), final=pricingGroupFinalTotal(draft), names=pricingGroupMemberColumns(draft).map(c=>escapeHtml(c.name)).join(' ＋ ');
+      preview.innerHTML=`${names}<br>基础承担：<strong>${money(base)}</strong>　整体调价：<strong>${draft.adjustment>0?'+':''}${money(draft.adjustment)}</strong>　最终承担：<strong>${money(final)}</strong>`;
+    }
+    function closePricingGroup(){ const overlay=$('pricingGroupOverlay'); overlay.hidden=true; overlay.style.display='none'; editingPricingGroupId=null; }
+    function openPricingGroup(id=null){
+      if(columns.length<2){ alert('至少需要 2 个谷子才能建立组合。'); return; }
+      editingPricingGroupId=id==null?null:Number(id); const group=pricingGroups.find(g=>g.id===editingPricingGroupId);
+      $('pricingGroupDialogTitle').textContent=group?'编辑拼盒组合':'新建拼盒组合'; $('pricingGroupName').value=group?.name||''; $('pricingGroupAdjust').value=group?((num(group.adjustment)>0?'+':'')+fmtNum(num(group.adjustment))):'0';
+      const occupied=new Set(pricingGroups.filter(g=>g.id!==editingPricingGroupId).flatMap(g=>g.memberIds));
+      $('pricingGroupMemberGrid').innerHTML=columns.map(c=>`<label class="pricing-group-member-option"><input type="checkbox" value="${c.id}" ${group?.memberIds.includes(c.id)?'checked':''} ${occupied.has(c.id)?'disabled':''}> <span>${escapeHtml(c.name)}${occupied.has(c.id)?'（已分组）':''}</span></label>`).join('');
+      const overlay=$('pricingGroupOverlay'); overlay.hidden=false; overlay.style.display='flex'; updatePricingGroupPreview(); setTimeout(()=>$('pricingGroupName').focus(),0);
+    }
+    function savePricingGroup(){
+      const memberIds=selectedPricingGroupIds(); if(memberIds.length<2){ alert('请选择至少 2 个谷子。'); return; }
+      const overlap=pricingGroups.find(g=>g.id!==editingPricingGroupId&&g.memberIds.some(id=>memberIds.includes(id))); if(overlap){ alert(`其中一个谷子已经在“${overlap.name||defaultPricingGroupName(overlap.memberIds)}”里。`); return; }
+      const name=String($('pricingGroupName').value||'').trim()||defaultPricingGroupName(memberIds), adjustment=num($('pricingGroupAdjust').value), existing=pricingGroups.find(g=>g.id===editingPricingGroupId);
+      if(existing) Object.assign(existing,{name,memberIds,adjustment}); else pricingGroups.push({id:pricingGroupIdSeed++,name,memberIds,adjustment});
+      closePricingGroup(); saveState(); renderPricingGroups(); renderColumnList(); renderCart();
+    }
+    function updatePricingGroupAdjustment(id,value){
+      const group=pricingGroups.find(g=>g.id===Number(id)); if(!group) return; group.adjustment=num(value); saveState(); renderPricingGroups(); renderCart();
+    }
+    function removePricingGroup(id){
+      const group=pricingGroups.find(g=>g.id===Number(id)); if(!group) return; if(!confirm(`确定删除组合“${group.name||defaultPricingGroupName(group.memberIds)}”吗？`)) return;
+      pricingGroups=pricingGroups.filter(g=>g.id!==group.id); saveState(); renderPricingGroups(); renderColumnList(); renderMatrix(); renderCart();
+    }
+
     // ---------- column list ----------
     function addColumn(name,aliases,mode,priceAdj,fixedPrice){
       columns.push({id:colIdSeed++,name:(name||'新角色').trim(),aliases:aliases||[],mode:mode||'avg',priceAdj:priceAdj||0,fixedPrice:fixedPrice||0,avgOverride:null,sourceJpyPrice:0,promotionPoints:1,img:null});
     }
     function findColumnByText(text){
       const t=text.trim().toLowerCase();
-      return columns.find(c=>c.name.trim().toLowerCase()===t || c.aliases.some(a=>a.trim().toLowerCase()===t));
+      const combo=pricingGroups.find(g=>{
+        const name=(g.name||defaultPricingGroupName(g.memberIds)||'').trim().toLowerCase();
+        const joined=pricingGroupMemberColumns(g).map(c=>c.name).join('+').toLowerCase();
+        return name===t||joined===t||joined.replaceAll('+','')===t.replaceAll('+','');
+      });
+      if(combo) return comboOrderColumn(combo);
+      return columns.find(c=>!groupForColumn(c.id)&&(c.name.trim().toLowerCase()===t || c.aliases.some(a=>a.trim().toLowerCase()===t)));
     }
     function modeValueHtml(c){
       if(c.mode==='adjust') return `<label>调价 <input class="modeval" data-col="${c.id}" data-price-field="priceAdj" type="text" inputmode="decimal" value="${c.priceAdj}"></label>`;
@@ -2697,14 +2829,16 @@ body.export-rendering .cart-count{ font-size:28px; }
     function renderColumnList(){
       const el=$('columnList');
       if(columns.length===0){ el.innerHTML='<div class="hint">还没有列，粘贴评论解析后会自动生成，也可以先手动添加。</div>'; return; }
-      el.innerHTML=columns.map((c,i)=>`
+      const visibleColumns=columns.filter(c=>!groupForColumn(c.id));
+      if(!visibleColumns.length){ el.innerHTML='<div class="hint">所有单品都已加入拼盒。请在下方“拼盒组合”中编辑或删除组合。</div>'; return; }
+      el.innerHTML=visibleColumns.map((c,i)=>`
         <div class="col-card">
           <span class="col-index">#${i+1}</span>
           <div class="col-media"><label class="img-label" title="点击上传/更换图片">
             ${c.img?`<img class="col-thumb" src="${c.img}">`:`<span class="col-thumb-empty">加图片</span>`}
             <input type="file" accept="image/*" style="display:none;" onchange="ggz.onColumnImage(${c.id},this)">
           </label><button class="btn-ghost btn-mini" style="${c.img?'':'visibility:hidden'}" onclick="ggz.clearColumnImage(${c.id})">删</button></div>
-          <input type="text" value="${escapeAttr(c.name)}" onchange="ggz.updateColumn(${c.id},'name',this.value)" placeholder="列名">
+          <div><input type="text" value="${escapeAttr(c.name)}" onchange="ggz.updateColumn(${c.id},'name',this.value)" placeholder="列名"></div>
           <input type="text" class="alias-input" value="${escapeAttr(c.aliases.join('，'))}" onchange="ggz.updateColumn(${c.id},'aliases',this.value)" placeholder="别名（逗号分隔）">
           <select onchange="ggz.updateColumn(${c.id},'mode',this.value)">
             <option value="avg" ${c.mode==='avg'?'selected':''}>均价</option>
@@ -2850,10 +2984,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
 
-    function recalc(){ readCost(); computeAverage(); renderMatrix(); saveState(); }
+    function recalc(){ readCost(); computeAverage(); renderMatrix(); renderPricingGroups(); renderCart(); saveState(); }
 
     // ---------- window-exposed handlers ----------
     const ggz={};
+    ggz.openPricingGroup=openPricingGroup;
+    ggz.closePricingGroup=closePricingGroup;
+    ggz.savePricingGroup=savePricingGroup;
+    ggz.removePricingGroup=removePricingGroup;
     ggz.onColumnImage=(id,input)=>{
       const file=input.files[0]; if(!file) return;
       compressImage(file,120,0.75).then(dataUrl=>{
@@ -2888,12 +3026,20 @@ body.export-rendering .cart-count{ font-size:28px; }
     };
     ggz.removeColumn=id=>{
       if(!confirm('确定删除这一列吗？该列已生成的配比数据也会一并清除。')) return;
-      columns=columns.filter(c=>c.id!==id); delete allocations[id];
+      columns=columns.filter(c=>c.id!==id); delete allocations[id]; pricingGroups.forEach(g=>{ g.memberIds=g.memberIds.filter(memberId=>memberId!==id); if(g.originalPricing) delete g.originalPricing[id]; }); pricingGroups=pricingGroups.filter(g=>g.memberIds.length>=2);
       coldCarryBundleColumnIds=coldCarryBundleColumnIds.filter(colId=>colId!==id);
-      saveState(); renderColdBundleConfiguration(); renderColumnList(); recalc();
+      saveState(); renderColdBundleConfiguration(); renderColumnList(); renderPricingGroups(); recalc();
     };
     ggz.updatePreview=(id,field,value)=>{ const r=previewRows.find(x=>x.id===id); if(r){ r[field]=value; refreshOrderMatrixPreview(); } };
     ggz.removePreviewRow=id=>{ previewRows=previewRows.filter(r=>r.id!==id); renderPreview(); refreshOrderMatrixPreview(); };
+    $('openPricingGroupBtn')?.addEventListener('click',()=>openPricingGroup());
+    $('closePricingGroupBtn')?.addEventListener('click',closePricingGroup);
+    $('savePricingGroupBtn')?.addEventListener('click',savePricingGroup);
+    $('pricingGroupMemberGrid')?.addEventListener('change',updatePricingGroupPreview);
+    $('pricingGroupAdjust')?.addEventListener('input',updatePricingGroupPreview);
+    $('pricingGroupList')?.addEventListener('change',event=>{ const input=event.target.closest('[data-pricing-group-adjust]'); if(input) updatePricingGroupAdjustment(Number(input.dataset.pricingGroupAdjust),input.value); });
+    $('pricingGroupOverlay')?.addEventListener('click',event=>{ if(event.target===$('pricingGroupOverlay')) closePricingGroup(); });
+    ggz.openPricingGroup=openPricingGroup; ggz.removePricingGroup=removePricingGroup;
     window.ggz=ggz;
 
     // ---------- comment parsing ----------
@@ -3095,11 +3241,18 @@ body.export-rendering .cart-count{ font-size:28px; }
       const bought=named.filter(item=>isMatrixCellBought(item.col,row,item.name)).length;
       return {named:named.length,bought,state:named.length&&bought===named.length?'true':(bought?'mixed':'false')};
     }
+    function comboImageGridHtml(members,extraClass=''){
+      const list=(members||[]).filter(Boolean), shown=list.slice(0,4), cls=list.length===2?'count-2':(list.length===3?'count-3':(list.length===4?'count-4':'count-many'));
+      while(shown.length<Math.min(4,Math.max(2,list.length))) shown.push(null);
+      const cells=shown.map((member,index)=>{ const more=index===3&&list.length>4?`<span class="combo-image-more">+${list.length-3}</span>`:''; return `<div class="combo-image-cell">${member&&member.img?`<img crossorigin="anonymous" src="${escapeAttr(member.img)}">`:`<span>${member?escapeHtml(member.name):'未加图片'}</span>`}${more}</div>`; }).join('');
+      return `<div class="combo-image-grid ${cls} ${extraClass}">${cells||'<div class="combo-image-cell"><span>未加图片</span></div>'}</div>`;
+    }
+
     function renderMatrix(){
       const thead=document.querySelector('#matrixTable thead');
       const tbody=$('matrixTableBody');
       const emptyEl=$('matrixEmpty');
-      const isPreview=!!matrixPreviewAllocations, displayAllocations=matrixPreviewAllocations||allocations, displayColumns=isPreview&&matrixPreviewColumns?matrixPreviewColumns:columns, notice=$('matrixPreviewNotice'), table=$('matrixTable');
+      const isPreview=!!matrixPreviewAllocations, displayAllocations=matrixPreviewAllocations||allocations, displayColumns=isPreview&&matrixPreviewColumns?matrixPreviewColumns:orderDisplayColumns(), notice=$('matrixPreviewNotice'), table=$('matrixTable');
       const activeColdHighlights=isPreview?matrixPreviewHighlights:(showColdPromotionColor?coldPromotionHighlights:{});
       const completePreviewRows=new Set((activeColdHighlights.completeRows||[]).map(Number)), pendingPreviewRows=new Map((activeColdHighlights.pendingRows||[]).map(item=>[Number(item.row),String(item.person||'')]));
       const addedPreviewCells=new Set((matrixPreviewHighlights.addedCells||[]).map(item=>`${item.col}:${Number(item.row)}`));
@@ -3117,8 +3270,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       const maxRows=Math.max(0,...displayColumns.map(c=>(displayAllocations[c.id]||[]).length));
       const displayRows=maxRows+1;
       const previewReadonly=isPreview?' readonly tabindex="-1"':'';
-      let headHtml='<tr class="header-row"><th></th>'+displayColumns.map(c=>`<th>${c.img?`<img class="head-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:''}${escapeHtml(c.name)}</th>`).join('')+'</tr>';
+      let headHtml='<tr class="header-row"><th></th>'+displayColumns.map(c=>`<th data-has-photo="${columnHasPhotoForExport(c)?'1':'0'}">${c.isPricingCombo?`<div class="matrix-combo-image">${comboImageGridHtml(c.comboMembers||[])}</div>`:(c.img?`<img class="head-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:'')}${escapeHtml(c.name)}${c.isPricingCombo?`<small style="display:block;margin-top:3px;font-size:9px;font-weight:600;opacity:.7">${c.comboMemberNames.map(escapeHtml).join(' + ')}</small>`:''}</th>`).join('')+'</tr>';
       if(showPricingRow) headHtml+='<tr class="adj-row"><td>调价</td>'+displayColumns.map(c=>{
+        if(c.isPricingCombo){ const adj=num(c.comboAdjustment), cls=adj>0?'adj-pos':(adj<0?'adj-neg':''), sign=adj>0?'+':''; return `<td class="${cls}"><input class="matrix-price-input" inputmode="decimal" data-price-kind="combo-adjust" data-combo-group="${c.comboGroupId}" data-col="${c.id}" value="${sign}${fmtNum(adj)}"${previewReadonly}></td>`; }
         if(c.mode==='avg') return `<td><input class="matrix-price-input" data-price-kind="pricing" data-price-mode="avg" data-col="${c.id}" value="均价"${previewReadonly}></td>`;
         if(c.mode==='fixed') return `<td class="adj-fix"><div class="matrix-price-editor"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="fixed" data-col="${c.id}" value="${fmtNum(c.fixedPrice)}"${previewReadonly}><span class="matrix-price-suffix">/1</span></div></td>`;
         if(c.mode==='single') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">原价</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="single" data-col="${c.id}" value="${fmtNum(c.sourceJpyPrice)}"${previewReadonly}><span class="matrix-price-suffix">日元</span></div></td>`;
@@ -3168,8 +3322,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
 
     function renderQuantitySummary(){
-      const el=$('quantitySummary');
-      if(!columns.length){ el.innerHTML='<div class="hint">有排单数据后会自动统计。</div>'; return; }
+      const el=$('quantitySummary'), displayColumns=orderDisplayColumns();
+      if(!displayColumns.length){ el.innerHTML='<div class="hint">有排单数据后会自动统计。</div>'; return; }
       if(!quantitySettingsReady()){ el.innerHTML='<div class="hint quantity-not-set">填写“每盒数量”和“每行计数”后，才会启用上车统计。</div>'; return; }
       const aggregateRange=(arr,start,end)=>{
         const people=new Map();
@@ -3180,7 +3334,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         return [...people.entries()].map(([name,positions])=>({name,positions}));
       };
       let rideRows='';
-      columns.forEach(c=>{
+      displayColumns.forEach(c=>{
         const arr=allocations[c.id]||[], filled=arr.filter(value=>String(value||'').trim()).length, total=filled*groupSize, fullCars=Math.floor(total/boxSize), groups=[];
         for(let car=1;car<=fullCars;car++){
           const start=Math.ceil((car-1)*boxSize/groupSize), end=Math.ceil(car*boxSize/groupSize), people=aggregateRange(arr,start,end);
@@ -3256,8 +3410,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       return `已收齐：${paidPeople}人 / ${money(paidAmount)}${partialText}；未收：${unpaidPeople}人 / ${money(unpaidAmount)}`;
     }
     function buildGoodsSettlementRecords(){
-      const people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow);
-      columns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
+      const people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow), displayColumns=orderDisplayColumns();
+      displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
         if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
         const key=name.replace(/\s+/g,'').toLowerCase();
@@ -3272,12 +3426,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
     function buildShareSettlementRecords(){
-      const sharedTotal=Math.max(0,num($('sharedFee').value)), people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow);
+      const sharedTotal=Math.max(0,num($('sharedFee').value)), people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow), displayColumns=orderDisplayColumns();
       let totalQty=0,fixedDeduction=0;
-      columns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
+      displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
         if(index<startIndex||index>=endIndex) return; const name=String(person||'').trim(); if(!name) return;
         const key=name.replace(/\s+/g,'').toLowerCase(); if(!people.has(key)) people.set(key,{key,name,qty:0}); people.get(key).qty++; totalQty++;
-        if(shareDeductFixed&&c.mode==='fixed') fixedDeduction+=Math.max(0,num(c.fixedPrice));
+        if(shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
       const perItem=totalQty?Math.max(0,sharedTotal-fixedDeduction)/totalQty:0;
       return [...people.values()].map(data=>{ const expected=Math.max(0,num(Object.prototype.hasOwnProperty.call(sharePaymentEdits,'alipay:'+data.name)?sharePaymentEdits['alipay:'+data.name]:data.qty*perItem)),received=paidAmountValue(sharePaymentPaid,data.key,expected); return {...data,expected,received,refund:refundAmountValue(sharePaymentRefund,data.key,expected),supplement:refundAmountValue(sharePaymentSupplement,data.key,expected)}; });
@@ -3304,7 +3458,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       return rows.length?`【${label}】\n${rows.join('\n')}\n\n共${rows.length}人，合计 ${money(total)}`:`【${label}】\n暂无`;
     }
-    function copySettlementList(type,button){ navigator.clipboard.writeText(settlementListText(type)).then(()=>{ const old=button.textContent; button.textContent='已复制'; setTimeout(()=>button.textContent=old,1200); }); }
+    function copySettlementList(type,button){ copyTextWithFallback(settlementListText(type)).then(()=>{ const old=button.textContent; button.textContent='已复制'; setTimeout(()=>button.textContent=old,1200); }).catch(()=>alert('复制失败，请允许浏览器访问剪贴板后重试')); }
     function renderSettlementDashboard(){
       const root=$('settlementDashboard'); if(!root) return;
       settlementDashboardOpen=showBoughtSettlement;
@@ -3352,8 +3506,8 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     function renderPaymentSummary(){
       const people=new Map();
-      const startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow);
-      columns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
+      const startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow), displayColumns=orderDisplayColumns();
+      displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
         if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
         const key=name.replace(/\s+/g,'').toLowerCase();
@@ -3400,15 +3554,15 @@ body.export-rendering .cart-count{ font-size:28px; }
     function renderSharePaymentSummary(){
       const el=$('sharePaymentSummary'), sharedText=String($('sharedFee').value||'').trim(), sharedTotal=Math.max(0,num(sharedText));
       if(!sharedText||sharedTotal<=0){ el.innerHTML='<div class="empty">没有填写均摊金额，这里暂时不用计算</div>'; $('sharePaymentUnpaidCount').textContent='已收齐：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
-      const people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow);
+      const people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow), displayColumns=orderDisplayColumns();
       let totalQty=0, fixedDeduction=0;
-      columns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
+      displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
         if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
         const key=name.replace(/\s+/g,'').toLowerCase();
         if(!people.has(key)) people.set(key,{key,name,qty:0,items:new Map()});
         const data=people.get(key); data.qty++; totalQty++; data.items.set(c.name,(data.items.get(c.name)||0)+1);
-        if(shareDeductFixed&&c.mode==='fixed') fixedDeduction+=Math.max(0,num(c.fixedPrice));
+        if(shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
       if(!people.size||!totalQty){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('sharePaymentUnpaidCount').textContent='已收齐：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
       const distributable=Math.max(0,sharedTotal-fixedDeduction), perItem=distributable/totalQty;
@@ -3466,16 +3620,26 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     // ---------- cart ----------
     function colOrderedCount(c){ return (allocations[c.id]||[]).length; }
-    function currentMatchCount(){ const counts=columns.map(colOrderedCount); return counts.length?Math.min(...counts):0; }
-    function currentMaxCount(){ const counts=columns.map(colOrderedCount); return counts.length?Math.max(...counts):0; }
+    function currentMatchCount(){ const displayColumns=orderDisplayColumns(); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.min(...counts):0; }
+    function currentMaxCount(){ const displayColumns=orderDisplayColumns(); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.max(...counts):0; }
     function cartTarget(){
       if(cartTargetMode==='manual'&&Number.isFinite(cartTargetNum)&&cartTargetNum>0) return cartTargetNum;
       return currentMaxCount();
     }
+    function columnHasPhotoForExport(c){
+      if(!c) return false;
+      if(c.isPricingCombo){
+        const combo=pricingGroups.find(g=>g.id===c.comboGroupId);
+        const members=c.comboMembers||pricingGroupMemberColumns(combo);
+        return (members||[]).some(member=>member&&member.img);
+      }
+      return !!String(c.img||'').trim();
+    }
     function renderCart(){
       const empty=$('cartEmpty'), header=$('cartHeader'), grid=$('cartGrid');
       grid.style.gridTemplateColumns=`repeat(${cartColumns},minmax(0,1fr))`;
-      if(columns.length===0){ empty.style.display='block'; header.style.display='none'; grid.innerHTML=''; $('cartTargetInfo').textContent=''; return; }
+      const cartColumnsList=orderDisplayColumns();
+      if(cartColumnsList.length===0){ empty.style.display='block'; header.style.display='none'; grid.innerHTML=''; $('cartTargetInfo').textContent=''; return; }
       empty.style.display='none';
       const showHeader=cartNote.trim()||cartQrImg;
       header.style.display=showHeader?'flex':'none';
@@ -3484,9 +3648,18 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(cartQrImg) $('cartQrImage').src=cartQrImg;
       const target=cartTarget(), maxCount=currentMaxCount();
       $('cartTargetInfo').textContent=`当前最多 ${maxCount} 配`+(cartTargetMode==='manual'&&target?` · 目标 ${target} 配`:'');
-      grid.innerHTML=columns.map(c=>{
+      grid.innerHTML=cartColumnsList.map(c=>{
         const cnt=colOrderedCount(c);
         // 左上角价格徽标：均价不写；调价写 +价/−价；入均写 价/1
+        const combo=c.isPricingCombo?pricingGroups.find(g=>g.id===c.comboGroupId):groupForColumn(c.id); let comboBadge='';
+        if(combo){
+          const comboAdjust=num(combo.adjustment), comboTotal=pricingGroupFinalTotal(combo);
+          if(Math.abs(comboAdjust)>0.0001){
+            const comboCls=comboAdjust>0?'up':'down';
+            const comboSign=comboAdjust>0?'+':'-';
+            comboBadge=`<span class="cart-badge cart-price ${comboCls}">${comboSign}${fmtNum(Math.abs(comboAdjust))}</span>`;
+          }
+        }
         let priceHtml='';
         if(c.mode==='fixed'){
           priceHtml=`<span class="cart-badge cart-price fixed">${fmtNum(c.fixedPrice)}/1</span>`;
@@ -3512,8 +3685,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         } else {
           countHtml='';
         }
-        const imgHtml=c.img?`<img class="cart-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:`<div class="cart-img-empty">未加图片</div>`;
-        return `<div class="cart-card">${imgHtml}${priceHtml}${countHtml}<div class="cart-name">${escapeHtml(c.name)}</div></div>`;
+        const imgHtml=c.isPricingCombo?comboImageGridHtml(c.comboMembers||pricingGroupMemberColumns(combo)):(c.img?`<img class="cart-img" crossorigin="anonymous" src="${escapeAttr(c.img)}">`:`<div class="cart-img-empty">未加图片</div>`);
+        return `<div class="cart-card${c.isPricingCombo?' combo-card':''}" data-has-photo="${columnHasPhotoForExport(c)?'1':'0'}">${imgHtml}${comboBadge}${combo?'':priceHtml}${countHtml}<div class="cart-name">${escapeHtml(c.name)}</div></div>`;
       }).join('');
     }
     function syncCartControls(){
@@ -3862,6 +4035,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('sheetTabs').addEventListener('dragend',()=>{ draggedSheetId=null; document.querySelectorAll('.sheet-tab.dragging,.sheet-tab.drag-over').forEach(item=>item.classList.remove('dragging','drag-over')); });
     document.querySelectorAll('[data-app-section]').forEach(button=>button.addEventListener('click',()=>setAppSection(button.dataset.appSection,true)));
+    { const overlay=$('pricingGroupOverlay'); if(overlay){ overlay.hidden=true; overlay.style.display='none'; } }
     $('mobileSheetSelect').addEventListener('change',e=>switchSheet(parseInt(e.target.value,10)));
     $('mobileAddSheetBtn').addEventListener('click',()=>$('addSheetBtn').click());
     $('mobileRenameSheetBtn').addEventListener('click',()=>{
@@ -3962,7 +4136,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('regenBtn').addEventListener('click',renderMatrix);
     function knownPeople(){
       const seen=new Set(), result=[];
-      columns.forEach(c=>(allocations[c.id]||[]).forEach(value=>{ const name=String(value||'').trim(); if(name&&!seen.has(name)){ seen.add(name); result.push(name); } }));
+      orderDisplayColumns().forEach(c=>(allocations[c.id]||[]).forEach(value=>{ const name=String(value||'').trim(); if(name&&!seen.has(name)){ seen.add(name); result.push(name); } }));
       return result.sort((a,b)=>b.length-a.length);
     }
     function mentionedColumn(text){
@@ -4654,8 +4828,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     function matrixPriceColumn(input){ return columns.find(c=>c.id===parseInt(input.dataset.col,10)); }
     function saveMatrixNumericDraft(input){
-      const c=matrixPriceColumn(input); if(!c) return;
       const value=parseFloat(String(input.value||'').replace(/[^\d.+-]/g,'')); if(!Number.isFinite(value)) return;
+      if(input.dataset.priceKind==='combo-adjust'){
+        const group=pricingGroups.find(g=>g.id===Number(input.dataset.comboGroup));
+        if(group){ group.adjustment=value; saveState(); }
+        return;
+      }
+      const c=matrixPriceColumn(input); if(!c) return;
       if(input.dataset.priceKind==='promotion-point') c.promotionPoints=Math.max(0,value);
       else if(input.dataset.priceKind==='unit'){ c.mode='fixed'; c.fixedPrice=Math.max(0,value); }
       else if(input.dataset.priceMode==='fixed') c.fixedPrice=Math.max(0,value);
@@ -4686,6 +4865,11 @@ body.export-rendering .cart-count{ font-size:28px; }
     mhead.addEventListener('keydown',e=>{ if(e.target.matches('[data-price-kind]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     mhead.addEventListener('blur',e=>{
       const td=e.target.closest('[data-price-kind]'); if(!td) return;
+      if(td.dataset.priceKind==='combo-adjust'){
+        const group=pricingGroups.find(g=>g.id===Number(td.dataset.comboGroup)), value=parseFloat(String(td.value||'').replace(/[^\d.+-]/g,''));
+        if(group&&Number.isFinite(value)){ group.adjustment=value; saveState(); renderPricingGroups(); renderMatrix(); renderCart(); }
+        return;
+      }
       const c=columns.find(x=>x.id===parseInt(td.dataset.col,10)); if(!c) return;
       const text=String(td.value||'').trim(), previousMode=td.dataset.modeBeforeEdit||c.mode, previousUnit=unitPrice(c);
       if(td.dataset.priceKind==='promotion-point'){
@@ -4981,8 +5165,18 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('cartExportPngBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
       const wrap=$('cartWrap'), oldWidth=wrap.style.width;
+      wrap.classList.add('hide-empty-export-images');
       wrap.style.width='1000px';
-      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:1000,height:wrap.scrollHeight,windowWidth:1040,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,'推车图.png')).catch(()=>alert('导出失败，请确认图片已加载后重试')).finally(()=>{ wrap.style.width=oldWidth; });
+      requestAnimationFrame(()=>{
+        const h=Math.max(wrap.scrollHeight, 80);
+        renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:1000,height:h,windowWidth:1040,windowHeight:h+40})
+          .then(canvas=>saveCanvasImage(canvas,'推车图.png'))
+          .catch(()=>alert('导出失败，请确认图片已加载后重试'))
+          .finally(()=>{
+            wrap.classList.remove('hide-empty-export-images');
+            wrap.style.width=oldWidth;
+          });
+      });
     });
     $('exportPaymentBtn').addEventListener('click',()=>{
       clearPaymentSearchHighlight();
@@ -5207,29 +5401,41 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('exportPngBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
       const wrap=$('matrixWrap'), scroll=wrap.querySelector('.table-scroll'), table=$('matrixTable');
+      wrap.classList.add('hide-empty-export-images');
       const old={maxHeight:scroll.style.maxHeight,overflow:scroll.style.overflow,width:wrap.style.width};
       const sticky=[table.querySelector('thead'),...table.querySelectorAll('.seq-col, thead td:first-child, thead th:first-child'),...wrap.querySelectorAll('.payment-table th')];
       sticky.forEach(el=>{ if(el) el.style.position='static'; });
       scroll.style.maxHeight='none'; scroll.style.overflow='visible';
       wrap.style.width=Math.max(wrap.clientWidth,table.scrollWidth+12)+'px';
-      const name=(matrixTitle||'排单表').replace(/[\\/:*?"<>|]/g,' ').trim()||'排单表';
+      const name=(matrixTitle||'排单表').replace(/[\/:*?"<>|]/g,' ').trim()||'排单表';
       renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:wrap.scrollWidth,height:wrap.scrollHeight,windowWidth:wrap.scrollWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+        wrap.classList.remove('hide-empty-export-images');
         scroll.style.maxHeight=old.maxHeight; scroll.style.overflow=old.overflow; wrap.style.width=old.width;
         sticky.forEach(el=>{ if(el) el.style.position=''; });
       });
     });
-    $('copyTsvBtn').addEventListener('click',()=>{
-      if(columns.length===0){ alert('还没有排单数据'); return; }
-      const maxRows=Math.max(0,...columns.map(c=>(allocations[c.id]||[]).length));
+    function matrixColumnPricingText(c){
+      if(c.isPricingCombo){ const adj=num(c.comboAdjustment); return `${adj>0?'+':''}${fmtNum(adj)}`; }
+      if(c.mode==='avg') return '均价';
+      if(c.mode==='fixed') return `${fmtNum(c.fixedPrice)}/1`;
+      if(c.mode==='single') return `原价${fmtNum(c.sourceJpyPrice)}日元`;
+      return `${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`;
+    }
+    function copyCurrentMatrixTsv(button){
+      const displayColumns=orderDisplayColumns();
+      if(displayColumns.length===0){ alert('还没有排单数据'); return; }
+      const maxRows=Math.max(0,...displayColumns.map(c=>(allocations[c.id]||[]).length));
       let lines=[];
-      lines.push(['',...columns.map(c=>c.name)].join('\t'));
-      lines.push(['调价',...columns.map(c=> c.mode==='avg'?'均价':(c.mode==='fixed'?(fmtNum(c.fixedPrice)+'/1'):(c.mode==='single'?('原价'+fmtNum(c.sourceJpyPrice)+'日元'):((num(c.priceAdj)>0?'+':'')+fmtNum(c.priceAdj)))))].join('\t'));
-      lines.push(['单价',...columns.map(c=>unitPrice(c).toFixed(2))].join('\t'));
-      lines.push(['提配点数',...columns.map(c=>fmtPoint(c.promotionPoints))].join('\t'));
+      lines.push(['',...displayColumns.map(c=>c.name)].join('\t'));
+      lines.push(['调价',...displayColumns.map(matrixColumnPricingText)].join('\t'));
+      lines.push(['单价',...displayColumns.map(c=>unitPrice(c).toFixed(2))].join('\t'));
+      lines.push(['提配点数',...displayColumns.map(c=>fmtPoint(c.promotionPoints))].join('\t'));
       const step=quantitySettingsReady()?groupSize:1;
-      for(let r=0;r<maxRows;r++) lines.push([(r+1)*step,...columns.map(c=>(allocations[c.id]||[])[r]||'')].join('\t'));
-      navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const btn=$('copyTsvBtn'); const old=btn.textContent; btn.textContent='已复制 ✓'; setTimeout(()=>btn.textContent=old,1500); });
-    });
+      for(let r=0;r<maxRows;r++) lines.push([(r+1)*step,...displayColumns.map(c=>(allocations[c.id]||[])[r]||'')].join('\t'));
+      copyTextWithFallback(lines.join('\n')).then(()=>{ const btn=button||$('copyTsvBtn'); if(!btn) return; const old=btn.textContent; btn.textContent='已复制 ✓'; setTimeout(()=>btn.textContent=old,1500); if(btn.id==='copyTsvBtn') $('dataActions').open=false; }).catch(()=>alert('复制失败，请允许浏览器访问剪贴板后重试'));
+    }
+    $('copyTsvBtn').addEventListener('click',()=>copyCurrentMatrixTsv($('copyTsvBtn')));
+    $('copyMatrixTsvBtn')?.addEventListener('click',()=>copyCurrentMatrixTsv($('copyMatrixTsvBtn')));
     function sheetPriceInfo(sheet){
       const cost={...COST_DEFAULTS,...(sheet.cost||{})}, cols=(sheet.columns||[]).map(c=>({...c}));
       const rate=Math.max(0,num(cost.exchangeRate)), enteredCount=parseInt(cost.count,10), count=Number.isFinite(enteredCount)&&enteredCount>0?enteredCount:Math.max(1,cols.length||1), raw=Math.max(0,num(cost.jpyPrice));
@@ -5242,9 +5448,25 @@ body.export-rendering .cart-count{ font-size:28px; }
       const price=c=>c.mode==='fixed'?num(c.fixedPrice):c.mode==='single'?Math.max(0,num(c.sourceJpyPrice))*rate:c.mode==='adjust'?average+num(c.priceAdj):(c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))?Math.max(0,Number(c.avgOverride)):average);
       return {cols,price};
     }
+    function sheetDisplayPriceInfo(sheet){
+      const info=sheetPriceInfo(sheet), rawCols=info.cols, groups=(Array.isArray(sheet.pricingGroups)?sheet.pricingGroups:[]).map(g=>({id:Number(g.id)||0,name:String(g.name||'').trim(),memberIds:(Array.isArray(g.memberIds)?g.memberIds:[]).map(Number).filter(Number.isFinite),adjustment:num(g.adjustment)})).filter(g=>g.id&&g.memberIds.length>=2);
+      const colById=new Map(rawCols.map(c=>[Number(c.id),c]));
+      const memberColumns=g=>g.memberIds.map(id=>colById.get(Number(id))).filter(Boolean);
+      const groupName=g=>g.name||memberColumns(g).map(c=>c.name).filter(Boolean).join(' + ')||`组合${g.id}`;
+      const groupBase=g=>memberColumns(g).reduce((sum,c)=>sum+info.price(c),0);
+      const comboColumn=g=>{
+        const members=memberColumns(g), base=groupBase(g), final=base+num(g.adjustment);
+        return {id:900000000+Number(g.id),name:groupName(g),mode:'fixed',fixedPrice:final,priceAdj:0,sourceJpyPrice:0,avgOverride:null,promotionPoints:members.reduce((s,c)=>s+Math.max(0,num(c.promotionPoints)||1),0),isPricingCombo:true,comboGroupId:g.id,comboAdjustment:num(g.adjustment),comboBaseTotal:base,comboMemberNames:members.map(c=>c.name)};
+      };
+      const emitted=new Set(), display=[];
+      const groupForId=id=>groups.find(g=>g.memberIds.includes(Number(id)));
+      rawCols.forEach(c=>{ const g=groupForId(c.id); if(g){ if(!emitted.has(g.id)){ display.push(comboColumn(g)); emitted.add(g.id); } } else display.push(c); });
+      groups.forEach(g=>{ if(!emitted.has(g.id)){ display.push(comboColumn(g)); emitted.add(g.id); } });
+      return {cols:display,price:c=>c.isPricingCombo?num(c.fixedPrice):info.price(c)};
+    }
     function sheetToAoa(sheet){
-      const {cols,price}=sheetPriceInfo(sheet), data=sheet.allocations||{}, maxRows=Math.max(0,...cols.map(c=>(data[c.id]||[]).length));
-      const pricing=c=>c.mode==='avg'?'均价':c.mode==='fixed'?`${fmtNum(c.fixedPrice)}/1`:c.mode==='single'?`原价${fmtNum(c.sourceJpyPrice)}日元`:`${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`;
+      const {cols,price}=sheetDisplayPriceInfo(sheet), data=sheet.allocations||{}, maxRows=Math.max(0,...cols.map(c=>(data[c.id]||[]).length));
+      const pricing=c=>c.isPricingCombo?`${num(c.comboAdjustment)>0?'+':''}${fmtNum(num(c.comboAdjustment))}`:(c.mode==='avg'?'均价':c.mode==='fixed'?`${fmtNum(c.fixedPrice)}/1`:c.mode==='single'?`原价${fmtNum(c.sourceJpyPrice)}日元`:`${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`);
       const rows=[['',...cols.map(c=>c.name)],['调价',...cols.map(pricing)],['单价',...cols.map(c=>Number(price(c).toFixed(2)))],['提配点数',...cols.map(c=>Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1)]];
       const step=sheet.quantityConfigured===true&&Number.isFinite(parseInt(sheet.boxSize,10))&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):1;
       for(let r=0;r<maxRows;r++) rows.push([(r+1)*step,...cols.map(c=>(data[c.id]||[])[r]||'')]);
@@ -5257,11 +5479,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function appendOrderSheet(wb,sheet,name){
       const rows=sheetToAoa(sheet), ws=XLSX.utils.aoa_to_sheet(rows);
-      ws['!cols']=[{wch:8},...(sheet.columns||[]).map(()=>({wch:16}))];
+      ws['!cols']=[{wch:8},...Array(Math.max(0,(rows[0]||[]).length-1)).fill(0).map(()=>({wch:16}))];
       XLSX.utils.book_append_sheet(wb,ws,name);
     }
     function currentQuantityExportRows(mode){
-      const exportColumns=mode==='bundle'?columns.filter(c=>c.mode!=='fixed'):columns;
+      const displayColumns=orderDisplayColumns();
+      const exportColumns=mode==='bundle'?displayColumns.filter(c=>c.isPricingCombo||c.mode!=='fixed'):displayColumns;
       if(!exportColumns.length) return {rows:[],completeRows:0};
       if(mode==='single'){
         return {rows:exportColumns.map(c=>[c.name,(allocations[c.id]||[]).filter(person=>String(person||'').trim()).length]),completeRows:0};
