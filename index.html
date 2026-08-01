@@ -1888,6 +1888,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         alert('撤回后的数据保存失败，已恢复撤回前状态。'); return;
       }
       history.pop(); saveUndoHistory(); syncUndoButton();
+      renderPaymentSummary(); renderSharePaymentSummary(); renderSettlementDashboard();
       alert('已撤回上一次排单修改');
     }
     function migrateColumn(c){
@@ -5085,6 +5086,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const rowButton=control.closest('[data-buy-row]');
       if(rowButton){
         const row=parseInt(rowButton.dataset.buyRow,10), state=matrixRowBoughtState(row), shouldBuy=state.state!=='true';
+        if(!pushUndoSnapshot('bought-mark','买齐标记前')) return;
         columns.forEach(c=>{
           const name=String((allocations[c.id]||[])[row]||'').trim(), key=matrixBoughtKey(c.id,row);
           if(shouldBuy&&name) matrixBoughtCells[key]=name; else delete matrixBoughtCells[key];
@@ -5094,6 +5096,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const td=control.closest('td.cell[data-col][data-row]');
       if(!td||!td.classList.contains('has-name')) return;
       const col=parseInt(td.dataset.col,10),row=parseInt(td.dataset.row,10),name=String((allocations[col]||[])[row]||'').trim(),key=matrixBoughtKey(col,row);
+      if(!pushUndoSnapshot('bought-mark','买齐标记前')) return;
       if(isMatrixCellBought(col,row,name)) delete matrixBoughtCells[key]; else matrixBoughtCells[key]=name;
       saveState(); renderMatrix();
     }
