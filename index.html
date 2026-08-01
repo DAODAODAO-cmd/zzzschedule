@@ -13,10 +13,10 @@
   .settlement-status-btn{cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
   .settlement-status-btn:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(44,35,52,.10)}
   .settlement-status-btn:disabled{cursor:default;transform:none;box-shadow:none}
-  .settlement-status-refund{background:#fff0f2;border-color:#f2b8c1;color:#b4364c}
-  .settlement-status-refund-done{background:#f9dce2;border-color:#e99aaa;color:#98283d}
-  .settlement-status-supplement{background:#edf5ff;border-color:#b6d3f3;color:#286da7}
-  .settlement-status-supplement-done{background:#dcecff;border-color:#91bce8;color:#185b93}
+  .settlement-status-refund{background:#edf5ff;border-color:#b6d3f3;color:#286da7}
+  .settlement-status-refund-done{background:#dcecff;border-color:#91bce8;color:#185b93}
+  .settlement-status-supplement{background:#fff0f2;border-color:#f2b8c1;color:#b4364c}
+  .settlement-status-supplement-done{background:#f9dce2;border-color:#e99aaa;color:#98283d}
   .settlement-status-complete{background:#e8f6ed;border-color:#b6ddc3;color:#287247}
 
   .settlement-dashboard{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--panel,#fff);box-shadow:0 8px 24px rgba(60,40,70,.06)}
@@ -26,10 +26,10 @@
   .settlement-head-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}
   .settlement-ledger{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
   .settlement-ledger>div{padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--soft,#fff)}
-  .settlement-ledger>div:nth-child(1){background:#fff5f6;border-color:#f0c7ce}
-  .settlement-ledger>div:nth-child(1) b{color:#b4364c}
-  .settlement-ledger>div:nth-child(2){background:#f3f8ff;border-color:#c8ddf3}
-  .settlement-ledger>div:nth-child(2) b{color:#286da7}
+  .settlement-ledger>div:nth-child(1){background:#f3f8ff;border-color:#c8ddf3}
+  .settlement-ledger>div:nth-child(1) b{color:#286da7}
+  .settlement-ledger>div:nth-child(2){background:#fff5f6;border-color:#f0c7ce}
+  .settlement-ledger>div:nth-child(2) b{color:#b4364c}
   .settlement-ledger>div:nth-child(3){background:#f2f8f4;border-color:#c9dfd0}
   .settlement-ledger>div:nth-child(3) b{color:#287247}
   .settlement-ledger span{display:block;color:var(--muted);font-size:11px}
@@ -40,14 +40,14 @@
   .settlement-filter-btn.active{border-color:var(--accent,#d1466a);background:color-mix(in srgb,var(--accent,#d1466a) 10%,white);color:var(--accent,#d1466a)}
   .settlement-result-box{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;min-width:150px}
   .settlement-result-box strong{display:inline-flex;align-items:center;justify-content:center;min-width:86px;min-height:30px;padding:5px 9px;border-radius:9px;white-space:nowrap}
-  .settlement-result-refund{background:#fff0f2;color:#b4364c;font-weight:900}
-  .settlement-result-due{background:#edf5ff;color:#286da7;font-weight:900}
+  .settlement-result-refund{background:#edf5ff;color:#286da7;font-weight:900}
+  .settlement-result-due{background:#fff0f2;color:#b4364c;font-weight:900}
   .settlement-result-even{background:#eef7f1;color:#287247;font-weight:900}
   .settlement-source.manual{display:inline-flex;align-items:center;min-height:24px;padding:3px 7px;border:1px solid #e3b65e;border-radius:999px;background:#fff7dc;color:#9a6800;font-size:9px;font-weight:900}
   .settlement-adjust-actions{display:flex;gap:5px}
   .settlement-mini-btn{min-width:34px;height:30px;padding:0 8px;border-radius:9px;font-size:10px}
-  .settlement-mini-btn[data-settlement-adjust="refund"]{border-color:#efbdc5;background:#fff5f6;color:#b4364c}
-  .settlement-mini-btn[data-settlement-adjust="supplement"]{border-color:#bfd8f0;background:#f3f8ff;color:#286da7}
+  .settlement-mini-btn[data-settlement-adjust="refund"]{border-color:#bfd8f0;background:#f3f8ff;color:#286da7}
+  .settlement-mini-btn[data-settlement-adjust="supplement"]{border-color:#efbdc5;background:#fff5f6;color:#b4364c}
   .settlement-mini-btn:hover{filter:brightness(.98);transform:translateY(-1px)}
   .payment-admin-note{display:inline-block;min-width:96px;min-height:28px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:left;outline:none}
   .payment-admin-note:focus{border-color:var(--accent,#d1466a);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent,#d1466a) 12%,transparent)}
@@ -143,10 +143,10 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   .settlement-status-btn{cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
   .settlement-status-btn:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(44,35,52,.10)}
   .settlement-status-btn:disabled{cursor:default;transform:none;box-shadow:none}
-  .settlement-status-refund{background:#fff0f2;border-color:#f2b8c1;color:#b4364c}
-  .settlement-status-refund-done{background:#f9dce2;border-color:#e99aaa;color:#98283d}
-  .settlement-status-supplement{background:#edf5ff;border-color:#b6d3f3;color:#286da7}
-  .settlement-status-supplement-done{background:#dcecff;border-color:#91bce8;color:#185b93}
+  .settlement-status-refund{background:#edf5ff;border-color:#b6d3f3;color:#286da7}
+  .settlement-status-refund-done{background:#dcecff;border-color:#91bce8;color:#185b93}
+  .settlement-status-supplement{background:#fff0f2;border-color:#f2b8c1;color:#b4364c}
+  .settlement-status-supplement-done{background:#f9dce2;border-color:#e99aaa;color:#98283d}
   .settlement-status-complete{background:#e8f6ed;border-color:#b6ddc3;color:#287247}
 
   .settlement-dashboard{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--panel,#fff);box-shadow:0 8px 24px rgba(60,40,70,.06)}
@@ -156,10 +156,10 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   .settlement-head-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}
   .settlement-ledger{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
   .settlement-ledger>div{padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--soft,#fff)}
-  .settlement-ledger>div:nth-child(1){background:#fff5f6;border-color:#f0c7ce}
-  .settlement-ledger>div:nth-child(1) b{color:#b4364c}
-  .settlement-ledger>div:nth-child(2){background:#f3f8ff;border-color:#c8ddf3}
-  .settlement-ledger>div:nth-child(2) b{color:#286da7}
+  .settlement-ledger>div:nth-child(1){background:#f3f8ff;border-color:#c8ddf3}
+  .settlement-ledger>div:nth-child(1) b{color:#286da7}
+  .settlement-ledger>div:nth-child(2){background:#fff5f6;border-color:#f0c7ce}
+  .settlement-ledger>div:nth-child(2) b{color:#b4364c}
   .settlement-ledger>div:nth-child(3){background:#f2f8f4;border-color:#c9dfd0}
   .settlement-ledger>div:nth-child(3) b{color:#287247}
   .settlement-ledger span{display:block;color:var(--muted);font-size:11px}
@@ -170,14 +170,14 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   .settlement-filter-btn.active{border-color:var(--accent,#d1466a);background:color-mix(in srgb,var(--accent,#d1466a) 10%,white);color:var(--accent,#d1466a)}
   .settlement-result-box{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;min-width:150px}
   .settlement-result-box strong{display:inline-flex;align-items:center;justify-content:center;min-width:86px;min-height:30px;padding:5px 9px;border-radius:9px;white-space:nowrap}
-  .settlement-result-refund{background:#fff0f2;color:#b4364c;font-weight:900}
-  .settlement-result-due{background:#edf5ff;color:#286da7;font-weight:900}
+  .settlement-result-refund{background:#edf5ff;color:#286da7;font-weight:900}
+  .settlement-result-due{background:#fff0f2;color:#b4364c;font-weight:900}
   .settlement-result-even{background:#eef7f1;color:#287247;font-weight:900}
   .settlement-source.manual{display:inline-flex;align-items:center;min-height:24px;padding:3px 7px;border:1px solid #e3b65e;border-radius:999px;background:#fff7dc;color:#9a6800;font-size:9px;font-weight:900}
   .settlement-adjust-actions{display:flex;gap:5px}
   .settlement-mini-btn{min-width:34px;height:30px;padding:0 8px;border-radius:9px;font-size:10px}
-  .settlement-mini-btn[data-settlement-adjust="refund"]{border-color:#efbdc5;background:#fff5f6;color:#b4364c}
-  .settlement-mini-btn[data-settlement-adjust="supplement"]{border-color:#bfd8f0;background:#f3f8ff;color:#286da7}
+  .settlement-mini-btn[data-settlement-adjust="refund"]{border-color:#bfd8f0;background:#f3f8ff;color:#286da7}
+  .settlement-mini-btn[data-settlement-adjust="supplement"]{border-color:#efbdc5;background:#fff5f6;color:#b4364c}
   .settlement-mini-btn:hover{filter:brightness(.98);transform:translateY(-1px)}
   .payment-admin-note{display:inline-block;min-width:96px;min-height:28px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:left;outline:none}
   .payment-admin-note:focus{border-color:var(--accent,#d1466a);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent,#d1466a) 12%,transparent)}
@@ -985,31 +985,39 @@ html{ scrollbar-gutter:stable; }
 .payment-bought-inline.is-missing{ background:#fff0dc; color:#a45f0b; }
 .payment-bought-inline.is-complete{ background:#eaf5ed; color:#2b7547; }
 .payment-bought-money{ display:block; margin-top:3px; padding:2px 5px; border-radius:5px; background:#eef6fc; color:#386f99; font-size:10.5px; font-weight:900; line-height:1.35; white-space:normal; }
-.payment-bought-money.refund{ background:#fdebed; color:#b43e50; }
-.payment-bought-money.due{ background:#fff2d8; color:#996312; }
+.payment-bought-money.refund{ background:#eaf3fc; color:#2f6f9f; }
+.payment-bought-money.due{ background:#fdebed; color:#a93645; }
 .payment-bought-money.even{ background:#eaf5ed; color:#2b7547; }
-.payment-table tr.payment-refund-row td{ background:#fdebed; color:#a93645; }
-.payment-table tr.payment-refund-row td.payment-cn,.payment-table tr.payment-refund-row td.payment-money{ background:#f9dfe3; color:#a93645; }
-.payment-table tr.payment-supplement-row td{ background:#eaf3fc; color:#2f6f9f; }
-.payment-table tr.payment-supplement-row td.payment-cn,.payment-table tr.payment-supplement-row td.payment-money{ background:#dfeefa; color:#2f6f9f; }
+.payment-table tr.payment-refund-row td{ background:#eaf3fc; color:#2f6f9f; }
+.payment-table tr.payment-refund-row td.payment-cn,.payment-table tr.payment-refund-row td.payment-money{ background:#dfeefa; color:#2f6f9f; }
+.payment-table tr.payment-supplement-row td{ background:#fdebed; color:#a93645; }
+.payment-table tr.payment-supplement-row td.payment-cn,.payment-table tr.payment-supplement-row td.payment-money{ background:#f9dfe3; color:#a93645; }
 .payment-table tr.payment-search-hit td{ background:#ffe993!important; color:#5b4100!important; box-shadow:inset 0 0 0 2px #dda914; }
 .wrap .payment-paid-check,.wrap .payment-paid-all{ display:inline-grid; place-items:center; width:18px; height:18px; min-width:18px; margin:0 6px 0 0; padding:0; border:1.5px solid #9bbda5; border-radius:4px; background:#fff; color:#27834b; font-size:14px; font-weight:900; line-height:1; vertical-align:middle; cursor:pointer; }
 .wrap .payment-paid-check[aria-pressed="true"],.wrap .payment-paid-all[aria-pressed="true"]{ border-color:#2f9e5c; background:#d9f1e0; }
 .wrap .payment-paid-check[aria-pressed="mixed"],.wrap .payment-paid-all[aria-pressed="mixed"]{ border-color:#d19a35; background:#fff1c8; color:#9a6717; }
 .payment-cn-controls{ display:inline-grid; grid-template-columns:18px 28px 28px; align-items:center; gap:4px; width:82px; margin-right:6px; vertical-align:middle; }
 .payment-cn-controls .payment-paid-check,.payment-cn-controls .payment-refund-check,.payment-cn-controls .payment-supplement-check{ margin:0; }
-.wrap .payment-refund-check,.wrap .payment-supplement-check{ display:inline-grid; place-items:center; width:28px; height:18px; min-width:28px; padding:0; border:1.5px solid #d89aa3; border-radius:4px; background:#fff; color:#b64251; font-size:11px; font-weight:900; line-height:1; vertical-align:middle; cursor:pointer; }
-.wrap .payment-refund-check[aria-pressed="true"]{ border-color:#cf5968; background:#f9dfe3; color:#a93645; }
-.wrap .payment-supplement-check{ border-color:#91b8d8; color:#347fbd; }
-.wrap .payment-supplement-check[aria-pressed="true"]{ border-color:#4f91c5; background:#dfeefa; color:#2f6f9f; }
+.wrap .payment-refund-check,.wrap .payment-supplement-check{ display:inline-grid; place-items:center; width:28px; height:18px; min-width:28px; padding:0; border:1.5px solid #91b8d8; border-radius:4px; background:#fff; color:#347fbd; font-size:11px; font-weight:900; line-height:1; vertical-align:middle; cursor:pointer; }
+.wrap .payment-refund-check[aria-pressed="true"]{ border-color:#4f91c5; background:#dfeefa; color:#2f6f9f; }
+.wrap .payment-supplement-check{ border-color:#d89aa3; color:#b64251; }
+.wrap .payment-supplement-check[aria-pressed="true"]{ border-color:#cf5968; background:#f9dfe3; color:#a93645; }
 .payment-cn-name{ display:inline; }
 .payment-adjustment-note{ display:inline-flex; gap:4px; margin-left:5px; font-size:12px; font-weight:900; white-space:nowrap; }
-.payment-adjustment-refund{ color:#d04a59; }
-.payment-adjustment-supplement{ color:#347fbd; }
+.payment-adjustment-refund{ color:#347fbd; }
+.payment-adjustment-supplement{ color:#d04a59; }
 .payment-table tfoot td.payment-total-label{ background:#fff4f7; color:var(--accent); font-weight:900; text-align:right; }
 .payment-table tfoot td.payment-total-value{ background:#fff4f7; color:var(--accent); font-size:16px; font-weight:900; }
 .payment-code-export{ width:100%; padding:0; border-top:1px solid var(--line); background:#fff; }
 .payment-code-export img{ display:block; width:100%; height:auto; object-fit:contain; image-rendering:auto; background:#fff; }
+.settlement-export-card{ position:fixed; left:-10000px; top:0; width:520px; padding:14px; border:1px solid #e4dce8; border-radius:14px; background:#fff; color:#2a2731; font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif; box-sizing:border-box; }
+.settlement-export-title{ padding:10px 12px; border-radius:10px; color:#fff; font-size:18px; font-weight:900; text-align:center; }
+.settlement-export-summary{ margin:8px 0; padding:8px 10px; border-radius:9px; font-size:14px; font-weight:900; text-align:center; }
+.settlement-export-card table{ width:100%; border-collapse:collapse; font-size:14px; }
+.settlement-export-card th,.settlement-export-card td{ padding:8px 10px; border:1px solid #eadfe7; text-align:center; }
+.settlement-export-card td:first-child{ text-align:left; font-weight:900; }
+.settlement-export-card td.settlement-export-detail{ text-align:left; color:#5f5764; font-weight:800; line-height:1.45; }
+.settlement-export-note{ display:block; margin-top:3px; color:#9a8fa0; font-size:11px; font-weight:700; }
 .settlement-dashboard{ margin-top:10px; padding:12px; border:1px solid #ded6e3; border-radius:10px; background:#fcfbfd; }
 .settlement-dashboard[hidden]{ display:none!important; }
 .settlement-dashboard-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px; }
@@ -1022,7 +1030,7 @@ html{ scrollbar-gutter:stable; }
 .settlement-dashboard table{ font-size:11.5px; }
 .settlement-dashboard th,.settlement-dashboard td{ padding:6px 7px!important; text-align:center; }
 .settlement-dashboard td:first-child{ text-align:left; font-weight:900; }
-.settlement-result-refund{ color:#b43e50; font-weight:900; } .settlement-result-due{ color:#347fbd; font-weight:900; } .settlement-result-even{ color:var(--ok); font-weight:900; }
+.settlement-result-refund{ color:#347fbd; font-weight:900; } .settlement-result-due{ color:#b43e50; font-weight:900; } .settlement-result-even{ color:var(--ok); font-weight:900; }
 .settlement-warning{ margin-top:8px; padding:7px 9px; border-radius:8px; background:#fff1e8; color:#a65b15; font-size:11px; line-height:1.55; }
 .payment-admin-note{ display:block; width:100%; min-width:110px; min-height:25px; padding:3px 6px; border:1px dashed #d9cfdc; border-radius:5px; background:#fff; color:#6f6674; font-size:10.5px; }
 .payment-admin-note:empty::before{ content:"添加备注"; color:#aaa1ae; }
@@ -3466,16 +3474,66 @@ body.export-rendering .cart-count{ font-size:28px; }
         return {key,name:g.name||sh.name||key,g,sh,net,refund,due,autoRefund,autoDue,manual};
       });
     }
-    function settlementListText(type){
+    function settlementExportRows(type){
       const isRefund=type==='refund', label=isRefund?'待退款':'待补款', rows=[]; let total=0;
       combinedSettlementRecords().forEach(r=>{
         const amount=isRefund?r.refund:r.due, done=isRefund?paymentRefundDone[r.key]:paymentSupplementDone[r.key];
         if(amount<=0.005||done) return;
-        total+=amount; rows.push(`${r.name} ${money(amount)}`);
+        total+=amount; rows.push({...r,amount,note:paymentNotes[r.key]||''});
       });
-      return rows.length?`【${label}】\n${rows.join('\n')}\n\n共${rows.length}人，合计 ${money(total)}`:`【${label}】\n暂无`;
+      return {isRefund,label,rows,total};
+    }
+    function settlementListText(type){
+      const data=settlementExportRows(type);
+      const rows=data.rows.map(r=>`${r.name} ${money(r.amount)}`);
+      return rows.length?`【${data.label}】\n${rows.join('\n')}\n\n共${rows.length}人，合计 ${money(data.total)}`:`【${data.label}】\n暂无`;
     }
     function copySettlementList(type,button){ copyTextWithFallback(settlementListText(type)).then(()=>{ const old=button.textContent; button.textContent='已复制'; setTimeout(()=>button.textContent=old,1200); }).catch(()=>alert('复制失败，请允许浏览器访问剪贴板后重试')); }
+    function settlementRefundDetail(row){
+      const parts=[];
+      const items=row&&row.g&&row.g.items;
+      const boughtItems=row&&row.g&&row.g.boughtItems;
+      if(items&&typeof items.forEach==='function'){
+        items.forEach((planned,itemName)=>{
+          const bought=boughtItems&&typeof boughtItems.get==='function'?Math.max(0,num(boughtItems.get(itemName))):0;
+          const missing=Math.max(0,num(planned)-bought);
+          if(missing>0) parts.push(`${itemName}×${fmtNum(missing)}`);
+        });
+      }
+      if(parts.length) return parts.join('、');
+      if(row&&row.manual) return '手动调整退款';
+      if(row&&row.sh&&num(row.sh.received)>num(row.sh.expected)+0.005) return '均摊多收';
+      return '退款差额';
+    }
+    async function exportSettlementImage(type){
+      const data=settlementExportRows(type);
+      if(!data.rows.length){ alert(`当前没有${data.label}`); return; }
+      if(typeof html2canvas==='undefined'){ alert('导出图片功能还没加载完成，请稍后再试'); return; }
+      const title=`${paymentTitle||'结算中心'}｜${data.label}`;
+      const theme=data.isRefund?{main:'#2f6f9f',soft:'#eaf3fc'}:{main:'#b4364c',soft:'#fff0f2'};
+      const noteRows=data.rows.some(r=>String(r.note||'').trim());
+      const summary=data.isRefund?`共 ${data.rows.length} 人`:`共 ${data.rows.length} 人 / 合计 ${money(data.total)}`;
+      const head=data.isRefund?`<tr><th>CN</th><th>未买到内容</th><th>应退</th></tr>`:`<tr><th>CN</th><th>金额</th>${noteRows?'<th>备注</th>':''}</tr>`;
+      const body=data.isRefund
+        ? data.rows.map(r=>{
+          const note=String(r.note||'').trim()?`<span class="settlement-export-note">备注：${escapeHtml(r.note)}</span>`:'';
+          return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${escapeHtml(settlementRefundDetail(r))}${note}</td><td>${money(r.amount)}</td></tr>`;
+        }).join('')
+        : data.rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${money(r.amount)}</td>${noteRows?`<td>${escapeHtml(r.note||'')}</td>`:''}</tr>`).join('');
+      const card=document.createElement('div');
+      card.className='settlement-export-card';
+      card.innerHTML=`<div class="settlement-export-title" style="background:${theme.main}">${escapeHtml(title)}</div><div class="settlement-export-summary" style="background:${theme.soft};color:${theme.main}">${summary}</div><table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      document.body.appendChild(card);
+      try{
+        const safeName=title.replace(/[\\/:*?"<>|]/g,' ').trim()||data.label;
+        const canvas=await renderExportCanvas(card,{backgroundColor:'#fff',scale:2,width:card.scrollWidth,height:card.scrollHeight,windowWidth:card.scrollWidth+40,windowHeight:card.scrollHeight+40});
+        await saveCanvasImage(canvas,`${safeName}.png`);
+      }catch(err){
+        alert('导出失败，请重试');
+      }finally{
+        card.remove();
+      }
+    }
     function renderSettlementDashboard(){
       const root=$('settlementDashboard'); if(!root) return;
       settlementDashboardOpen=showBoughtSettlement;
@@ -3518,7 +3576,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }).join('');
       const filters=[['pending','待处理'],['refund','待退款'],['supplement','待补款'],['complete','已完成'],['all','全部']].map(([key,label])=>`<button type="button" class="settlement-filter-btn ${settlementFilter===key?'active':''}" data-settlement-filter="${key}">${label}</button>`).join('');
       const empty=`<tr><td colspan="8"><div class="settlement-empty">当前筛选下没有记录</div></td></tr>`;
-      root.innerHTML=`<div class="settlement-dashboard-head"><strong>结算中心</strong><div class="settlement-head-actions"><button type="button" class="btn-ghost" id="copyRefundListBtn">复制退款名单</button><button type="button" class="btn-ghost" id="copySupplementListBtn">复制补款名单</button></div></div><div class="settlement-ledger"><div><span>待退款</span><b>${pendingRefundPeople} 人 / ${money(pendingRefund)}</b></div><div><span>待补款</span><b>${pendingDuePeople} 人 / ${money(pendingDue)}</b></div><div><span>已完成</span><b>${completedPeople} 人</b></div></div><div class="settlement-filter-bar">${filters}</div><div class="table-scroll"><table><thead><tr><th>CN</th><th>谷子已收</th><th>谷子实际</th><th>均摊应收</th><th>均摊已收</th><th>结算结果</th><th>状态</th><th>备注</th></tr></thead><tbody>${rows||empty}</tbody></table></div>`;
+      root.innerHTML=`<div class="settlement-dashboard-head"><strong>结算中心</strong><div class="settlement-head-actions"><button type="button" class="btn-ghost" id="exportRefundListBtn">导出退款图</button><button type="button" class="btn-ghost" id="exportSupplementListBtn">导出补款图</button><button type="button" class="btn-ghost" id="copyRefundListBtn">复制退款名单</button><button type="button" class="btn-ghost" id="copySupplementListBtn">复制补款名单</button></div></div><div class="settlement-ledger"><div><span>待退款</span><b>${pendingRefundPeople} 人 / ${money(pendingRefund)}</b></div><div><span>待补款</span><b>${pendingDuePeople} 人 / ${money(pendingDue)}</b></div><div><span>已完成</span><b>${completedPeople} 人</b></div></div><div class="settlement-filter-bar">${filters}</div><div class="table-scroll"><table><thead><tr><th>CN</th><th>谷子已收</th><th>谷子实际</th><th>均摊应收</th><th>均摊已收</th><th>结算结果</th><th>状态</th><th>备注</th></tr></thead><tbody>${rows||empty}</tbody></table></div>`;
     }
 
     function renderPaymentSummary(){
@@ -5445,6 +5503,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('settlementDashboard').addEventListener('click',e=>{
       const filterBtn=e.target.closest('[data-settlement-filter]');
       if(filterBtn){ settlementFilter=filterBtn.dataset.settlementFilter||'pending'; renderSettlementDashboard(); return; }
+      const exportRefund=e.target.closest('#exportRefundListBtn'); if(exportRefund){ exportSettlementImage('refund'); return; }
+      const exportSupplement=e.target.closest('#exportSupplementListBtn'); if(exportSupplement){ exportSettlementImage('supplement'); return; }
       const copyRefund=e.target.closest('#copyRefundListBtn'); if(copyRefund){ copySettlementList('refund',copyRefund); return; }
       const copySupplement=e.target.closest('#copySupplementListBtn'); if(copySupplement){ copySettlementList('supplement',copySupplement); return; }
       const adjust=e.target.closest('[data-settlement-adjust]');
