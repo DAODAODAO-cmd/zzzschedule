@@ -3613,12 +3613,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(map&&typeof map.forEach==='function') map.forEach((count,name)=>{ if(num(count)>0) list.push(`${name}×${fmtNum(count)}`); });
       return list.join('、')||'—';
     }
-    async function exportMultiSheetSettlementImage(selectedSheets=sheets,modes={refund:true,due:true}){
+    function buildMultiSheetSettlementRows(selectedSheets=sheets,modes={refund:true,due:true}){
       captureActiveSheet();
       const targetSheets=(Array.isArray(selectedSheets)?selectedSheets:[]).filter(Boolean);
-      if(!targetSheets.length){ alert('请至少选择一个排单表'); return; }
       const includeRefund=modes?.refund!==false, includeDue=modes?.due!==false;
-      if(!includeRefund&&!includeDue){ alert('请至少选择退款或补款其中一种'); return; }
       const people=new Map();
       targetSheets.forEach(sheet=>{
         recordsForSheet(sheet).forEach(record=>{
@@ -3631,7 +3629,14 @@ body.export-rendering .cart-count{ font-size:28px; }
           target.details.push({sheet:record.sheetName,signed,bought:formatCountMap(record.sh.boughtItems)});
         });
       });
-      const rows=[...people.values()].filter(item=>Math.abs(item.total)>0.005&&(item.total<0?includeRefund:includeDue)).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN'));
+      return [...people.values()].filter(item=>Math.abs(item.total)>0.005&&(item.total<0?includeRefund:includeDue)).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN'));
+    }
+    async function exportMultiSheetSettlementImage(selectedSheets=sheets,modes={refund:true,due:true}){
+      const targetSheets=(Array.isArray(selectedSheets)?selectedSheets:[]).filter(Boolean);
+      if(!targetSheets.length){ alert('请至少选择一个排单表'); return; }
+      const includeRefund=modes?.refund!==false, includeDue=modes?.due!==false;
+      if(!includeRefund&&!includeDue){ alert('请至少选择退款或补款其中一种'); return; }
+      const rows=buildMultiSheetSettlementRows(targetSheets,modes);
       if(!rows.length){ alert('所有表合并后暂无需要退补的记录'); return; }
       if(typeof html2canvas==='undefined'){ alert('导出图片功能还没加载完成，请稍后再试'); return; }
       const refundCount=rows.filter(r=>r.total<0).length, dueCount=rows.filter(r=>r.total>0).length;
@@ -3653,6 +3658,20 @@ body.export-rendering .cart-count{ font-size:28px; }
       }catch(err){ alert('导出失败，请重试'); }
       finally{ card.remove(); }
     }
+    function multiSheetSettlementText(selectedSheets=sheets,modes={refund:true,due:true}){
+      const includeRefund=modes?.refund!==false, includeDue=modes?.due!==false, rows=buildMultiSheetSettlementRows(selectedSheets,modes), title=includeRefund&&includeDue?'合并退补总账':(includeRefund?'合并退款总账':'合并补款总账');
+      if(!rows.length) return `【${title}】\n暂无`;
+      const lines=rows.map(r=>{
+        const amount=r.total<0?`退 ${money(Math.abs(r.total))}`:`补 ${money(r.total)}`;
+        const detail=r.details.map(d=>`${d.sheet}：${d.bought}`).join('；');
+        return `${r.name} ${amount}${detail?`（${detail}）`:''}`;
+      });
+      return `【${title}】\n${lines.join('\n')}`;
+    }
+    function copyMultiSheetSettlement(selectedSheets,modes,button){
+      const text=multiSheetSettlementText(selectedSheets,modes);
+      copyTextWithFallback(text).then(()=>{ if(button){ const old=button.textContent; button.textContent='已复制'; setTimeout(()=>button.textContent=old,1200); } }).catch(()=>alert('复制失败，请允许浏览器访问剪贴板后重试'));
+    }
     function setMultiSettlementSelection(mode){
       const boxes=[...$('multiSettlementSheetList').querySelectorAll('input[type="checkbox"]')];
       boxes.forEach(box=>{
@@ -3667,9 +3686,13 @@ body.export-rendering .cart-count{ font-size:28px; }
         label.classList.toggle('active',!!input?.checked);
       });
     }
-    function openMultiSettlementChooser(){
+    let multiSettlementAction='export', multiSettlementSourceButton=null;
+    function openMultiSettlementChooser(action='export',sourceButton=null){
+      multiSettlementAction=action==='copy'?'copy':'export'; multiSettlementSourceButton=sourceButton||null;
       captureActiveSheet();
       const overlay=$('multiSettlementOverlay'), list=$('multiSettlementSheetList');
+      $('multiSettlementTitle').textContent=multiSettlementAction==='copy'?'选择要复制的表':'选择要合并的表';
+      $('multiSettlementExportBtn').textContent=multiSettlementAction==='copy'?'复制总账':'导出总账';
       list.innerHTML=sheets.map(sheet=>`<label><input type="checkbox" value="${escapeAttr(sheet.id)}" ${sheet.completed===true?'':'checked'}><span>${escapeHtml(sheet.name||'未命名表')}</span><small>${sheet.completed===true?'已完成':'进行中'}</small></label>`).join('');
       $('multiSettlementModeRefund').checked=true; $('multiSettlementModeDue').checked=true; syncMultiSettlementModes();
       syncMultiSettlementSheetSelection();
@@ -3690,7 +3713,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const modes={refund:$('multiSettlementModeRefund').checked,due:$('multiSettlementModeDue').checked};
       if(!modes.refund&&!modes.due){ alert('请至少选择退款或补款其中一种'); return; }
       closeMultiSettlementChooser();
-      await exportMultiSheetSettlementImage(selected,modes);
+      if(multiSettlementAction==='copy') copyMultiSheetSettlement(selected,modes,multiSettlementSourceButton);
+      else await exportMultiSheetSettlementImage(selected,modes);
     }
     async function exportSettlementAllImage(){
       const records=combinedSettlementRecords().filter(r=>{
@@ -3798,7 +3822,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }).join('');
       const filters=[['pending','待处理'],['refund','待退款'],['supplement','待补款'],['complete','已完成'],['all','全部']].map(([key,label])=>`<button type="button" class="settlement-filter-btn ${settlementFilter===key?'active':''}" data-settlement-filter="${key}">${label}</button>`).join('');
       const empty=`<tr><td colspan="8"><div class="settlement-empty">当前筛选下没有记录</div></td></tr>`;
-      root.innerHTML=`<div class="settlement-dashboard-head"><strong>结算中心</strong><div class="settlement-head-actions"><button type="button" class="btn-ghost" id="exportMultiSettlementBtn">导出总账</button><button type="button" class="btn-ghost" id="copyRefundListBtn">复制退款名单</button><button type="button" class="btn-ghost" id="copySupplementListBtn">复制补款名单</button></div></div><div class="settlement-ledger"><div><span>待退款</span><b>${pendingRefundPeople} 人 / ${money(pendingRefund)}</b></div><div><span>待补款</span><b>${pendingDuePeople} 人 / ${money(pendingDue)}</b></div><div><span>已完成</span><b>${completedPeople} 人</b></div></div><div class="settlement-filter-bar">${filters}</div><div class="table-scroll"><table><thead><tr><th>CN</th><th>谷子已收</th><th>谷子实际</th><th>均摊应收</th><th>均摊已收</th><th>结算结果</th><th>状态</th><th>备注</th></tr></thead><tbody>${rows||empty}</tbody></table></div>`;
+      root.innerHTML=`<div class="settlement-dashboard-head"><strong>结算中心</strong><div class="settlement-head-actions"><button type="button" class="btn-ghost" id="exportMultiSettlementBtn">导出总账</button><button type="button" class="btn-ghost" id="copyMultiSettlementBtn">复制总账</button></div></div><div class="settlement-ledger"><div><span>待退款</span><b>${pendingRefundPeople} 人 / ${money(pendingRefund)}</b></div><div><span>待补款</span><b>${pendingDuePeople} 人 / ${money(pendingDue)}</b></div><div><span>已完成</span><b>${completedPeople} 人</b></div></div><div class="settlement-filter-bar">${filters}</div><div class="table-scroll"><table><thead><tr><th>CN</th><th>谷子已收</th><th>谷子实际</th><th>均摊应收</th><th>均摊已收</th><th>结算结果</th><th>状态</th><th>备注</th></tr></thead><tbody>${rows||empty}</tbody></table></div>`;
     }
 
     function renderPaymentSummary(){
@@ -5746,9 +5770,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('settlementDashboard').addEventListener('click',async e=>{
       const filterBtn=e.target.closest('[data-settlement-filter]');
       if(filterBtn){ settlementFilter=filterBtn.dataset.settlementFilter||'pending'; renderSettlementDashboard(); return; }
-      const exportMulti=e.target.closest('#exportMultiSettlementBtn'); if(exportMulti){ openMultiSettlementChooser(); return; }
-      const copyRefund=e.target.closest('#copyRefundListBtn'); if(copyRefund){ copySettlementList('refund',copyRefund); return; }
-      const copySupplement=e.target.closest('#copySupplementListBtn'); if(copySupplement){ copySettlementList('supplement',copySupplement); return; }
+      const exportMulti=e.target.closest('#exportMultiSettlementBtn'); if(exportMulti){ openMultiSettlementChooser('export',exportMulti); return; }
+      const copyMulti=e.target.closest('#copyMultiSettlementBtn'); if(copyMulti){ openMultiSettlementChooser('copy',copyMulti); return; }
       const adjust=e.target.closest('[data-settlement-adjust]');
       if(adjust){
         const key=decodeURIComponent(adjust.dataset.settlementKey||''), type=adjust.dataset.settlementAdjust; if(!key) return;
