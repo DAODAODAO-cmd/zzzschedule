@@ -671,6 +671,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="multi-settlement-mode">
         <label><input type="checkbox" id="multiSettlementModeRefund" checked>退款</label>
         <label><input type="checkbox" id="multiSettlementModeDue" checked>补款</label>
+        <label><input type="checkbox" id="multiSettlementShowTotal">显示总价</label>
       </div>
       <div class="multi-settlement-actions"><button type="button" class="btn-ghost" id="multiSettlementSelectAllBtn">全选</button><button type="button" class="btn-ghost" id="multiSettlementSelectOngoingBtn">只选进行中</button></div>
       <div id="multiSettlementSheetList" class="multi-settlement-sheet-list"></div>
@@ -1044,7 +1045,7 @@ html{ scrollbar-gutter:stable; }
 .app-confirm-card.multi-settlement-card>div{ width:100%; box-sizing:border-box; }
 .app-confirm-card.multi-settlement-card>.multi-settlement-actions,.app-confirm-card.multi-settlement-card>div:last-child{ display:flex; justify-content:flex-end; }
 .app-confirm-card.multi-settlement-card>.multi-settlement-sheet-list{ display:grid; justify-content:stretch; }
-.multi-settlement-mode{ display:grid!important; grid-template-columns:1fr 1fr; gap:7px; margin:4px 0 9px; }
+.multi-settlement-mode{ display:grid!important; grid-template-columns:1fr 1fr 1fr; gap:7px; margin:4px 0 9px; }
 .multi-settlement-mode label{ position:relative; display:flex; align-items:center; justify-content:center; gap:6px; min-height:32px; border:1px solid var(--line); border-radius:9px; background:#fff; color:#817686; font-size:12px; font-weight:900; cursor:pointer; user-select:none; touch-action:manipulation; }
 .multi-settlement-mode label.active{ border-color:#d1466a; background:#fff3f6; color:var(--accent); box-shadow:inset 0 0 0 1px #efb8c6; }
 .multi-settlement-mode input{ position:absolute; opacity:0; pointer-events:none; }
@@ -1056,7 +1057,7 @@ html{ scrollbar-gutter:stable; }
 .multi-settlement-sheet-list span{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .multi-settlement-sheet-list input{ position:absolute; opacity:0; pointer-events:none; }
 .multi-settlement-sheet-list small{ color:var(--muted); font-size:10px; font-weight:800; white-space:nowrap; }
-@media(max-width:620px){.app-confirm-overlay{align-items:end;padding:12px 12px calc(14px + env(safe-area-inset-bottom))}.multi-settlement-card{max-height:calc(100dvh - 28px - env(safe-area-inset-bottom));padding:16px;overflow:auto}.multi-settlement-sheet-list{max-height:42dvh}.multi-settlement-sheet-list label{min-height:31px;padding:6px 8px;font-size:11px}.multi-settlement-card p{font-size:10.5px}.multi-settlement-actions button{font-size:10px}}
+@media(max-width:620px){.app-confirm-overlay{align-items:end;padding:12px 12px calc(14px + env(safe-area-inset-bottom))}.multi-settlement-card{max-height:calc(100dvh - 28px - env(safe-area-inset-bottom));padding:16px;overflow:auto}.multi-settlement-mode{gap:5px}.multi-settlement-mode label{min-height:30px;font-size:10.5px}.multi-settlement-sheet-list{max-height:42dvh}.multi-settlement-sheet-list label{min-height:31px;padding:6px 8px;font-size:11px}.multi-settlement-card p{font-size:10.5px}.multi-settlement-actions button{font-size:10px}}
 .settlement-dashboard{ margin-top:10px; padding:12px; border:1px solid #ded6e3; border-radius:10px; background:#fcfbfd; }
 .settlement-dashboard[hidden]{ display:none!important; }
 .settlement-dashboard-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px; }
@@ -3631,7 +3632,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       return [...people.values()].filter(item=>Math.abs(item.total)>0.005&&(item.total<0?includeRefund:includeDue)).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN'));
     }
-    async function exportMultiSheetSettlementImage(selectedSheets=sheets,modes={refund:true,due:true}){
+    async function exportMultiSheetSettlementImage(selectedSheets=sheets,modes={refund:true,due:true,showTotal:false}){
       const targetSheets=(Array.isArray(selectedSheets)?selectedSheets:[]).filter(Boolean);
       if(!targetSheets.length){ alert('请至少选择一个排单表'); return; }
       const includeRefund=modes?.refund!==false, includeDue=modes?.due!==false;
@@ -3640,6 +3641,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!rows.length){ alert('所有表合并后暂无需要退补的记录'); return; }
       if(typeof html2canvas==='undefined'){ alert('导出图片功能还没加载完成，请稍后再试'); return; }
       const refundCount=rows.filter(r=>r.total<0).length, dueCount=rows.filter(r=>r.total>0).length;
+      const refundTotal=rows.filter(r=>r.total<0).reduce((sum,r)=>sum+Math.abs(r.total),0), dueTotal=rows.filter(r=>r.total>0).reduce((sum,r)=>sum+r.total,0);
       const body=rows.map(r=>{
         const result=r.total<0?`<span class="settlement-export-result refund">退 ${money(Math.abs(r.total))}</span>`:`<span class="settlement-export-result due">补 ${money(r.total)}</span>`;
         const detail=r.details.map(d=>`<div><b>${escapeHtml(d.sheet)}</b>：${escapeHtml(d.bought)}</div>`).join('');
@@ -3649,7 +3651,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       const card=document.createElement('div');
       card.className='settlement-export-card';
       card.style.width='760px';
-      const summary=includeRefund&&includeDue?`最终退款 ${refundCount} 人 / 最终补款 ${dueCount} 人`:(includeRefund?`最终退款 ${refundCount} 人`:`最终补款 ${dueCount} 人`);
+      const countSummary=includeRefund&&includeDue?`最终退款 ${refundCount} 人 / 最终补款 ${dueCount} 人`:(includeRefund?`最终退款 ${refundCount} 人`:`最终补款 ${dueCount} 人`);
+      const totalSummary=includeRefund&&includeDue?`退款总价 ${money(refundTotal)} / 补款总价 ${money(dueTotal)}`:(includeRefund?`退款总价 ${money(refundTotal)}`:`补款总价 ${money(dueTotal)}`);
+      const summary=modes?.showTotal?`${countSummary} · ${totalSummary}`:countSummary;
       card.innerHTML=`<div class="settlement-export-title" style="background:#d1466a">${title}</div><div class="settlement-export-summary" style="background:#fff4f7;color:#d1466a">${summary}</div><table><thead><tr><th>CN</th><th>买到明细</th><th>最后金额</th></tr></thead><tbody>${body}</tbody></table>`;
       document.body.appendChild(card);
       try{
@@ -3658,7 +3662,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }catch(err){ alert('导出失败，请重试'); }
       finally{ card.remove(); }
     }
-    function multiSheetSettlementText(selectedSheets=sheets,modes={refund:true,due:true}){
+    function multiSheetSettlementText(selectedSheets=sheets,modes={refund:true,due:true,showTotal:false}){
       const rows=buildMultiSheetSettlementRows(selectedSheets,modes);
       if(!rows.length) return 'CN\t类型\t金额\t买到明细\n暂无\t\t\t';
       const lines=rows.map(r=>{
@@ -3666,6 +3670,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         const detail=r.details.map(d=>`${d.sheet}：${d.bought}`).join('；');
         return [r.name,type,amount,detail].join('\t');
       });
+      if(modes?.showTotal){
+        const refundTotal=rows.filter(r=>r.total<0).reduce((sum,r)=>sum+Math.abs(r.total),0), dueTotal=rows.filter(r=>r.total>0).reduce((sum,r)=>sum+r.total,0);
+        lines.push(['总计','退',refundTotal.toFixed(2),''].join('\t'));
+        lines.push(['总计','补',dueTotal.toFixed(2),''].join('\t'));
+      }
       return ['CN\t类型\t金额\t买到明细',...lines].join('\n');
     }
     function copyMultiSheetSettlement(selectedSheets,modes,button){
@@ -3694,7 +3703,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('multiSettlementTitle').textContent=multiSettlementAction==='copy'?'选择要复制的表':'选择要合并的表';
       $('multiSettlementExportBtn').textContent=multiSettlementAction==='copy'?'复制总账':'导出总账';
       list.innerHTML=sheets.map(sheet=>`<label><input type="checkbox" value="${escapeAttr(sheet.id)}" ${sheet.completed===true?'':'checked'}><span>${escapeHtml(sheet.name||'未命名表')}</span><small>${sheet.completed===true?'已完成':'进行中'}</small></label>`).join('');
-      $('multiSettlementModeRefund').checked=true; $('multiSettlementModeDue').checked=true; syncMultiSettlementModes();
+      $('multiSettlementModeRefund').checked=true; $('multiSettlementModeDue').checked=true; $('multiSettlementShowTotal').checked=false; syncMultiSettlementModes();
       syncMultiSettlementSheetSelection();
       overlay.hidden=false; overlay.style.display='grid';
     }
@@ -3702,15 +3711,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       const overlay=$('multiSettlementOverlay'); overlay.hidden=true; overlay.style.display='none';
     }
     function syncMultiSettlementModes(){
-      const refund=$('multiSettlementModeRefund'), due=$('multiSettlementModeDue');
+      const refund=$('multiSettlementModeRefund'), due=$('multiSettlementModeDue'), total=$('multiSettlementShowTotal');
       refund.closest('label').classList.toggle('active',refund.checked);
       due.closest('label').classList.toggle('active',due.checked);
+      total.closest('label').classList.toggle('active',total.checked);
     }
     async function confirmMultiSettlementExport(){
       const ids=new Set([...$('multiSettlementSheetList').querySelectorAll('input[type="checkbox"]:checked')].map(input=>String(input.value)));
       const selected=sheets.filter(sheet=>ids.has(String(sheet.id)));
       if(!selected.length){ alert('请至少选择一个排单表'); return; }
-      const modes={refund:$('multiSettlementModeRefund').checked,due:$('multiSettlementModeDue').checked};
+      const modes={refund:$('multiSettlementModeRefund').checked,due:$('multiSettlementModeDue').checked,showTotal:$('multiSettlementShowTotal').checked};
       if(!modes.refund&&!modes.due){ alert('请至少选择退款或补款其中一种'); return; }
       closeMultiSettlementChooser();
       if(multiSettlementAction==='copy') copyMultiSheetSettlement(selected,modes,multiSettlementSourceButton);
@@ -4211,6 +4221,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('multiSettlementCancelBtn').addEventListener('click',closeMultiSettlementChooser);
     $('multiSettlementModeRefund').addEventListener('change',syncMultiSettlementModes);
     $('multiSettlementModeDue').addEventListener('change',syncMultiSettlementModes);
+    $('multiSettlementShowTotal').addEventListener('change',syncMultiSettlementModes);
     document.querySelector('.multi-settlement-mode').addEventListener('click',e=>{
       const label=e.target.closest('label'); if(!label) return;
       const input=label.querySelector('input[type="checkbox"]'); if(!input) return;
