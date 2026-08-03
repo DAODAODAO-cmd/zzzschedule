@@ -1060,6 +1060,7 @@ html{ scrollbar-gutter:stable; }
 @media(max-width:620px){.app-confirm-overlay{align-items:end;padding:12px 12px calc(14px + env(safe-area-inset-bottom))}.multi-settlement-card{max-height:calc(100dvh - 28px - env(safe-area-inset-bottom));padding:16px;overflow:auto}.multi-settlement-mode{gap:5px}.multi-settlement-mode label{min-height:30px;font-size:10.5px}.multi-settlement-sheet-list{max-height:42dvh}.multi-settlement-sheet-list label{min-height:31px;padding:6px 8px;font-size:11px}.multi-settlement-card p{font-size:10.5px}.multi-settlement-actions button{font-size:10px}}
 .settlement-dashboard{ margin-top:10px; padding:12px; border:1px solid #ded6e3; border-radius:10px; background:#fcfbfd; }
 .settlement-dashboard[hidden]{ display:none!important; }
+.settlement-dashboard.is-closed{ display:none!important; }
 .settlement-dashboard-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px; }
 .settlement-dashboard-head strong{ font-size:14px; color:var(--text); }
 .settlement-ledger{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-bottom:10px; }
@@ -1834,10 +1835,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[]; cancelPreviewSignature='';
       $('coldPromotionPreviewPanel').style.display='none'; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanRevision=-1; coldPromotionPlanSignature='';
       syncCartControls();
-      syncPaymentControls();
       syncMatrixOptions();
       renderColdBundleConfiguration(); syncUndoButton(); renderWatermarkArchive();
       renderColumnList(); renderPricingGroups(); if($('catalogPanel').style.display!=='none') renderCatalog(); recalc(); renderSheetTabs();
+      syncPaymentControls();
+      renderSettlementDashboard();
       isLoadingSheet=false;
     }
     function applyCost(c){
@@ -3313,6 +3315,21 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(!current||String(matrixBoughtCells[key]||'')!==current) delete matrixBoughtCells[key];
       });
     }
+    function removeAllocationAt(col,row){
+      const colId=Number(col), removeRow=Number(row), arr=allocations[colId]||(allocations[colId]=[]);
+      arr.splice(removeRow,1);
+      const nextBought={};
+      Object.entries(matrixBoughtCells||{}).forEach(([key,value])=>{
+        const match=/^(\d+):(\d+)$/.exec(key);
+        if(!match) return;
+        const keyCol=Number(match[1]), keyRow=Number(match[2]);
+        if(keyCol!==colId){ nextBought[key]=value; return; }
+        if(keyRow<removeRow) nextBought[key]=value;
+        else if(keyRow>removeRow) nextBought[matrixBoughtKey(keyCol,keyRow-1)]=value;
+      });
+      matrixBoughtCells=nextBought;
+      trimTail(arr);
+    }
     function matrixRowBoughtState(row,displayColumns=columns,displayAllocations=allocations){
       const named=displayColumns.map(c=>({col:c.id,name:String((displayAllocations[c.id]||[])[row]||'').trim()})).filter(item=>item.name);
       const bought=named.filter(item=>isMatrixCellBought(item.col,row,item.name)).length;
@@ -3441,6 +3458,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return Math.max(0,paymentMoneyValue(stored));
     }
     function paidState(paidMap,key,fullAmount){
+      if(paidMap&&paidMap[key]===true) return 'full';
       const total=Math.max(0,paymentMoneyValue(fullAmount)), received=paidAmountValue(paidMap,key,total);
       if(total>0&&received>=total-0.005) return 'full';
       if(received>0) return 'partial';
@@ -3833,9 +3851,11 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function renderSettlementDashboard(){
       const root=$('settlementDashboard'); if(!root) return;
-      settlementDashboardOpen=showBoughtSettlement;
-      root.hidden=!showBoughtSettlement;
-      if(!showBoughtSettlement) return;
+      const enabled=showBoughtSettlement===true;
+      settlementDashboardOpen=enabled;
+      root.hidden=!enabled;
+      root.classList.toggle('is-closed',!enabled);
+      if(!enabled){ root.innerHTML=''; return; }
       const records=combinedSettlementRecords();
       let pendingRefund=0,pendingDue=0,pendingRefundPeople=0,pendingDuePeople=0,completedPeople=0;
       const prepared=records.map(r=>{
@@ -3894,7 +3914,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, alipayAmount=paymentVisibleAmount('paymentSummary','data-payment-key',paymentEdits,'alipay',name,data.key,data.total), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const name=data.name, alipayAmount=paymentEditAmount(paymentEdits,'alipay',name,data.key,data.total), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         const items=[...data.items.entries()], span=items.length, payable=feeAmount(data.total);
         if(paymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
@@ -3913,12 +3933,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       const color=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       const paymentTotal=[...people.values()].reduce((sum,data)=>{
-        const amount=paymentVisibleAmount('paymentSummary','data-payment-key',paymentEdits,'alipay',data.name,data.key,data.total);
+        const amount=paymentEditAmount(paymentEdits,'alipay',data.name,data.key,data.total);
         return sum+amount;
       },0);
       const totalHtml=showPaymentTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">排单总价</td><td class="payment-total-value">${money(paymentTotal)}</td></tr></tfoot>`:'';
-      const visibleData=[...people.values()], paidStates=visibleData.map(data=>paidState(paymentPaid,data.key,paymentVisibleAmount('paymentSummary','data-payment-key',paymentEdits,'alipay',data.name,data.key,data.total))), allPaid=paidStates.length>0&&paidStates.every(state=>state==='full'), partialPaid=!allPaid&&paidStates.some(state=>state!=='unpaid');
-      let progressText=paymentProgressText(visibleData,paymentPaid,paymentRefund,paymentSupplement,data=>paymentVisibleAmount('paymentSummary','data-payment-key',paymentEdits,'alipay',data.name,data.key,data.total));
+      const visibleData=[...people.values()], paidStates=visibleData.map(data=>paidState(paymentPaid,data.key,paymentEditAmount(paymentEdits,'alipay',data.name,data.key,data.total))), allPaid=paidStates.length>0&&paidStates.every(state=>state==='full'), partialPaid=!allPaid&&paidStates.some(state=>state!=='unpaid');
+      let progressText=paymentProgressText(visibleData,paymentPaid,paymentRefund,paymentSupplement,data=>paymentEditAmount(paymentEdits,'alipay',data.name,data.key,data.total));
       $('paymentUnpaidCount').textContent=progressText; renderSettlementDashboard();
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-payment-paid-all="1" aria-pressed="${allPaid?'true':(partialPaid?'mixed':'false')}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody>${totalHtml}</table>${qrHtml}</div>`;
@@ -3944,7 +3964,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-share-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, items=[...data.items.entries()], visibleItems=items.length?items:[['—',0]], span=visibleItems.length, raw=data.qty*perItem, payable=feeAmount(raw), alipayAmount=paymentVisibleAmount('sharePaymentSummary','data-share-payment-key',sharePaymentEdits,'alipay',name,data.key,raw), receivedAmount=paidAmountValue(sharePaymentPaid,data.key,alipayAmount), paidStatus=paidState(sharePaymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const name=data.name, items=[...data.items.entries()], visibleItems=items.length?items:[['—',0]], span=visibleItems.length, raw=data.qty*perItem, payable=feeAmount(raw), alipayAmount=paymentEditAmount(sharePaymentEdits,'alipay',name,data.key,raw), receivedAmount=paidAmountValue(sharePaymentPaid,data.key,alipayAmount), paidStatus=paidState(sharePaymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         if(sharePaymentViewMode==='merged'){
           const itemText=items.length?items.map(([item,count])=>`${item}×${count}`).join('、'):'—';
           rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,data.qty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
@@ -3962,8 +3982,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       const qtyModeText=showBoughtSettlement?'按买到数量':'按排单数量';
       const note=shareDeductFixed?`${qtyModeText}：均摊 ${money(sharedTotal)}－入均 ${money(fixedDeduction)}＝实际均摊 ${money(distributable)}；共 ${totalQty} 件，每件 ${money(perItem)}`:`${qtyModeText}：直接均摊 ${money(sharedTotal)}；共 ${totalQty} 件，每件 ${money(perItem)}`;
-      const visibleData=[...people.values()], paidStates=visibleData.map(data=>paidState(sharePaymentPaid,data.key,paymentVisibleAmount('sharePaymentSummary','data-share-payment-key',sharePaymentEdits,'alipay',data.name,data.key,data.qty*perItem))), allPaid=paidStates.length>0&&paidStates.every(state=>state==='full'), partialPaid=!allPaid&&paidStates.some(state=>state!=='unpaid');
-      $('sharePaymentUnpaidCount').textContent=paymentProgressText([...people.values()],sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,data=>paymentVisibleAmount('sharePaymentSummary','data-share-payment-key',sharePaymentEdits,'alipay',data.name,data.key,data.qty*perItem));
+      const visibleData=[...people.values()], paidStates=visibleData.map(data=>paidState(sharePaymentPaid,data.key,paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,data.qty*perItem))), allPaid=paidStates.length>0&&paidStates.every(state=>state==='full'), partialPaid=!allPaid&&paidStates.some(state=>state!=='unpaid');
+      $('sharePaymentUnpaidCount').textContent=paymentProgressText([...people.values()],sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,data=>paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,data.qty*perItem));
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-share-payment-paid-all="1" aria-pressed="${allPaid?'true':(partialPaid?'mixed':'false')}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(sharePaymentTitle||'均摊统计')}</div><div class="hint share-calculation-note" data-html2canvas-ignore="true" style="padding:8px 10px;background:#fff8fb;text-align:center;">${escapeHtml(note)}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody></table>${qrHtml}</div>`;
     }
@@ -4516,7 +4536,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       requestAnimationFrame(()=>document.querySelector(`.sheet-tab[data-sheet="${id}"]`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}));
     }
     function outstandingPaymentCounts(){
-      const count=selector=>[...document.querySelectorAll(selector)].filter(button=>Math.max(0,num(button.dataset.paymentAmount))>0.005&&button.getAttribute('aria-pressed')!=='true').length;
+      const count=selector=>[...document.querySelectorAll(selector)].filter(button=>button.getAttribute('aria-pressed')!=='true').length;
       return {goods:count('#paymentSummary [data-payment-paid]'),share:count('#sharePaymentSummary [data-share-payment-paid]')};
     }
     async function toggleActiveSheetCompleted(){
@@ -4827,16 +4847,19 @@ body.export-rendering .cart-count{ font-size:28px; }
       const col=findColumnByText(row.itemText||''), person=String(row.person||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
       if(!person) return {ok:false,text:'名字没识别到'};
       if(!col) return {ok:false,text:'没找到谷子'};
-      const positions=(allocations[col.id]||[]).map((value,row)=>String(value||'').trim()===person?row:-1).filter(row=>row>=0), available=positions.length;
+      const positions=(allocations[col.id]||[]).map((value,row)=>String(value||'').trim()===person?row:-1).filter(row=>row>=0), protectedPositions=positions.filter(row=>isMatrixCellBought(col.id,row,person)), removablePositions=positions.filter(row=>!isMatrixCellBought(col.id,row,person)), available=positions.length;
       const reserved=cancelPreviewRows.slice(0,index).reduce((sum,previous)=>{
         const previousCol=findColumnByText(previous.itemText||'');
         return previousCol&&previousCol.id===col.id&&String(previous.person||'').trim()===person?sum+Math.max(1,parseInt(previous.qty,10)||1):sum;
       },0);
-      const remaining=Math.max(0,available-reserved);
+      const remaining=Math.max(0,removablePositions.length-reserved);
       if(!available) return {ok:false,text:`没有找到 ${person}`};
-      if(remaining<qty) return {ok:false,text:`只剩 ${remaining} 个可撤`};
-      const availablePositions=positions.slice(0,Math.max(0,positions.length-reserved)), affected=availablePositions.slice(-qty).map(row=>row+1);
-      return {ok:true,text:`将删除第${affected.join('、')}行`,col,qty,person,positions:affected};
+      if(remaining<qty){
+        const protectedText=protectedPositions.length?`，另有 ${protectedPositions.length} 个已买齐已保护`:'';
+        return {ok:false,text:`只剩 ${remaining} 个可撤${protectedText}`};
+      }
+      const availablePositions=removablePositions.slice(0,Math.max(0,removablePositions.length-reserved)), affectedRows=availablePositions.slice(-qty), affected=affectedRows.map(row=>row+1), protectedText=protectedPositions.length?`（跳过已买齐 ${protectedPositions.length} 个）`:'';
+      return {ok:true,text:`将删除第${affected.join('、')}行${protectedText}`,col,qty,person,positions:affected,positionIndexes:affectedRows,protectedCount:protectedPositions.length};
     }
     function renderCancelPreview(){
       $('cancelPreviewTableBody').innerHTML=cancelPreviewRows.map((row,index)=>{
@@ -4847,14 +4870,17 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function buildCancelMatrixPreview(){
       const preview=deepClone(allocations);
-      const cancelRows=[];
-      cancelPreviewRows.forEach(row=>{
-        const col=findColumnByText(row.itemText||''), person=String(row.person||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
-        if(!col||!person) return;
-        const arr=preview[col.id]||(preview[col.id]=[]); let removed=0;
-        for(let index=arr.length-1;index>=0&&removed<qty;index--){
-          if(String(arr[index]||'').trim()===person){ cancelRows.push(index); arr.splice(index,1); removed++; }
-        }
+      const cancelRows=[], removalsByCol=new Map();
+      cancelPreviewRows.forEach((row,index)=>{
+        const check=cancelRowCheck(row,index);
+        if(!check.ok) return;
+        const list=removalsByCol.get(check.col.id)||[];
+        (check.positionIndexes||[]).forEach(position=>{ list.push(position); cancelRows.push(position); });
+        removalsByCol.set(check.col.id,list);
+      });
+      removalsByCol.forEach((positions,colId)=>{
+        const arr=preview[colId]||(preview[colId]=[]);
+        [...new Set(positions)].sort((a,b)=>b-a).forEach(position=>arr.splice(position,1));
       });
       return {allocations:preview,highlights:{cancelRows:[...new Set(cancelRows)]}};
     }
@@ -4865,7 +4891,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先粘贴撤单文字'); return; }
       cancelPreviewRows=parseCancelRows(raw);
       cancelPreviewSignature=actionPreviewDataSignature();
-      $('cancelPreviewStatus').textContent='会从这个人在对应谷子的最后一单开始向前删除。'; $('cancelPreviewStatus').style.color='';
+      $('cancelPreviewStatus').textContent='会从这个人在对应谷子的最后一单开始向前删除；已买齐标记会自动跳过。'; $('cancelPreviewStatus').style.color='';
       renderCancelPreview(); $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display=cancelPreviewRows.length?'block':'none';
@@ -4895,15 +4921,17 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!checks.length||checks.some(item=>!item.check.ok)){ alert('还有没识别清楚的撤单，请先在预览里修改'); return; }
       if(!pushUndoSnapshot('cancel-apply','确认撤单前')) return;
       let removedTotal=0;
+      const removalsByCol=new Map();
       checks.forEach(({check})=>{
-        const arr=allocations[check.col.id]||(allocations[check.col.id]=[]); let removed=0;
-        for(let i=arr.length-1;i>=0&&removed<check.qty;i--){
-          if(String(arr[i]||'').trim()===check.person){ arr.splice(i,1); removed++; }
-        }
-        removedTotal+=removed;
+        const list=removalsByCol.get(check.col.id)||[];
+        (check.positionIndexes||[]).forEach(position=>list.push(position));
+        removalsByCol.set(check.col.id,list);
+      });
+      removalsByCol.forEach((positions,colId)=>{
+        [...new Set(positions)].sort((a,b)=>b-a).forEach(position=>{ removeAllocationAt(colId,position); removedTotal++; });
       });
       saveState(); clearMatrixPreview(false); renderMatrix(); $('commentInput').value=''; cancelPreviewRows=[]; cancelPreviewSignature=''; renderCancelPreview();
-      $('cancelPreviewStatus').textContent=`已撤掉 ${removedTotal} 个，均从对应谷子的最后一单开始删除。`;
+      $('cancelPreviewStatus').textContent=`已撤掉 ${removedTotal} 个；已买齐的格子会自动跳过，不会被撤。`;
       $('cancelPreviewStatus').style.color='var(--ok)';
     });
     $('cancelCancelPreviewBtn').addEventListener('click',()=>{
@@ -5625,7 +5653,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     async function updateReceivedAmount(paidMap,key,button){
       const fullAmount=Math.max(0,num(button.dataset.paymentAmount)), received=paidAmountValue(paidMap,key,fullAmount), state=paidState(paidMap,key,fullAmount);
       if(state==='full'){ delete paidMap[key]; return true; }
-      if(state==='unpaid'){ if(fullAmount>0) paidMap[key]=fullAmount; return fullAmount>0; }
+      if(state==='unpaid'){ paidMap[key]=fullAmount>0?fullAmount:true; return true; }
       const answer=await appPrompt(`当前已收 ${money(received)}，本次统计应收 ${money(fullAmount)}。\n请填写累计已收金额（填 0 清除）：`,fmtNum(fullAmount),'填写已收金额');
       if(answer===null) return false;
       const amount=Math.max(0,parseFloat(String(answer).replace(/[^\d.-]/g,''))||0);
@@ -5648,7 +5676,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(allButton){
         e.preventDefault(); e.stopPropagation();
         const buttons=[...$('paymentSummary').querySelectorAll('[data-payment-paid]')], allFull=buttons.length>0&&buttons.every(button=>button.getAttribute('aria-pressed')==='true');
-        buttons.forEach(button=>{ const key=decodeURIComponent(button.dataset.paymentPaid||''); if(!key) return; if(allFull) delete paymentPaid[key]; else paymentPaid[key]=Math.max(0,num(button.dataset.paymentAmount)); });
+        buttons.forEach(button=>{ const key=decodeURIComponent(button.dataset.paymentPaid||''); if(!key) return; if(allFull) delete paymentPaid[key]; else { const amount=Math.max(0,num(button.dataset.paymentAmount)); paymentPaid[key]=amount>0?amount:true; } });
         saveState(); rerenderPaymentInPlace('paymentSummary',renderPaymentSummary); return;
       }
       const refundButton=e.target.closest('[data-payment-refund]');
@@ -5690,7 +5718,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(allButton){
         e.preventDefault(); e.stopPropagation();
         const buttons=[...$('sharePaymentSummary').querySelectorAll('[data-share-payment-paid]')], allFull=buttons.length>0&&buttons.every(button=>button.getAttribute('aria-pressed')==='true');
-        buttons.forEach(button=>{ const key=decodeURIComponent(button.dataset.sharePaymentPaid||''); if(!key) return; if(allFull) delete sharePaymentPaid[key]; else sharePaymentPaid[key]=Math.max(0,num(button.dataset.paymentAmount)); });
+        buttons.forEach(button=>{ const key=decodeURIComponent(button.dataset.sharePaymentPaid||''); if(!key) return; if(allFull) delete sharePaymentPaid[key]; else { const amount=Math.max(0,num(button.dataset.paymentAmount)); sharePaymentPaid[key]=amount>0?amount:true; } });
         saveState(); rerenderPaymentInPlace('sharePaymentSummary',renderSharePaymentSummary); return;
       }
       const refundButton=e.target.closest('[data-share-payment-refund]');
