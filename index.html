@@ -1938,6 +1938,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(c.priceAdj===undefined) c.priceAdj=0;
       if(c.fixedPrice===undefined) c.fixedPrice=0;
       if(c.avgOverride===undefined) c.avgOverride=null;
+      if(c.wholeSetPrice===undefined) c.wholeSetPrice=null;
       if(c.sourceJpyPrice===undefined) c.sourceJpyPrice=0;
       c.promotionPoints=Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1;
       if(!Array.isArray(c.aliases)) c.aliases=[];
@@ -2778,6 +2779,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       columns.forEach(c=>{
         if(c.mode==='fixed'){ fixedCount++; inAverageCount++; }
         else if(c.mode==='single'){ fixedCount++; sourcePriceCount++; }
+        else if(c.mode==='wholeset'){ fixedCount++; }
         else if(c.mode==='adjust'){ adjSum+=num(c.priceAdj); }
       });
       const denom=N-fixedCount;
@@ -2799,7 +2801,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       else if(Math.abs(adjSum)>0.005) msg=`调价合计为 ${(adjSum>0?'+':'')+money(adjSum)}，不为0 —— 收回的钱与成本相差 ${(adjSum>0?'+':'')+money(adjSum)}（正=多收，负=少收）。`;
       if(msg){ w.style.display='block'; w.textContent=msg; } else { w.style.display='none'; }
     }
+    function wholeSetAutoPrice(){ return columns.reduce((s,x)=>x.mode==='wholeset'?s:s+unitPrice(x),0); }
     function unitPrice(c){
+      if(c.mode==='wholeset'){
+        if(c.wholeSetPrice!=null&&c.wholeSetPrice!==''&&Number.isFinite(Number(c.wholeSetPrice))) return Math.max(0,Number(c.wholeSetPrice));
+        return wholeSetAutoPrice();
+      }
       if(c.mode==='fixed') return num(c.fixedPrice);
       if(c.mode==='adjust') return avgPrice+num(c.priceAdj);
       if(c.mode==='single') return Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value));
@@ -2903,6 +2910,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(c.mode==='adjust') return `<label>调价 <input class="modeval" data-col="${c.id}" data-price-field="priceAdj" type="text" inputmode="decimal" value="${c.priceAdj}"></label>`;
       if(c.mode==='fixed') return `<label>入均 <input class="modeval" data-col="${c.id}" data-price-field="fixedPrice" type="text" inputmode="decimal" value="${c.fixedPrice}"></label>`;
       if(c.mode==='single') return `<label>日元 <input class="modeval" data-col="${c.id}" data-price-field="sourceJpyPrice" type="text" inputmode="decimal" value="${c.sourceJpyPrice||''}"></label>`;
+      if(c.mode==='wholeset') return `<label>整套价 <input class="modeval" data-col="${c.id}" data-price-field="wholeSetPrice" type="text" inputmode="decimal" value="${c.wholeSetPrice==null?'':c.wholeSetPrice}" placeholder="自动 ${fmtNum(wholeSetAutoPrice())}"></label>`;
       return `<label>均价 <input class="modeval" data-col="${c.id}" data-price-field="avgOverride" type="text" inputmode="decimal" value="${c.avgOverride==null?'':c.avgOverride}" placeholder="自动"></label>`;
     }
     function renderColumnList(){
@@ -2924,9 +2932,10 @@ body.export-rendering .cart-count{ font-size:28px; }
             <option value="adjust" ${c.mode==='adjust'?'selected':''}>调价</option>
             <option value="fixed" ${c.mode==='fixed'?'selected':''}>入均</option>
             <option value="single" ${c.mode==='single'?'selected':''}>原价换算</option>
+            <option value="wholeset" ${c.mode==='wholeset'?'selected':''}>整套</option>
           </select>
           <div class="mode-slot">${modeValueHtml(c)}</div>
-          <label class="promotion-point-slot">提配点 <input type="text" inputmode="decimal" data-promotion-point data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}"></label>
+          <label class="promotion-point-slot">${c.mode==='wholeset'?'份量':'提配点'} <input type="text" inputmode="decimal" data-promotion-point data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}"></label>
           <div class="col-actions"><button class="btn-ghost btn-mini" onclick="ggz.moveColumn(${c.id},-1)">↑</button>
           <button class="btn-ghost btn-mini" onclick="ggz.moveColumn(${c.id},1)">↓</button>
           <button class="btn-danger btn-mini" onclick="ggz.removeColumn(${c.id})">删除</button></div>
@@ -2936,6 +2945,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       let price='跟随均价';
       if(c.mode==='single') price=`${fmtNum(c.sourceJpyPrice)} 日元 → ${money(Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value)))}`;
       else if(c.mode==='fixed') price=`入均 ${money(c.fixedPrice)}`;
+      else if(c.mode==='wholeset') price=c.wholeSetPrice==null?'整套（自动）':`整套 ${money(c.wholeSetPrice)}`;
       else if(c.mode==='adjust') price=`调价 ${(num(c.priceAdj)>=0?'+':'')+fmtNum(c.priceAdj)}`;
       else if(c.avgOverride!==null&&c.avgOverride!=='') price=`独立均价 ${money(c.avgOverride)}`;
       return `${price} · 提配${fmtPoint(c.promotionPoints)}点`;
@@ -3073,7 +3083,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     ggz.removePricingGroup=removePricingGroup;
     ggz.onColumnImage=(id,input)=>{
       const file=input.files[0]; if(!file) return;
-      compressImage(file,120,0.75).then(dataUrl=>{
+      compressImage(file,480,0.82).then(dataUrl=>{
         const c=columns.find(x=>x.id===id); if(!c) return;
         c.img=dataUrl; saveState(); renderColumnList(); renderMatrix();
       }).catch(()=>alert('图片处理失败，请换一张试试'));
@@ -3085,6 +3095,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       else if(field==='priceAdj') c.priceAdj=parseFloat(value)||0;
       else if(field==='fixedPrice'){ const n=parseFloat(value); if(Number.isFinite(n)) c.fixedPrice=Math.max(0,n); }
       else if(field==='avgOverride') c.avgOverride=value===''?null:Math.max(0,parseFloat(value)||0);
+      else if(field==='wholeSetPrice') c.wholeSetPrice=value===''?null:Math.max(0,parseFloat(value)||0);
       else if(field==='sourceJpyPrice') c.sourceJpyPrice=Math.max(0,parseFloat(value)||0);
       else if(field==='promotionPoints'){ const n=parseFloat(value); if(Number.isFinite(n)) c.promotionPoints=Math.max(0,n); }
       else if(field==='mode'){
@@ -3370,6 +3381,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(c.mode==='avg') return `<td><input class="matrix-price-input" data-price-kind="pricing" data-price-mode="avg" data-col="${c.id}" value="均价"${previewReadonly}></td>`;
         if(c.mode==='fixed') return `<td class="adj-fix"><div class="matrix-price-editor"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="fixed" data-col="${c.id}" value="${fmtNum(c.fixedPrice)}"${previewReadonly}><span class="matrix-price-suffix">/1</span></div></td>`;
         if(c.mode==='single') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">原价</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="single" data-col="${c.id}" value="${fmtNum(c.sourceJpyPrice)}"${previewReadonly}><span class="matrix-price-suffix">日元</span></div></td>`;
+        if(c.mode==='wholeset') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">整套</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="wholeset" data-col="${c.id}" value="${c.wholeSetPrice==null?fmtNum(wholeSetAutoPrice()):fmtNum(c.wholeSetPrice)}" placeholder="自动"${previewReadonly}></div></td>`;
         const adj=num(c.priceAdj);
         const cls=adj>0?'adj-pos':(adj<0?'adj-neg':'');
         const sign=adj>0?'+':'';
@@ -3380,7 +3392,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       thead.innerHTML=headHtml;
       let bodyHtml='';
       for(let r=0;r<displayRows;r++){
-        const rowFilled=r<maxRows&&displayColumns.length>0&&displayColumns.every(c=>String((displayAllocations[c.id]||[])[r]||'').trim());
+        const rowFilled=r<maxRows&&displayColumns.length>0&&displayColumns.filter(c=>c.mode!=='wholeset').every(c=>String((displayAllocations[c.id]||[])[r]||'').trim());
         const step=quantitySettingsReady()?groupSize:1, countValue=(r+1)*step, previousValue=r*step;
         const boxNumber=quantitySettingsReady()?Math.floor(countValue/boxSize):0, crossedBox=quantitySettingsReady()&&boxNumber>Math.floor(previousValue/boxSize);
         const markBox=crossedBox&&Number.isFinite(completeMultiple)&&completeMultiple>0&&boxNumber%completeMultiple===0;
@@ -3568,7 +3580,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(index<startIndex||index>=endIndex) return; const name=String(person||'').trim(); if(!name) return;
         const key=name.replace(/\s+/g,'').toLowerCase(); if(!people.has(key)) people.set(key,{key,name,qty:0});
         if(showBoughtSettlement&&!isMatrixCellBought(c.id,index,name)) return;
-        people.get(key).qty++; totalQty++;
+        const shareWeight=c.mode==='wholeset'?Math.max(0,num(c.promotionPoints)):1;
+        people.get(key).qty+=shareWeight; totalQty+=shareWeight;
         if(shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
       const perItem=totalQty?Math.max(0,sharedTotal-fixedDeduction)/totalQty:0;
@@ -4014,8 +4027,8 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     // ---------- cart ----------
     function colOrderedCount(c){ return (allocations[c.id]||[]).length; }
-    function currentMatchCount(){ const displayColumns=orderDisplayColumns(); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.min(...counts):0; }
-    function currentMaxCount(){ const displayColumns=orderDisplayColumns(); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.max(...counts):0; }
+    function currentMatchCount(){ const displayColumns=orderDisplayColumns().filter(c=>c.mode!=='wholeset'); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.min(...counts):0; }
+    function currentMaxCount(){ const displayColumns=orderDisplayColumns().filter(c=>c.mode!=='wholeset'); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.max(...counts):0; }
     function cartTarget(){
       if(cartTargetMode==='manual'&&Number.isFinite(cartTargetNum)&&cartTargetNum>0) return cartTargetNum;
       return currentMaxCount();
@@ -4032,7 +4045,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function renderCart(){
       const empty=$('cartEmpty'), header=$('cartHeader'), grid=$('cartGrid');
       grid.style.gridTemplateColumns=`repeat(${cartColumns},minmax(0,1fr))`;
-      const cartColumnsList=orderDisplayColumns();
+      const cartColumnsList=orderDisplayColumns().filter(c=>c.mode!=='wholeset');
       if(cartColumnsList.length===0){ empty.style.display='block'; header.style.display='none'; grid.innerHTML=''; $('cartTargetInfo').textContent=''; return; }
       empty.style.display='none';
       const showHeader=cartNote.trim()||cartQrImg;
@@ -5429,6 +5442,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       else if(input.dataset.priceKind==='unit'){ c.mode='fixed'; c.fixedPrice=Math.max(0,value); }
       else if(input.dataset.priceMode==='fixed') c.fixedPrice=Math.max(0,value);
       else if(input.dataset.priceMode==='single') c.sourceJpyPrice=Math.max(0,value);
+      else if(input.dataset.priceMode==='wholeset') c.wholeSetPrice=Math.max(0,value);
       else if(input.dataset.priceMode==='adjust') c.priceAdj=value;
       else return;
       saveState();
@@ -5471,6 +5485,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='fixed'; if(Number.isFinite(value)) c.fixedPrice=Math.max(0,value);
       }else if(td.dataset.priceMode==='single'){
         const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='single'; if(Number.isFinite(value)) c.sourceJpyPrice=Math.max(0,value);
+      }else if(td.dataset.priceMode==='wholeset'){
+        const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='wholeset'; c.wholeSetPrice=Number.isFinite(value)?Math.max(0,value):null;
       }else if(td.dataset.priceMode==='adjust'){
         const value=parseFloat(text.replace(/[^\d.+-]/g,'')); if(Number.isFinite(value)){ c.mode='adjust'; c.priceAdj=value; }
       }else if(/均价|^均$/.test(text)){
