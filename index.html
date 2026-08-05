@@ -5419,11 +5419,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       const c=columns.find(col=>col.id===parseInt(input.dataset.col,10)); if(!c) return;
       const field=input.dataset.priceField, text=String(input.value||'').trim(), value=parseFloat(text);
       if(field==='avgOverride'&&text==='') c.avgOverride=null;
+      else if(field==='wholeSetPrice'&&text==='') c.wholeSetPrice=null;
       else if(!Number.isFinite(value)) return;
       else if(field==='priceAdj') c.priceAdj=value;
       else if(field==='fixedPrice') c.fixedPrice=Math.max(0,value);
       else if(field==='sourceJpyPrice') c.sourceJpyPrice=Math.max(0,value);
       else if(field==='avgOverride') c.avgOverride=Math.max(0,value);
+      else if(field==='wholeSetPrice') c.wholeSetPrice=Math.max(0,value);
       saveState(); readCost(); computeAverage();
     });
     $('columnList').addEventListener('change',e=>{
@@ -5780,6 +5782,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('cartRefreshBtn').addEventListener('click',renderCart);
     $('cartExportPngBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
+      renderCart();
       const wrap=$('cartWrap'), oldWidth=wrap.style.width;
       wrap.classList.add('hide-empty-export-images');
       wrap.style.width='1000px';
