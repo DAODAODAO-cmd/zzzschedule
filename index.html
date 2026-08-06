@@ -271,11 +271,11 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
   <nav class="desktop-app-nav" aria-label="功能导航">
     <button type="button" data-app-section="goods"><span>◇</span><b>谷子</b><small>价格与种类</small></button>
-    <button type="button" data-app-section="order"><span>▦</span><b>排单</b><small>录入、预览与排表</small></button>
+    <button type="button" data-app-section="order"><span>▦</span><b>排单</b><small>录入、预览与排单表</small></button>
     <button type="button" data-app-section="stats"><span>▥</span><b>统计</b><small>数量统计与推车图</small></button>
     <button type="button" data-app-section="payment"><span>¥</span><b>收款</b><small>谷子收款与均摊</small></button>
     <button type="button" data-app-section="logistics"><span>✈</span><b>物流</b><small>到货与囤货</small></button>
-    <button type="button" data-app-section="dispatch"><span>▤</span><b>排发</b><small>已购与排发</small></button>
+    <button type="button" data-app-section="dispatch"><span>▤</span><b>排发</b><small>谁该发什么</small></button>
     <button type="button" data-app-section="settings"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M11 4v6M4 17h4m4 0h8M8 14v6"/></svg></span><b>设置</b><small>数据与云端</small></button>
   </nav>
   </aside>
@@ -348,7 +348,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel desktop-setup" id="costPanel">
-    <h2>谷价</h2>
+    <h2>① 价格</h2>
     <div class="grid price-grid">
       <div class="price-type-field">
         <label>原价类型</label>
@@ -381,7 +381,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel desktop-setup" id="columnPanel">
-    <h2>谷子种类</h2><div class="hint" style="margin:-4px 0 10px">已加入拼盒的单品会从这里隐藏，排单默认只显示组合；未拼盒的单品仍可单独排。</div>
+    <h2>② 谷子 / 种类 列</h2><div class="hint" style="margin:-4px 0 10px">已加入拼盒的单品会从这里隐藏，排单默认只显示组合；未拼盒的单品仍可单独排。</div>
     <div id="columnList"></div>
     <div class="toolbar">
       <button class="btn-ghost" id="addColumnBtn">+ 手动添加一列</button>
@@ -409,7 +409,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel desktop-setup" id="ocrPanel">
-    <h2>截图识别</h2>
+    <h2>③ 截图识别</h2>
     <div class="row">
       <label class="upload-button">选择截图<input type="file" id="ocrFileInput" accept="image/*" multiple></label>
       <span class="upload-count" id="ocrFileCount">尚未选择截图</span>
@@ -433,7 +433,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="commentPanel">
-    <h2>批量排单 / 转单 / 撤单 / 带冷提配</h2>
+    <h2>④ 批量粘贴 / 排单 / 转单 / 撤单</h2>
     <textarea id="commentInput" placeholder="直接把文字整段粘贴进来"></textarea>
     <div class="toolbar">
       <button class="btn-primary" id="parseBtn">排单预览</button>
@@ -527,7 +527,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="matrixPanel">
-    <h2>排单表</h2>
+    <h2>⑤ 排单表</h2>
     <div class="payment-heading-tools matrix-heading-tools">
       <input id="matrixTitleInput" type="text" placeholder="填写项目名称">
       <label>标题颜色 <input id="matrixColorInput" type="color" value="#d1466a"></label>
@@ -536,8 +536,8 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button type="button" class="matrix-toggle" id="showPricingRow" data-mobile-label="调价">隐藏调价</button>
       <button type="button" class="matrix-toggle" id="showUnitPriceRow" data-mobile-label="单价">隐藏单价</button>
       <button type="button" class="matrix-toggle" id="showPromotionPointRow" data-mobile-label="点数">隐藏提配点数</button>
-      <button type="button" class="matrix-toggle" id="showCompleteRowColor" data-mobile-label="满配">关闭满配配比</button>
-      <button type="button" class="matrix-toggle" id="showColdPromotionColor" data-mobile-label="带冷">关闭带冷提配比</button>
+      <button type="button" class="matrix-toggle" id="showCompleteRowColor" data-mobile-label="满配">关闭满配变色</button>
+      <button type="button" class="matrix-toggle" id="showColdPromotionColor" data-mobile-label="带冷">关闭带冷提变色</button>
       <button type="button" class="matrix-toggle" id="markBoughtModeBtn" data-mark="bought" data-mobile-label="买齐">买齐标记</button>
       <button type="button" class="matrix-toggle" id="markIslandModeBtn" data-mark="island" data-mobile-label="岛内">岛内到货</button>
       <button type="button" class="matrix-toggle" id="markChinaModeBtn" data-mark="china" data-mobile-label="国内">国内到货</button>
@@ -566,7 +566,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="quantityPanel">
-    <h2>数量统计</h2>
+    <h2>⑥ 数量统计</h2>
     <div class="payment-heading-tools quantity-heading-tools">
       <input id="quantityTitleInput" type="text" placeholder="填写项目名称">
     </div>
@@ -587,7 +587,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="paymentPanel">
-    <h2>收款统计</h2>
+    <h2>⑦ 收款统计</h2>
     <div class="payment-tabs"><button type="button" class="payment-tab active" data-payment-tab="goods">谷子收款</button><button type="button" class="payment-tab" data-payment-tab="extra">追加费用</button><button type="button" class="payment-tab" data-payment-tab="share">均摊统计</button></div>
     <div class="payment-range-tools">
       <strong>统计排单行</strong>
@@ -636,7 +636,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="extra-fee-form" id="extraFeeForm" hidden>
         <input type="hidden" id="extraFeeEditId">
         <label>CN<input type="text" id="extraFeePerson" placeholder="填写名字"></label>
-        <label>费用名称<input type="text" id="extraFeeName" placeholder="例如：8月6日国际运费"></label>
+        <label>费用名称<input type="text" id="extraFeeName" placeholder="例如：8月6日到货运费"></label>
         <label>金额<input type="text" inputmode="decimal" id="extraFeeAmount" placeholder="0.00"></label>
         <label>批次/来源<input type="text" id="extraFeeSource" placeholder="例如：2026-08-06 第1批，可留空"></label>
         <label class="extra-fee-note-field">备注<input type="text" id="extraFeeNote" placeholder="可留空"></label>
@@ -663,7 +663,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="cartPanel">
-    <h2>推车图</h2>
+    <h2>⑧ 推车图</h2>
     <div class="cart-editor-row">
       <textarea id="cartNote" placeholder="推车图备注"></textarea>
       <label class="qr-upload">上传群二维码<input type="file" id="cartQrInput" accept="image/*"></label>
@@ -696,7 +696,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel" id="dispatchPanel">
-    <h2>排发</h2>
+    <h2>CN 购买与排发</h2>
     <div class="hint">按 CN 查看已购、到货和可排发状态。</div>
     <div class="dispatch-state-tabs" role="tablist" aria-label="排发状态筛选">
       <button type="button" class="active" data-dispatch-state="all">全部购买</button>
@@ -717,7 +717,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel" id="logisticsPanel">
-    <h2>物流</h2>
+    <h2>物流 · 到货与囤货</h2>
     <div class="hint">按排单查看每款谷子的到货与囤货状态。</div>
     <div class="logi-filters">
       <label class="mark-date-label">按批次日期<input type="date" id="logisticsDateFilter"></label>
@@ -733,7 +733,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel" id="settingsPanel">
-    <h2>设置</h2>
+    <h2>设置与数据</h2>
     <div class="settings-cloud-tip"><strong>云端协作</strong><span>数据会自动保存并同步。</span></div>
     <div class="settings-tool-grid">
     <details class="data-actions settings-data-actions" id="dataActions"><summary>排单数据导入导出</summary><div class="data-actions-pop">
@@ -769,7 +769,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="mobile-more-head"><strong>更多功能</strong><button type="button" id="mobileMoreCloseBtn" aria-label="关闭">×</button></div>
       <div class="mobile-more-grid">
         <button type="button" data-app-section="logistics"><span>✈</span><b>物流</b><small>到货与囤货</small></button>
-        <button type="button" data-app-section="dispatch"><span>▤</span><b>排发</b><small>已购与排发</small></button>
+        <button type="button" data-app-section="dispatch"><span>▤</span><b>排发</b><small>按 CN 查看可发内容</small></button>
         <button type="button" data-app-section="settings"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M11 4v6M4 17h4m4 0h8M8 14v6"/></svg></span><b>设置</b><small>数据与云端</small></button>
       </div>
     </div>
@@ -5217,6 +5217,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('mobileMoreCloseBtn')?.addEventListener('click',()=>setMobileMoreOpen(false));
     $('mobileMoreOverlay')?.addEventListener('click',e=>{ if(e.target===$('mobileMoreOverlay')) setMobileMoreOpen(false); });
     document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('mobileMoreOverlay')&&!$('mobileMoreOverlay').hidden) setMobileMoreOpen(false); });
+    window.addEventListener('pageshow',()=>{ setMobileMoreOpen(false); activeAppSection='goods'; setAppSection('goods',false); });
     { const overlay=$('pricingGroupOverlay'); if(overlay){ overlay.hidden=true; overlay.style.display='none'; } }
     $('mobileSheetSelect').addEventListener('change',e=>switchSheet(parseInt(e.target.value,10)));
     $('mobileAddSheetBtn').addEventListener('click',()=>$('addSheetBtn').click());
@@ -6980,7 +6981,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     syncPaymentControls();
     syncMatrixOptions();
     renderSheetTabs();
-    setAppSection(activeAppSection,false);
+    setMobileMoreOpen(false);
+    activeAppSection='goods';
+    setAppSection('goods',false);
     renderColumnList();
     renderColdBundleConfiguration(); syncUndoButton();
     recalc();
