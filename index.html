@@ -2043,6 +2043,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       showPaymentTotal=sheet.showPaymentTotal!==false;
       showBoughtSettlement=sheet.showBoughtSettlement===true;
       paymentEdits=sheet.paymentEdits||{};
+      Object.keys(paymentEdits).forEach(k=>{ if(k.startsWith('wechat:')) delete paymentEdits[k]; });
       paymentPaid=sheet.paymentPaid&&typeof sheet.paymentPaid==='object'?sheet.paymentPaid:{};
       paymentRefund=sheet.paymentRefund&&typeof sheet.paymentRefund==='object'?sheet.paymentRefund:{};
       paymentSupplement=sheet.paymentSupplement&&typeof sheet.paymentSupplement==='object'?sheet.paymentSupplement:{}; paymentRefundDone=sheet.paymentRefundDone&&typeof sheet.paymentRefundDone==='object'?sheet.paymentRefundDone:{}; paymentSupplementDone=sheet.paymentSupplementDone&&typeof sheet.paymentSupplementDone==='object'?sheet.paymentSupplementDone:{}; paymentNotes=sheet.paymentNotes&&typeof sheet.paymentNotes==='object'?sheet.paymentNotes:{}; settlementDashboardOpen=sheet.settlementDashboardOpen===true;
@@ -2241,6 +2242,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
             showPaymentTotal=sheet.showPaymentTotal!==false;
             paymentEdits=sheet.paymentEdits||{};
+      Object.keys(paymentEdits).forEach(k=>{ if(k.startsWith('wechat:')) delete paymentEdits[k]; });
             paymentPaid=sheet.paymentPaid&&typeof sheet.paymentPaid==='object'?sheet.paymentPaid:{};
             paymentRefund=sheet.paymentRefund&&typeof sheet.paymentRefund==='object'?sheet.paymentRefund:{};
             paymentSupplement=sheet.paymentSupplement&&typeof sheet.paymentSupplement==='object'?sheet.paymentSupplement:{};
@@ -3770,6 +3772,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function paymentEditAmount(edits,field,name,key,fallback){
       const source=edits||{}, prefix=field+':', direct=prefix+String(name||''), compact=s=>String(s||'').replace(/\s+/g,'').toLowerCase();
       const fallbackAmount=Math.max(0,paymentMoneyValue(fallback));
+      // 微信金额始终由当前应收自动计算，不允许历史手动值覆盖。
+      if(field==='wechat') return fallbackAmount;
       const freshAmount=amountKey=>{
         if(!Object.prototype.hasOwnProperty.call(source,amountKey)) return null;
         const amount=Math.max(0,paymentMoneyValue(source[amountKey]));
@@ -4233,14 +4237,14 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(paymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
           const itemKey='merged-items:'+name, itemDisplay=Object.prototype.hasOwnProperty.call(paymentEdits,itemKey)?escapeHtml(paymentEdits[itemKey]):paymentMergedItemsDisplay(data,items,itemText);
-          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr(itemKey)}>${itemDisplay}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,totalQty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)} data-payment-auto="${data.total.toFixed(2)}">${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
+          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr(itemKey)}>${itemDisplay}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,totalQty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)} data-payment-auto="${data.total.toFixed(2)}">${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money">${payable.toFixed(2)}</td></tr>`;
           return;
         }
         items.forEach(([item,count],index)=>{
           rows+=`<tr${paidClass}${personAttr}>`;
           if(index===0) rows+=`<td class="payment-cn" rowspan="${span}">${paidControl}</td>`;
           rows+=`<td class="payment-item-name"><span ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</span>${paymentBoughtItemNote(data,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
-          if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)} data-payment-auto="${data.total.toFixed(2)}">${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money" rowspan="${span}" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td>`;
+          if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)} data-payment-auto="${data.total.toFixed(2)}">${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money" rowspan="${span}">${payable.toFixed(2)}</td>`;
           rows+='</tr>';
         });
       });
@@ -4281,14 +4285,14 @@ body.export-rendering .cart-count{ font-size:28px; }
         const name=data.name, items=[...data.items.entries()], visibleItems=items.length?items:[['—',0]], span=visibleItems.length, raw=data.qty*perItem, payable=feeAmount(raw), alipayAmount=paymentEditAmount(sharePaymentEdits,'alipay',name,data.key,raw), receivedAmount=paidAmountValue(sharePaymentPaid,data.key,alipayAmount), paidStatus=paidState(sharePaymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         if(sharePaymentViewMode==='merged'){
           const itemText=items.length?items.map(([item,count])=>`${item}×${count}`).join('、'):'—';
-          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,data.qty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td></tr>`;
+          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,data.qty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money">${payable.toFixed(2)}</td></tr>`;
           return;
         }
         visibleItems.forEach(([item,count],index)=>{
           rows+=`<tr${paidClass}${personAttr}>`;
           if(index===0) rows+=`<td class="payment-cn" rowspan="${span}">${paidControl}</td>`;
           rows+=`<td class="payment-item-name" ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
-          if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money" rowspan="${span}" ${editAttr('wechat:'+name)}>${edited('wechat:'+name,payable.toFixed(2))}</td>`;
+          if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)}>${edited('alipay:'+name,raw.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money" rowspan="${span}">${payable.toFixed(2)}</td>`;
           rows+='</tr>';
         });
       });
@@ -6435,6 +6439,12 @@ body.export-rendering .cart-count{ font-size:28px; }
           return (copy.textContent||'').trim();
         }).filter(Boolean).join('、');
       }else value=(cell.textContent||'').replace(/[\r\n]+/g,' ').trim();
+      if(key.startsWith('wechat:')){
+        delete paymentEdits[key];
+        saveState();
+        setTimeout(()=>rerenderPaymentInPlace('paymentSummary',renderPaymentSummary),0);
+        return;
+      }
       paymentEdits[key]=value;
       if(key.startsWith('alipay:')){
         const autoBase=Math.max(0,paymentMoneyValue(cell.dataset.paymentAuto||value));
