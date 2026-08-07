@@ -697,7 +697,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 
   <div class="panel" id="dispatchPanel">
     <h2>CN 购买与排发</h2>
-    <div class="hint">按 CN 查看已购、到货和可排发状态。</div>
+    <div class="hint">按 CN 查看已买齐、已到国内和可排发状态。</div>
     <div class="dispatch-state-tabs" role="tablist" aria-label="排发状态筛选">
       <button type="button" class="active" data-dispatch-state="all">全部购买</button>
       <button type="button" data-dispatch-state="china">已到国内</button>
@@ -5079,11 +5079,21 @@ body.export-rendering .cart-count{ font-size:28px; }
       const people=new Map();
       (sheets||[]).forEach(sheet=>{
         const cols=Array.isArray(sheet.columns)?sheet.columns:[];
-        const alloc=sheet.allocations||{}, china=sheet.matrixChinaCells||{}, paidGoods=sheet.paymentPaid||{};
+        const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, paidGoods=sheet.paymentPaid||{};
+        // 买齐标记按“每张排单”自适应：该表只要存在一个有效买齐标记，就视为已启用买齐；
+        // 从未使用买齐标记的表，则所有有 CN 的排单格子都视为已购买。
+        const usesBoughtMark=Object.entries(bought).some(([cellKey,markedName])=>{
+          const match=String(cellKey||'').match(/^(.+):(\d+)$/); if(!match) return false;
+          const colId=match[1], row=Number(match[2]);
+          const current=String((alloc[colId]||[])[row]||'').trim();
+          return !!current&&String(markedName||'').trim()===current;
+        });
         cols.forEach(c=>{
           (alloc[c.id]||[]).forEach((person,r)=>{
             const name=String(person||'').trim(); if(!name) return;
             const key=normalizeDispatchKey(name), cellKey=`${c.id}:${r}`;
+            const cellBought=String(bought[cellKey]||'').trim()===name;
+            if(usesBoughtMark&&!cellBought) return;
             if(!people.has(key)) people.set(key,{name,key,items:[]});
             const chinaDate=String(china[cellKey]||'');
             const goodsPaid=!!paidGoods[key];
@@ -5093,6 +5103,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             people.get(key).items.push({
               item:String(c.name||'未命名').trim()||'未命名',
               sheet:String(sheet.name||'').trim(),
+              boughtTracked:usesBoughtMark,
               chinaDate,
               goodsPaid,
               internationalGenerated,
@@ -5123,7 +5134,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const all=buildDispatchRecords();
       const records=all.map(person=>({...person,visibleItems:dispatchVisibleItems(person)})).filter(person=>person.visibleItems.length);
       const totalItems=records.reduce((sum,p)=>sum+p.visibleItems.length,0);
-      const label=dispatchStateFilter==='china'?'已到国内':(dispatchStateFilter==='ready'?'可排发':'已购买');
+      const label=dispatchStateFilter==='china'?'已到国内':(dispatchStateFilter==='ready'?'可排发':'全部购买');
       $('dispatchSummary').textContent=`${records.length} 人 · ${totalItems} 件${label}`;
       document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.classList.toggle('active',button.dataset.dispatchState===dispatchStateFilter));
       if(!records.length){ list.innerHTML=`<div class="dispatch-empty">当前没有“${label}”记录。</div>`; return; }
@@ -5131,11 +5142,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         const chinaCount=person.items.filter(item=>item.chinaDate).length;
         const readyCount=person.items.filter(item=>item.ready).length;
         const items=dispatchItemGroups(person.visibleItems).map(g=>{
+          const boughtStatus=g.boughtTracked?`<span class="dispatch-status paid">已买齐</span>`:`<span class="dispatch-status paid">已购买</span>`;
           const arrival=g.chinaDate?`<span class="dispatch-status china">国内 ${escapeHtml(g.chinaDate)}</span>`:`<span class="dispatch-status wait">未到国内</span>`;
           const payment=g.goodsPaid?`<span class="dispatch-status paid">谷子款已收</span>`:`<span class="dispatch-status unpaid">谷子款未收</span>`;
           const intl=!g.chinaDate?'':(g.internationalPaid?`<span class="dispatch-status paid">国际运费已收</span>`:(g.internationalGenerated?`<span class="dispatch-status unpaid">国际运费未收</span>`:`<span class="dispatch-status wait">待生成国际运费</span>`));
           const ready=g.ready?`<span class="dispatch-status ready">可排发</span>`:'';
-          return `<div class="dispatch-item"><div class="dispatch-item-main"><b>${escapeHtml(g.item)}${g.n>1?` ×${g.n}`:''}</b>${g.sheet?`<small>${escapeHtml(g.sheet)}</small>`:''}</div><div class="dispatch-item-states">${arrival}${payment}${intl}${ready}</div></div>`;
+          return `<div class="dispatch-item"><div class="dispatch-item-main"><b>${escapeHtml(g.item)}${g.n>1?` ×${g.n}`:''}</b>${g.sheet?`<small>${escapeHtml(g.sheet)}</small>`:''}</div><div class="dispatch-item-states">${boughtStatus}${arrival}${payment}${intl}${ready}</div></div>`;
         }).join('');
         return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount}</span></div><div class="dispatch-items">${items}</div></div>`;
       }).join('');
@@ -5143,7 +5155,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function dispatchTextManifest(){
       return buildDispatchRecords().map(person=>{
         const visible=dispatchVisibleItems(person); if(!visible.length) return '';
-        const items=dispatchItemGroups(visible).map(g=>`${g.item}${g.n>1?`×${g.n}`:''}${g.sheet?`(${g.sheet})`:''}${g.chinaDate?`[国内${g.chinaDate}]`:'[未到国内]'}${g.goodsPaid?'[谷子款已收]':'[谷子款未收]'}${g.chinaDate?(g.internationalPaid?'[国际运费已收]':(g.internationalGenerated?'[国际运费未收]':'[待生成国际运费]')):''}`).join('、');
+        const items=dispatchItemGroups(visible).map(g=>`${g.item}${g.n>1?`×${g.n}`:''}${g.sheet?`(${g.sheet})`:''}${g.boughtTracked?'[已买齐]':'[已购买]'}${g.chinaDate?`[国内${g.chinaDate}]`:'[未到国内]'}${g.goodsPaid?'[谷子款已收]':'[谷子款未收]'}${g.chinaDate?(g.internationalPaid?'[国际运费已收]':(g.internationalGenerated?'[国际运费未收]':'[待生成国际运费]')):''}`).join('、');
         return `${person.name}：${items}`;
       }).filter(Boolean).join('\n');
     }
