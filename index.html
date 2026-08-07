@@ -3779,9 +3779,15 @@ body.export-rendering .cart-count{ font-size:28px; }
           const baseKey='__auto_base__:'+amountKey;
           if(Object.prototype.hasOwnProperty.call(source,baseKey)){
             const savedBase=Math.max(0,paymentMoneyValue(source[baseKey]));
-            if(Math.abs(savedBase-fallbackAmount)>0.005) return null;
+            if(Math.abs(savedBase-fallbackAmount)>0.005){
+              // 排单内容/数量/价格已经变化：这条手动金额作废，并从数据里清掉，避免继续同步到云端。
+              delete source[amountKey];
+              delete source[baseKey];
+              return null;
+            }
           }else if(Math.abs(amount-fallbackAmount)>0.005){
-            // 兼容旧版：没有基准记录的旧手动支付宝金额，若已和当前自动应收不同，就不再错误继承。
+            // 兼容旧版：没有基准记录的旧手动支付宝金额，只要与当前自动应收不同就直接作废。
+            delete source[amountKey];
             return null;
           }
         }
@@ -6432,7 +6438,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       paymentEdits[key]=value;
       if(key.startsWith('alipay:')){
         const autoBase=Math.max(0,paymentMoneyValue(cell.dataset.paymentAuto||value));
-        paymentEdits['__auto_base__:'+key]=autoBase.toFixed(2);
+        paymentEdits['__auto_base__:'+key]=Number(autoBase.toFixed(2));
       }
       saveState(); setTimeout(()=>rerenderPaymentInPlace('paymentSummary',renderPaymentSummary),0);
     },true);
