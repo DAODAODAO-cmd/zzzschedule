@@ -1646,6 +1646,8 @@ body.export-rendering #matrixTable{ font-size:13px; }
 body.export-rendering #matrixWrap{ display:inline-block!important; max-width:none!important; overflow:visible!important; }
 body.export-rendering #matrixWrap .table-scroll{ max-width:none!important; overflow:visible!important; }
 body.export-rendering #matrixWrap .matrix-project-title{ box-sizing:border-box; display:block; max-width:none!important; }
+body.export-rendering #matrixTable,body.export-rendering .payment-table,body.export-rendering .quantity-table{ max-width:none!important; }
+body.export-rendering #matrixTable thead,body.export-rendering #matrixTable th,body.export-rendering #matrixTable td,body.export-rendering .payment-table th,body.export-rendering .quantity-table th{ position:static!important; left:auto!important; right:auto!important; }
 body.export-rendering #matrixTable td,body.export-rendering #matrixTable th{ min-width:92px; padding:8px 10px; }
 body.export-rendering #matrixTable td.seq-col,body.export-rendering #matrixTable th:first-child{ min-width:38px; width:38px; }
 body.export-rendering #matrixTable tr.adj-row td:first-child,body.export-rendering #matrixTable tr.price-row td:first-child,body.export-rendering #matrixTable tr.promotion-point-row td:first-child{ min-width:58px; width:58px; }
@@ -6833,16 +6835,19 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(needsClone){
           const cloneHost=document.createElement('div'), clone=root.cloneNode(true);
           cloneHost.style.cssText='position:fixed;left:-100000px;top:0;z-index:-1;background:#fff;overflow:visible;pointer-events:none;';
-          const targetWidth=Math.ceil(Math.max(measured.width||0,root.scrollWidth||0,exportContentWidth(root,0)||0));
-          cloneHost.style.width=(targetWidth+80)+'px';
+          const sourceTable=root.querySelector('table');
+          const targetWidth=Math.ceil(Math.max(sourceTable?sourceTable.scrollWidth:0,exportContentWidth(root,0)||0,measured.width&&measured.width<window.innerWidth*1.5?measured.width:0));
+          cloneHost.style.width=targetWidth+'px';
           clone.style.width=targetWidth+'px'; clone.style.minWidth=targetWidth+'px'; clone.style.maxWidth='none'; clone.style.overflow='visible';
           clone.querySelectorAll('.table-scroll,.payment-table-wrap,.quantity-table-wrap').forEach(el=>{ el.style.maxHeight='none'; el.style.overflow='visible'; el.style.width=targetWidth+'px'; el.style.maxWidth='none'; });
-          clone.querySelectorAll('thead,th,.seq-col,thead td:first-child,thead th:first-child').forEach(el=>{ el.style.position='static'; });
+          clone.querySelectorAll('thead,th,td,.seq-col,thead td:first-child,thead th:first-child').forEach(el=>{ el.style.position='static'; el.style.left='auto'; el.style.right='auto'; });
+          clone.querySelectorAll('.matrix-project-title,.payment-project-title').forEach(el=>{ el.style.width=targetWidth+'px'; el.style.minWidth=targetWidth+'px'; el.style.boxSizing='border-box'; });
           cloneHost.appendChild(clone); document.body.appendChild(cloneHost);
           try{
             await waitForExportImages(clone);
             await new Promise(resolve=>requestAnimationFrame(resolve));
-            const fullWidth=Math.ceil(Math.max(targetWidth,clone.scrollWidth||0,exportContentWidth(clone,0)||0));
+            const cloneTable=clone.querySelector('table');
+            const fullWidth=Math.ceil(Math.max(targetWidth,cloneTable?cloneTable.scrollWidth:0,exportContentWidth(clone,0)||0));
             measured.width=fullWidth;
             measured.height=Math.ceil(Math.max(measured.height||0,clone.scrollHeight||0));
             measured.windowWidth=fullWidth+40;
@@ -6860,8 +6865,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
     }
     function exportContentWidth(root,extra=14){
-      const nodes=[root,...root.querySelectorAll('table,.payment-table-wrap,.quantity-table-wrap,.table-scroll,.dispatch-person,.logi-sheet')];
-      return Math.ceil(Math.max(...nodes.map(el=>el.scrollWidth||el.offsetWidth||0),root.scrollWidth||root.offsetWidth||0)+extra);
+      const primary=root.querySelector('table')||root;
+      const nodes=[primary,...root.querySelectorAll('table,.dispatch-person,.logi-sheet')];
+      return Math.ceil(Math.max(...nodes.map(el=>el.scrollWidth||el.offsetWidth||0),primary.scrollWidth||primary.offsetWidth||0)+extra);
     }
     async function saveCanvasImage(canvas,filename){
       const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
@@ -6914,7 +6920,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sticky=[table.querySelector('thead'),...table.querySelectorAll('.seq-col, thead td:first-child, thead th:first-child'),...wrap.querySelectorAll('.payment-table th')];
       sticky.forEach(el=>{ if(el) el.style.position='static'; });
       scroll.style.maxHeight='none'; scroll.style.overflow='visible';
-      const exportWidth=Math.ceil(Math.max(wrap.scrollWidth,scroll.scrollWidth,table.scrollWidth)+14);
+      const exportWidth=Math.ceil(table.scrollWidth+14);
       wrap.style.width=exportWidth+'px'; wrap.style.minWidth=exportWidth+'px';
       if(title){ title.style.width=exportWidth+'px'; title.style.minWidth=exportWidth+'px'; }
       const name=(matrixTitle||'排单表').replace(/[\/:*?"<>|]/g,' ').trim()||'排单表';
