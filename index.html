@@ -4530,7 +4530,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       extraFeeFilter=unpaidOnly?'unpaid':'all'; $('extraFeeSearchInput').value=''; renderExtraFees();
       const wrap=$('extraFeeExportWrap'); wrap.classList.add('extra-exporting');
       const width=Math.max(760,wrap.scrollWidth), name=(extraFeeTitle||'追加费用收款').replace(/[\\/:*?"<>|]/g,' ').trim()||'追加费用收款';
-      requestAnimationFrame(()=>renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+(unpaidOnly?'_未收':'')+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      requestAnimationFrame(()=>renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+(unpaidOnly?'_未收':'')+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         wrap.classList.remove('extra-exporting'); extraFeeFilter=previousFilter; $('extraFeeSearchInput').value=previousSearch; renderExtraFees();
       }));
     }
@@ -5252,7 +5252,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!$('dispatchList').children.length||$('dispatchList').querySelector('.dispatch-empty')){ alert('清单为空，无法导出'); return; }
       const suffix=dispatchStateFilter==='china'?'已到国内':(dispatchStateFilter==='ready'?'可排发':'全部购买');
       const wrap=$('dispatchWrap'), width=Math.max(680,exportContentWidth(wrap));
-      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,`排发清单_${suffix}.png`)).catch(()=>alert('导出失败，请重试'));
+      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,`排发清单_${suffix}.png`)).catch(()=>alert('导出失败，请重试'));
     });
     let logisticsDateFilterVal='';
     const HOLD_FREE_DAYS=30;
@@ -5323,7 +5323,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderLogistics();
       if(!$('logisticsList').children.length||$('logisticsList').querySelector('.dispatch-empty')){ alert('没有可导出的到货记录'); return; }
       const wrap=$('logisticsWrap'), width=Math.max(680,exportContentWidth(wrap));
-      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,'到货囤货.png')).catch(()=>alert('导出失败，请重试'));
+      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,'到货囤货.png')).catch(()=>alert('导出失败，请重试'));
     });
     function setMobileMoreOpen(open){
       const overlay=$('mobileMoreOverlay'),button=$('mobileMoreBtn'); if(!overlay||!button) return;
@@ -6663,7 +6663,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const width=Math.max(680,table.scrollWidth+4,exportContentWidth(wrap));
       scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; wrap.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
       const name=(paymentTitle||'收款统计').replace(/[\\/:*?"<>|]/g,' ').trim()||'收款统计';
-      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; sticky.forEach(el=>{ el.style.position=''; });
       });
     });
@@ -6709,7 +6709,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; clone.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
       const fileName=((paymentTitle||'收款统计')+' 未肾').replace(/[\\/:*?"<>|]/g,' ').trim()||'未肾';
       try{
-        const canvas=await renderExportCanvas(clone,{backgroundColor:'#ffffff',scale:2,width:clone.scrollWidth,height:clone.scrollHeight,windowWidth:clone.scrollWidth+40,windowHeight:clone.scrollHeight+40});
+        const canvas=await renderExportCanvas(clone,{backgroundColor:'#ffffff',scale:2,width:clone.scrollWidth,height:clone.scrollHeight,windowWidth:clone.scrollWidth+40,windowHeight:clone.scrollHeight+40,cloneForExport:true});
         await saveCanvasImage(canvas,fileName+'.png');
       }catch(err){ alert('导出失败，请重试'); }
       finally{ clone.remove(); }
@@ -6778,7 +6778,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const old={maxHeight:scroller.style.maxHeight,overflow:scroller.style.overflow,width:scroller.style.width,wrapWidth:wrap.style.width};
       const width=Math.max(680,table.scrollWidth+4,exportContentWidth(wrap)); scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; wrap.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
       const name=(sharePaymentTitle||'均摊统计').replace(/[\\/:*?"<>|]/g,' ').trim()||'均摊统计';
-      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; if(calculationNote) calculationNote.style.display=oldNoteDisplay; sticky.forEach(el=>{ el.style.position=''; });
       });
     });
@@ -6828,6 +6828,32 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(dynamicHeight) measured.height=root.scrollHeight;
         if(dynamicWindowWidth) measured.windowWidth=measured.width+40;
         if(dynamicWindowHeight) measured.windowHeight=measured.height+40;
+        const rect=root.getBoundingClientRect();
+        const needsClone=measured.cloneForExport||measured.width>(rect.width+2)||root.scrollWidth>(root.clientWidth+2);
+        if(needsClone){
+          const cloneHost=document.createElement('div'), clone=root.cloneNode(true);
+          cloneHost.style.cssText='position:fixed;left:-100000px;top:0;z-index:-1;background:#fff;overflow:visible;pointer-events:none;';
+          const targetWidth=Math.ceil(Math.max(measured.width||0,root.scrollWidth||0,exportContentWidth(root,0)||0));
+          cloneHost.style.width=(targetWidth+80)+'px';
+          clone.style.width=targetWidth+'px'; clone.style.minWidth=targetWidth+'px'; clone.style.maxWidth='none'; clone.style.overflow='visible';
+          clone.querySelectorAll('.table-scroll,.payment-table-wrap,.quantity-table-wrap').forEach(el=>{ el.style.maxHeight='none'; el.style.overflow='visible'; el.style.width=targetWidth+'px'; el.style.maxWidth='none'; });
+          clone.querySelectorAll('thead,th,.seq-col,thead td:first-child,thead th:first-child').forEach(el=>{ el.style.position='static'; });
+          cloneHost.appendChild(clone); document.body.appendChild(cloneHost);
+          try{
+            await waitForExportImages(clone);
+            await new Promise(resolve=>requestAnimationFrame(resolve));
+            const fullWidth=Math.ceil(Math.max(targetWidth,clone.scrollWidth||0,exportContentWidth(clone,0)||0));
+            measured.width=fullWidth;
+            measured.height=Math.ceil(Math.max(measured.height||0,clone.scrollHeight||0));
+            measured.windowWidth=fullWidth+40;
+            measured.windowHeight=measured.height+40;
+            delete measured.cloneForExport;
+            return await html2canvas(clone,{useCORS:true,allowTaint:false,imageTimeout:20000,logging:false,...measured});
+          }finally{
+            cloneHost.remove();
+          }
+        }
+        delete measured.cloneForExport;
         return await html2canvas(root,{useCORS:true,allowTaint:false,imageTimeout:20000,logging:false,...measured});
       }finally{
         document.body.classList.remove('export-rendering');
@@ -6866,7 +6892,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       scrollers.forEach(el=>{ el.style.maxHeight='none'; el.style.overflow='visible'; el.style.width=width+'px'; });
       sticky.forEach(el=>{ el.style.position='static'; });
       summary.style.width=(width+24)+'px'; summary.style.padding='12px'; summary.style.background='#fff';
-      renderExportCanvas(summary,{backgroundColor:'#ffffff',scale:2,width:summary.scrollWidth,height:summary.scrollHeight,windowWidth:summary.scrollWidth+40,windowHeight:summary.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,quantityExportName('png'))).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(summary,{backgroundColor:'#ffffff',scale:2,width:summary.scrollWidth,height:summary.scrollHeight,windowWidth:summary.scrollWidth+40,windowHeight:summary.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,quantityExportName('png'))).catch(()=>alert('导出失败，请重试')).finally(()=>{
         oldScroll.forEach(item=>{ item.el.style.maxHeight=item.maxHeight; item.el.style.overflow=item.overflow; item.el.style.width=item.width; });
         sticky.forEach(el=>{ el.style.position=''; });
         summary.style.width=oldSummary.width; summary.style.padding=oldSummary.padding; summary.style.background=oldSummary.background;
@@ -6892,7 +6918,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       wrap.style.width=exportWidth+'px'; wrap.style.minWidth=exportWidth+'px';
       if(title){ title.style.width=exportWidth+'px'; title.style.minWidth=exportWidth+'px'; }
       const name=(matrixTitle||'排单表').replace(/[\/:*?"<>|]/g,' ').trim()||'排单表';
-      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:exportWidth,height:wrap.scrollHeight,windowWidth:exportWidth+40,windowHeight:wrap.scrollHeight+40}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width:exportWidth,height:wrap.scrollHeight,windowWidth:exportWidth+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         wrap.classList.remove('hide-empty-export-images');
         scroll.style.maxHeight=old.maxHeight; scroll.style.overflow=old.overflow; wrap.style.width=old.width; wrap.style.minWidth=old.minWidth;
         if(title){ title.style.width=old.titleWidth; title.style.minWidth=old.titleMinWidth; }
