@@ -3096,25 +3096,47 @@ body.export-rendering .cart-count{ font-size:28px; }
       g.name=String(g.name||'').trim();
       return g;
     }
-    function pricingGroupMemberColumns(group){ return (group?.memberIds||[]).map(id=>columns.find(c=>c.id===Number(id))).filter(Boolean); }
-    function pricingGroupBaseTotal(group){ return pricingGroupMemberColumns(group).reduce((sum,c)=>sum+unitPrice(c),0); }
+    function pricingGroupMemberColumns(group,sourceColumns=columns){ return (group?.memberIds||[]).map(id=>sourceColumns.find(c=>c.id===Number(id))).filter(Boolean); }
+    function pricingGroupBaseTotal(group,sourceColumns=columns){ return pricingGroupMemberColumns(group,sourceColumns).reduce((sum,c)=>sum+unitPrice(c),0); }
     function pricingGroupFinalTotal(group){ return pricingGroupBaseTotal(group)+num(group?.adjustment); }
-    function groupForColumn(id){ return pricingGroups.find(g=>(g.memberIds||[]).includes(Number(id))); }
-    function comboOrderColumn(group){
-      const members=pricingGroupMemberColumns(group), id=900000000+Number(group.id);
-      if(!Array.isArray(allocations[id])) allocations[id]=[];
+    function groupForColumn(id,groups=pricingGroups){ return groups.find(g=>(g.memberIds||[]).includes(Number(id))); }
+    function comboColumnId(group){ return 900000000+Number(group.id); }
+    function derivedPricingGroupAllocation(group,sourceAllocations=allocations,sourceColumns=columns){
+      const members=pricingGroupMemberColumns(group,sourceColumns), rows=[];
+      const maxRows=Math.max(0,...members.map(c=>(sourceAllocations[c.id]||[]).length));
+      for(let row=0;row<maxRows;row++){
+        const rowNames=[];
+        members.forEach(c=>{
+          const name=String((sourceAllocations[c.id]||[])[row]||'').trim();
+          if(name&&!rowNames.includes(name)) rowNames.push(name);
+        });
+        rows.push(...rowNames);
+      }
+      trimTail(rows);
+      return rows;
+    }
+    function ensurePricingGroupAllocation(group,sourceAllocations=allocations,sourceColumns=columns){
+      const id=comboColumnId(group), existing=Array.isArray(sourceAllocations[id])?sourceAllocations[id]:[];
+      if(existing.some(value=>String(value||'').trim())) return existing;
+      const derived=derivedPricingGroupAllocation(group,sourceAllocations,sourceColumns);
+      sourceAllocations[id]=derived;
+      return derived;
+    }
+    function comboOrderColumn(group,sourceColumns=columns,sourceAllocations=allocations){
+      const members=pricingGroupMemberColumns(group,sourceColumns), id=comboColumnId(group);
+      ensurePricingGroupAllocation(group,sourceAllocations,sourceColumns);
       return {id,name:group.name||defaultPricingGroupName(group.memberIds)||`组合${group.id}`,aliases:[],mode:'fixed',fixedPrice:pricingGroupFinalTotal(group),priceAdj:0,avgOverride:null,sourceJpyPrice:0,promotionPoints:members.reduce((s,c)=>s+Math.max(0,num(c.promotionPoints)||1),0),img:null,isPricingCombo:true,comboGroupId:group.id,comboMemberNames:members.map(c=>c.name),comboMembers:members,comboAdjustment:num(group.adjustment),comboBaseTotal:pricingGroupBaseTotal(group)};
     }
-    function orderDisplayColumns(){
-      const grouped=new Set(pricingGroups.flatMap(g=>g.memberIds||[]));
+    function orderDisplayColumns(sourceColumns=columns,groups=pricingGroups,sourceAllocations=allocations){
+      const grouped=new Set(groups.flatMap(g=>g.memberIds||[]));
       const result=[];
       const emitted=new Set();
-      columns.forEach(c=>{
-        const g=groupForColumn(c.id);
-        if(g){ if(!emitted.has(g.id)){ result.push(comboOrderColumn(g)); emitted.add(g.id); } }
+      sourceColumns.forEach(c=>{
+        const g=groupForColumn(c.id,groups);
+        if(g){ if(!emitted.has(g.id)){ result.push(comboOrderColumn(g,sourceColumns,sourceAllocations)); emitted.add(g.id); } }
         else result.push(c);
       });
-      pricingGroups.forEach(g=>{ if(!emitted.has(g.id)){ result.push(comboOrderColumn(g)); emitted.add(g.id); } });
+      groups.forEach(g=>{ if(!emitted.has(g.id)){ result.push(comboOrderColumn(g,sourceColumns,sourceAllocations)); emitted.add(g.id); } });
       return result;
     }
     function defaultPricingGroupName(memberIds){ return memberIds.map(id=>columns.find(c=>c.id===id)?.name).filter(Boolean).join(' + '); }
@@ -3154,6 +3176,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const overlap=pricingGroups.find(g=>g.id!==editingPricingGroupId&&g.memberIds.some(id=>memberIds.includes(id))); if(overlap){ alert(`其中一个谷子已经在“${overlap.name||defaultPricingGroupName(overlap.memberIds)}”里。`); return; }
       const name=String($('pricingGroupName').value||'').trim()||defaultPricingGroupName(memberIds), adjustment=num($('pricingGroupAdjust').value), existing=pricingGroups.find(g=>g.id===editingPricingGroupId);
       if(existing) Object.assign(existing,{name,memberIds,adjustment}); else pricingGroups.push({id:pricingGroupIdSeed++,name,memberIds,adjustment});
+      ensurePricingGroupAllocation(existing||pricingGroups[pricingGroups.length-1]);
       closePricingGroup(); saveState(); renderPricingGroups(); renderColumnList(); renderCart();
     }
     function updatePricingGroupAdjustment(id,value){
@@ -3161,7 +3184,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     async function removePricingGroup(id){
       const group=pricingGroups.find(g=>g.id===Number(id)); if(!group) return; if(!await appConfirm(`确定删除组合“${group.name||defaultPricingGroupName(group.memberIds)}”吗？`,'删除拼盒组合','确认删除')) return;
-      pricingGroups=pricingGroups.filter(g=>g.id!==group.id); saveState(); renderPricingGroups(); renderColumnList(); renderMatrix(); renderCart();
+      pricingGroups=pricingGroups.filter(g=>g.id!==group.id); delete allocations[comboColumnId(group)]; saveState(); renderPricingGroups(); renderColumnList(); renderMatrix(); renderCart();
     }
 
     // ---------- column list ----------
@@ -5152,7 +5175,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       const people=new Map();
       (sheets||[]).forEach(sheet=>{
         const cols=Array.isArray(sheet.columns)?sheet.columns:[];
+        const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
         const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, paidGoods=sheet.paymentPaid||{};
+        const displayCols=orderDisplayColumns(cols,groups,alloc);
         // 买齐标记按“每张排单”自适应：该表只要存在一个有效买齐标记，就视为已启用买齐；
         // 从未使用买齐标记的表，则所有有 CN 的排单格子都视为已购买。
         const usesBoughtMark=Object.entries(bought).some(([cellKey,markedName])=>{
@@ -5161,7 +5186,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const current=String((alloc[colId]||[])[row]||'').trim();
           return !!current&&String(markedName||'').trim()===current;
         });
-        cols.forEach(c=>{
+        displayCols.forEach(c=>{
           (alloc[c.id]||[]).forEach((person,r)=>{
             const name=String(person||'').trim(); if(!name) return;
             const key=normalizeDispatchKey(name), cellKey=`${c.id}:${r}`;
@@ -6095,9 +6120,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       const rowButton=control.closest('[data-buy-row]');
       if(rowButton){
         const row=parseInt(rowButton.dataset.buyRow,10);
-        const anyOn=columns.some(c=>{ const name=String((allocations[c.id]||[])[row]||'').trim(); return name&&store[matrixBoughtKey(c.id,row)]; });
+        const markColumns=orderDisplayColumns();
+        const anyOn=markColumns.some(c=>{ const name=String((allocations[c.id]||[])[row]||'').trim(); return name&&store[matrixBoughtKey(c.id,row)]; });
         if(!pushUndoSnapshot('bought-mark',markLabel)) return;
-        columns.forEach(c=>{
+        markColumns.forEach(c=>{
           const name=String((allocations[c.id]||[])[row]||'').trim(), key=matrixBoughtKey(c.id,row);
           if(anyOn||!name) delete store[key]; else store[key]=isArrival?stamp:name;
         });
