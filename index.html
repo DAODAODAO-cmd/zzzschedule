@@ -422,7 +422,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="watermark-head"><strong>铺满水印</strong></div>
       <div class="watermark-row">
         <label class="upload-button">上传图片<input type="file" id="watermarkFileInput" accept="image/*"></label>
-        <input id="watermarkTextInput" type="text" maxlength="40" value="早上好骑士" placeholder="水印文字 / 下载名，可自己改">
+        <input id="watermarkTextInput" type="text" maxlength="40" value="早上好骑士" placeholder="水印文字 / 下载名，可自己改" autocomplete="off">
         <button class="btn-primary" id="watermarkRunBtn" type="button">生成水印图</button>
         <button class="btn-ghost watermark-save" id="watermarkSaveBtn" type="button">下载图片</button>
               </div>
@@ -6365,7 +6365,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('watermarkCanvas').style.display='none';
       watermarkBlob=null; watermarkSourceName=file?file.name:''; watermarkTextValue=''; refreshWatermarkSaveButton();
     });
-    $('watermarkTextInput').addEventListener('input',()=>{ watermarkBlob=null; refreshWatermarkSaveButton(); });
+    function unlockWatermarkTool(){
+      const textInput=$('watermarkTextInput');
+      [textInput,$('watermarkFileInput'),$('watermarkRunBtn'),$('watermarkSaveBtn')].filter(Boolean).forEach(el=>{ el.disabled=false; el.readOnly=false; });
+    }
+    unlockWatermarkTool();
+    $('watermarkTextInput').addEventListener('focus',unlockWatermarkTool);
+    $('watermarkTextInput').addEventListener('pointerdown',unlockWatermarkTool);
+    $('watermarkTextInput').addEventListener('input',()=>{ unlockWatermarkTool(); watermarkBlob=null; refreshWatermarkSaveButton(); });
     $('watermarkRunBtn').addEventListener('click',generateWatermarkImage);
     $('watermarkSaveBtn').addEventListener('click',saveWatermarkBlob);
     refreshWatermarkSaveButton();
