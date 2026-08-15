@@ -4374,9 +4374,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       captureActiveSheet();
       const map=new Map();
       (sheets||[]).forEach(sheet=>{
-        const cols=Array.isArray(sheet.columns)?sheet.columns:[], alloc=sheet.allocations||{}, china=sheet.matrixChinaCells||{};
+        const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
+        const alloc=sheet.allocations||{}, china=sheet.matrixChinaCells||{};
+        const cols=orderDisplayColumns(Array.isArray(sheet.columns)?sheet.columns:[],groups,alloc);
         cols.forEach(c=>(alloc[c.id]||[]).forEach((person,row)=>{
-          const name=String(person||'').trim(), date=String(china[`${c.id}:${row}`]||'').trim(); if(!name||!date) return;
+          const name=String(person||'').trim(), date=logisticsCellMark(c,row,name,china,alloc); if(!name||!date) return;
           const id=`${sheet.id}|${date}`;
           if(!map.has(id)) map.set(id,{id,sheetId:Number(sheet.id)||0,sheet:String(sheet.name||'未命名排单'),date,items:new Map(),people:new Map()});
           const batch=map.get(id), item=String(c.name||'未命名').trim()||'未命名', personKey=normalizeDispatchKey(name);
@@ -5288,6 +5290,16 @@ body.export-rendering .cart-count{ font-size:28px; }
     let logisticsDateFilterVal='';
     const HOLD_FREE_DAYS=30;
     function logiDaysSince(dateStr){ if(!dateStr) return null; const t=new Date(dateStr+'T00:00:00').getTime(); if(isNaN(t)) return null; return Math.max(0,Math.floor((Date.now()-t)/86400000)); }
+    function logisticsCellMark(c,row,name,store,alloc){
+      const direct=String(store[matrixBoughtKey(c.id,row)]||'').trim();
+      if(direct) return direct;
+      if(!c.isPricingCombo) return '';
+      const matched=(c.comboMembers||[]).map(member=>{
+        const memberName=String((alloc[member.id]||[])[row]||'').trim();
+        return memberName===name?String(store[matrixBoughtKey(member.id,row)]||'').trim():'';
+      }).filter(Boolean);
+      return matched[0]||'';
+    }
     function renderLogistics(){
       const list=$('logisticsList'); if(!list) return;
       captureActiveSheet();
@@ -5296,7 +5308,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sheetGroups=[];
       let goodsCount=0,totalQty=0,chinaQty=0,overdueGoods=0;
       (sheets||[]).forEach(sheet=>{
-        const cols=sheet.columns||[], alloc=sheet.allocations||{}, isl=sheet.matrixIslandCells||{}, chn=sheet.matrixChinaCells||{};
+        const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
+        const alloc=sheet.allocations||{}, isl=sheet.matrixIslandCells||{}, chn=sheet.matrixChinaCells||{};
+        const cols=orderDisplayColumns(sheet.columns||[],groups,alloc);
         const goods=[];
         cols.forEach(c=>{
           const names=(alloc[c.id]||[]).map(v=>String(v||'').trim());
@@ -5304,8 +5318,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(!occupied.length) return;
           const islandDates=[],chinaDates=[];
           let islandCount=0,chinaCount=0;
-          occupied.forEach(({row})=>{
-            const key=matrixBoughtKey(c.id,row), island=String(isl[key]||''), china=String(chn[key]||'');
+          occupied.forEach(({name,row})=>{
+            const island=logisticsCellMark(c,row,name,isl,alloc), china=logisticsCellMark(c,row,name,chn,alloc);
             if(island){ islandCount++; islandDates.push(island); }
             if(china){ chinaCount++; chinaDates.push(china); }
           });
