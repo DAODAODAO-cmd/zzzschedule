@@ -3692,8 +3692,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(showPromotionPointRow) headHtml+='<tr class="promotion-point-row"><td>提配点数</td>'+displayColumns.map(c=>`<td><input class="matrix-price-input" inputmode="decimal" data-price-kind="promotion-point" data-col="${c.id}" value="${fmtPoint(c.promotionPoints)}"${previewReadonly}></td>`).join('')+'</tr>';
       thead.innerHTML=headHtml;
       let bodyHtml='';
+      const completeCheckColumns=displayColumns.filter(c=>c.mode!=='wholeset'&&(c.mode!=='fixed'||c.isPricingCombo));
       for(let r=0;r<displayRows;r++){
-        const rowFilled=r<maxRows&&displayColumns.length>0&&displayColumns.filter(c=>c.mode!=='wholeset').every(c=>String((displayAllocations[c.id]||[])[r]||'').trim());
+        const rowFilled=r<maxRows&&completeCheckColumns.length>0&&completeCheckColumns.every(c=>String((displayAllocations[c.id]||[])[r]||'').trim());
         const step=quantitySettingsReady()?groupSize:1, countValue=(r+1)*step, previousValue=r*step;
         const boxNumber=quantitySettingsReady()?Math.floor(countValue/boxSize):0, crossedBox=quantitySettingsReady()&&boxNumber>Math.floor(previousValue/boxSize);
         const markBox=crossedBox&&Number.isFinite(completeMultiple)&&completeMultiple>0&&boxNumber%completeMultiple===0;
@@ -4564,8 +4565,9 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     // ---------- cart ----------
     function colOrderedCount(c){ return (allocations[c.id]||[]).length; }
-    function currentMatchCount(){ const displayColumns=orderDisplayColumns().filter(c=>c.mode!=='wholeset'); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.min(...counts):0; }
-    function currentMaxCount(){ const displayColumns=orderDisplayColumns().filter(c=>c.mode!=='wholeset'); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.max(...counts):0; }
+    function matchCountColumns(){ return orderDisplayColumns().filter(c=>c.mode!=='wholeset'&&(c.mode!=='fixed'||c.isPricingCombo)); }
+    function currentMatchCount(){ const displayColumns=matchCountColumns(); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.min(...counts):0; }
+    function currentMaxCount(){ const displayColumns=matchCountColumns(); const counts=displayColumns.map(colOrderedCount); return counts.length?Math.max(...counts):0; }
     function cartTarget(){
       if(cartTargetMode==='manual'&&Number.isFinite(cartTargetNum)&&cartTargetNum>0) return cartTargetNum;
       return currentMaxCount();
