@@ -422,7 +422,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="watermark-head"><strong>铺满水印</strong></div>
       <div class="watermark-row">
         <label class="upload-button">上传图片<input type="file" id="watermarkFileInput" accept="image/*"></label>
-        <input id="watermarkTextInput" type="text" maxlength="40" value="早上好骑士" placeholder="水印文字，可自己改">
+        <input id="watermarkTextInput" type="text" maxlength="40" value="早上好骑士" placeholder="水印文字 / 下载名，可自己改">
         <button class="btn-primary" id="watermarkRunBtn" type="button">生成水印图</button>
         <button class="btn-ghost watermark-save" id="watermarkSaveBtn" type="button">下载图片</button>
               </div>
@@ -927,6 +927,7 @@ html{ scrollbar-gutter:stable; }
 .collab-recent-item time{ flex:0 0 auto; color:#a098aa; }
 .edit-lock-banner{ margin:-5px 0 12px; padding:9px 12px; border:1px solid #e3b35e; border-radius:10px; background:#fff6df; color:#835a12; font-size:13px; font-weight:800; text-align:center; }
 .cloud-edit-readonly .sheetbar button,.cloud-edit-readonly .panel input,.cloud-edit-readonly .panel select,.cloud-edit-readonly .panel textarea,.cloud-edit-readonly .panel button,.cloud-edit-readonly .panel [contenteditable="true"]{ pointer-events:none!important; }
+.cloud-edit-readonly .watermark-tool input,.cloud-edit-readonly .watermark-tool button,.cloud-edit-readonly .watermark-tool .upload-button{ pointer-events:auto!important; }
 .cloud-edit-readonly .sheetbar{ pointer-events:none!important; }
 .cloud-edit-readonly .sheetbar,.cloud-edit-readonly .panel{ opacity:.78; }
 .cloud-edit-readonly .panel{ user-select:text; }
@@ -4794,6 +4795,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const file=input?.files?.[0];
       if(!file){ status.textContent='请先上传一张要加水印的图片'; return; }
       const text=String($('watermarkTextInput').value||'').trim()||'早上好骑士';
+      const safeWatermarkName=(text||'水印').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim().slice(0,36)||'水印';
       status.textContent='正在生成水印图...';
       watermarkBlob=null; if(saveBtn) saveBtn.classList.remove('ready');
       try{
@@ -4806,7 +4808,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         canvas.toBlob(blob=>{
           if(!blob){ status.textContent='生成失败，请换一张图片再试'; return; }
           watermarkBlob=blob;
-          watermarkFilename=(file.name||'image').replace(/\.[^.]+$/,'')+'_水印.png';
+          watermarkFilename=(file.name||'image').replace(/\.[^.]+$/,'')+'_'+safeWatermarkName+'.png';
           watermarkSourceName=file.name||'';
           watermarkTextValue=text;
           refreshWatermarkSaveButton();
