@@ -1728,7 +1728,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     let workspaces=[],workspaceInvites=[],archivedWorkspaces=[],activeWorkspaceId=localStorage.getItem(WORKSPACE_STORAGE_KEY)||syncCode,workspaceLoading=false,archiveAccess=false;
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
     let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false;
-    let activeAppSection='goods';
+    const APP_SECTIONS=['goods','order','stats','payment','dispatch','logistics','settings'];
+    function storedAppSection(){
+      const section=localStorage.getItem(APP_SECTION_KEY);
+      return APP_SECTIONS.includes(section)?section:'goods';
+    }
+    let activeAppSection=storedAppSection();
     let sheetStatusFilter=['ongoing','completed','all'].includes(localStorage.getItem(SHEET_STATUS_FILTER_KEY))?localStorage.getItem(SHEET_STATUS_FILTER_KEY):'ongoing';
     const editSessionId=sessionStorage.getItem('ggzEditSessionId')||((crypto.randomUUID&&crypto.randomUUID())||('tab-'+Date.now()+'-'+Math.random().toString(36).slice(2)));
     sessionStorage.setItem('ggzEditSessionId',editSessionId);
@@ -2464,7 +2469,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function renderColdBundleConfiguration(){
       coldCarryBundleColumnIds=activeBundleColumns().map(c=>c.id);
       const selected=activeBundleColumns();
-      if($('coldBundleSummary')) $('coldBundleSummary').textContent=selected.length?`捆位：${selected.map(c=>c.name).join('、')}`:'捆位：尚未选择';
+      if($('coldBundleSummary')) $('coldBundleSummary').textContent=selected.length?`捆位：${selected.map(c=>c.name).join('、')}`:'未选捆位：仅按普通提配移动';
       if($('selectColdBundleBtn')) $('selectColdBundleBtn').textContent=selected.length?'修改':'选择捆位';
       if($('coldBundleChooser')&&$('coldBundleChooser').style.display!=='none') renderColdBundleList();
     }
@@ -2480,7 +2485,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function openColdBundleChooser(pendingPreview){
       coldPromotionPendingBundlePreview=!!pendingPreview;
       renderColdBundleList(); $('coldBundleChooser').style.display='block';
-      if(pendingPreview) $('coldBundleSummary').textContent='请先选择捆位，保存后会继续生成预览。';
+      if(pendingPreview) $('coldBundleSummary').textContent='可选择捆位用于判断成配；不选也可以直接预览普通提配。';
     }
     function renderMatrixHeading(){
       const el=$('matrixProjectTitle'), color=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
@@ -2706,6 +2711,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function installCollabState(state){
       if(!state||!Array.isArray(state.sheets)||!state.sheets.length) return false;
       const preferredSheet=activeSheetId, commentText=$('commentInput')?.value||'';
+      const commentActive=document.activeElement===$('commentInput'), commentKeep=commentActive?captureViewportKeep():null;
       const paymentScroll=$('paymentSummary')?.querySelector('.payment-table-wrap'), shareScroll=$('sharePaymentSummary')?.querySelector('.payment-table-wrap');
       const viewPosition={pageX:window.scrollX,pageY:window.scrollY,paymentLeft:paymentScroll?.scrollLeft||0,paymentTop:paymentScroll?.scrollTop||0,shareLeft:shareScroll?.scrollLeft||0,shareTop:shareScroll?.scrollTop||0};
       applyingCollab=true;
@@ -2724,7 +2730,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(nextShare){ nextShare.scrollLeft=viewPosition.shareLeft; nextShare.scrollTop=viewPosition.shareTop; }
           window.scrollTo(viewPosition.pageX,viewPosition.pageY);
         };
-        restoreView(); requestAnimationFrame(()=>{ restoreView(); requestAnimationFrame(restoreView); });
+        if(commentActive) keepCommentInputStable(commentKeep);
+        else{ restoreView(); requestAnimationFrame(()=>{ restoreView(); requestAnimationFrame(restoreView); }); }
         return true;
       }finally{ applyingCollab=false; }
     }
@@ -3118,12 +3125,33 @@ body.export-rendering .cart-count{ font-size:28px; }
       trimTail(rows);
       return rows;
     }
+    function mergePricingGroupAllocation(existing,derived){
+      const clean=list=>(Array.isArray(list)?list:[]).map(v=>String(v||'').trim()).filter(Boolean);
+      const existingClean=clean(existing), derivedClean=clean(derived);
+      const targetCounts=new Map();
+      [...existingClean,...derivedClean].forEach(name=>{
+        const ex=existingClean.filter(x=>x===name).length;
+        const de=derivedClean.filter(x=>x===name).length;
+        targetCounts.set(name,Math.max(targetCounts.get(name)||0,ex,de));
+      });
+      const used=new Map(), result=[];
+      existingClean.forEach(name=>{
+        const count=used.get(name)||0, target=targetCounts.get(name)||0;
+        if(count<target){ result.push(name); used.set(name,count+1); }
+      });
+      derivedClean.forEach(name=>{
+        const count=used.get(name)||0, target=targetCounts.get(name)||0;
+        if(count<target){ result.push(name); used.set(name,count+1); }
+      });
+      trimTail(result);
+      return result;
+    }
     function ensurePricingGroupAllocation(group,sourceAllocations=allocations,sourceColumns=columns){
       const id=comboColumnId(group), existing=Array.isArray(sourceAllocations[id])?sourceAllocations[id]:[];
-      if(existing.some(value=>String(value||'').trim())) return existing;
       const derived=derivedPricingGroupAllocation(group,sourceAllocations,sourceColumns);
-      sourceAllocations[id]=derived;
-      return derived;
+      const merged=mergePricingGroupAllocation(existing,derived);
+      sourceAllocations[id]=merged;
+      return merged;
     }
     function comboOrderColumn(group,sourceColumns=columns,sourceAllocations=allocations){
       const members=pricingGroupMemberColumns(group,sourceColumns), id=comboColumnId(group);
@@ -3606,6 +3634,38 @@ body.export-rendering .cart-count{ font-size:28px; }
       matrixPreviewLabel=matrixPreviewAllocations?(label||'排单模拟预览'):'';
       matrixPreviewHighlights=matrixPreviewAllocations?deepClone(highlights||{}):{};
       renderMatrix();
+    }
+    function captureViewportKeep(){
+      const x=Math.max(10,Math.min(window.innerWidth-10,Math.floor(window.innerWidth/2)));
+      const y=Math.max(80,Math.min(window.innerHeight-80,Math.floor(window.innerHeight/2)));
+      let anchor=document.elementFromPoint(x,y);
+      while(anchor&&anchor!==document.body&&!anchor.id&&!anchor.classList?.contains?.('panel')) anchor=anchor.parentElement;
+      const anchorTop=anchor&&anchor.getBoundingClientRect?anchor.getBoundingClientRect().top:null;
+      const scrollables=[document.scrollingElement,document.documentElement,document.body,$('matrixWrap')?.querySelector('.table-scroll'),$('coldPromotionPreviewPanel'),$('commentPanel'),$('matrixPanel')].filter(Boolean);
+      const positions=scrollables.map(el=>({el,top:el.scrollTop||0,left:el.scrollLeft||0}));
+      return {x:window.scrollX||0,y:window.scrollY||0,anchor,anchorTop,positions};
+    }
+    function restoreViewportKeep(keep){
+      if(!keep) return;
+      const restore=()=>{
+        (keep.positions||[]).forEach(item=>{ if(item.el&&item.el.isConnected!==false){ item.el.scrollTop=item.top; item.el.scrollLeft=item.left; } });
+        window.scrollTo(keep.x||0,keep.y||0);
+        if(keep.anchor&&keep.anchor.isConnected&&keep.anchorTop!=null){
+          const now=keep.anchor.getBoundingClientRect().top;
+          if(Number.isFinite(now)) window.scrollBy(0,now-keep.anchorTop);
+        }
+      };
+      restore();
+      requestAnimationFrame(()=>{ restore(); requestAnimationFrame(restore); });
+    }
+    function keepCommentInputStable(keep){
+      const box=$('commentInput'); if(!box) return;
+      const active=document.activeElement===box, start=box.selectionStart, end=box.selectionEnd;
+      restoreViewportKeep(keep);
+      if(active) requestAnimationFrame(()=>{
+        try{ box.focus({preventScroll:true}); if(Number.isFinite(start)&&Number.isFinite(end)) box.setSelectionRange(start,end); }catch(_){}
+        restoreViewportKeep(keep);
+      });
     }
     function clearMatrixPreview(shouldRender=true){
       const hadPreview=!!matrixPreviewAllocations; matrixPreviewAllocations=null; matrixPreviewColumns=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[]};
@@ -4831,6 +4891,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('showPromotionPointRow').addEventListener('click',()=>{ showPromotionPointRow=!showPromotionPointRow; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showCompleteRowColor').addEventListener('click',()=>{ showCompleteRowColor=!showCompleteRowColor; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showColdPromotionColor').addEventListener('click',()=>{ showColdPromotionColor=!showColdPromotionColor; syncMatrixOptions(); saveState(); renderMatrix(); });
+    {
+      const box=$('commentInput');
+      let commentTypingKeep=null;
+      ['beforeinput','keydown','paste'].forEach(type=>box.addEventListener(type,()=>{ commentTypingKeep=captureViewportKeep(); }));
+      ['input','keyup'].forEach(type=>box.addEventListener(type,()=>{ if(commentTypingKeep) keepCommentInputStable(commentTypingKeep); }));
+      box.addEventListener('blur',()=>{ commentTypingKeep=null; });
+    }
     function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
     ['markBoughtModeBtn','markIslandModeBtn','markChinaModeBtn'].forEach(id=>{
       $(id).addEventListener('click',()=>{
@@ -5381,7 +5448,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('mobileMoreCloseBtn')?.addEventListener('click',()=>setMobileMoreOpen(false));
     $('mobileMoreOverlay')?.addEventListener('click',e=>{ if(e.target===$('mobileMoreOverlay')) setMobileMoreOpen(false); });
     document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('mobileMoreOverlay')&&!$('mobileMoreOverlay').hidden) setMobileMoreOpen(false); });
-    window.addEventListener('pageshow',()=>{ setMobileMoreOpen(false); activeAppSection='goods'; setAppSection('goods',false); });
+    window.addEventListener('pageshow',()=>{ setMobileMoreOpen(false); setAppSection(storedAppSection(),false); });
     { const overlay=$('pricingGroupOverlay'); if(overlay){ overlay.hidden=true; overlay.style.display='none'; } }
     $('mobileSheetSelect').addEventListener('change',e=>switchSheet(parseInt(e.target.value,10)));
     $('mobileAddSheetBtn').addEventListener('click',()=>$('addSheetBtn').click());
@@ -5723,12 +5790,21 @@ body.export-rendering .cart-count{ font-size:28px; }
         return buildPromotionCandidate(person,leftText,rightText,order);
       }).filter(Boolean);
     }
+    function comboMatchedMemberColumns(comboCol,itemName){
+      if(!comboCol||!comboCol.isPricingCombo) return [];
+      const t=String(itemName||'').trim().toLowerCase();
+      if(!t) return [];
+      return (comboCol.comboMembers||[]).filter(member=>columnTextMatches(member,t));
+    }
     function buildPromotionCandidate(person,leftText,rightText,order){
         const left=parseDemandText(leftText), right=parseDemandText(rightText), errors=[];
         if(!person) errors.push('没有识别到 CN');
         if(!left.length) errors.push('“带”左边没有识别到原谷子');
         if(!right.length) errors.push('“带”右边没有识别到新增谷子');
-        const leftItems=left.map(item=>({col:findColumnByText(item.name),name:item.name,qty:Math.max(1,item.qty||1)}));
+        const leftItems=left.map(item=>{
+          const col=findColumnByText(item.name);
+          return {col,name:item.name,qty:Math.max(1,item.qty||1),sourceMembers:comboMatchedMemberColumns(col,item.name)};
+        });
         const rightItems=right.map(item=>({col:findColumnByText(item.name),name:item.name,qty:Math.max(1,item.qty||1)}));
         leftItems.filter(item=>!item.col).forEach(item=>errors.push(`没找到原谷子“${item.name}”`));
         rightItems.filter(item=>!item.col).forEach(item=>errors.push(`没找到带物“${item.name}”`));
@@ -5785,7 +5861,14 @@ body.export-rendering .cart-count{ font-size:28px; }
         const addItems=(dest,items)=>items.forEach(item=>{
           const key=item.col?`c${item.col.id}`:`n${item.name}`;
           const old=dest.find(entry=>entry.key===key);
-          if(old) old.qty+=item.qty;
+          if(old){
+            old.qty+=item.qty;
+            if(item.sourceMembers&&item.sourceMembers.length){
+              const seen=new Set((old.sourceMembers||[]).map(member=>member.id));
+              old.sourceMembers=[...(old.sourceMembers||[])];
+              item.sourceMembers.forEach(member=>{ if(member&&!seen.has(member.id)){ seen.add(member.id); old.sourceMembers.push(member); } });
+            }
+          }
           else dest.push({...item,key});
         });
         addItems(target.leftItems,candidate.leftItems);
@@ -5802,7 +5885,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const candidates=parseColdPromotionCandidates(), bundleColumns=activeBundleColumns(baseAllocations);
       const bundleColumnIds=new Set(bundleColumns.map(col=>col.id));
       const maxRows=Math.max(0,...planColumns.map(c=>(baseAllocations[c.id]||[]).length));
-      const sim={}, displacementPool=new Map(), claimed=new Set(), lockedRows=new Set(), rows=[];
+      const sim={}, displacementPool=new Map(), claimed=new Set(), lockedRows=new Set(), lockedCells=new Set(), rows=[];
       let uidSeed=1, resourceSeed=1, originalOrder=1;
       planColumns.forEach(c=>{
         displacementPool.set(c.id,[]);
@@ -5815,9 +5898,30 @@ body.export-rendering .cart-count{ font-size:28px; }
       const tokenRow=resource=>(sim[resource.col.id]||[]).findIndex(token=>token&&token.uid===resource.uid);
       const rowHasBundle=row=>bundleColumns.length>0&&bundleColumns.every(col=>sim[col.id]&&sim[col.id][row]);
       for(let row=0;row<maxRows;row++) if(rowHasBundle(row)) lockedRows.add(row);
+      function supplementComboResourcesFromMembers(candidate,item){
+        if(!item.col||!item.col.isPricingCombo||!item.sourceMembers||!item.sourceMembers.length) return;
+        const arr=sim[item.col.id]||(sim[item.col.id]=[]);
+        const current=arr.filter(token=>token&&token.name===candidate.person).length;
+        const hits=[];
+        item.sourceMembers.forEach(member=>{
+          (baseAllocations[member.id]||[]).forEach((value,row)=>{
+            if(String(value||'').trim()===candidate.person) hits.push({member,row});
+          });
+        });
+        if(hits.length<=current) return;
+        hits.slice(current).forEach(hit=>{
+          let put=Math.max(0,Number(hit.row)||0);
+          while(arr.length<=put) arr.push(null);
+          while(arr[put]){ put++; while(arr.length<=put) arr.push(null); }
+          arr[put]={uid:`o${uidSeed++}`,name:candidate.person,columnId:item.col.id,originalRow:hit.row,originalOrder:originalOrder++,source:'combo-member'};
+        });
+      }
       candidates.forEach(candidate=>{
         candidate.resources=[]; candidate.rightRemaining=new Map();
-        candidate.leftTotal=candidate.leftItems.reduce((sum,item)=>sum+Math.max(0,Number(item.qty)||0),0);
+        candidate.leftTotal=candidate.leftItems.reduce((sum,item)=>{
+          const point=item.col&&Number.isFinite(Number(item.col.promotionPoints))?Math.max(0,Number(item.col.promotionPoints)):1;
+          return sum+Math.max(0,Number(item.qty)||0)*point;
+        },0);
         candidate.rightPointTotal=candidate.rightItems.reduce((sum,item)=>{
           const point=item.col&&Number.isFinite(Number(item.col.promotionPoints))?Math.max(0,Number(item.col.promotionPoints)):1;
           return sum+Math.max(0,Number(item.qty)||0)*point;
@@ -5828,6 +5932,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         candidate.leftColumnIds=new Set(candidate.leftItems.filter(item=>item.col).map(item=>item.col.id));
         candidate.leftItems.forEach(item=>{
           if(!item.col) return;
+          supplementComboResourcesFromMembers(candidate,item);
           const matches=(sim[item.col.id]||[]).map((token,row)=>({token,row})).filter(entry=>entry.token&&entry.token.name===candidate.person&&!lockedRows.has(entry.row)&&!claimed.has(entry.token.uid));
           const chosen=matches.slice(-item.qty);
           chosen.forEach(entry=>{ claimed.add(entry.token.uid); candidate.resources.push({id:resourceSeed++,col:item.col,uid:entry.token.uid,used:false}); });
@@ -5849,7 +5954,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       function findTarget(resource){
         const source=tokenRow(resource); if(source<=0) return null;
-        for(let row=0;row<source;row++) if(!lockedRows.has(row)) return row;
+        for(let row=0;row<source;row++) if(!lockedRows.has(row)&&!lockedCells.has(`${resource.col.id}:${row}`)) return row;
         return null;
       }
       function better(proposal,best){
@@ -5857,11 +5962,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(proposal.candidate.kValue!==best.candidate.kValue) return proposal.candidate.kValue>best.candidate.kValue;
         if(proposal.qualification.rank!==best.qualification.rank) return proposal.qualification.rank>best.qualification.rank;
         if(proposal.candidate.order!==best.candidate.order) return proposal.candidate.order<best.candidate.order;
+        if(proposal.sourceRow!==best.sourceRow) return proposal.sourceRow<best.sourceRow;
         return proposal.resource.id<best.resource.id;
       }
       function moveOriginal(resource,target){
         const arr=sim[resource.col.id], source=tokenRow(resource), positions=[];
-        for(let row=target;row<=source;row++) if(!lockedRows.has(row)) positions.push(row);
+        for(let row=target;row<=source;row++) if(!lockedRows.has(row)&&(!lockedCells.has(`${resource.col.id}:${row}`)||row===source)) positions.push(row);
         if(source<0||positions[0]!==target||positions[positions.length-1]!==source) return null;
         const moving=arr[source], blankIndex=positions.slice(0,-1).findIndex(row=>!arr[row]);
         if(blankIndex>=0){
@@ -5906,7 +6012,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           candidate.resources.forEach(resource=>{
             if(resource.used) return;
             const target=findTarget(resource); if(target==null) return;
-            const proposal={candidate,resource,target,qualification:qualification(candidate)};
+            const proposal={candidate,resource,target,sourceRow:tokenRow(resource),qualification:qualification(candidate)};
             if(better(proposal,best)) best=proposal;
           });
         });
@@ -5922,6 +6028,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const poolToken=takePool(col); if(poolToken) borrowed.set(col.id,{token:poolToken,source:'original'});
         });
         required.forEach(col=>{
+          if(lockedCells.has(`${col.id}:${target}`)) return;
           const existing=sim[col.id][target]; if(existing) addToPool(col,existing,target);
           if(ownCols.some(own=>own.id===col.id)){
             sim[col.id][target]=applicantToken(candidate,col);
@@ -5934,24 +6041,27 @@ body.export-rendering .cart-count{ font-size:28px; }
             }
             sim[col.id][target]=fill;
           }
+          if(sim[col.id][target]) lockedCells.add(`${col.id}:${target}`);
         });
         const candidateOrdinaryColumnIds=new Set(candidate.rightItems.filter(item=>item.col&&item.col.mode!=='fixed'&&!bundleColumnIds.has(item.col.id)&&!candidate.leftColumnIds.has(item.col.id)).map(item=>item.col.id));
         planColumns.filter(col=>candidateOrdinaryColumnIds.has(col.id)).forEach(col=>{
+          if(lockedCells.has(`${col.id}:${target}`)) return;
           const existing=sim[col.id][target]; if(existing) addToPool(col,existing,target);
           sim[col.id][target]=null;
           if((candidate.rightRemaining.get(col.id)||0)>0){
             sim[col.id][target]=applicantToken(candidate,col);
             candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
+            lockedCells.add(`${col.id}:${target}`);
           }
         });
-        lockedRows.add(target);
+        lockedCells.add(`${resource.col.id}:${target}`);
         const stillMissing=required.filter(col=>!sim[col.id][target]);
         const usedBorrowed=[...borrowed.values()].length>0, usedLater=[...borrowed.values()].some(item=>item.source==='later'), usedOriginalBorrowed=[...borrowed.values()].some(item=>item.source==='original');
         const baseResult=stillMissing.length?'待补':(q.grade==='A'?'自带满配':'顺延成配'), resultParts=[baseResult];
         if(usedLater) resultParts.push('后续带冷');
         if(stillMissing.length&&usedBorrowed&&!usedLater) resultParts.push('顺延');
         if(candidate.hasFixed) resultParts.push('入均');
-        rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,move:`第${move.source+1}配 → 第${move.target+1}配`,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:resultParts.join(' + '),grade:q.grade,targetRow:target,requiredColumnIds:required.map(col=>col.id),bundleComplete:stillMissing.length===0,usedLater,usedOriginalBorrowed,hasFixed:candidate.hasFixed});
+        rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,move:`${resource.col.name}：第${move.source+1}配 → 第${move.target+1}配`,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:resultParts.join(' + '),grade:q.grade,targetRow:target,requiredColumnIds:required.map(col=>col.id),bundleComplete:stillMissing.length===0,usedLater,usedOriginalBorrowed,hasFixed:candidate.hasFixed});
       }
       candidates.forEach(candidate=>{
         const failedResult=candidate.hasFixed?'无法前移 + 入均':'无法前移';
@@ -5996,17 +6106,19 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations||coldPromotionDraftApplied;
     }
     function recalculateColdPromotionPreview(statusText){
+      const keepScroll=captureViewportKeep();
       const plan=buildColdPromotionPlan(coldPromotionDraftBaseAllocations||allocations);
       coldPromotionPreviewRows=plan.rows; coldPromotionPreviewAllocations=plan.allocations; coldPromotionPlanRevision=localRevision; coldPromotionPlanSignature=coldPreviewDataSignature();
       renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display=coldPromotionDraftRows.length?'block':'none';
       const highlights={completeRows:coldPromotionPreviewRows.filter(row=>row.ok&&row.bundleComplete).map(row=>row.targetRow),pendingRows:coldPromotionPreviewRows.filter(row=>row.ok&&!row.bundleComplete).map(row=>({row:row.targetRow,person:row.person}))};
       if(coldPromotionPreviewAllocations) showMatrixPreview(coldPromotionPreviewAllocations,'带冷提重排模拟结果',highlights); else clearMatrixPreview();
+      restoreViewportKeep(keepScroll);
       const peopleCount=parseColdPromotionCandidates().length;
       $('coldPromotionPreviewStatus').textContent=statusText||`已保存 ${coldPromotionDraftRows.length} 条、合计 ${peopleCount} 人；内容会保留到手动清除。`;
       $('coldPromotionPreviewStatus').style.color=coldPromotionPreviewAllocations?'':'var(--bad)'; return plan;
     }
     function startColdPromotionPreview(){
-      if(!activeBundleColumns().length){ openColdBundleChooser(true); return; }
+      const keepScroll=captureViewportKeep();
       const raw=$('commentInput').value.trim();
       migrateLegacyColdPromotionDraft();
       if(raw){
@@ -6020,10 +6132,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='block'; clearMatrixPreview();
         $('coldPromotionPreviewStatus').textContent='这份带冷提已经应用，内容仍会保留；可以导出正式排单，清除后再开始下一份。'; $('coldPromotionPreviewStatus').style.color='var(--ok)'; return;
       }
-      recalculateColdPromotionPreview();
       $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
+      recalculateColdPromotionPreview();
+      restoreViewportKeep(keepScroll);
     }
     $('coldPromotionPreviewBtn').addEventListener('click',startColdPromotionPreview);
     $('exportColdPromotionPreviewBtn').addEventListener('click',()=>{
@@ -6050,7 +6163,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!coldPromotionPreviewAllocations){ alert('当前带冷提草稿没有可以前移的项目'); return; }
       if(coldPromotionPlanSignature!==coldPreviewDataSignature()){
         recalculateColdPromotionPreview('正式排单在预览后发生过变化，已按最新排单刷新预览，请重新核对后再确认。');
-        $('coldPromotionPreviewStatus').style.color='var(--warn)'; $('coldPromotionPreviewPanel').scrollIntoView({behavior:'smooth',block:'start'}); return;
+        $('coldPromotionPreviewStatus').style.color='var(--warn)'; return;
       }
       if(!pushUndoSnapshot('cold-carry-apply','带冷提确认应用前')) return;
       const before=deepClone(allocations), beforeHighlights=deepClone(coldPromotionHighlights), applied=coldPromotionPreviewRows.filter(row=>row.ok).length;
@@ -7276,8 +7389,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     syncMatrixOptions();
     renderSheetTabs();
     setMobileMoreOpen(false);
-    activeAppSection='goods';
-    setAppSection('goods',false);
+    activeAppSection=storedAppSection();
+    setAppSection(activeAppSection,false);
     renderColumnList();
     renderColdBundleConfiguration(); syncUndoButton();
     recalc();
