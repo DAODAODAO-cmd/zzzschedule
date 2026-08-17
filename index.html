@@ -444,11 +444,11 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <span class="hint">先预览，确认后再写入表格。</span>
     </div>
     <div class="cold-bundle-bar">
-      <button type="button" class="btn-ghost btn-mini" id="selectColdBundleBtn">选择捆位</button>
-      <span id="coldBundleSummary">捆位：尚未选择</span>
+      <button type="button" class="btn-ghost btn-mini" id="selectColdBundleBtn">捆位设置</button>
+      <span id="coldBundleSummary">未选捆位：仅按普通提配移动</span>
     </div>
     <div class="cold-bundle-chooser" id="coldBundleChooser" style="display:none;">
-      <strong>选择当前排单表的捆位</strong>
+      <strong>捆位设置（可不选）</strong>
       <div class="cold-bundle-list" id="coldBundleList"></div>
       <div class="toolbar">
         <button type="button" class="btn-primary btn-mini" id="saveColdBundleBtn">保存</button>
@@ -2470,7 +2470,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       coldCarryBundleColumnIds=activeBundleColumns().map(c=>c.id);
       const selected=activeBundleColumns();
       if($('coldBundleSummary')) $('coldBundleSummary').textContent=selected.length?`捆位：${selected.map(c=>c.name).join('、')}`:'未选捆位：仅按普通提配移动';
-      if($('selectColdBundleBtn')) $('selectColdBundleBtn').textContent=selected.length?'修改':'选择捆位';
+      if($('selectColdBundleBtn')) $('selectColdBundleBtn').textContent=selected.length?'修改捆位':'捆位设置';
       if($('coldBundleChooser')&&$('coldBundleChooser').style.display!=='none') renderColdBundleList();
     }
     function renderColdBundleList(){
@@ -4931,7 +4931,6 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('cancelColdBundleBtn').addEventListener('click',()=>{ coldPromotionPendingBundlePreview=false; $('coldBundleChooser').style.display='none'; renderColdBundleConfiguration(); });
     $('saveColdBundleBtn').addEventListener('click',()=>{
       const selected=[...$('coldBundleList').querySelectorAll('input[type="checkbox"]:checked')].map(input=>parseInt(input.value,10)).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
-      if(!selected.length){ alert('请至少选择一个捆位'); return; }
       coldCarryBundleColumnIds=selected; saveState(); $('coldBundleChooser').style.display='none'; renderColdBundleConfiguration();
       const continuePreview=coldPromotionPendingBundlePreview; coldPromotionPendingBundlePreview=false;
       if(continuePreview) startColdPromotionPreview();
@@ -5679,23 +5678,43 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       return rows;
     }
+    function cancelMemberColumnsFor(row,col){
+      if(!col||!col.isPricingCombo) return [];
+      const t=String(row.itemText||'').trim().toLowerCase();
+      const matched=(col.comboMembers||[]).filter(member=>columnTextMatches(member,t));
+      return matched.length?matched:(col.comboMembers||[]);
+    }
+    function cancelPositionsForColumn(col,person,qty,reserved=0,sourceAllocations=allocations){
+      const positions=(sourceAllocations[col.id]||[]).map((value,row)=>String(value||'').trim()===person?row:-1).filter(row=>row>=0);
+      const protectedPositions=positions.filter(row=>isMatrixCellBought(col.id,row,person));
+      const removablePositions=positions.filter(row=>!isMatrixCellBought(col.id,row,person));
+      const remaining=Math.max(0,removablePositions.length-reserved);
+      const availablePositions=removablePositions.slice(0,Math.max(0,removablePositions.length-reserved));
+      const affectedRows=availablePositions.slice(-qty);
+      return {positions,protectedPositions,removablePositions,remaining,affectedRows};
+    }
     function cancelRowCheck(row,index){
       const col=findColumnByText(row.itemText||''), person=String(row.person||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
       if(!person) return {ok:false,text:'名字没识别到'};
       if(!col) return {ok:false,text:'没找到谷子'};
-      const positions=(allocations[col.id]||[]).map((value,row)=>String(value||'').trim()===person?row:-1).filter(row=>row>=0), protectedPositions=positions.filter(row=>isMatrixCellBought(col.id,row,person)), removablePositions=positions.filter(row=>!isMatrixCellBought(col.id,row,person)), available=positions.length;
       const reserved=cancelPreviewRows.slice(0,index).reduce((sum,previous)=>{
         const previousCol=findColumnByText(previous.itemText||'');
         return previousCol&&previousCol.id===col.id&&String(previous.person||'').trim()===person?sum+Math.max(1,parseInt(previous.qty,10)||1):sum;
       },0);
-      const remaining=Math.max(0,removablePositions.length-reserved);
-      if(!available) return {ok:false,text:`没有找到 ${person}`};
+      const memberCols=cancelMemberColumnsFor(row,col);
+      const memberPlans=memberCols.map(member=>({col:member,...cancelPositionsForColumn(member,person,qty,0)})).filter(plan=>plan.positions.length);
+      const base=cancelPositionsForColumn(col,person,qty,reserved);
+      const totalAvailable=base.positions.length+memberPlans.reduce((sum,plan)=>sum+(col.isPricingCombo?plan.positions.length:0),0);
+      const remaining=Math.max(base.remaining,memberPlans.reduce((max,plan)=>Math.max(max,plan.remaining),0));
+      const protectedPositions=base.protectedPositions;
+      if(!totalAvailable) return {ok:false,text:`没有找到 ${person}`};
       if(remaining<qty){
         const protectedText=protectedPositions.length?`，另有 ${protectedPositions.length} 个已买齐已保护`:'';
         return {ok:false,text:`只剩 ${remaining} 个可撤${protectedText}`};
       }
-      const availablePositions=removablePositions.slice(0,Math.max(0,removablePositions.length-reserved)), affectedRows=availablePositions.slice(-qty), affected=affectedRows.map(row=>row+1), protectedText=protectedPositions.length?`（跳过已买齐 ${protectedPositions.length} 个）`:'';
-      return {ok:true,text:`将删除第${affected.join('、')}行${protectedText}`,col,qty,person,positions:affected,positionIndexes:affectedRows,protectedCount:protectedPositions.length};
+      const affectedRows=base.affectedRows.length?base.affectedRows:(memberPlans[0]?.affectedRows||[]);
+      const affected=affectedRows.map(row=>row+1), protectedText=protectedPositions.length?`（跳过已买齐 ${protectedPositions.length} 个）`:'';
+      return {ok:true,text:`将删除第${affected.join('、')}行${col.isPricingCombo?'（同步拼盒成员）':''}${protectedText}`,col,qty,person,positions:affected,positionIndexes:affectedRows,memberPlans,protectedCount:protectedPositions.length};
     }
     function renderCancelPreview(){
       $('cancelPreviewTableBody').innerHTML=cancelPreviewRows.map((row,index)=>{
@@ -5707,13 +5726,20 @@ body.export-rendering .cart-count{ font-size:28px; }
     function buildCancelMatrixPreview(){
       const preview=deepClone(allocations);
       const cancelRows=[], removalsByCol=new Map();
+      const addRemoval=(colId,position)=>{
+        if(!Number.isFinite(Number(position))) return;
+        const list=removalsByCol.get(Number(colId))||[];
+        list.push(Number(position)); removalsByCol.set(Number(colId),list);
+      };
       cancelPreviewRows.forEach((row,index)=>{
         const check=cancelRowCheck(row,index);
         if(!check.ok) return;
         if(!Array.isArray(preview[check.col.id])) preview[check.col.id]=deepClone(allocations[check.col.id]||[]);
-        const list=removalsByCol.get(check.col.id)||[];
-        (check.positionIndexes||[]).forEach(position=>{ list.push(position); cancelRows.push(position); });
-        removalsByCol.set(check.col.id,list);
+        (check.positionIndexes||[]).forEach(position=>{ addRemoval(check.col.id,position); cancelRows.push(position); });
+        (check.memberPlans||[]).forEach(plan=>{
+          if(!Array.isArray(preview[plan.col.id])) preview[plan.col.id]=deepClone(allocations[plan.col.id]||[]);
+          (plan.affectedRows||[]).forEach(position=>addRemoval(plan.col.id,position));
+        });
       });
       removalsByCol.forEach((positions,colId)=>{
         const arr=preview[colId]||(preview[colId]=[]);
@@ -5759,10 +5785,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!pushUndoSnapshot('cancel-apply','确认撤单前')) return;
       let removedTotal=0;
       const removalsByCol=new Map();
+      const addRemoval=(colId,position)=>{
+        if(!Number.isFinite(Number(position))) return;
+        const list=removalsByCol.get(Number(colId))||[];
+        list.push(Number(position)); removalsByCol.set(Number(colId),list);
+      };
       checks.forEach(({check})=>{
-        const list=removalsByCol.get(check.col.id)||[];
-        (check.positionIndexes||[]).forEach(position=>list.push(position));
-        removalsByCol.set(check.col.id,list);
+        (check.positionIndexes||[]).forEach(position=>addRemoval(check.col.id,position));
+        (check.memberPlans||[]).forEach(plan=>(plan.affectedRows||[]).forEach(position=>addRemoval(plan.col.id,position)));
       });
       removalsByCol.forEach((positions,colId)=>{
         [...new Set(positions)].sort((a,b)=>b-a).forEach(position=>{ removeAllocationAt(colId,position); removedTotal++; });
@@ -5896,8 +5926,9 @@ body.export-rendering .cart-count{ font-size:28px; }
         });
       });
       const tokenRow=resource=>(sim[resource.col.id]||[]).findIndex(token=>token&&token.uid===resource.uid);
-      const rowHasBundle=row=>bundleColumns.length>0&&bundleColumns.every(col=>sim[col.id]&&sim[col.id][row]);
-      for(let row=0;row<maxRows;row++) if(rowHasBundle(row)) lockedRows.add(row);
+      const originalCompleteColumns=planColumns.filter(c=>c.mode!=='wholeset'&&(c.mode!=='fixed'||c.isPricingCombo));
+      const rowOriginallyComplete=row=>originalCompleteColumns.length>0&&originalCompleteColumns.every(col=>sim[col.id]&&sim[col.id][row]);
+      for(let row=0;row<maxRows;row++) if(rowOriginallyComplete(row)) lockedRows.add(row);
       function supplementComboResourcesFromMembers(candidate,item){
         if(!item.col||!item.col.isPricingCombo||!item.sourceMembers||!item.sourceMembers.length) return;
         const arr=sim[item.col.id]||(sim[item.col.id]=[]);
@@ -5916,8 +5947,15 @@ body.export-rendering .cart-count{ font-size:28px; }
           arr[put]={uid:`o${uidSeed++}`,name:candidate.person,columnId:item.col.id,originalRow:hit.row,originalOrder:originalOrder++,source:'combo-member'};
         });
       }
+      function appendSupplementOriginal(candidate,item){
+        const arr=sim[item.col.id]||(sim[item.col.id]=[]);
+        let put=arr.length;
+        arr.push({uid:`s${uidSeed++}`,name:candidate.person,columnId:item.col.id,originalRow:put,originalOrder:originalOrder++,source:'supplement'});
+        return {token:arr[put],row:put};
+      }
       candidates.forEach(candidate=>{
         candidate.resources=[]; candidate.rightRemaining=new Map();
+        candidate.placedTargets=[];
         candidate.leftTotal=candidate.leftItems.reduce((sum,item)=>{
           const point=item.col&&Number.isFinite(Number(item.col.promotionPoints))?Math.max(0,Number(item.col.promotionPoints)):1;
           return sum+Math.max(0,Number(item.qty)||0)*point;
@@ -5930,19 +5968,28 @@ body.export-rendering .cart-count{ font-size:28px; }
         candidate.scoreLabel=fmtPoint(candidate.kValue);
         candidate.hasFixed=candidate.rightItems.some(item=>item.col&&item.col.mode==='fixed');
         candidate.leftColumnIds=new Set(candidate.leftItems.filter(item=>item.col).map(item=>item.col.id));
+        candidate.blockReasons=[];
         candidate.leftItems.forEach(item=>{
           if(!item.col) return;
           supplementComboResourcesFromMembers(candidate,item);
-          const matches=(sim[item.col.id]||[]).map((token,row)=>({token,row})).filter(entry=>entry.token&&entry.token.name===candidate.person&&!lockedRows.has(entry.row)&&!claimed.has(entry.token.uid));
-          const chosen=matches.slice(-item.qty);
+          const allMatches=(sim[item.col.id]||[]).map((token,row)=>({token,row})).filter(entry=>entry.token&&entry.token.name===candidate.person&&!claimed.has(entry.token.uid));
+          const lockedCount=Math.min(item.qty,allMatches.filter(entry=>lockedRows.has(entry.row)).length);
+          const needQty=Math.max(0,item.qty-lockedCount);
+          const matches=allMatches.filter(entry=>!lockedRows.has(entry.row));
+          const chosen=matches.slice(-needQty);
           chosen.forEach(entry=>{ claimed.add(entry.token.uid); candidate.resources.push({id:resourceSeed++,col:item.col,uid:entry.token.uid,used:false}); });
-          if(chosen.length<item.qty) candidate.errors.push(`${item.col.name} 未找到足够的可前移位置`);
+          for(let extra=chosen.length;extra<needQty;extra++){
+            const entry=appendSupplementOriginal(candidate,item);
+            claimed.add(entry.token.uid);
+            candidate.resources.push({id:resourceSeed++,col:item.col,uid:entry.token.uid,used:false,addedOriginal:true});
+          }
+          if(lockedCount) candidate.blockReasons.push(`${item.col.name} 已成配 ${lockedCount} 个自动忽略`);
         });
         candidate.rightItems.forEach(item=>{ if(item.col) candidate.rightRemaining.set(item.col.id,(candidate.rightRemaining.get(item.col.id)||0)+item.qty); });
       });
       const poolAvailable=colId=>(displacementPool.get(colId)||[]).filter(item=>!item.used);
       const requiredFor=candidate=>bundleColumns.filter(col=>!candidate.leftColumnIds.has(col.id));
-      const candidateHasFatalError=candidate=>candidate.errors.some(error=>/^没找到|没有识别|未找到/.test(error));
+      const candidateHasFatalError=candidate=>candidate.errors.some(error=>/^没找到|没有识别/.test(error));
       const laterCarryDonors=(candidate,col)=>candidates.filter(other=>other!==candidate&&other.order>candidate.order&&!candidateHasFatalError(other)&&other.resources.some(resource=>!resource.used)&&(other.rightRemaining.get(col.id)||0)>0).sort((a,b)=>a.order-b.order);
       const hasLaterCarry=(candidate,col)=>laterCarryDonors(candidate,col).length>0;
       function qualification(candidate){
@@ -5952,15 +5999,26 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(missing.every(col=>hasLaterCarry(candidate,col)||poolAvailable(col.id).length>0)) return {grade:'B',rank:2,missing};
         return {grade:'C',rank:1,missing};
       }
-      function findTarget(resource){
+      const placedPriorityRows=[];
+      function candidateOutranks(a,b){
+        if(!a||!b) return false;
+        if(a.kValue!==b.kValue) return a.kValue>b.kValue;
+        return a.order<b.order;
+      }
+      function minTargetForCandidate(candidate){
+        const rows=placedPriorityRows.filter(item=>candidateOutranks(item.candidate,candidate)).map(item=>item.target).filter(Number.isFinite);
+        return rows.length?Math.max(...rows):0;
+      }
+      function findTarget(resource,candidate){
         const source=tokenRow(resource); if(source<=0) return null;
-        for(let row=0;row<source;row++) if(!lockedRows.has(row)&&!lockedCells.has(`${resource.col.id}:${row}`)) return row;
+        const minTarget=minTargetForCandidate(candidate);
+        for(let row=minTarget;row<source;row++) if(!lockedRows.has(row)&&!lockedCells.has(`${resource.col.id}:${row}`)) return row;
+        if(source>=minTarget&&!lockedRows.has(source)&&!lockedCells.has(`${resource.col.id}:${source}`)) return source;
         return null;
       }
       function better(proposal,best){
         if(!best) return true;
         if(proposal.candidate.kValue!==best.candidate.kValue) return proposal.candidate.kValue>best.candidate.kValue;
-        if(proposal.qualification.rank!==best.qualification.rank) return proposal.qualification.rank>best.qualification.rank;
         if(proposal.candidate.order!==best.candidate.order) return proposal.candidate.order<best.candidate.order;
         if(proposal.sourceRow!==best.sourceRow) return proposal.sourceRow<best.sourceRow;
         return proposal.resource.id<best.resource.id;
@@ -6002,6 +6060,14 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(row===arr.length) arr.push(token); else arr[row]=token;
         return row;
       }
+      function fillCarryEmpty(col,target,token){
+        const arr=sim[col.id]||(sim[col.id]=[]); let row=Math.max(0,target);
+        while(row<arr.length&&(arr[row]||lockedRows.has(row)||lockedCells.has(`${col.id}:${row}`))) row++;
+        while(arr.length<row) arr.push(null);
+        if(row===arr.length) arr.push(token); else arr[row]=token;
+        lockedCells.add(`${col.id}:${row}`);
+        return row;
+      }
       function applicantToken(candidate,col){
         return {uid:`n${uidSeed++}`,name:candidate.person,columnId:col.id,originalRow:Number.MAX_SAFE_INTEGER,originalOrder:originalOrder++,source:'added'};
       }
@@ -6011,7 +6077,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(candidateHasFatalError(candidate)) return;
           candidate.resources.forEach(resource=>{
             if(resource.used) return;
-            const target=findTarget(resource); if(target==null) return;
+            const target=findTarget(resource,candidate);
+            if(target==null){ candidate.blockReasons.push(`${resource.col.name} 前面没有可前移位置`); return; }
             const proposal={candidate,resource,target,sourceRow:tokenRow(resource),qualification:qualification(candidate)};
             if(better(proposal,best)) best=proposal;
           });
@@ -6055,16 +6122,33 @@ body.export-rendering .cart-count{ font-size:28px; }
           }
         });
         lockedCells.add(`${resource.col.id}:${target}`);
+        candidate.placedTargets.push(target);
+        placedPriorityRows.push({candidate,target});
         const stillMissing=required.filter(col=>!sim[col.id][target]);
         const usedBorrowed=[...borrowed.values()].length>0, usedLater=[...borrowed.values()].some(item=>item.source==='later'), usedOriginalBorrowed=[...borrowed.values()].some(item=>item.source==='original');
         const baseResult=stillMissing.length?'待补':(q.grade==='A'?'自带满配':'顺延成配'), resultParts=[baseResult];
         if(usedLater) resultParts.push('后续带冷');
         if(stillMissing.length&&usedBorrowed&&!usedLater) resultParts.push('顺延');
         if(candidate.hasFixed) resultParts.push('入均');
-        rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,move:`${resource.col.name}：第${move.source+1}配 → 第${move.target+1}配`,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:resultParts.join(' + '),grade:q.grade,targetRow:target,requiredColumnIds:required.map(col=>col.id),bundleComplete:stillMissing.length===0,usedLater,usedOriginalBorrowed,hasFixed:candidate.hasFixed});
+        const moveText=move.source===move.target?`${resource.col.name}：第${move.source+1}配原位带入`:`${resource.col.name}：第${move.source+1}配 → 第${move.target+1}配`;
+        rows.push({ok:true,candidateOrder:candidate.order,person:candidate.person,scoreLabel:candidate.scoreLabel,move:moveText,added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).filter((name,index,list)=>list.indexOf(name)===index).join('、')||'—',result:resultParts.join(' + '),grade:q.grade,targetRow:target,requiredColumnIds:required.map(col=>col.id),bundleComplete:stillMissing.length===0,usedLater,usedOriginalBorrowed,hasFixed:candidate.hasFixed});
       }
       candidates.forEach(candidate=>{
-        const failedResult=candidate.hasFixed?'无法前移 + 入均':'无法前移';
+        const targets=[...(candidate.placedTargets||[])].sort((a,b)=>a-b);
+        if(!targets.length) return;
+        const rightCols=[...new Map(candidate.rightItems.filter(item=>item.col&&item.col.mode!=='fixed').map(item=>[item.col.id,item.col])).values()];
+        rightCols.forEach(col=>{
+          let remaining=Math.max(0,Number(candidate.rightRemaining.get(col.id))||0), offset=0;
+          while(remaining>0){
+            fillCarryEmpty(col,targets[Math.min(offset,targets.length-1)],applicantToken(candidate,col));
+            candidate.rightRemaining.set(col.id,remaining-1);
+            remaining--; offset++;
+          }
+        });
+      });
+      candidates.forEach(candidate=>{
+        const reason=[...new Set([...(candidate.blockReasons||[]),...(candidate.errors||[])])].filter(Boolean).slice(0,2).join('；');
+        const failedResult=(candidate.hasFixed?'无法前移 + 入均':'无法前移')+(reason?`（${reason}）`:'');
         candidate.resources.filter(resource=>!resource.used).forEach(()=>rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:failedResult,grade:'C'}));
         if(!candidate.resources.length) rows.push({ok:false,candidateOrder:candidate.order,person:candidate.person||'未识别',scoreLabel:candidate.scoreLabel||'0',move:'—',added:candidate.rightItems.filter(item=>item.col).map(item=>item.col.name).join('、')||'—',result:failedResult,grade:'C'});
       });
