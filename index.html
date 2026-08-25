@@ -6034,7 +6034,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       function minTargetForCandidate(candidate){
         const rows=placedPriorityRows.filter(item=>candidateOutranks(item.candidate,candidate)).map(item=>item.target).filter(Number.isFinite);
-        return rows.length?Math.max(...rows):0;
+        return rows.length?Math.max(...rows)+1:0;
       }
       function findTarget(resource,candidate){
         const source=tokenRow(resource); if(source<=0) return null;
@@ -6094,6 +6094,21 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(row===arr.length) arr.push(token); else arr[row]=token;
         lockedCells.add(`${col.id}:${row}`);
         return row;
+      }
+      function compactColdPromotionColumn(col){
+        if(!col||col.mode==='fixed') return;
+        const arr=sim[col.id]||(sim[col.id]=[]);
+        for(let row=0;row<arr.length;row++){
+          if(arr[row]||lockedRows.has(row)||lockedCells.has(`${col.id}:${row}`)) continue;
+          let next=row+1;
+          while(next<arr.length){
+            if(!lockedRows.has(next)&&!lockedCells.has(`${col.id}:${next}`)&&arr[next]) break;
+            next++;
+          }
+          if(next>=arr.length) continue;
+          arr[row]=arr[next];
+          arr[next]=null;
+        }
       }
       function applicantToken(candidate,col){
         return {uid:`n${uidSeed++}`,name:candidate.person,columnId:col.id,originalRow:Number.MAX_SAFE_INTEGER,originalOrder:originalOrder++,source:'added'};
@@ -6187,6 +6202,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           token.used=true;
         });
       });
+      planColumns.forEach(compactColdPromotionColumn);
       let fixedApplied=0;
       [...candidates].sort((a,b)=>a.order-b.order).forEach(candidate=>{
         candidate.rightItems.filter(item=>item.col&&item.col.mode==='fixed').forEach(item=>{
