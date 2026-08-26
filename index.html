@@ -607,7 +607,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
       <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收齐：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div id="paymentSummary" class="payment-summary"></div>
-      <div class="toolbar"><button type="button" class="btn-ghost settlement-mode-toggle" id="toggleBoughtSettlementBtn" data-mobile-label="结算中心" aria-pressed="false" title="仅在缺货、砍单或需要退补款时开启；开启后同时显示差额与结算中心">开启结算中心</button><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportUnpaidPaymentBtn" data-mobile-label="未肾">导出未肾图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div><div id="settlementDashboard" class="settlement-dashboard" hidden></div>
+      <div class="toolbar"><button type="button" class="btn-ghost settlement-mode-toggle" id="toggleBoughtSettlementBtn" data-mobile-label="结算中心" aria-pressed="false" title="仅在缺货、砍单或需要退补款时开启；开启后同时显示差额与结算中心">开启结算中心</button><button type="button" class="btn-ghost payment-calc-toggle" id="includeShareInPaymentBtn" data-mobile-label="均摊" aria-pressed="false" title="打开后，谷子收款金额会自动加上均摊">加入均摊：未开启</button><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportUnpaidPaymentBtn" data-mobile-label="未肾">导出未肾图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div><div id="settlementDashboard" class="settlement-dashboard" hidden></div>
     </div>
     <div id="extraPaymentView" style="display:none;">
       <div class="payment-heading-tools extra-payment-heading-tools">
@@ -1697,7 +1697,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
     let matrixTitle='', matrixColor='#d1466a', matrixBoughtCells={}, matrixIslandCells={}, matrixChinaCells={}, matrixMarkMode='', matrixMarkDate='';
     let quantityTitle='';
-    let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', showPaymentTotal=true, showBoughtSettlement=false;
+    let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', showPaymentTotal=true, showBoughtSettlement=false, paymentIncludeShare=false;
     let paymentEdits={}, paymentPaid={}, paymentRefund={}, paymentSupplement={}, paymentRefundDone={}, paymentSupplementDone={}, paymentNotes={}, settlementDashboardOpen=false, settlementFilter='pending', sharePaymentTitle='', sharePaymentTitleCustom=false, sharePaymentColor='#d1466a', sharePaymentViewMode='detail', sharePaymentEdits={}, sharePaymentPaid={}, sharePaymentRefund={}, sharePaymentSupplement={}, shareDeductFixed=false;
     let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='', extraPaymentQrImg='';
     let extraFees=[], extraFeeIdSeed=1, extraFeeFilter='all', extraFeeTitle='追加费用收款', extraFeeColor='#d1466a', extraFeeShowTotal=true;
@@ -1988,10 +1988,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function snapshotSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
-      return {id:activeSheetId,name:'',columns,allocations,pricingGroups,pricingGroupIdSeed,watermarkArchive,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,matrixBoughtCells,matrixIslandCells,matrixChinaCells,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,showBoughtSettlement,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,paymentNotes,settlementDashboardOpen,sharePaymentTitle,sharePaymentTitleCustom,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
+      return {id:activeSheetId,name:'',columns,allocations,pricingGroups,pricingGroupIdSeed,watermarkArchive,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,matrixBoughtCells,matrixIslandCells,matrixChinaCells,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,showBoughtSettlement,paymentIncludeShare,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,paymentNotes,settlementDashboardOpen,sharePaymentTitle,sharePaymentTitleCustom,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},pricingGroups:[],pricingGroupIdSeed:1,watermarkArchive:[],cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:"#d1466a",matrixBoughtCells:{},matrixIslandCells:{},matrixChinaCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},pricingGroups:[],pricingGroupIdSeed:1,watermarkArchive:[],cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:"#d1466a",matrixBoughtCells:{},matrixIslandCells:{},matrixChinaCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentIncludeShare:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function blankCollabProjectSnapshot(){
       const savedSeed=sheetIdSeed;
@@ -2053,6 +2053,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
       showPaymentTotal=sheet.showPaymentTotal!==false;
       showBoughtSettlement=sheet.showBoughtSettlement===true;
+      paymentIncludeShare=sheet.paymentIncludeShare===true;
       paymentEdits=sheet.paymentEdits||{};
       Object.keys(paymentEdits).forEach(k=>{ if(k.startsWith('wechat:')) delete paymentEdits[k]; });
       paymentPaid=sheet.paymentPaid&&typeof sheet.paymentPaid==='object'?sheet.paymentPaid:{};
@@ -4323,33 +4324,41 @@ body.export-rendering .cart-count{ font-size:28px; }
       const feeAmount=total=>Math.ceil(((total<=100?total+0.1:total*1.001)-1e-9)*100)/100;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(paymentEdits,key)?paymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-payment-key="${encodeURIComponent(key)}"`;
+      const shareRecords=paymentIncludeShare?buildShareSettlementRecords():[];
+      const shareByKey=new Map(shareRecords.map(row=>[row.key,Math.max(0,num(row.expected))]));
+      [...people.values()].forEach(data=>{
+        data.shareAmount=paymentIncludeShare?(shareByKey.get(data.key)||0):0;
+        data.paymentTotal=data.total+data.shareAmount;
+      });
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, alipayAmount=paymentEditAmount(paymentEdits,'alipay',name,data.key,data.total), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
-        const items=[...data.items.entries()], span=items.length, payable=feeAmount(data.total);
+        const name=data.name, calcTotal=Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total, alipayAmount=paymentEditAmount(paymentEdits,'alipay',name,data.key,calcTotal), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), shareNote=paymentIncludeShare&&data.shareAmount>0?`<span class="payment-received-note" data-html2canvas-ignore="true">含均摊 ${money(data.shareAmount)}</span>`:'', adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const items=[...data.items.entries()], span=items.length, payable=feeAmount(calcTotal);
         if(paymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
           const itemKey='merged-items:'+name, itemDisplay=Object.prototype.hasOwnProperty.call(paymentEdits,itemKey)?escapeHtml(paymentEdits[itemKey]):paymentMergedItemsDisplay(data,items,itemText);
-          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr(itemKey)}>${itemDisplay}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,totalQty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)} data-payment-auto="${data.total.toFixed(2)}">${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money">${payable.toFixed(2)}</td></tr>`;
+          rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr(itemKey)}>${itemDisplay}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,totalQty)}</td><td class="payment-money"><span ${editAttr('alipay:'+name)} data-payment-auto="${calcTotal.toFixed(2)}">${edited('alipay:'+name,calcTotal.toFixed(2))}</span>${adjustmentNote}${receivedNote}${shareNote}</td><td class="payment-money">${payable.toFixed(2)}</td></tr>`;
           return;
         }
         items.forEach(([item,count],index)=>{
           rows+=`<tr${paidClass}${personAttr}>`;
           if(index===0) rows+=`<td class="payment-cn" rowspan="${span}">${paidControl}</td>`;
           rows+=`<td class="payment-item-name"><span ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</span>${paymentBoughtItemNote(data,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
-          if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)} data-payment-auto="${data.total.toFixed(2)}">${edited('alipay:'+name,data.total.toFixed(2))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money" rowspan="${span}">${payable.toFixed(2)}</td>`;
+          if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)} data-payment-auto="${calcTotal.toFixed(2)}">${edited('alipay:'+name,calcTotal.toFixed(2))}</span>${adjustmentNote}${receivedNote}${shareNote}</td><td class="payment-money" rowspan="${span}">${payable.toFixed(2)}</td>`;
           rows+='</tr>';
         });
       });
       const color=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       const paymentTotal=[...people.values()].reduce((sum,data)=>{
-        const amount=paymentEditAmount(paymentEdits,'alipay',data.name,data.key,data.total);
+        const base=Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total;
+        const amount=paymentEditAmount(paymentEdits,'alipay',data.name,data.key,base);
         return sum+amount;
       },0);
-      const totalHtml=showPaymentTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">排单总价</td><td class="payment-total-value">${money(paymentTotal)}</td></tr></tfoot>`:'';
-      const visibleData=[...people.values()], paidStates=visibleData.map(data=>paidState(paymentPaid,data.key,paymentEditAmount(paymentEdits,'alipay',data.name,data.key,data.total))), allPaid=paidStates.length>0&&paidStates.every(state=>state==='full'), partialPaid=!allPaid&&paidStates.some(state=>state!=='unpaid');
-      let progressText=paymentProgressText(visibleData,paymentPaid,paymentRefund,paymentSupplement,data=>paymentEditAmount(paymentEdits,'alipay',data.name,data.key,data.total));
+      const totalLabel=paymentIncludeShare?'排单总价（含均摊）':'排单总价';
+      const totalHtml=showPaymentTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">${totalLabel}</td><td class="payment-total-value">${money(paymentTotal)}</td></tr></tfoot>`:'';
+      const visibleData=[...people.values()], paidStates=visibleData.map(data=>paidState(paymentPaid,data.key,paymentEditAmount(paymentEdits,'alipay',data.name,data.key,Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total))), allPaid=paidStates.length>0&&paidStates.every(state=>state==='full'), partialPaid=!allPaid&&paidStates.some(state=>state!=='unpaid');
+      let progressText=paymentProgressText(visibleData,paymentPaid,paymentRefund,paymentSupplement,data=>paymentEditAmount(paymentEdits,'alipay',data.name,data.key,Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total));
       $('paymentUnpaidCount').textContent=progressText; renderSettlementDashboard();
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-payment-paid-all="1" aria-pressed="${allPaid?'true':(partialPaid?'mixed':'false')}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody>${totalHtml}</table>${qrHtml}</div>`;
@@ -4410,6 +4419,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         settlementModeBtn.textContent=showBoughtSettlement?'关闭结算中心':'开启结算中心';
         settlementModeBtn.classList.toggle('active',showBoughtSettlement);
         settlementModeBtn.setAttribute('aria-pressed',showBoughtSettlement?'true':'false');
+      }
+      const includeShareBtn=$('includeShareInPaymentBtn');
+      if(includeShareBtn){
+        includeShareBtn.textContent=paymentIncludeShare?'加入均摊：已开启':'加入均摊：未开启';
+        includeShareBtn.classList.toggle('active',paymentIncludeShare);
+        includeShareBtn.setAttribute('aria-pressed',paymentIncludeShare?'true':'false');
       }
       const boughtMarkBtn=$('markBoughtModeBtn');
       if(boughtMarkBtn) boughtMarkBtn.hidden=false;
@@ -5167,6 +5182,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       sheet.sharePaymentSupplement={};
       sheet.settlementDashboardOpen=false;
       sheet.showBoughtSettlement=false;
+      sheet.paymentIncludeShare=false;
       if(!sheetUsesCustomTitle(sheet,'matrixTitle')){ sheet.matrixTitle=newName; sheet.matrixTitleCustom=false; }
       if(!sheetUsesCustomTitle(sheet,'quantityTitle')){ sheet.quantityTitle=newName; sheet.quantityTitleCustom=false; }
       if(!sheetUsesCustomTitle(sheet,'paymentTitle')){ sheet.paymentTitle=newName; sheet.paymentTitleCustom=false; }
@@ -6628,6 +6644,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('paymentColorInput').addEventListener('input',e=>{ paymentColor=e.target.value; saveState(); renderPaymentSummary(); });
     $('paymentViewMode').addEventListener('change',e=>{ paymentViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderPaymentSummary(); });
     $('showPaymentTotalBtn').addEventListener('click',()=>{ showPaymentTotal=!showPaymentTotal; saveState(); syncPaymentControls(); renderPaymentSummary(); });
+    $('includeShareInPaymentBtn').addEventListener('click',()=>{ paymentIncludeShare=!paymentIncludeShare; saveState(); syncPaymentControls(); renderPaymentSummary(); });
     let paymentSearchTimer=null;
     function clearPaymentSearchHighlight(){ clearTimeout(paymentSearchTimer); $('paymentSummary').querySelectorAll('.payment-search-hit').forEach(row=>row.classList.remove('payment-search-hit')); }
     function findPaymentPerson(){
