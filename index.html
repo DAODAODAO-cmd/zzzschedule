@@ -4332,7 +4332,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, calcTotal=Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total, alipayAmount=paymentEditAmount(paymentEdits,'alipay',name,data.key,calcTotal), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), shareNote=paymentIncludeShare&&data.shareAmount>0?`<span class="payment-received-note" data-html2canvas-ignore="true">含均摊 ${money(data.shareAmount)}</span>`:'', adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const name=data.name, calcTotal=Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total, alipayAmount=paymentEditAmount(paymentEdits,'alipay',name,data.key,calcTotal), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), shareNote=paymentIncludeShare&&data.shareAmount>0?`<span class="payment-received-note payment-share-note" data-html2canvas-ignore="true">含均摊 ${money(data.shareAmount)}</span>`:'', adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         const items=[...data.items.entries()], span=items.length, payable=feeAmount(calcTotal);
         if(paymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
@@ -7068,7 +7068,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       const exportTable=document.createElement('table'), body=document.createElement('tbody');
       const titleRow=document.createElement('tr'), titleCell=document.createElement('td');
       titleCell.colSpan=5; titleCell.textContent=paymentTitle||'未命名项目'; titleRow.appendChild(titleCell); body.appendChild(titleRow);
-      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove()); body.appendChild(copy); });
+      [...table.rows].forEach(row=>{
+        const copy=row.cloneNode(true);
+        copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+        copy.querySelectorAll('.payment-share-note').forEach(el=>el.remove());
+        const totalLabel=copy.querySelector('.payment-total-label');
+        if(totalLabel) totalLabel.textContent='排单总价';
+        copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove());
+        body.appendChild(copy);
+      });
       exportTable.appendChild(body);
       const ws=XLSX.utils.table_to_sheet(exportTable,{raw:true});
       ws['!cols']=[{wch:16},{wch:24},{wch:10},{wch:16},{wch:16}];
@@ -7077,7 +7085,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('copyPaymentBtn').addEventListener('click',()=>{
       const table=$('paymentSummary').querySelector('table'); if(!table){ alert('还没有收款数据'); return; }
-      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove());
+      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('.payment-share-note').forEach(el=>el.remove()); cleanTable.querySelectorAll('.payment-total-label').forEach(el=>{ el.textContent='排单总价'; }); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove());
       const lines=[...cleanTable.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const b=$('copyPaymentBtn'),old=b.textContent;b.textContent='已复制';setTimeout(()=>b.textContent=old,1200); });
     });
