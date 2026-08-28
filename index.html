@@ -6456,6 +6456,27 @@ body.export-rendering .cart-count{ font-size:28px; }
       const endRow=start.row+grid.length-1;
       saveState(); renderMatrix(); setMatrixSelection(start,{col:endCol,row:endRow}); return true;
     }
+    function isTypingTarget(target){
+      const el=target?.closest?.('input,textarea,select,[contenteditable="true"]');
+      return !!el&&!el.closest('#matrixTableBody td.cell');
+    }
+    function clearMatrixSelectedCells(){
+      const box=matrixSelectionBox();
+      if(!box||matrixMarkMode) return false;
+      if(!pushUndoSnapshot('matrix-clear-cells','清空排单格子前')) return false;
+      for(let row=box.startRow;row<=box.endRow;row++){
+        for(let ci=box.startColIndex;ci<=box.endColIndex;ci++){
+          const col=box.cols[ci], arr=allocations[col]||(allocations[col]=[]);
+          while(arr.length<=row) arr.push('');
+          arr[row]='';
+          const key=matrixBoughtKey(col,row);
+          delete matrixBoughtCells[key]; delete matrixIslandCells[key]; delete matrixChinaCells[key];
+        }
+      }
+      box.cols.forEach(col=>trimTail(allocations[col]||(allocations[col]=[])));
+      saveState(); renderMatrix(); setMatrixSelection({col:box.cols[box.startColIndex],row:box.startRow},{col:box.cols[box.endColIndex],row:box.endRow});
+      return true;
+    }
     function activeMarkStore(){ return matrixMarkMode==='island'?matrixIslandCells:(matrixMarkMode==='china'?matrixChinaCells:matrixBoughtCells); }
     function toggleMatrixBoughtControl(control){
       const store=activeMarkStore(), isArrival=(matrixMarkMode==='island'||matrixMarkMode==='china');
@@ -6553,20 +6574,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       if((e.key==='Delete'||e.key==='Backspace')&&matrixSelectionSize()>1){
         e.preventDefault();
-        const box=matrixSelectionBox();
-        if(!box||!pushUndoSnapshot('matrix-clear-cells','清空排单格子前')) return;
-        for(let row=box.startRow;row<=box.endRow;row++){
-          for(let ci=box.startColIndex;ci<=box.endColIndex;ci++){
-            const col=box.cols[ci], arr=allocations[col]||(allocations[col]=[]);
-            while(arr.length<=row) arr.push('');
-            arr[row]='';
-            const key=matrixBoughtKey(col,row);
-            delete matrixBoughtCells[key]; delete matrixIslandCells[key]; delete matrixChinaCells[key];
-          }
-        }
-        box.cols.forEach(col=>trimTail(allocations[col]||(allocations[col]=[])));
-        saveState(); renderMatrix(); setMatrixSelection({col:box.cols[box.startColIndex],row:box.startRow},{col:box.cols[box.endColIndex],row:box.endRow});
+        clearMatrixSelectedCells();
       }
+    });
+    document.addEventListener('keydown',e=>{
+      if(matrixMarkMode||isTypingTarget(e.target)) return;
+      if(e.key!=='Delete'&&e.key!=='Backspace') return;
+      if(!matrixSelectionBox()) return;
+      e.preventDefault();
+      clearMatrixSelectedCells();
     });
     $('columnList').addEventListener('input',e=>{
       const pointInput=e.target.closest('input[data-promotion-point]');
