@@ -543,7 +543,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button type="button" class="matrix-toggle" id="markChinaModeBtn" data-mark="china" data-mobile-label="国内">国内到货</button>
       <label class="mark-date-label" id="markDateLabel" style="display:none;">批次日期 <input type="date" id="markDateInput"></label>
     </div>
-    <div class="hint matrix-tip" id="matrixTip">点格子改字，拖动名字换位置；可从空格拖选，或点一个格子后 Shift 点另一个格子，多选后可复制/粘贴/清空。</div>
+    <div class="hint matrix-tip" id="matrixTip">单击选格子，双击/Enter/F2 改字，直接打字会覆盖当前格；Shift 点另一格可多选，支持复制、粘贴、Delete 清空。</div>
     <div id="matrixWrap">
       <div id="matrixProjectTitle" class="matrix-project-title"></div>
       <div id="matrixPreviewNotice" class="matrix-preview-notice" style="display:none;"></div>
@@ -1072,6 +1072,7 @@ html{ scrollbar-gutter:stable; }
 #matrixTable tbody td.cell:focus{ background:#fff; outline:none; box-shadow:inset 0 0 0 2px var(--accent); }
 #matrixTable tbody td.cell.matrix-cell-selected{ background:#fff4f8!important; box-shadow:inset 0 0 0 1px rgba(209,70,106,.42); }
 #matrixTable tbody td.cell.matrix-cell-active{ box-shadow:inset 0 0 0 2px var(--accent),0 0 0 1px rgba(209,70,106,.18); }
+#matrixTable tbody td.cell.matrix-cell-editing{ background:#fff!important; cursor:text; box-shadow:inset 0 0 0 2px var(--accent),0 0 0 2px rgba(209,70,106,.16); }
 #matrixTable tbody td.cell.has-name{ position:relative; }
 #matrixTable tbody td.cell.bought-cell{ padding-right:28px; background:#f3f8fc!important; color:#315d77!important; box-shadow:inset 0 0 0 1px #d8e8f2; font-weight:800; }
 #matrixTable tbody td.cell.bought-cell::after{ content:"✓"; position:absolute; top:5px; right:5px; display:grid; width:15px; height:15px; place-items:center; border-radius:50%; background:#679fc3; color:#fff; font-size:9px; font-weight:900; line-height:1; }
@@ -3777,7 +3778,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           const pendingName=nm&&pendingPreviewRows.get(r)===String(nm)&&!completePreviewRows.has(r);
           const key=`${c.id}:${r}`, isAdded=isPreview&&addedPreviewCells.has(key), transferChange=isPreview?transferPreviewCells.get(key):null;
           const personContent=transferChange?`<span class="preview-transfer-name">${escapeHtml(transferChange.from)}</span><span class="preview-transfer-arrow">→</span><span class="preview-transfer-name">${escapeHtml(transferChange.to)}</span>`:(nm?escapeHtml(nm):'');
-          return `<td class="cell${nm?' has-name':''}${bought?' bought-cell':''}${chinaDate?' china-cell':''}${!chinaDate&&islandDate?' island-cell':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" data-bought="${bought?'true':'false'}" contenteditable="${isPreview||matrixMarkMode?'false':'true'}"${matrixMarkMode&&nm?' tabindex="0"':''} spellcheck="false" draggable="${!isPreview&&!matrixMarkMode&&nm?'true':'false'}">${personContent}${arrivalBadge}</td>`;
+          const cellTabIndex=!isPreview?` tabindex="0"`:'';
+          return `<td class="cell${nm?' has-name':''}${bought?' bought-cell':''}${chinaDate?' china-cell':''}${!chinaDate&&islandDate?' island-cell':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" data-bought="${bought?'true':'false'}" contenteditable="false"${cellTabIndex} spellcheck="false" draggable="${!isPreview&&!matrixMarkMode&&nm?'true':'false'}">${personContent}${arrivalBadge}</td>`;
         }).join('')+'</tr>';
       }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(displayColumns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
@@ -6458,7 +6460,52 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function isTypingTarget(target){
       const el=target?.closest?.('input,textarea,select,[contenteditable="true"]');
-      return !!el&&!el.closest('#matrixTableBody td.cell');
+      return !!el;
+    }
+    function hasRealTextSelection(){
+      const selection=window.getSelection&&window.getSelection();
+      return !!selection&&!selection.isCollapsed&&String(selection.toString()||'').length>0;
+    }
+    function matrixTdForCell(cell){
+      if(!cell) return null;
+      return document.querySelector(`#matrixTableBody td.cell[data-col="${cell.col}"][data-row="${cell.row}"]`);
+    }
+    function saveMatrixCellEdit(td){
+      if(!td||td.dataset.editing!=='true') return;
+      const col=parseInt(td.dataset.col,10), row=parseInt(td.dataset.row,10);
+      const arr=allocations[col]||(allocations[col]=[]);
+      while(arr.length<=row) arr.push('');
+      const nextName=(td.textContent||'').replace(/[\r\n]+/g,' ').trim();
+      arr[row]=nextName;
+      if(String(matrixBoughtCells[matrixBoughtKey(col,row)]||'')!==nextName) delete matrixBoughtCells[matrixBoughtKey(col,row)];
+      if(!nextName){ const key=matrixBoughtKey(col,row); delete matrixIslandCells[key]; delete matrixChinaCells[key]; }
+      trimTail(arr);
+      td.dataset.editing='false';
+      td.classList.remove('matrix-cell-editing');
+      td.setAttribute('contenteditable','false');
+      saveState(); renderMatrix();
+    }
+    function placeCaretAtEnd(el){
+      const range=document.createRange(), sel=window.getSelection&&window.getSelection();
+      if(!sel) return;
+      range.selectNodeContents(el); range.collapse(false); sel.removeAllRanges(); sel.addRange(range);
+    }
+    function selectCellText(el){
+      const range=document.createRange(), sel=window.getSelection&&window.getSelection();
+      if(!sel) return;
+      range.selectNodeContents(el); sel.removeAllRanges(); sel.addRange(range);
+    }
+    function beginMatrixCellEdit(td,initialText=null){
+      if(!td||matrixMarkMode||td.closest('#matrixTable.is-preview')) return;
+      const cell=matrixCellFromEl(td);
+      if(cell) setMatrixSelection(cell);
+      td.dataset.editing='true';
+      td.classList.add('matrix-cell-editing');
+      td.setAttribute('contenteditable','true');
+      td.setAttribute('draggable','false');
+      if(initialText!==null) td.textContent=initialText;
+      td.focus();
+      if(initialText!==null) placeCaretAtEnd(td); else selectCellText(td);
     }
     function clearMatrixSelectedCells(){
       const box=matrixSelectionBox();
@@ -6529,6 +6576,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         return;
       }
       setMatrixSelection(cell);
+      setTimeout(()=>td.focus(),0);
       matrixSelecting=!td.classList.contains('has-name');
       matrixSelectionMoved=false;
       if(matrixSelecting){
@@ -6544,6 +6592,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       setMatrixSelection(matrixSelection.anchor,cell);
     });
     mbody.addEventListener('pointerup',()=>{ matrixSelecting=false; });
+    mbody.addEventListener('dblclick',e=>{
+      if(matrixMarkMode) return;
+      const td=e.target.closest('td.cell[data-col][data-row]');
+      if(!td) return;
+      e.preventDefault();
+      beginMatrixCellEdit(td);
+    });
     mbody.addEventListener('paste',e=>{
       if(matrixMarkMode) return;
       const td=e.target.closest('td.cell[data-col][data-row]');
@@ -6557,7 +6612,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
     });
     mbody.addEventListener('copy',e=>{
-      if(matrixSelectionSize()<=1) return;
+      if(matrixSelectionSize()<1||hasRealTextSelection()) return;
       const text=matrixSelectionText();
       if(!text) return;
       e.preventDefault();
@@ -6567,14 +6622,29 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(matrixMarkMode) return;
       const td=e.target.closest('td.cell[data-col][data-row]');
       if(!td) return;
-      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'&&matrixSelectionSize()>1){
-        const text=matrixSelectionText();
-        if(text){ e.preventDefault(); copyTextWithFallback(text); }
+      if(td.dataset.editing==='true'){
+        if(e.key==='Enter'){ e.preventDefault(); saveMatrixCellEdit(td); }
+        else if(e.key==='Escape'){ e.preventDefault(); renderMatrix(); }
         return;
       }
-      if((e.key==='Delete'||e.key==='Backspace')&&matrixSelectionSize()>1){
-        e.preventDefault();
+      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'&&matrixSelectionSize()>=1&&!hasRealTextSelection()){
+        const text=matrixSelectionText();
+        if(text){ e.preventDefault(); e.stopPropagation(); copyTextWithFallback(text); }
+        return;
+      }
+      if((e.key==='Delete'||e.key==='Backspace')&&matrixSelectionSize()>=1){
+        e.preventDefault(); e.stopPropagation();
         clearMatrixSelectedCells();
+        return;
+      }
+      if(e.key==='Enter'||e.key==='F2'){
+        e.preventDefault(); e.stopPropagation();
+        beginMatrixCellEdit(td);
+        return;
+      }
+      if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.key.length===1){
+        e.preventDefault(); e.stopPropagation();
+        beginMatrixCellEdit(td,e.key);
       }
     });
     document.addEventListener('keydown',e=>{
@@ -6583,6 +6653,21 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!matrixSelectionBox()) return;
       e.preventDefault();
       clearMatrixSelectedCells();
+    });
+    document.addEventListener('copy',e=>{
+      if(matrixMarkMode||matrixSelectionSize()<1||hasRealTextSelection()) return;
+      const text=matrixSelectionText();
+      if(!text) return;
+      e.preventDefault();
+      e.clipboardData?.setData('text/plain',text);
+    });
+    document.addEventListener('paste',e=>{
+      if(matrixMarkMode||isTypingTarget(e.target)||!matrixSelection.focus) return;
+      const text=e.clipboardData?.getData('text/plain')||'';
+      const grid=parseMatrixPasteGrid(text);
+      if(!grid.length) return;
+      e.preventDefault();
+      applyMatrixGrid(matrixSelection.focus,grid);
     });
     $('columnList').addEventListener('input',e=>{
       const pointInput=e.target.closest('input[data-promotion-point]');
@@ -6703,17 +6788,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       const td=e.target.closest('td[data-col]');
       if(!td) return;
       if(dragBlurSuppressedCells.has(td)){ dragBlurSuppressedCells.delete(td); return; }
-      const col=parseInt(td.dataset.col,10), row=parseInt(td.dataset.row,10);
-      const arr=allocations[col]||(allocations[col]=[]);
-      while(arr.length<=row) arr.push('');
-      const nextName=(td.textContent||'').replace(/[\r\n]+/g,' ').trim();
-      arr[row]=nextName;
-      if(String(matrixBoughtCells[matrixBoughtKey(col,row)]||'')!==nextName) delete matrixBoughtCells[matrixBoughtKey(col,row)];
-      trimTail(arr); saveState(); renderMatrix();
+      if(td.dataset.editing==='true') saveMatrixCellEdit(td);
     },true);
     mbody.addEventListener('keydown',e=>{
       const td=e.target.closest('td[data-col]');
-      if(td&&e.key==='Enter'){ e.preventDefault(); td.blur(); }
+      if(td&&td.dataset.editing==='true'&&e.key==='Enter'){ e.preventDefault(); saveMatrixCellEdit(td); }
     });
     mbody.addEventListener('dragstart',e=>{
       const td=e.target.closest('td[data-col]');
