@@ -543,7 +543,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button type="button" class="matrix-toggle" id="markChinaModeBtn" data-mark="china" data-mobile-label="国内">国内到货</button>
       <label class="mark-date-label" id="markDateLabel" style="display:none;">批次日期 <input type="date" id="markDateInput"></label>
     </div>
-    <div class="hint matrix-tip" id="matrixTip">点格子改字，拖动换位置。</div>
+    <div class="hint matrix-tip" id="matrixTip">点格子改字，拖动名字换位置；可从空格拖选，或点一个格子后 Shift 点另一个格子，多选后可复制/粘贴/清空。</div>
     <div id="matrixWrap">
       <div id="matrixProjectTitle" class="matrix-project-title"></div>
       <div id="matrixPreviewNotice" class="matrix-preview-notice" style="display:none;"></div>
@@ -1070,6 +1070,8 @@ html{ scrollbar-gutter:stable; }
 #matrixTable tbody td.cell{ cursor:text; min-height:34px; transition:background .15s,box-shadow .15s; }
 #matrixTable tbody td.cell:hover{ background:#fff8fa; }
 #matrixTable tbody td.cell:focus{ background:#fff; outline:none; box-shadow:inset 0 0 0 2px var(--accent); }
+#matrixTable tbody td.cell.matrix-cell-selected{ background:#fff4f8!important; box-shadow:inset 0 0 0 1px rgba(209,70,106,.42); }
+#matrixTable tbody td.cell.matrix-cell-active{ box-shadow:inset 0 0 0 2px var(--accent),0 0 0 1px rgba(209,70,106,.18); }
 #matrixTable tbody td.cell.has-name{ position:relative; }
 #matrixTable tbody td.cell.bought-cell{ padding-right:28px; background:#f3f8fc!important; color:#315d77!important; box-shadow:inset 0 0 0 1px #d8e8f2; font-weight:800; }
 #matrixTable tbody td.cell.bought-cell::after{ content:"✓"; position:absolute; top:5px; right:5px; display:grid; width:15px; height:15px; place-items:center; border-radius:50%; background:#679fc3; color:#fff; font-size:9px; font-weight:900; line-height:1; }
@@ -3780,6 +3782,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(displayColumns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
       applyPersonHighlight(false);
+      updateMatrixSelectionClasses();
       renderPaymentSummary();
       renderSharePaymentSummary();
       renderQuantitySummary();
@@ -6378,6 +6381,81 @@ body.export-rendering .cart-count{ font-size:28px; }
     const dragBlurSuppressedCells=new WeakSet();
     const mbody=$('matrixTableBody');
     const mhead=document.querySelector('#matrixTable thead');
+    let matrixSelection={anchor:null,focus:null}, matrixSelecting=false, matrixSelectionMoved=false;
+    function matrixCellFromEl(el){
+      const td=el?.closest?.('td.cell[data-col][data-row]');
+      if(!td) return null;
+      return {col:parseInt(td.dataset.col,10),row:parseInt(td.dataset.row,10)};
+    }
+    function sameMatrixCell(a,b){ return !!a&&!!b&&a.col===b.col&&a.row===b.row; }
+    function matrixDisplayColIds(){ return [...document.querySelectorAll('#matrixTable thead [data-col-head]')].map(th=>parseInt(th.dataset.colHead,10)); }
+    function matrixSelectionBox(){
+      const a=matrixSelection.anchor, b=matrixSelection.focus;
+      if(!a||!b) return null;
+      const cols=matrixDisplayColIds(), ai=cols.indexOf(a.col), bi=cols.indexOf(b.col);
+      if(ai<0||bi<0) return null;
+      return {cols,startColIndex:Math.min(ai,bi),endColIndex:Math.max(ai,bi),startRow:Math.min(a.row,b.row),endRow:Math.max(a.row,b.row)};
+    }
+    function matrixSelectionSize(){
+      const box=matrixSelectionBox();
+      return box?(box.endColIndex-box.startColIndex+1)*(box.endRow-box.startRow+1):0;
+    }
+    function setMatrixSelection(anchor,focus=anchor){
+      matrixSelection={anchor,focus};
+      updateMatrixSelectionClasses();
+    }
+    function clearMatrixSelection(){
+      matrixSelection={anchor:null,focus:null};
+      updateMatrixSelectionClasses();
+    }
+    function updateMatrixSelectionClasses(){
+      const box=matrixSelectionBox();
+      document.querySelectorAll('#matrixTableBody td.cell').forEach(td=>{
+        const col=parseInt(td.dataset.col,10), row=parseInt(td.dataset.row,10), colIndex=box?box.cols.indexOf(col):-1;
+        const selected=!!box&&row>=box.startRow&&row<=box.endRow&&colIndex>=box.startColIndex&&colIndex<=box.endColIndex;
+        td.classList.toggle('matrix-cell-selected',selected);
+        td.classList.toggle('matrix-cell-active',!!matrixSelection.focus&&col===matrixSelection.focus.col&&row===matrixSelection.focus.row);
+      });
+    }
+    function matrixSelectionText(){
+      const box=matrixSelectionBox();
+      if(!box) return '';
+      const lines=[];
+      for(let row=box.startRow;row<=box.endRow;row++){
+        const cells=[];
+        for(let ci=box.startColIndex;ci<=box.endColIndex;ci++){
+          const col=box.cols[ci], value=String((allocations[col]||[])[row]||'').replace(/[\r\n\t]+/g,' ').trim();
+          cells.push(value);
+        }
+        lines.push(cells.join('\t'));
+      }
+      return lines.join('\n');
+    }
+    function parseMatrixPasteGrid(text){
+      return String(text||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').map(line=>line.split('\t').map(cell=>String(cell||'').replace(/[\r\n]+/g,' ').trim())).filter((row,index,rows)=>index<rows.length-1||row.some(cell=>cell!==''));
+    }
+    function applyMatrixGrid(start,grid){
+      if(!start||!grid.length) return false;
+      const cols=matrixDisplayColIds(), startColIndex=cols.indexOf(start.col);
+      if(startColIndex<0) return false;
+      if(!pushUndoSnapshot('matrix-paste','粘贴排单格子前')) return false;
+      grid.forEach((line,rowOffset)=>{
+        line.forEach((value,colOffset)=>{
+          const col=cols[startColIndex+colOffset];
+          if(col==null) return;
+          const row=start.row+rowOffset, arr=allocations[col]||(allocations[col]=[]);
+          while(arr.length<=row) arr.push('');
+          arr[row]=value;
+          const key=matrixBoughtKey(col,row);
+          if(String(matrixBoughtCells[key]||'')!==value) delete matrixBoughtCells[key];
+          if(!value){ delete matrixIslandCells[key]; delete matrixChinaCells[key]; }
+        });
+      });
+      cols.forEach(col=>trimTail(allocations[col]||(allocations[col]=[])));
+      const endCol=cols[Math.min(cols.length-1,startColIndex+Math.max(0,...grid.map(row=>row.length-1)))];
+      const endRow=start.row+grid.length-1;
+      saveState(); renderMatrix(); setMatrixSelection(start,{col:endCol,row:endRow}); return true;
+    }
     function activeMarkStore(){ return matrixMarkMode==='island'?matrixIslandCells:(matrixMarkMode==='china'?matrixChinaCells:matrixBoughtCells); }
     function toggleMatrixBoughtControl(control){
       const store=activeMarkStore(), isArrival=(matrixMarkMode==='island'||matrixMarkMode==='china');
@@ -6417,6 +6495,78 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!matrixMarkMode) return;
       const control=e.target.closest('[data-buy-row],td.cell.has-name[data-col][data-row]');
       if(control&&(e.key==='Enter'||e.key===' ')){ e.preventDefault(); toggleMatrixBoughtControl(control); }
+    });
+    mbody.addEventListener('pointerdown',e=>{
+      if(matrixMarkMode) return;
+      const td=e.target.closest('td.cell[data-col][data-row]');
+      if(!td||e.button!==0) return;
+      const cell=matrixCellFromEl(td);
+      if(!cell) return;
+      if(e.shiftKey&&matrixSelection.anchor){
+        e.preventDefault();
+        setMatrixSelection(matrixSelection.anchor,cell);
+        return;
+      }
+      setMatrixSelection(cell);
+      matrixSelecting=!td.classList.contains('has-name');
+      matrixSelectionMoved=false;
+      if(matrixSelecting){
+        e.preventDefault();
+        try{ td.setPointerCapture(e.pointerId); }catch(_){}
+      }
+    });
+    mbody.addEventListener('pointerover',e=>{
+      if(!matrixSelecting||matrixMarkMode||!matrixSelection.anchor) return;
+      const cell=matrixCellFromEl(e.target);
+      if(!cell||sameMatrixCell(cell,matrixSelection.focus)) return;
+      matrixSelectionMoved=true;
+      setMatrixSelection(matrixSelection.anchor,cell);
+    });
+    mbody.addEventListener('pointerup',()=>{ matrixSelecting=false; });
+    mbody.addEventListener('paste',e=>{
+      if(matrixMarkMode) return;
+      const td=e.target.closest('td.cell[data-col][data-row]');
+      const start=matrixSelection.focus||matrixCellFromEl(td);
+      const text=e.clipboardData?.getData('text/plain')||'';
+      const grid=parseMatrixPasteGrid(text);
+      if(!start||!grid.length) return;
+      if(grid.length>1||grid.some(row=>row.length>1)){
+        e.preventDefault();
+        applyMatrixGrid(start,grid);
+      }
+    });
+    mbody.addEventListener('copy',e=>{
+      if(matrixSelectionSize()<=1) return;
+      const text=matrixSelectionText();
+      if(!text) return;
+      e.preventDefault();
+      e.clipboardData?.setData('text/plain',text);
+    });
+    mbody.addEventListener('keydown',e=>{
+      if(matrixMarkMode) return;
+      const td=e.target.closest('td.cell[data-col][data-row]');
+      if(!td) return;
+      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'&&matrixSelectionSize()>1){
+        const text=matrixSelectionText();
+        if(text){ e.preventDefault(); copyTextWithFallback(text); }
+        return;
+      }
+      if((e.key==='Delete'||e.key==='Backspace')&&matrixSelectionSize()>1){
+        e.preventDefault();
+        const box=matrixSelectionBox();
+        if(!box||!pushUndoSnapshot('matrix-clear-cells','清空排单格子前')) return;
+        for(let row=box.startRow;row<=box.endRow;row++){
+          for(let ci=box.startColIndex;ci<=box.endColIndex;ci++){
+            const col=box.cols[ci], arr=allocations[col]||(allocations[col]=[]);
+            while(arr.length<=row) arr.push('');
+            arr[row]='';
+            const key=matrixBoughtKey(col,row);
+            delete matrixBoughtCells[key]; delete matrixIslandCells[key]; delete matrixChinaCells[key];
+          }
+        }
+        box.cols.forEach(col=>trimTail(allocations[col]||(allocations[col]=[])));
+        saveState(); renderMatrix(); setMatrixSelection({col:box.cols[box.startColIndex],row:box.startRow},{col:box.cols[box.endColIndex],row:box.endRow});
+      }
     });
     $('columnList').addEventListener('input',e=>{
       const pointInput=e.target.closest('input[data-promotion-point]');
