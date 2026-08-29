@@ -402,6 +402,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <label class="catalog-sort-control">排序 <select id="catalogSort"><option value="smart">智能</option><option value="group">分组</option><option value="recent">最近使用</option><option value="usage">使用次数</option><option value="name">名称</option></select></label>
         <button type="button" class="btn-ghost btn-mini" id="catalogSelectAllBtn">全选当前</button>
         <button type="button" class="btn-primary btn-mini" id="catalogBatchAddBtn" disabled>加入所选</button>
+        <button type="button" class="btn-danger btn-mini" id="catalogBatchDeleteBtn" disabled>删除所选</button>
         <span id="catalogSelectionCount" class="catalog-selection-count">已选 0 项</span>
       </div>
       <div id="catalogList"></div>
@@ -588,6 +589,36 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 
   <div class="panel mobile-core" id="paymentPanel">
     <h2>⑦ 收款统计</h2>
+    <details class="settings-hub" id="settingsHub" open>
+      <summary><span>计算 / 导出设置</span><small>试用版：只是集中控制，原按钮还保留</small></summary>
+      <div class="settings-hub-grid">
+        <section>
+          <b>排单显示</b>
+          <div class="settings-chip-row">
+            <button type="button" data-settings-proxy="showPricingRow">调价</button>
+            <button type="button" data-settings-proxy="showUnitPriceRow">单价</button>
+            <button type="button" data-settings-proxy="showPromotionPointRow">提配点数</button>
+            <button type="button" data-settings-proxy="showCompleteRowColor">满配变色</button>
+            <button type="button" data-settings-proxy="showColdPromotionColor">带冷提变色</button>
+          </div>
+        </section>
+        <section>
+          <b>收款计算</b>
+          <div class="settings-chip-row">
+            <button type="button" data-settings-proxy="toggleBoughtSettlementBtn">退补结算</button>
+            <button type="button" data-settings-proxy="includeShareInPaymentBtn">收款加均摊</button>
+            <button type="button" data-settings-proxy="shareDeductFixedBtn">入均扣除</button>
+          </div>
+        </section>
+        <section>
+          <b>导出显示</b>
+          <div class="settings-chip-row">
+            <button type="button" data-settings-proxy="showPaymentTotalBtn">收款总价</button>
+            <button type="button" data-settings-proxy="showExtraFeeTotalBtn">追加费用总价</button>
+          </div>
+        </section>
+      </div>
+    </details>
     <div class="payment-tabs"><button type="button" class="payment-tab active" data-payment-tab="goods">谷子收款</button><button type="button" class="payment-tab" data-payment-tab="extra">追加费用</button><button type="button" class="payment-tab" data-payment-tab="share">均摊统计</button></div>
     <div class="payment-range-tools">
       <strong>统计排单行</strong>
@@ -1113,6 +1144,21 @@ html{ scrollbar-gutter:stable; }
 #matrixTable tbody tr.complete-row td.cell:focus{ background:#fff; color:var(--text); }
 #matrixTable tbody td.cell.person-highlight{ background:#ffe36e!important; color:#452d00!important; box-shadow:inset 0 0 0 3px #e0a900!important; font-weight:900; }
 .payment-summary{ margin-top:12px; }
+.settings-hub{ margin:0 0 10px; border:1px solid #eadde5; border-radius:12px; background:linear-gradient(180deg,#fffafb,#fff); overflow:hidden; }
+.settings-hub summary{ display:flex; align-items:center; gap:8px; padding:10px 12px; cursor:pointer; list-style:none; user-select:none; }
+.settings-hub summary::-webkit-details-marker{ display:none; }
+.settings-hub summary span{ font-size:14px; font-weight:950; color:var(--text); }
+.settings-hub summary small{ color:var(--muted); font-size:11px; font-weight:750; }
+.settings-hub summary::after{ content:"收起"; margin-left:auto; padding:4px 8px; border:1px solid var(--line); border-radius:8px; color:var(--muted); background:#fff; font-size:11px; font-weight:850; }
+.settings-hub:not([open]) summary::after{ content:"展开"; }
+.settings-hub-grid{ display:grid; grid-template-columns:1.2fr 1fr .9fr; gap:8px; padding:0 10px 10px; }
+.settings-hub section{ min-width:0; padding:9px; border:1px solid #f0e6ed; border-radius:10px; background:#fff; }
+.settings-hub section>b{ display:block; margin-bottom:7px; font-size:12px; color:#6b6171; }
+.settings-chip-row{ display:flex; flex-wrap:wrap; gap:6px; }
+.settings-chip-row button{ padding:6px 9px; border:1px solid #ead0d9; border-radius:999px; background:#fff; color:var(--accent); font-size:11px; font-weight:900; cursor:pointer; }
+.settings-chip-row button.off{ border-color:var(--line); background:#f7f4f8; color:var(--muted); }
+.settings-chip-row button.active{ border-color:#d1466a; background:#fff0f4; color:#c7375c; box-shadow:inset 0 0 0 1px rgba(209,70,106,.14); }
+@media(max-width:760px){ .settings-hub-grid{ grid-template-columns:1fr; } .settings-hub summary{ align-items:flex-start; flex-wrap:wrap; } .settings-hub summary::after{ margin-left:0; } }
 .payment-tabs{ display:flex; gap:6px; margin-bottom:10px; padding:4px; border-radius:10px; background:var(--panel-2); }
 .payment-tab{ flex:1; padding:8px 12px; border:0; border-radius:8px; background:transparent; color:var(--muted); font-weight:850; cursor:pointer; }
 .payment-tab.active{ background:#fff; color:var(--accent); box-shadow:0 1px 5px rgba(75,45,61,.12); }
@@ -1622,7 +1668,7 @@ html{ scrollbar-gutter:stable; }
   body:not(.export-rendering) .catalog-filter-tabs button{ min-height:25px; padding:3px 4px; font-size:9px; }
   body:not(.export-rendering) .catalog-tools select{ width:100%; min-width:0; height:27px; padding:2px 17px 2px 4px; font-size:9px!important; }
   body:not(.export-rendering) .catalog-sort-control{ display:none!important; }
-  body:not(.export-rendering) #catalogBatchAddBtn,body:not(.export-rendering) #catalogSelectAllBtn{ min-height:27px; padding:3px 4px; font-size:9px; white-space:nowrap; }
+  body:not(.export-rendering) #catalogBatchAddBtn,body:not(.export-rendering) #catalogSelectAllBtn,body:not(.export-rendering) #catalogBatchDeleteBtn{ min-height:27px; padding:3px 4px; font-size:9px; white-space:nowrap; }
   body:not(.export-rendering) .catalog-selection-count{ display:none; }
   body:not(.export-rendering) .catalog-item{ grid-template-columns:18px 25px 30px minmax(30px,1fr) minmax(52px,70px) 27px 25px; grid-template-rows:auto; gap:4px; padding:4px 2px; }
   body:not(.export-rendering) .catalog-item img,body:not(.export-rendering) .catalog-item .catalog-img-empty{ width:28px; height:28px; border-radius:5px; font-size:8px; }
@@ -2034,6 +2080,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function applySheet(sheet){
       const keepMarkMode=(matrixMarkMode&&activeSheetId===sheet.id)?matrixMarkMode:'';
+      const preserveColdPreview=sheet&&activeSheetId===sheet.id&&(viewportKeepSuspended()||$('coldPromotionPreviewPanel')?.style.display==='block'||String(matrixPreviewLabel||'').includes('带冷提'))&&(coldPromotionDraftRows.length||Array.isArray(sheet.coldPromotionDraftRows)&&sheet.coldPromotionDraftRows.length);
       isLoadingSheet=true;
       activeSheetId=sheet.id;
       columns=Array.isArray(sheet.columns)?sheet.columns.map(migrateColumn):[];
@@ -2101,6 +2148,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderColumnList(); renderPricingGroups(); if($('catalogPanel').style.display!=='none') renderCatalog(); recalc(); renderSheetTabs();
       syncPaymentControls();
       renderSettlementDashboard();
+      if(preserveColdPreview&&coldPromotionDraftRows.length){
+        $('coldPromotionPreviewPanel').style.display='block';
+        recalculateColdPromotionPreview(null,{preserveViewport:false});
+        if(viewportKeepSuspended()) scrollColdPromotionPreviewIntoView();
+      }
       isLoadingSheet=false;
     }
     function applyCost(c){
@@ -2461,10 +2513,31 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('markChinaModeBtn').classList.toggle('active',matrixMarkMode==='china');
       $('markChinaModeBtn').textContent=matrixMarkMode==='china'?'退出国内标记':'国内到货';
       const dateLabel=$('markDateLabel'); if(dateLabel){ dateLabel.style.display=(matrixMarkMode==='island'||matrixMarkMode==='china')?'inline-flex':'none'; if($('markDateInput')&&!$('markDateInput').value) $('markDateInput').value=matrixMarkDate||todayISO(); }
-      $('matrixTip').textContent=matrixMarkMode==='bought'?'买齐标记中：点人名切换买齐，点左侧行号标记整行。':(matrixMarkMode==='island'?'岛内到货：先选批次日期，点谷子列头整批标记（点单个格子可单独改）。':(matrixMarkMode==='china'?'国内到货：先选批次日期，点谷子列头整批标记（点单个格子可单独改）。':'点格子改字，拖动换位置。'));
+      $('matrixTip').textContent=matrixMarkMode==='bought'?'买齐标记中：点人名切换买齐，点左侧行号标记整行。':(matrixMarkMode==='island'?'岛内到货：先选批次日期，点谷子列头整批标记（点单个格子可单独改）。':(matrixMarkMode==='china'?'国内到货：先选批次日期，点谷子列头整批标记（点单个格子可单独改）。':'单击选格子，双击/Enter/F2 改字，直接打字会覆盖当前格；Shift 点另一格可多选，支持复制、粘贴、Delete 清空。'));
       $('matrixTitleInput').value=matrixTitle;
       $('matrixColorInput').value=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
       renderMatrixHeading();
+      syncSettingsHub();
+    }
+    function syncSettingsHub(){
+      const states={
+        showPricingRow:{on:showPricingRow,onText:'调价：显示',offText:'调价：隐藏'},
+        showUnitPriceRow:{on:showUnitPriceRow,onText:'单价：显示',offText:'单价：隐藏'},
+        showPromotionPointRow:{on:showPromotionPointRow,onText:'点数：显示',offText:'点数：隐藏'},
+        showCompleteRowColor:{on:showCompleteRowColor,onText:'满配变色：开',offText:'满配变色：关'},
+        showColdPromotionColor:{on:showColdPromotionColor,onText:'带冷提变色：开',offText:'带冷提变色：关'},
+        toggleBoughtSettlementBtn:{on:showBoughtSettlement,onText:'退补结算：开',offText:'退补结算：关'},
+        includeShareInPaymentBtn:{on:paymentIncludeShare,onText:'收款加均摊：开',offText:'收款加均摊：关'},
+        shareDeductFixedBtn:{on:shareDeductFixed,onText:'入均扣除：开',offText:'入均扣除：关'},
+        showPaymentTotalBtn:{on:showPaymentTotal,onText:'收款总价：显示',offText:'收款总价：隐藏'},
+        showExtraFeeTotalBtn:{on:extraFeeShowTotal,onText:'追加总价：显示',offText:'追加总价：隐藏'}
+      };
+      document.querySelectorAll('[data-settings-proxy]').forEach(btn=>{
+        const state=states[btn.dataset.settingsProxy]; if(!state) return;
+        btn.textContent=state.on?state.onText:state.offText;
+        btn.classList.toggle('active',!!state.on);
+        btn.classList.toggle('off',!state.on);
+      });
     }
     function activeBundleColumns(sourceAllocations=allocations){
       const selected=new Set(coldCarryBundleColumnIds.map(Number));
@@ -2734,7 +2807,9 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(nextShare){ nextShare.scrollLeft=viewPosition.shareLeft; nextShare.scrollTop=viewPosition.shareTop; }
           window.scrollTo(viewPosition.pageX,viewPosition.pageY);
         };
-        if(commentActive) keepCommentInputStable(commentKeep);
+        if(viewportKeepSuspended()){
+          scrollColdPromotionPreviewIntoView();
+        }else if(commentActive) keepCommentInputStable(commentKeep);
         else{ restoreView(); requestAnimationFrame(()=>{ restoreView(); requestAnimationFrame(restoreView); }); }
         return true;
       }finally{ applyingCollab=false; }
@@ -3336,6 +3411,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('catalogSelectAllBtn').disabled=catalogVisibleIds.length===0;
       $('catalogSelectionCount').textContent=`已选 ${catalogSelectedIds.size} 项`;
       $('catalogBatchAddBtn').disabled=catalogSelectedIds.size===0;
+      if($('catalogBatchDeleteBtn')) $('catalogBatchDeleteBtn').disabled=catalogSelectedIds.size===0;
       catalogListEl.innerHTML=list.length?list.map(item=>`<div class="catalog-item" data-catalog-id="${item.catalogId}">
         <input class="catalog-select" type="checkbox" data-catalog-select aria-label="选择 ${escapeHtml(item.name)}" ${catalogSelectedIds.has(item.catalogId)?'checked':''}>
         <button type="button" class="catalog-pin${item.catalogPinned?' active':''}" title="${item.catalogPinned?'取消置顶':'置顶'}" aria-label="${item.catalogPinned?'取消置顶':'置顶'}">★</button>
@@ -3639,6 +3715,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       matrixPreviewHighlights=matrixPreviewAllocations?deepClone(highlights||{}):{};
       renderMatrix();
     }
+    let viewportKeepSuspendedUntil=0;
+    function suspendViewportKeep(ms=900){
+      viewportKeepSuspendedUntil=Math.max(viewportKeepSuspendedUntil,Date.now()+ms);
+    }
+    function viewportKeepSuspended(){
+      return Date.now()<viewportKeepSuspendedUntil;
+    }
     function captureViewportKeep(){
       const x=Math.max(10,Math.min(window.innerWidth-10,Math.floor(window.innerWidth/2)));
       const y=Math.max(80,Math.min(window.innerHeight-80,Math.floor(window.innerHeight/2)));
@@ -3651,7 +3734,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function restoreViewportKeep(keep){
       if(!keep) return;
+      if(viewportKeepSuspended()) return;
       const restore=()=>{
+        if(viewportKeepSuspended()) return;
         (keep.positions||[]).forEach(item=>{ if(item.el&&item.el.isConnected!==false){ item.el.scrollTop=item.top; item.el.scrollLeft=item.left; } });
         window.scrollTo(keep.x||0,keep.y||0);
         if(keep.anchor&&keep.anchor.isConnected&&keep.anchorTop!=null){
@@ -3661,6 +3746,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       };
       restore();
       requestAnimationFrame(()=>{ restore(); requestAnimationFrame(restore); });
+    }
+    function scrollColdPromotionPreviewIntoView(){
+      const panel=$('coldPromotionPreviewPanel');
+      if(!panel) return;
+      const go=()=>panel.scrollIntoView({behavior:'auto',block:'start'});
+      go();
+      requestAnimationFrame(()=>{ go(); setTimeout(go,120); });
     }
     function keepCommentInputStable(keep){
       const box=$('commentInput'); if(!box) return;
@@ -4445,6 +4537,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('sharePaymentView').style.display=paymentActiveTab==='share'?'':'none';
       if(paymentActiveTab==='extra') renderExtraFees();
       document.querySelectorAll('[data-payment-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.paymentTab===paymentActiveTab));
+      syncSettingsHub();
     }
 
     function normalizeExtraFee(row){
@@ -4941,6 +5034,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('showPromotionPointRow').addEventListener('click',()=>{ showPromotionPointRow=!showPromotionPointRow; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showCompleteRowColor').addEventListener('click',()=>{ showCompleteRowColor=!showCompleteRowColor; syncMatrixOptions(); saveState(); renderMatrix(); });
     $('showColdPromotionColor').addEventListener('click',()=>{ showColdPromotionColor=!showColdPromotionColor; syncMatrixOptions(); saveState(); renderMatrix(); });
+    document.getElementById('settingsHub')?.addEventListener('click',e=>{
+      const btn=e.target.closest('[data-settings-proxy]');
+      if(!btn) return;
+      const target=document.getElementById(btn.dataset.settingsProxy);
+      if(target) target.click();
+    });
     {
       const box=$('commentInput');
       let commentTypingKeep=null;
@@ -5117,6 +5216,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       button.textContent=added?`已加入 ${added} 项${skipped?`，跳过 ${skipped} 项`:''}`:`已跳过 ${skipped} 项`;
       setTimeout(()=>button.textContent=old,1500);
     });
+    $('catalogBatchDeleteBtn')?.addEventListener('click',async ()=>{
+      const selected=[...catalogSelectedIds].filter(id=>itemCatalog.some(item=>item.catalogId===id));
+      if(!selected.length){ catalogSelectedIds.clear(); renderCatalog(); return; }
+      if(!await appConfirm(`确定从常用谷子库删除已选的 ${selected.length} 项吗？\n只会删除库里的常用项，不会删除已经加入本表的谷子列。`,'批量删除常用谷子','确认删除')) return;
+      const selectedSet=new Set(selected);
+      itemCatalog=itemCatalog.filter(item=>!selectedSet.has(item.catalogId));
+      catalogSelectedIds.clear();
+      saveState(); renderCatalog();
+    });
     $('catalogList').addEventListener('change',async e=>{
       const row=e.target.closest('[data-catalog-id]'); if(!row) return;
       const id=parseInt(row.dataset.catalogId,10),item=itemCatalog.find(x=>x.catalogId===id); if(!item) return;
@@ -5124,6 +5232,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(e.target.checked) catalogSelectedIds.add(id); else catalogSelectedIds.delete(id);
         $('catalogSelectionCount').textContent=`已选 ${catalogSelectedIds.size} 项`;
         $('catalogBatchAddBtn').disabled=catalogSelectedIds.size===0;
+        if($('catalogBatchDeleteBtn')) $('catalogBatchDeleteBtn').disabled=catalogSelectedIds.size===0;
       }else if(e.target.matches('.catalog-group-edit')){
         let nextGroup=String(e.target.value||'').trim();
         if(nextGroup==='__new__'){
@@ -6147,30 +6256,30 @@ body.export-rendering .cart-count{ font-size:28px; }
         });
         required.forEach(col=>{
           if(lockedCells.has(`${col.id}:${target}`)) return;
-          const existing=sim[col.id][target]; if(existing) addToPool(col,existing,target);
+          let fill=null;
           if(ownCols.some(own=>own.id===col.id)){
-            sim[col.id][target]=applicantToken(candidate,col);
+            fill=applicantToken(candidate,col);
             candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
           }else{
-            let fill=borrowed.get(col.id)?.token||null;
+            fill=borrowed.get(col.id)?.token||null;
             if(!fill&&q.grade==='C'){
               fill=takePool(col);
               if(fill) borrowed.set(col.id,{token:fill,source:'original'});
             }
-            sim[col.id][target]=fill;
           }
-          if(sim[col.id][target]) lockedCells.add(`${col.id}:${target}`);
+          if(!fill) return;
+          const existing=sim[col.id][target]; if(existing) addToPool(col,existing,target);
+          sim[col.id][target]=fill;
+          lockedCells.add(`${col.id}:${target}`);
         });
         const candidateOrdinaryColumnIds=new Set(candidate.rightItems.filter(item=>item.col&&item.col.mode!=='fixed'&&!bundleColumnIds.has(item.col.id)&&!candidate.leftColumnIds.has(item.col.id)).map(item=>item.col.id));
         planColumns.filter(col=>candidateOrdinaryColumnIds.has(col.id)).forEach(col=>{
           if(lockedCells.has(`${col.id}:${target}`)) return;
+          if((candidate.rightRemaining.get(col.id)||0)<=0) return;
           const existing=sim[col.id][target]; if(existing) addToPool(col,existing,target);
-          sim[col.id][target]=null;
-          if((candidate.rightRemaining.get(col.id)||0)>0){
-            sim[col.id][target]=applicantToken(candidate,col);
-            candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
-            lockedCells.add(`${col.id}:${target}`);
-          }
+          sim[col.id][target]=applicantToken(candidate,col);
+          candidate.rightRemaining.set(col.id,(candidate.rightRemaining.get(col.id)||0)-1);
+          lockedCells.add(`${col.id}:${target}`);
         });
         lockedCells.add(`${resource.col.id}:${target}`);
         candidate.placedTargets.push(target);
@@ -6189,11 +6298,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(!targets.length) return;
         const rightCols=[...new Map(candidate.rightItems.filter(item=>item.col&&item.col.mode!=='fixed').map(item=>[item.col.id,item.col])).values()];
         rightCols.forEach(col=>{
-          let remaining=Math.max(0,Number(candidate.rightRemaining.get(col.id))||0), offset=0;
+          let remaining=Math.max(0,Number(candidate.rightRemaining.get(col.id))||0);
+          const startRow=minTargetForCandidate(candidate);
           while(remaining>0){
-            fillCarryEmpty(col,targets[Math.min(offset,targets.length-1)],applicantToken(candidate,col));
+            fillCarryEmpty(col,startRow,applicantToken(candidate,col));
             candidate.rightRemaining.set(col.id,remaining-1);
-            remaining--; offset++;
+            remaining--;
           }
         });
       });
@@ -6240,20 +6350,21 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map(row=>`<tr><td>${escapeHtml(row.person)}</td><td class="promotion-score">${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
       $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations||coldPromotionDraftApplied;
     }
-    function recalculateColdPromotionPreview(statusText){
-      const keepScroll=captureViewportKeep();
+    function recalculateColdPromotionPreview(statusText,options={}){
+      const preserveViewport=options.preserveViewport!==false;
+      const keepScroll=preserveViewport?captureViewportKeep():null;
       const plan=buildColdPromotionPlan(coldPromotionDraftBaseAllocations||allocations);
       coldPromotionPreviewRows=plan.rows; coldPromotionPreviewAllocations=plan.allocations; coldPromotionPlanRevision=localRevision; coldPromotionPlanSignature=coldPreviewDataSignature();
       renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display=coldPromotionDraftRows.length?'block':'none';
       const highlights={completeRows:coldPromotionPreviewRows.filter(row=>row.ok&&row.bundleComplete).map(row=>row.targetRow),pendingRows:coldPromotionPreviewRows.filter(row=>row.ok&&!row.bundleComplete).map(row=>({row:row.targetRow,person:row.person}))};
       if(coldPromotionPreviewAllocations) showMatrixPreview(coldPromotionPreviewAllocations,'带冷提重排模拟结果',highlights); else clearMatrixPreview();
-      restoreViewportKeep(keepScroll);
+      if(preserveViewport) restoreViewportKeep(keepScroll);
       const peopleCount=parseColdPromotionCandidates().length;
       $('coldPromotionPreviewStatus').textContent=statusText||`已保存 ${coldPromotionDraftRows.length} 条、合计 ${peopleCount} 人；内容会保留到手动清除。`;
       $('coldPromotionPreviewStatus').style.color=coldPromotionPreviewAllocations?'':'var(--bad)'; return plan;
     }
     function startColdPromotionPreview(){
-      const keepScroll=captureViewportKeep();
+      suspendViewportKeep(1200);
       const raw=$('commentInput').value.trim();
       migrateLegacyColdPromotionDraft();
       if(raw){
@@ -6265,13 +6376,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       }else if(!coldPromotionDraftRows.length){ alert('请先粘贴带冷提文字'); return; }
       if(coldPromotionDraftApplied){
         coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='block'; clearMatrixPreview();
-        $('coldPromotionPreviewStatus').textContent='这份带冷提已经应用，内容仍会保留；可以导出正式排单，清除后再开始下一份。'; $('coldPromotionPreviewStatus').style.color='var(--ok)'; return;
+        $('coldPromotionPreviewStatus').textContent='这份带冷提已经应用，内容仍会保留；可以导出正式排单，清除后再开始下一份。'; $('coldPromotionPreviewStatus').style.color='var(--ok)';
+        scrollColdPromotionPreviewIntoView();
+        return;
       }
       $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
-      recalculateColdPromotionPreview();
-      restoreViewportKeep(keepScroll);
+      recalculateColdPromotionPreview(null,{preserveViewport:false});
+      scrollColdPromotionPreviewIntoView();
     }
     $('coldPromotionPreviewBtn').addEventListener('click',startColdPromotionPreview);
     $('exportColdPromotionPreviewBtn').addEventListener('click',()=>{
@@ -6285,7 +6398,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('coldPromotionDraftTableBody').addEventListener('change',e=>{
       const input=e.target.closest('[data-cold-draft-id]'); if(!input||coldPromotionDraftApplied) return;
       const row=coldPromotionDraftRows.find(item=>item.id===parseInt(input.dataset.coldDraftId,10)); if(!row) return;
-      row[input.dataset.coldDraftField]=input.value.trim(); consolidateColdPromotionDraftRows(); saveState(); recalculateColdPromotionPreview();
+      const keep=captureViewportKeep(), field=input.dataset.coldDraftField, id=parseInt(input.dataset.coldDraftId,10), start=input.selectionStart, end=input.selectionEnd;
+      row[field]=input.value.trim(); consolidateColdPromotionDraftRows(); saveState(); recalculateColdPromotionPreview();
+      requestAnimationFrame(()=>{
+        restoreViewportKeep(keep);
+        const next=$(`coldPromotionDraftTableBody`).querySelector(`[data-cold-draft-id="${id}"][data-cold-draft-field="${field}"]`);
+        if(next){ try{ next.focus({preventScroll:true}); if(Number.isFinite(start)&&Number.isFinite(end)) next.setSelectionRange(start,end); }catch(_){} }
+      });
     });
     $('coldPromotionDraftTableBody').addEventListener('click',e=>{
       const button=e.target.closest('[data-remove-cold-draft]'); if(!button||coldPromotionDraftApplied) return;
@@ -6928,7 +7047,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     closeExtraFeeForm(); $('intlSplitPanel').hidden=true;
     $('extraFeeTitleInput').addEventListener('input',e=>{ extraFeeTitle=e.target.value; if($('extraFeeExportTitle')) $('extraFeeExportTitle').textContent=extraFeeTitle||'追加费用收款'; saveState(); });
     $('extraFeeColorInput').addEventListener('input',e=>{ extraFeeColor=e.target.value; if($('extraFeeExportTitle')) $('extraFeeExportTitle').style.background=extraFeeColor; saveState(); });
-    $('showExtraFeeTotalBtn').addEventListener('click',()=>{ extraFeeShowTotal=!extraFeeShowTotal; saveState(); renderExtraFeesKeepScroll(); });
+    $('showExtraFeeTotalBtn').addEventListener('click',()=>{ extraFeeShowTotal=!extraFeeShowTotal; saveState(); renderExtraFeesKeepScroll(); syncSettingsHub(); });
     function handleExtraPaymentQr(file){ if(!file) return; compressQrPng(file,1600).then(data=>{ extraPaymentQrImg=data; saveState(); renderExtraFeesKeepScroll(); }).catch(()=>alert('追加费用收款码图片处理失败')); }
     $('extraPaymentQrInput').addEventListener('change',e=>{ handleExtraPaymentQr(e.target.files[0]); e.target.value=''; });
     $('clearExtraPaymentQrBtn').addEventListener('click',()=>{ extraPaymentQrImg=''; saveState(); renderExtraFeesKeepScroll(); });
