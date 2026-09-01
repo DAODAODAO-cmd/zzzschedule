@@ -2206,20 +2206,50 @@ body.export-rendering .cart-count{ font-size:28px; }
         $(k).value = (c[k]!==undefined && c[k]!=='') ? c[k] : COST_DEFAULTS[k];
       });
     }
+    function localStatePayload(){
+      return {sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal};
+    }
+    function lightLocalStatePayload(){
+      const payload=deepClone(localStatePayload());
+      const slimImage=value=>String(value||'').startsWith('data:image/')?'':(value||'');
+      (payload.sheets||[]).forEach(sheet=>{
+        (sheet.columns||[]).forEach(column=>{ column.img=slimImage(column.img); });
+        delete sheet.cartQrImg; delete sheet.paymentQrImg; delete sheet.alipayQrImg; delete sheet.wechatQrImg;
+      });
+      (payload.itemCatalog||[]).forEach(item=>{ item.img=slimImage(item.img); });
+      payload.sharedCartQrImg=slimImage(payload.sharedCartQrImg);
+      payload.sharedPaymentQrImg=slimImage(payload.sharedPaymentQrImg);
+      payload.extraPaymentQrImg=slimImage(payload.extraPaymentQrImg);
+      return payload;
+    }
+    function persistLocalState(){
+      try{
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(localStatePayload()));
+        return 'full';
+      }catch(error){
+        try{
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.setItem(STORAGE_KEY,JSON.stringify(lightLocalStatePayload()));
+          console.warn('本机空间不足，已改为轻量缓存',error);
+          return 'light';
+        }catch(lightError){
+          console.warn('保存失败',lightError);
+          return 'failed';
+        }
+      }
+    }
     function saveState(){
       if(isLoadingSheet) return true;
       captureActiveSheet();
-      let localSaved=true;
-      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal})); }
-      catch(e){ localSaved=false; console.warn('保存失败',e); }
-      if($('localStatus')){ $('localStatus').textContent=localSaved?'本机已保存':'本机保存失败'; $('localStatus').style.color=localSaved?'var(--ok)':'var(--bad)'; }
+      const localSaved=persistLocalState();
+      if($('localStatus')){ $('localStatus').textContent=localSaved==='full'?'本机已保存':(localSaved==='light'?'本机已轻量保存':'本机保存失败'); $('localStatus').style.color=localSaved==='failed'?'var(--bad)':(localSaved==='light'?'var(--warn)':'var(--ok)'); }
       if(!applyingCloud&&!applyingCollab){
         localRevision++; cloudDirty=true; rememberCloudDirty(syncCode,true);
         if(collabEnabled){ scheduleCollabSync(); setCloudStatus('实时协作中 · 完整备份未更新','warn'); }
         else if(syncCode&&cloudIdleEnabled) scheduleIdleCloudUpload();
         else setCloudStatus(syncCode?'云端完整备份未更新':'尚未加入协作组',syncCode?'warn':false);
       }
-      return localSaved;
+      return localSaved!=='failed';
     }
     const deepClone=value=>JSON.parse(JSON.stringify(value));
     function actionPreviewDataSignature(){
@@ -2841,7 +2871,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         activeSheetId=sheets.some(s=>s.id===preferredSheet)?preferredSheet:sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
         if($('commentInput')) $('commentInput').value=commentText;
-        localStorage.setItem(STORAGE_KEY,JSON.stringify({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal}));
+        const localSaved=persistLocalState();
+        if($('localStatus')){ $('localStatus').textContent=localSaved==='full'?'本机已保存':(localSaved==='light'?'本机已轻量保存':'本机保存失败'); $('localStatus').style.color=localSaved==='failed'?'var(--bad)':(localSaved==='light'?'var(--warn)':'var(--ok)'); }
         const restoreView=()=>{
           const nextPayment=$('paymentSummary')?.querySelector('.payment-table-wrap'), nextShare=$('sharePaymentSummary')?.querySelector('.payment-table-wrap');
           if(nextPayment){ nextPayment.scrollLeft=viewPosition.paymentLeft; nextPayment.scrollTop=viewPosition.paymentTop; }
@@ -2865,6 +2896,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       compact.style.background=collabEnabled?'#f0faf3':'#fff9ef';
     }
     function setCollabStatus(text,tone){ const el=$('collabStatus'); el.textContent=text; el.style.color=tone==='bad'?'var(--bad)':(tone==='warn'?'var(--warn)':(tone==='ok'?'var(--ok)':'var(--muted)')); syncCompactCollabStatus(); }
+    function readableCollabError(error){
+      const raw=String(error?.message||error||'');
+      const text=raw.toUpperCase();
+      if(lockFeatureMissing(error)||text.includes('GGZ_OPEN_COLLAB')||text.includes('COULD NOT FIND THE FUNCTION')) return '实时协作 SQL 尚未安装或版本太旧';
+      if(text.includes('GROUP_ACCESS_DENIED')||text.includes('NOT_GROUP_MEMBER')||text.includes('PERMISSION')||text.includes('POLICY')||text.includes('ROW-LEVEL SECURITY')) return '当前账号没有这个协作组的实时权限';
+      if(text.includes('JWT')||text.includes('SESSION')||text.includes('AUTH')) return '登录状态过期，请重新登录';
+      return raw||'未知错误';
+    }
     function syncCollabUI(){
       $('startCollabBtn').disabled=collabEnabled||!syncCode;
       $('stopCollabBtn').disabled=!collabEnabled;
@@ -3009,9 +3048,10 @@ body.export-rendering .cart-count{ font-size:28px; }
         localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1'); clearIdleCloudUpload(); startCollabPolling(); syncCollabUI(); startCollabPresence(); setCollabStatus(`实时协作已连接 · 版本 ${collabRevision}`,'ok'); setCloudStatus('完整云端备份可手动上传'); return true;
       }catch(error){
         collabEnabled=false; syncCollabUI();
-        if(lockFeatureMissing(error)) alert('实时协作 SQL 尚未安装，请在 Supabase 执行最新的完整 supabase_setup.sql。');
-        else if(!autoStart) alert('开启实时协作失败：'+(error.message||error));
-        setCollabStatus('实时协作尚未连接','bad'); return false;
+        const reason=readableCollabError(error);
+        if(lockFeatureMissing(error)&&!autoStart) alert('实时协作 SQL 尚未安装，请在 Supabase 执行最新的完整 supabase_setup.sql。');
+        else if(!autoStart) alert('开启实时协作失败：'+reason);
+        setCollabStatus('实时协作尚未连接：'+reason,'bad'); return false;
       }
     }
     async function stopCollab(){
