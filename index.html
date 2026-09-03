@@ -3255,6 +3255,31 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(c.mode==='avg'&&c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))) return Math.max(0,Number(c.avgOverride));
       return avgPrice;
     }
+    function averageOriginalJpy(){
+      const raw=Math.max(0,num($('jpyPrice').value));
+      if(!raw) return 0;
+      const type=$('priceType').value;
+      if(type==='single') return raw;
+      const fixedCount=columns.reduce((sum,c)=>sum+(c.mode==='fixed'||c.mode==='single'||c.mode==='wholeset'?1:0),0);
+      const denom=Math.max(1,(columns.length||1)-fixedCount);
+      return raw/denom;
+    }
+    function columnOriginalJpy(c,seen=new Set()){
+      if(!c||seen.has(c.id)) return 0;
+      seen.add(c.id);
+      if(c.isPricingCombo){
+        const members=(c.comboMembers&&c.comboMembers.length?c.comboMembers:pricingGroupMemberColumns(pricingGroups.find(g=>g.id===c.comboGroupId)));
+        return (members||[]).reduce((sum,member)=>sum+columnOriginalJpy(member,seen),0);
+      }
+      if(c.mode==='single') return Math.max(0,num(c.sourceJpyPrice));
+      if(c.mode==='wholeset') return columns.filter(x=>x.mode!=='wholeset').reduce((sum,x)=>sum+columnOriginalJpy(x,seen),0);
+      if(c.mode==='fixed'){
+        const rate=Math.max(0,num($('exchangeRate').value));
+        return Math.max(0,num(c.sourceJpyPrice))||(rate>0?Math.max(0,num(c.fixedPrice))/rate:0);
+      }
+      return averageOriginalJpy();
+    }
+    const jpyText=value=>`${fmtNum(Math.max(0,num(value)))} 日元`;
     // ---------- box pricing groups (V9) ----------
     function migratePricingGroup(group){
       if(!group||typeof group!=='object') return null;
@@ -4493,8 +4518,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
         const key=name.replace(/\s+/g,'').toLowerCase();
-        if(!people.has(key)) people.set(key,{key,name,total:0,items:new Map(),requestedQty:0,boughtQty:0,boughtTotal:0,boughtItems:new Map()});
-        const row=people.get(key), price=unitPrice(c); row.total+=price; row.requestedQty++; row.items.set(c.name,(row.items.get(c.name)||0)+1);
+        if(!people.has(key)) people.set(key,{key,name,total:0,jpyTotal:0,items:new Map(),requestedQty:0,boughtQty:0,boughtTotal:0,boughtItems:new Map()});
+        const row=people.get(key), price=unitPrice(c); row.total+=price; row.jpyTotal+=columnOriginalJpy(c); row.requestedQty++; row.items.set(c.name,(row.items.get(c.name)||0)+1);
         if(isMatrixCellBought(c.id,index,name)){ row.boughtQty++; row.boughtTotal+=price; row.boughtItems.set(c.name,(row.boughtItems.get(c.name)||0)+1); }
       }));
       const el=$('paymentSummary');
@@ -4532,8 +4557,9 @@ body.export-rendering .cart-count{ font-size:28px; }
         const amount=paymentEditAmount(paymentEdits,'alipay',data.name,data.key,base);
         return sum+amount;
       },0);
+      const paymentJpyTotal=[...people.values()].reduce((sum,data)=>sum+Math.max(0,num(data.jpyTotal)),0);
       const totalLabel=paymentIncludeShare?'排单总价（含均摊）':'排单总价';
-      const totalHtml=showPaymentTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">${totalLabel}</td><td class="payment-total-value">${money(paymentTotal)}</td></tr></tfoot>`:'';
+      const totalHtml=showPaymentTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">日元总价</td><td class="payment-total-value">${jpyText(paymentJpyTotal)}</td></tr><tr><td colspan="4" class="payment-total-label">${totalLabel}</td><td class="payment-total-value">${money(paymentTotal)}</td></tr></tfoot>`:'';
       const visibleData=[...people.values()], paidStates=visibleData.map(data=>paidState(paymentPaid,data.key,paymentEditAmount(paymentEdits,'alipay',data.name,data.key,Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total))), allPaid=paidStates.length>0&&paidStates.every(state=>state==='full'), partialPaid=!allPaid&&paidStates.some(state=>state!=='unpaid');
       let progressText=paymentProgressText(visibleData,paymentPaid,paymentRefund,paymentSupplement,data=>paymentEditAmount(paymentEdits,'alipay',data.name,data.key,Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total));
       $('paymentUnpaidCount').textContent=progressText; renderSettlementDashboard();
