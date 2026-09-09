@@ -1732,6 +1732,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     const num=v=>Number(v)||0;
     const fmtNum=v=>{ const n=Number(v)||0; return Number.isInteger(n)?String(n):n.toFixed(2); };
     const fmtPoint=v=>String(Number(Math.max(0,Number(v)||0).toFixed(4)));
+    const shareUnitText=v=>`¥${(Math.max(0,Number(v)||0)).toFixed(3)}`;
     const escapeHtml=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const escapeAttr=s=>escapeHtml(s).replace(/"/g,'&quot;');
 
@@ -4123,7 +4124,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         people.get(key).qty+=shareWeight; totalQty+=shareWeight;
         if(shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
-      const perItem=totalQty?ceilMoneyValue(Math.max(0,sharedTotal-fixedDeduction)/totalQty):0;
+      const perItem=totalQty?Math.max(0,sharedTotal-fixedDeduction)/totalQty:0;
       return [...people.values()].map(data=>{ const autoExpected=ceilMoneyValue(data.qty*perItem), expected=paymentVisibleAmount('sharePaymentSummary','data-share-payment-key',sharePaymentEdits,'alipay',data.name,data.key,autoExpected),received=paidAmountValue(sharePaymentPaid,data.key,expected); return {...data,expected,received,refund:refundAmountValue(sharePaymentRefund,data.key,expected),supplement:refundAmountValue(sharePaymentSupplement,data.key,expected)}; });
     }
     function combinedSettlementRecords(){
@@ -4208,7 +4209,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         sh.qty+=shareWeight; totalQty+=shareWeight; sh.boughtItems.set(c.name,(sh.boughtItems.get(c.name)||0)+1);
         if(ctx.settings.shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
-      const perItem=totalQty?ceilMoneyValue(Math.max(0,ctx.settings.sharedTotal-fixedDeduction)/totalQty):0;
+      const perItem=totalQty?Math.max(0,ctx.settings.sharedTotal-fixedDeduction)/totalQty:0;
       const shareRecords=[...sharePeople.values()].map(data=>{ const autoExpected=ceilMoneyValue(data.qty*perItem), expected=paymentEditAmount(ctx.settings.sharePaymentEdits,'alipay',data.name,data.key,autoExpected), received=paidAmountValue(ctx.settings.sharePaymentPaid,data.key,expected); return {...data,expected,received}; });
       const shareMap=new Map(shareRecords.map(x=>[x.key,x])), keys=new Set([...goodsPeople.keys(),...shareMap.keys()]);
       return [...keys].map(key=>{
@@ -4520,7 +4521,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
       if(!people.size){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('sharePaymentUnpaidCount').textContent='已收齐：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
-      const distributable=Math.max(0,sharedTotal-fixedDeduction), perItem=totalQty?ceilMoneyValue(distributable/totalQty):0;
+      const distributable=Math.max(0,sharedTotal-fixedDeduction), perItem=totalQty?distributable/totalQty:0;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(sharePaymentEdits,key)?sharePaymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-share-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
@@ -4543,7 +4544,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const color=/^#[0-9a-f]{6}$/i.test(sharePaymentColor)?sharePaymentColor:'#d1466a';
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       const qtyModeText=showBoughtSettlement?'按买到数量':'按排单数量';
-      const note=shareDeductFixed?`${qtyModeText}：均摊 ${money(sharedTotal)}－入均 ${money(fixedDeduction)}＝实际均摊 ${money(distributable)}；共 ${fmtPoint(totalQty)} 点，每点 ${money(perItem)}`:`${qtyModeText}：直接均摊 ${money(sharedTotal)}；共 ${fmtPoint(totalQty)} 点，每点 ${money(perItem)}`;
+      const note=shareDeductFixed?`${qtyModeText}：均摊 ${money(sharedTotal)}－入均 ${money(fixedDeduction)}＝实际均摊 ${money(distributable)}；共 ${fmtPoint(totalQty)} 点，每点约 ${shareUnitText(perItem)}，个人金额最后进分`:`${qtyModeText}：直接均摊 ${money(sharedTotal)}；共 ${fmtPoint(totalQty)} 点，每点约 ${shareUnitText(perItem)}，个人金额最后进分`;
       const visibleData=[...people.values()], shareAmountFor=data=>ceilMoneyValue(data.qty*perItem), paidStates=visibleData.map(data=>paidState(sharePaymentPaid,data.key,paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,shareAmountFor(data)))), allPaid=paidStates.length>0&&paidStates.every(state=>state==='full'), partialPaid=!allPaid&&paidStates.some(state=>state!=='unpaid');
       $('sharePaymentUnpaidCount').textContent=paymentProgressText([...people.values()],sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,data=>paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,shareAmountFor(data)));
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-share-payment-paid-all="1" aria-pressed="${allPaid?'true':(partialPaid?'mixed':'false')}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
