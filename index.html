@@ -7553,9 +7553,9 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(due<=0.005){ rows.forEach(row=>row.remove()); return; }
         unpaidPeople++; unpaidTotal+=due;
         if(amounts.received>0){
-          const firstRow=rows[0], editable=[...firstRow.querySelectorAll('[data-payment-key]')];
+          const firstRow=rows[0], editable=[...firstRow.querySelectorAll('[data-payment-key]')], moneyCells=[...firstRow.querySelectorAll('td.payment-money')];
           const alipay=editable.find(el=>decodeURIComponent(el.dataset.paymentKey||'').startsWith('alipay:'));
-          const wechat=editable.find(el=>decodeURIComponent(el.dataset.paymentKey||'').startsWith('wechat:'));
+          const wechat=moneyCells.find(cell=>cell!==alipay?.closest('td.payment-money'));
           if(alipay) alipay.textContent=moneyText(due);
           if(wechat) wechat.textContent=moneyText(wechatFeeAmount(due));
         }
