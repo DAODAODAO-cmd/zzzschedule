@@ -325,6 +325,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button id="authLogoutBtn" class="btn-ghost" type="button">退出登录</button>
     <button id="startCollabBtn" class="btn-primary" disabled>重新连接</button>
     <button id="stopCollabBtn" class="btn-ghost" disabled>暂停协作</button>
+    <button id="dataSaverBtn" class="btn-ghost" type="button">省流量：开</button>
     <button id="cloudUploadBtn" class="btn-primary">上传云端</button>
     <button id="cloudDownloadBtn" class="btn-ghost">读取云端</button>
     <span id="localStatus">本机已保存</span>
@@ -1765,9 +1766,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     const CLOUD_DIRTY_KEY_PREFIX='ggzCloudDirty_';
     const COLLAB_ENABLED_KEY_PREFIX='ggzCollabEnabled_';
     const COLLAB_CONFLICT_KEY_PREFIX='ggzCollabConflict_';
+    const DATA_SAVER_KEY='ggzDataSaver_v1';
     const APP_SECTION_KEY='ggzAppSection_v1';
     const SHEET_STATUS_FILTER_KEY='ggzSheetStatusFilter_v1';
-    const COLLAB_POLL_MS=2000;
+    const COLLAB_POLL_MS=20000, COLLAB_POLL_FAST_MS=5000, COLLAB_PRESENCE_MS=120000, COLLAB_PRESENCE_FAST_MS=30000;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
     const WORKSPACE_STORAGE_KEY='ggzActiveWorkspace_v1';
@@ -1777,7 +1779,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let syncCode=UUID_RE.test(storedSyncCode)?storedSyncCode:'';
     let workspaces=[],workspaceInvites=[],archivedWorkspaces=[],activeWorkspaceId=localStorage.getItem(WORKSPACE_STORAGE_KEY)||syncCode,workspaceLoading=false,archiveAccess=false;
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
-    let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false;
+    let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false, pendingCollabInstallState=null, dataSaverMode=localStorage.getItem(DATA_SAVER_KEY)!=='0';
     const APP_SECTIONS=['goods','order','stats','payment','dispatch','logistics','settings'];
     function storedAppSection(){
       const section=localStorage.getItem(APP_SECTION_KEY);
@@ -2795,8 +2797,23 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       return root;
     }
+    function isColumnListEditing(){
+      const active=document.activeElement, list=$('columnList');
+      return !!(active&&list&&list.contains(active)&&isTypingTarget(active));
+    }
+    function flushPendingCollabInstall(){
+      if(!pendingCollabInstallState||isColumnListEditing()) return false;
+      const state=pendingCollabInstallState;
+      pendingCollabInstallState=null;
+      return installCollabState(state);
+    }
     function installCollabState(state){
       if(!state||!Array.isArray(state.sheets)||!state.sheets.length) return false;
+      if(isColumnListEditing()){
+        pendingCollabInstallState=deepClone(state);
+        setCollabStatus('正在输入，云端刷新已延后','warn');
+        return false;
+      }
       const preferredSheet=activeSheetId, commentText=$('commentInput')?.value||'';
       const commentActive=document.activeElement===$('commentInput'), commentKeep=commentActive?captureViewportKeep():null;
       const paymentScroll=$('paymentSummary')?.querySelector('.payment-table-wrap'), shareScroll=$('sharePaymentSummary')?.querySelector('.payment-table-wrap');
@@ -2846,13 +2863,16 @@ body.export-rendering .cart-count{ font-size:28px; }
     function syncCollabUI(){
       $('startCollabBtn').disabled=collabEnabled||!syncCode;
       $('stopCollabBtn').disabled=!collabEnabled;
+      const saver=$('dataSaverBtn'); if(saver){ saver.textContent=dataSaverMode?'省流量：开':'省流量：关'; saver.classList.toggle('active',dataSaverMode); saver.title=dataSaverMode?'减少实时轮询和在线名单刷新，节省 Supabase Egress':'更快看到协作变化，但会增加 Supabase Egress'; }
       $('collabActivityPanel').style.display=collabEnabled?'block':'none';
       document.documentElement.classList.remove('cloud-edit-readonly');
       $('editLockBanner').style.display='none';
       syncCompactCollabStatus();
     }
     function stopCollabPolling(){ if(collabPollTimer){ clearInterval(collabPollTimer); collabPollTimer=null; } }
-    function startCollabPolling(){ stopCollabPolling(); if(collabEnabled) collabPollTimer=setInterval(pollCollabState,COLLAB_POLL_MS); }
+    function collabPollInterval(){ return dataSaverMode?COLLAB_POLL_MS:COLLAB_POLL_FAST_MS; }
+    function collabPresenceInterval(){ return dataSaverMode?COLLAB_PRESENCE_MS:COLLAB_PRESENCE_FAST_MS; }
+    function startCollabPolling(){ stopCollabPolling(); if(collabEnabled) collabPollTimer=setInterval(pollCollabState,collabPollInterval()); }
     function stopCollabPresence(){ if(collabPresenceTimer){ clearInterval(collabPresenceTimer); collabPresenceTimer=null; } }
     function collabRelativeTime(value){
       const seconds=Math.max(0,Math.round((Date.now()-new Date(value).getTime())/1000));
@@ -2892,24 +2912,26 @@ body.export-rendering .cart-count{ font-size:28px; }
     async function refreshCollabActivity(){
       if(!collabEnabled||!syncCode) return;
       try{
-        const client=getCloudClient(syncCode), now=new Date().toISOString(), cutoff=new Date(Date.now()-90000).toISOString();
+        const client=getCloudClient(syncCode), now=new Date().toISOString(), cutoff=new Date(Date.now()-(dataSaverMode?180000:90000)).toISOString();
         const {error:touchError}=await lockRequest(client.from('ggz_collab_presence').upsert({sync_code:syncCode,session_id:editSessionId,editor_name:editorName||'未命名',last_seen:now},{onConflict:'sync_code,session_id'}),12000,'在线名单更新');
         if(touchError) throw touchError;
         const [{data:people,error:peopleError},{data:changes,error:changesError}]=await Promise.all([
           lockRequest(client.from('ggz_collab_presence').select('editor_name,last_seen').eq('sync_code',syncCode).gte('last_seen',cutoff).order('last_seen',{ascending:false}),12000,'在线名单读取'),
-          lockRequest(client.rpc('ggz_collab_activity',{p_group_id:syncCode,p_limit:30}),12000,'协作记录读取')
+          dataSaverMode?Promise.resolve({data:[],error:null}):lockRequest(client.rpc('ggz_collab_activity',{p_group_id:syncCode,p_limit:10}),12000,'协作记录读取')
         ]);
         if(peopleError) throw peopleError;
         const unique=new Map(); (people||[]).forEach(row=>{ const name=row.editor_name||'未命名'; if(!unique.has(name)) unique.set(name,row); });
         $('collabOnlinePeople').textContent=unique.size?[...unique.keys()].map(name=>name===editorName?`${name}（我）`:name).join('、'):'暂无活跃人员';
-        if(!changesError){
+        if(dataSaverMode){
+          $('collabRecentChanges').innerHTML='<div class="collab-recent-item"><span>省流量模式下暂停读取最近修改记录</span><time>省流量</time></div>';
+        }else if(!changesError){
           $('collabRecentChanges').innerHTML=(changes||[]).length?(changes||[]).map(row=>`<div class="collab-recent-item"><span><b>${escapeHtml(row.author_name||'未命名')}</b> 修改了${escapeHtml(row.is_detailed?describeCollabPatch(row.patch):'排单内容')} · 版本 ${Number(row.revision)||0}</span><time>${escapeHtml(collabRelativeTime(row.created_at))}</time></div>`).join(''):'暂无修改记录';
         }
       }catch(error){
         $('collabOnlinePeople').textContent='名单尚未启用，请执行更新后的 SQL';
       }
     }
-    function startCollabPresence(){ stopCollabPresence(); if(!collabEnabled) return; refreshCollabActivity(); collabPresenceTimer=setInterval(refreshCollabActivity,15000); }
+    function startCollabPresence(){ stopCollabPresence(); if(!collabEnabled) return; refreshCollabActivity(); collabPresenceTimer=setInterval(refreshCollabActivity,collabPresenceInterval()); }
     async function leaveCollabPresence(){
       stopCollabPresence();
       if(!syncCode) return;
@@ -2918,7 +2940,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function scheduleCollabSync(){
       if(!collabEnabled||applyingCollab) return;
       collabNeedsSend=true; clearTimeout(collabSendTimer);
-      collabSendTimer=setTimeout(flushCollabChanges,350);
+      collabSendTimer=setTimeout(flushCollabChanges,dataSaverMode?1200:350);
       setCollabStatus('本机有新修改 · 正在同步…','warn');
     }
     async function flushCollabChanges(){
@@ -2953,7 +2975,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(laterOps.length){ collabNeedsSend=true; scheduleCollabSync(); }
         return conflicts.length===0;
       }catch(error){ collabNeedsSend=true; setCollabStatus('同步失败，正在保留本机修改并重试','bad'); return false; }
-      finally{ collabSending=false; if(collabNeedsSend&&!collabSendTimer) collabSendTimer=setTimeout(flushCollabChanges,1800); }
+      finally{ collabSending=false; if(collabNeedsSend&&!collabSendTimer) collabSendTimer=setTimeout(flushCollabChanges,dataSaverMode?5000:1800); }
     }
     async function pollCollabState(){
       if(!collabEnabled||collabPolling||collabSending) return;
@@ -5339,6 +5361,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('startCollabBtn').addEventListener('click',()=>startCollab(false));
     $('stopCollabBtn').addEventListener('click',stopCollab);
+    $('dataSaverBtn').addEventListener('click',()=>{
+      dataSaverMode=!dataSaverMode;
+      localStorage.setItem(DATA_SAVER_KEY,dataSaverMode?'1':'0');
+      if(collabEnabled){ startCollabPolling(); startCollabPresence(); }
+      syncCollabUI();
+      setCollabStatus(dataSaverMode?'省流量模式已开启 · 同步会稍慢':'省流量模式已关闭 · 同步更快但更耗流量',dataSaverMode?'warn':'ok');
+    });
     $('acquireEditLockBtn').addEventListener('click',acquireEditLock);
     $('releaseEditLockBtn').addEventListener('click',()=>releaseEditLock(true,false));
     $('cloudUploadBtn').addEventListener('click',()=>uploadCloud(false));
@@ -6968,7 +6997,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('columnList').addEventListener('change',e=>{
       if(e.target.matches('input.modeval[data-price-field],input[data-promotion-point]')) recalc();
+      setTimeout(flushPendingCollabInstall,0);
     });
+    $('columnList').addEventListener('focusout',()=>setTimeout(flushPendingCollabInstall,180));
     function matrixPriceColumn(input){ return columns.find(c=>c.id===parseInt(input.dataset.col,10)); }
     function saveMatrixNumericDraft(input){
       const value=parseFloat(String(input.value||'').replace(/[^\d.+-]/g,'')); if(!Number.isFinite(value)) return;
