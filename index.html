@@ -2807,6 +2807,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       pendingCollabInstallState=null;
       return installCollabState(state);
     }
+    function cancelPendingCollabInstallForLocalEdit(){
+      if(!pendingCollabInstallState) return;
+      pendingCollabInstallState=null;
+      if(collabEnabled) setCollabStatus('已保留本机输入，等待同步','warn');
+    }
     function installCollabState(state){
       if(!state||!Array.isArray(state.sheets)||!state.sheets.length) return false;
       if(isColumnListEditing()){
@@ -3562,12 +3567,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       const file=input.files[0]; if(!file) return;
       compressImage(file,900,0.9).then(dataUrl=>{
         const c=columns.find(x=>x.id===id); if(!c) return;
+        cancelPendingCollabInstallForLocalEdit();
         c.img=dataUrl; saveState(); renderColumnList(); renderMatrix();
       }).catch(()=>alert('图片处理失败，请换一张试试'));
     };
-    ggz.clearColumnImage=id=>{ const c=columns.find(x=>x.id===id); if(!c) return; c.img=null; saveState(); renderColumnList(); renderMatrix(); };
+    ggz.clearColumnImage=id=>{ const c=columns.find(x=>x.id===id); if(!c) return; cancelPendingCollabInstallForLocalEdit(); c.img=null; saveState(); renderColumnList(); renderMatrix(); };
     ggz.updateColumn=(id,field,value)=>{
       const c=columns.find(x=>x.id===id); if(!c) return;
+      cancelPendingCollabInstallForLocalEdit();
       if(field==='aliases') c.aliases=value.split(/[，,]/).map(s=>s.trim()).filter(Boolean);
       else if(field==='priceAdj') c.priceAdj=parseFloat(value)||0;
       else if(field==='fixedPrice'){ const n=parseFloat(value); if(Number.isFinite(n)) c.fixedPrice=Math.max(0,n); }
@@ -6979,7 +6986,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const pointInput=e.target.closest('input[data-promotion-point]');
       if(pointInput){
         const c=columns.find(col=>col.id===parseInt(pointInput.dataset.col,10)), value=parseFloat(pointInput.value);
-        if(c&&Number.isFinite(value)){ c.promotionPoints=Math.max(0,value); saveState(); }
+        if(c&&Number.isFinite(value)){ cancelPendingCollabInstallForLocalEdit(); c.promotionPoints=Math.max(0,value); saveState(); }
         return;
       }
       const input=e.target.closest('input.modeval[data-price-field]'); if(!input) return;
@@ -6993,11 +7000,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       else if(field==='sourceJpyPrice') c.sourceJpyPrice=Math.max(0,value);
       else if(field==='avgOverride') c.avgOverride=Math.max(0,value);
       else if(field==='wholeSetPrice') c.wholeSetPrice=Math.max(0,value);
+      cancelPendingCollabInstallForLocalEdit();
       saveState(); readCost(); computeAverage();
     });
     $('columnList').addEventListener('change',e=>{
       if(e.target.matches('input.modeval[data-price-field],input[data-promotion-point]')) recalc();
-      setTimeout(flushPendingCollabInstall,0);
     });
     $('columnList').addEventListener('focusout',()=>setTimeout(flushPendingCollabInstall,180));
     function matrixPriceColumn(input){ return columns.find(c=>c.id===parseInt(input.dataset.col,10)); }
