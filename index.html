@@ -49,9 +49,11 @@
   .settlement-mini-btn[data-settlement-adjust="refund"]{border-color:#bfd8f0;background:#f3f8ff;color:#286da7}
   .settlement-mini-btn[data-settlement-adjust="supplement"]{border-color:#efbdc5;background:#fff5f6;color:#b4364c}
   .settlement-mini-btn:hover{filter:brightness(.98);transform:translateY(-1px)}
-  .payment-admin-note{display:inline-block;min-width:96px;min-height:28px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:left;outline:none}
-  .payment-admin-note:focus{border-color:var(--accent,#d1466a);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent,#d1466a) 12%,transparent)}
-  .payment-admin-note:empty:before{content:attr(data-placeholder);color:var(--muted);font-weight:400}
+.payment-admin-note{display:inline-block;min-width:96px;min-height:28px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:left;outline:none}
+.payment-admin-note:focus{border-color:var(--accent,#d1466a);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent,#d1466a) 12%,transparent)}
+.payment-admin-note:empty:before{content:attr(data-placeholder);color:var(--muted);font-weight:400}
+.matrix-blind-sub{display:block;margin-top:3px;color:#9a3d5d;font-size:10px;font-weight:900;line-height:1.2}
+.matrix-blind-sub::before{content:"";color:#8a7f8d;font-size:9px}
   .settlement-empty{padding:18px;color:var(--muted);text-align:center;font-weight:600}
   @media(max-width:760px){.settlement-dashboard-head{align-items:flex-start;flex-direction:column}.settlement-head-actions{justify-content:flex-start}.settlement-ledger{grid-template-columns:1fr}.settlement-dashboard{padding:10px}.settlement-filter-bar{flex-wrap:nowrap;overflow:auto;padding-bottom:3px}.settlement-status-btn,.settlement-status-label{min-width:94px}.settlement-result-box{min-width:132px}}
 
@@ -431,6 +433,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button class="btn-primary" id="parseBtn">排单预览</button>
       <button class="btn-ghost" id="transferPreviewBtn">转单预览</button>
       <button class="btn-ghost" id="cancelPreviewBtn">撤单预览</button>
+      <button class="btn-ghost" id="blindResultPreviewBtn">抽奖结果导入</button>
       <button class="btn-ghost" id="coldPromotionPreviewBtn">带冷提配预览</button>
       <button class="btn-ghost" id="clearCommentBtn">清空文字</button>
       <span class="hint">先预览，确认后再写入表格。</span>
@@ -503,6 +506,26 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
   </div>
 
+  <div class="panel mobile-core" id="blindResultPreviewPanel" style="display:none;">
+    <h2>抽奖结果导入</h2>
+    <div class="hint" style="margin-bottom:7px;">格式：一行一个人「小明：A1 B1 D1」，也支持一抽一行「小明 A」。整段要挂到同一列时，可以在这里选一次。</div>
+    <div class="toolbar" style="margin-bottom:7px;">
+      <label>默认挂到 <select id="blindResultDefaultColumn"><option value="">自动/未选择</option></select></label>
+      <span class="hint">如果有多种盲抽制品，建议先选这里；个别行也可在表格里单独改。</span>
+    </div>
+    <div class="table-scroll">
+      <table id="blindResultPreviewTable">
+        <thead><tr><th>#</th><th>CN</th><th>挂到哪列</th><th>原盲抽数</th><th>结果数</th><th>结果</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="blindResultPreviewTableBody"></tbody>
+      </table>
+    </div>
+    <div class="toolbar">
+      <button class="btn-primary" id="confirmBlindResultBtn">确认挂结果</button>
+      <button class="btn-ghost" id="cancelBlindResultPreviewBtn">取消预览</button>
+      <span class="hint" id="blindResultPreviewStatus">先预览，数量对上后再挂到正式排单。</span>
+    </div>
+  </div>
+
   <div class="panel mobile-core" id="previewPanel" style="display:none;">
     <h2>预览（可编辑，确认无误后再生成）</h2>
     <div class="table-scroll">
@@ -552,6 +575,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button class="btn-ghost" id="exportPngBtn" data-mobile-label="导出图片">导出配比图</button>
       <button class="btn-ghost" id="exportSingleQuantityBtn" data-mobile-label="单领数量">复制单领数量</button>
       <button class="btn-ghost" id="exportBundleQuantityBtn" data-mobile-label="配比数量">复制配比数量</button>
+      <button class="btn-ghost" id="copyBlindResultBtn" data-mobile-label="盲抽结果">复制盲抽结果</button>
       <button class="btn-ghost" id="undoLastApplyBtn" data-mobile-label="撤回" disabled>撤回上次应用</button>
       <button class="btn-danger" id="clearAllBtn" data-mobile-label="清空">清空排单</button>
     </div>
@@ -1741,12 +1765,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     let columns=[];       // {id,name,aliases[],mode:'avg'|'adjust'|'fixed'|'single',priceAdj,fixedPrice,img}
     let pricingGroups=[], pricingGroupIdSeed=1, editingPricingGroupId=null;
     let allocations={};   // colId -> [person,...]
-    let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[], orderPreviewSignature='', transferPreviewSignature='', cancelPreviewSignature='';
+    let previewRows=[], transferPreviewRows=[], cancelPreviewRows=[], blindResultPreviewRows=[], orderPreviewSignature='', transferPreviewSignature='', cancelPreviewSignature='', blindResultPreviewSignature='';
     let coldPromotionDraftRows=[], coldPromotionDraftApplied=false, coldPromotionDraftBaseAllocations=null, coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
     let coldCarryBundleColumnIds=[];
     let colIdSeed=1, rowIdSeed=1;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
-    let matrixTitle='', matrixColor='#d1466a', matrixBoughtCells={}, matrixIslandCells={}, matrixChinaCells={}, matrixMarkMode='', matrixMarkDate='';
+    let matrixTitle='', matrixColor='#d1466a', matrixBoughtCells={}, matrixIslandCells={}, matrixChinaCells={}, matrixBlindSubCells={}, matrixMarkMode='', matrixMarkDate='';
     let quantityTitle='';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', showPaymentTotal=true, showBoughtSettlement=false, paymentIncludeShare=false;
     let paymentEdits={}, paymentPaid={}, paymentRefund={}, paymentSupplement={}, paymentRefundDone={}, paymentSupplementDone={}, paymentNotes={}, settlementDashboardOpen=false, settlementFilter='pending', sharePaymentTitle='', sharePaymentTitleCustom=false, sharePaymentColor='#d1466a', sharePaymentViewMode='detail', sharePaymentEdits={}, sharePaymentPaid={}, sharePaymentRefund={}, sharePaymentSupplement={}, shareDeductFixed=false;
@@ -1755,7 +1779,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
     let coldPromotionHighlights={completeRows:[],pendingRows:[]};
-    let matrixPreviewAllocations=null, matrixPreviewColumns=null, matrixPreviewLabel='', matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[]};
+    let matrixPreviewAllocations=null, matrixPreviewColumns=null, matrixPreviewLabel='', matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[],blindSubCells:null};
     let totalCost=0, avgPrice=0, adjSum=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let undoHistoryBySheet={};
@@ -2040,10 +2064,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function snapshotSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
-      return {id:activeSheetId,name:'',columns,allocations,pricingGroups,pricingGroupIdSeed,watermarkArchive,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,matrixBoughtCells,matrixIslandCells,matrixChinaCells,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,showBoughtSettlement,paymentIncludeShare,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,paymentNotes,settlementDashboardOpen,sharePaymentTitle,sharePaymentTitleCustom,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
+      return {id:activeSheetId,name:'',columns,allocations,pricingGroups,pricingGroupIdSeed,watermarkArchive,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,matrixBoughtCells,matrixIslandCells,matrixChinaCells,matrixBlindSubCells,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,showBoughtSettlement,paymentIncludeShare,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,paymentNotes,settlementDashboardOpen,sharePaymentTitle,sharePaymentTitleCustom,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},pricingGroups:[],pricingGroupIdSeed:1,watermarkArchive:[],cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:"#d1466a",matrixBoughtCells:{},matrixIslandCells:{},matrixChinaCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentIncludeShare:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},pricingGroups:[],pricingGroupIdSeed:1,watermarkArchive:[],cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:"#d1466a",matrixBoughtCells:{},matrixIslandCells:{},matrixChinaCells:{},matrixBlindSubCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentIncludeShare:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function blankCollabProjectSnapshot(){
       const savedSeed=sheetIdSeed;
@@ -2100,6 +2124,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       matrixBoughtCells=sheet.matrixBoughtCells&&typeof sheet.matrixBoughtCells==='object'?deepClone(sheet.matrixBoughtCells):{};
       matrixIslandCells=sheet.matrixIslandCells&&typeof sheet.matrixIslandCells==='object'?deepClone(sheet.matrixIslandCells):{};
       matrixChinaCells=sheet.matrixChinaCells&&typeof sheet.matrixChinaCells==='object'?deepClone(sheet.matrixChinaCells):{};
+      matrixBlindSubCells=sheet.matrixBlindSubCells&&typeof sheet.matrixBlindSubCells==='object'?deepClone(sheet.matrixBlindSubCells):{};
       matrixMarkMode=keepMarkMode;
       quantityTitle=resolvedSheetTitle(sheet,'quantityTitle');
       paymentTitle=resolvedSheetTitle(sheet,'paymentTitle'); paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
@@ -2120,7 +2145,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!sharedPaymentQrImg) sharedPaymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
       paymentQrImg=sharedPaymentQrImg;
       highlightedPerson='';
-      matrixPreviewAllocations=null; matrixPreviewColumns=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[]};
+      matrixPreviewAllocations=null; matrixPreviewColumns=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[],blindSubCells:null};
       quantityConfigured=sheet.quantityConfigured===true;
       boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
       groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
@@ -3601,6 +3626,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     ggz.removeColumn=async id=>{
       if(!await appConfirm('确定删除这一列吗？该列已生成的配比数据也会一并清除。','删除谷子列','确认删除')) return;
       columns=columns.filter(c=>c.id!==id); delete allocations[id]; pricingGroups.forEach(g=>{ g.memberIds=g.memberIds.filter(memberId=>memberId!==id); if(g.originalPricing) delete g.originalPricing[id]; }); pricingGroups=pricingGroups.filter(g=>g.memberIds.length>=2);
+      [matrixBoughtCells,matrixIslandCells,matrixChinaCells,matrixBlindSubCells].forEach(store=>deleteMatrixCellStoreColumn(store,id));
       coldCarryBundleColumnIds=coldCarryBundleColumnIds.filter(colId=>colId!==id);
       saveState(); renderColdBundleConfiguration(); renderColumnList(); renderPricingGroups(); recalc();
     };
@@ -3745,6 +3771,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       pushPending();
       return blocks.filter(b=>b.demandText);
     }
+    function splitOrderComments(raw){
+      const drawRows=parseDrawToolResultRows(raw);
+      if(drawRows.length) return drawRows.map(row=>({person:row.person,demandText:row.itemsText}));
+      return splitComments(raw);
+    }
     function renderPreview(){
       const tbody=$('previewTableBody');
       tbody.innerHTML=previewRows.map((r,i)=>`
@@ -3778,6 +3809,181 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!previewRows.length){ clearMatrixPreview(); return; }
       const preview=buildOrderMatrixPreview();
       showMatrixPreview(preview.allocations,label,preview.highlights,preview.columns);
+    }
+    function isBlindColumn(c){
+      const text=[c?.name||'',...(Array.isArray(c?.aliases)?c.aliases:[])].join(' ').toLowerCase();
+      return /(盲抽|随机|待开|盲盒|未开|blind|random)/i.test(text);
+    }
+    function blindColumns(){ return columns.filter(isBlindColumn); }
+    function findBlindColumnByText(text){
+      const value=String(text||'').replace(/[【】\[\]（）()]/g,'').trim().toLowerCase();
+      if(!value) return null;
+      return blindColumns().find(c=>[c.name,...(c.aliases||[])].some(label=>{
+        const t=String(label||'').trim().toLowerCase();
+        return t&&(t===value||value===t.replace(/\s+/g,'')||value.includes(t+'盲抽')||value.includes(t+'抽'));
+      }))||null;
+    }
+    function blindColumnIdForRow(row){
+      const explicit=findBlindColumnByText(row.blindColumnName);
+      if(explicit) return explicit.id;
+      const selected=Number(($('blindResultDefaultColumn')||{}).value)||0;
+      if(selected&&blindColumns().some(c=>Number(c.id)===selected)) return selected;
+      const list=blindColumns();
+      return list.length===1?list[0].id:null;
+    }
+    function syncBlindResultColumnSelect(){
+      const select=$('blindResultDefaultColumn'); if(!select) return;
+      const current=select.dataset.keepValue==='1'?select.value:'', options=blindColumns();
+      select.innerHTML='<option value="">自动/未选择</option>'+options.map(c=>`<option value="${c.id}">${escapeHtml(c.name||'未命名')}</option>`).join('');
+      if(options.some(c=>String(c.id)===String(current))) select.value=current;
+      else if(options.length===1) select.value=String(options[0].id);
+      else select.value='';
+      select.dataset.keepValue='1';
+    }
+    function blindItemCount(items){ return items.reduce((sum,item)=>sum+Math.max(1,parseInt(item.qty,10)||1),0); }
+    function expandBlindSubItems(items){
+      const list=[];
+      (items||[]).forEach(item=>{
+        const name=String(item.name||'').trim(), qty=Math.max(1,parseInt(item.qty,10)||1);
+        if(!name) return;
+        for(let i=0;i<qty;i++) list.push(name);
+      });
+      return list;
+    }
+    function personBlindPositions(sourceAllocations=allocations, onlyColId=null){
+      const map=new Map();
+      columns.filter(isBlindColumn).forEach(col=>{
+        if(onlyColId!==null&&Number(col.id)!==Number(onlyColId)) return;
+        (sourceAllocations[col.id]||[]).forEach((name,row)=>{
+          const person=String(name||'').trim(); if(!person) return;
+          const key=normalizeDispatchKey(person);
+          if(!map.has(key)) map.set(key,{person,positions:[]});
+          map.get(key).positions.push({colId:col.id,row});
+        });
+      });
+      return map;
+    }
+    function parseBlindResultLine(line,blindColumnName=''){
+      const text=String(line||'').replace(/\*\*/g,'').trim(); if(!text) return null;
+      let person='', itemsText='';
+      const colon=text.match(/^(.{1,40}?)[：:]\s*(.+)$/);
+      if(colon){
+        const left=colon[1], matched=findBlindColumnByText(left);
+        if(matched){
+          blindColumnName=matched.name;
+          person=cleanPersonName(String(left).replace(matched.name,'').trim());
+        }else person=cleanPersonName(left);
+        itemsText=colon[2];
+      }
+      else{
+        const parts=text.split(/\s+/).filter(Boolean);
+        if(parts.length>=2){
+          const people=knownPeople(), compact=text.replace(/\s+/g,'');
+          const known=people.find(name=>compact.startsWith(String(name||'').replace(/\s+/g,'')));
+          if(known){
+            person=known;
+            itemsText=text.slice(text.indexOf(parts[0])+String(known).length).trim()||parts.slice(1).join(' ');
+          }else{ person=cleanPersonName(parts.shift()); itemsText=parts.join(' '); }
+        }
+      }
+      const items=parseDemandText(itemsText);
+      if(!person&&!items.length) return null;
+      return {id:rowIdSeed++,person,itemsText,items,blindColumnName};
+    }
+    function parseBlindResultRows(raw){
+      const drawRows=parseDrawToolResultRows(raw);
+      if(drawRows.length) return drawRows;
+      const grouped=new Map();
+      let currentBlindName='';
+      actionContentLines(raw).forEach(line=>{
+        const title=line.match(/^[【\[]\s*(.+?)\s*[】\]]$/);
+        if(title&&findBlindColumnByText(title[1])){ currentBlindName=findBlindColumnByText(title[1]).name; return; }
+        const plainTitle=findBlindColumnByText(line);
+        if(plainTitle&&line.replace(/\s+/g,'').length<=String(plainTitle.name||'').replace(/\s+/g,'').length+4){ currentBlindName=plainTitle.name; return; }
+        const row=parseBlindResultLine(line,currentBlindName); if(!row) return;
+        const key=normalizeDispatchKey(row.person)+'|'+String(row.blindColumnName||'');
+        if(!grouped.has(key)) grouped.set(key,{id:rowIdSeed++,person:row.person,itemsText:'',blindColumnName:row.blindColumnName||''});
+        const target=grouped.get(key);
+        target.itemsText=[target.itemsText,row.itemsText].filter(Boolean).join(' ');
+      });
+      return [...grouped.values()];
+    }
+    function parseDrawToolResultRows(raw){
+      const lines=String(raw||'').replace(/\r/g,'').split('\n').map(line=>line.replace(/\*\*/g,'').trim()).filter(Boolean);
+      if(!lines.some(line=>/抽了\s*\d+\s*次/.test(line))||!lines.some(line=>/(?:款\s*)?[×xX*✕✖＊*]\s*\d+/.test(line))) return [];
+      const rows=[];
+      let current=null, expected=0, currentBlindName='';
+      const flush=()=>{
+        if(current&&current.person&&(current.itemsText||Number(current.expected)>0)) rows.push({id:rowIdSeed++,person:current.person,itemsText:String(current.itemsText||'').trim(),blindColumnName:current.blindColumnName||currentBlindName,expectedDraw:Number(current.expected)||0});
+        current=null; expected=0;
+      };
+      lines.forEach(line=>{
+        const title=line.match(/^[【\[]\s*(.+?)\s*[】\]]$/);
+        if(title&&findBlindColumnByText(title[1])){ flush(); currentBlindName=findBlindColumnByText(title[1]).name; return; }
+        const plainTitle=findBlindColumnByText(line);
+        if(plainTitle&&line.replace(/\s+/g,'').length<=String(plainTitle.name||'').replace(/\s+/g,'').length+4){ flush(); currentBlindName=plainTitle.name; return; }
+        const inlineDraw=line.match(/^(.+?)\s*抽了\s*(\d+)\s*次$/);
+        if(inlineDraw){ flush(); current={person:cleanPersonName(inlineDraw[1]),itemsText:'',expected:Math.max(0,parseInt(inlineDraw[2],10)||0),blindColumnName:currentBlindName}; expected=current.expected; return; }
+        const draw=line.match(/^抽了\s*(\d+)\s*次$/);
+        if(draw){ expected=Math.max(0,parseInt(draw[1],10)||0); if(current) current.expected=expected; return; }
+        const itemParts=parseDrawToolItemLine(line);
+        if(itemParts.length&&current){
+          const text=itemParts.map(item=>`${item.name}${item.qty}`).join(' ');
+          current.itemsText=[current.itemsText,text].filter(Boolean).join(' ');
+          return;
+        }
+        if(itemParts.length&&!current) return;
+        flush();
+        current={person:cleanPersonName(line),itemsText:'',expected:0,blindColumnName:currentBlindName};
+      });
+      flush();
+      return rows;
+    }
+    function parseDrawToolItemLine(line){
+      const text=String(line||'').replace(/\*\*/g,'').trim();
+      const results=[];
+      const re=/([^×xX*✕✖＊]+?)(?:\s*款)?\s*[×xX*✕✖＊]\s*(\d+)/g;
+      let match;
+      while((match=re.exec(text))){
+        const name=String(match[1]||'').replace(/^\s*[，,、；;]\s*/,'').trim(), qty=Math.max(1,parseInt(match[2],10)||1);
+        if(name) results.push({name,qty});
+      }
+      return results;
+    }
+    function renderBlindResultPreview(){
+      const blindList=blindColumns();
+      $('blindResultPreviewTableBody').innerHTML=blindResultPreviewRows.map((row,index)=>{
+        const colId=blindColumnIdForRow(row), col=columns.find(c=>Number(c.id)===Number(colId));
+        const blindMap=personBlindPositions(allocations,colId);
+        const items=parseDemandText(row.itemsText), qty=blindItemCount(items), expected=Number(row.expectedDraw)||0, key=normalizeDispatchKey(row.person), blindQty=colId?blindMap.get(key)?.positions.length||0:0;
+        const needsColumn=blindList.length>1&&!colId, columnStatus=needsColumn?'请填写盲抽列名':'';
+        const drawMismatch=expected>0&&qty!==expected;
+        const ok=!!row.person&&qty>0&&!drawMismatch&&colId&&blindQty===qty, status=columnStatus||(!row.person?'请填写 CN':(!qty?'没有识别到结果':(drawMismatch?`抽数不一致：抽了 ${expected}，结果 ${qty}`:(!blindQty?'这个人没有这个盲抽占位':(blindQty!==qty?`数量不一致：盲抽 ${blindQty}，结果 ${qty}`:'可挂结果')))));
+        const columnValue=row.blindColumnName||col?.name||'';
+        return `<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="person" value="${escapeAttr(row.person)}"></td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="blindColumnName" value="${escapeAttr(columnValue)}" placeholder="${blindList.length>1?'必填':'自动'}"></td><td>${blindQty}</td><td>${qty}</td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="itemsText" value="${escapeAttr(row.itemsText)}"></td><td class="${ok?'transfer-ok':'transfer-bad'}">${escapeHtml(status)}</td><td><button class="btn-danger btn-mini" data-remove-blind-result="${row.id}">删除</button></td></tr>`;
+      }).join('');
+      const bad=blindResultPreviewRows.some(row=>{
+        const colId=blindColumnIdForRow(row), items=parseDemandText(row.itemsText), qty=blindItemCount(items), expected=Number(row.expectedDraw)||0, blindQty=colId?(personBlindPositions(allocations,colId).get(normalizeDispatchKey(row.person))?.positions.length||0):0;
+        return !row.person||qty<=0||(expected>0&&qty!==expected)||!colId||blindQty!==qty;
+      });
+      $('confirmBlindResultBtn').disabled=!blindResultPreviewRows.length||bad;
+      $('blindResultPreviewStatus').textContent=blindResultPreviewRows.length?(bad?'有数量没有对上，先修正后再确认。':'数量都对上了，可以挂到盲抽格子。'):'先在上方粘贴抽奖结果。';
+      $('blindResultPreviewStatus').style.color=bad?'var(--warn)':'var(--ok)';
+    }
+    function buildBlindResultMatrixPreview(){
+      const previewColumns=deepClone(columns), previewGroups=deepClone(pricingGroups), previewAllocations=deepClone(allocations), blindSubCells=deepClone(matrixBlindSubCells);
+      blindResultPreviewRows.forEach(row=>{
+        const colId=blindColumnIdForRow(row), blindMap=personBlindPositions(previewAllocations,colId);
+        const key=normalizeDispatchKey(row.person), entry=blindMap.get(key); if(!entry) return;
+        const subs=expandBlindSubItems(parseDemandText(row.itemsText));
+        entry.positions.forEach((pos,index)=>{ const sub=subs[index]||''; if(sub) blindSubCells[matrixBoughtKey(pos.colId,pos.row)]=sub; });
+      });
+      return {columns:orderDisplayColumns(previewColumns,previewGroups,previewAllocations),allocations:previewAllocations,highlights:{blindSubCells}};
+    }
+    function showBlindResultMatrixPreview(){
+      if(!blindResultPreviewRows.length){ clearMatrixPreview(); return; }
+      const preview=buildBlindResultMatrixPreview();
+      showMatrixPreview(preview.allocations,'抽奖结果导入模拟（尚未写入正式排单）',preview.highlights,preview.columns);
     }
 
     // ---------- matrix ----------
@@ -3838,13 +4044,21 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
     function clearMatrixPreview(shouldRender=true){
-      const hadPreview=!!matrixPreviewAllocations; matrixPreviewAllocations=null; matrixPreviewColumns=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[]};
+      const hadPreview=!!matrixPreviewAllocations; matrixPreviewAllocations=null; matrixPreviewColumns=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[],blindSubCells:null};
       if(hadPreview&&shouldRender) renderMatrix();
     }
     function matrixBoughtKey(col,row){ return `${Number(col)}:${Number(row)}`; }
     function isMatrixCellBought(col,row,name){
       const current=String(name||'').trim();
       return !!current&&String(matrixBoughtCells[matrixBoughtKey(col,row)]||'')===current;
+    }
+    function pruneMatrixCellStore(store){
+      Object.keys(store||{}).forEach(key=>{
+        const match=/^(\d+):(\d+)$/.exec(key);
+        if(!match){ delete store[key]; return; }
+        const col=Number(match[1]),row=Number(match[2]),current=String((allocations[col]||[])[row]||'').trim();
+        if(!current) delete store[key];
+      });
     }
     function pruneMatrixBoughtCells(){
       Object.keys(matrixBoughtCells).forEach(key=>{
@@ -3853,6 +4067,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const col=Number(match[1]),row=Number(match[2]),current=String((allocations[col]||[])[row]||'').trim();
         if(!current||String(matrixBoughtCells[key]||'')!==current) delete matrixBoughtCells[key];
       });
+      pruneMatrixCellStore(matrixBlindSubCells);
     }
     function removeAllocationAt(col,row){
       const colId=Number(col), removeRow=Number(row), arr=allocations[colId]||(allocations[colId]=[]);
@@ -3871,7 +4086,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       matrixBoughtCells=shiftStore(matrixBoughtCells);
       matrixIslandCells=shiftStore(matrixIslandCells);
       matrixChinaCells=shiftStore(matrixChinaCells);
+      matrixBlindSubCells=shiftStore(matrixBlindSubCells);
       trimTail(arr);
+    }
+    function deleteMatrixCellStoreColumn(store,colId){
+      Object.keys(store||{}).forEach(key=>{ if(key.startsWith(`${Number(colId)}:`)) delete store[key]; });
     }
     function matrixRowBoughtState(row,displayColumns=columns,displayAllocations=allocations){
       const named=displayColumns.map(c=>({col:c.id,name:String((displayAllocations[c.id]||[])[row]||'').trim()})).filter(item=>item.name);
@@ -3895,6 +4114,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const addedPreviewCells=new Set((matrixPreviewHighlights.addedCells||[]).map(item=>`${item.col}:${Number(item.row)}`));
       const transferPreviewCells=new Map((matrixPreviewHighlights.transferCells||[]).map(item=>[`${item.col}:${Number(item.row)}`,item]));
       const cancelPreviewRows=new Set((matrixPreviewHighlights.cancelRows||[]).map(Number));
+      const blindSubStore=isPreview&&matrixPreviewHighlights.blindSubCells?matrixPreviewHighlights.blindSubCells:matrixBlindSubCells;
       if(!isPreview) pruneMatrixBoughtCells();
       notice.style.display=isPreview?'block':'none'; notice.textContent=isPreview?`正在预览：${matrixPreviewLabel}（尚未写入正式排单）`:''; table.classList.toggle('is-preview',isPreview); table.classList.toggle('buy-mark-mode',matrixMarkMode&&!isPreview);
       if(displayColumns.length===0){
@@ -3941,11 +4161,13 @@ body.export-rendering .cart-count{ font-size:28px; }
           const islandDate=!isPreview&&nm?(matrixIslandCells[cellKey]||''):'';
           const chinaDate=!isPreview&&nm?(matrixChinaCells[cellKey]||''):'';
           const arrivalBadge=chinaDate?`<span class="arrival-badge china" title="国内到货 ${escapeAttr(chinaDate)}">国</span>`:(islandDate?`<span class="arrival-badge island" title="岛内到货 ${escapeAttr(islandDate)}">岛</span>`:'');
+          const blindSub=nm?(blindSubStore[cellKey]||''):'';
+          const blindSubBadge=blindSub?`<span class="matrix-blind-sub">${escapeHtml(blindSub)}</span>`:'';
           const pendingName=nm&&pendingPreviewRows.get(r)===String(nm)&&!completePreviewRows.has(r);
           const key=`${c.id}:${r}`, isAdded=isPreview&&addedPreviewCells.has(key), transferChange=isPreview?transferPreviewCells.get(key):null;
           const personContent=transferChange?`<span class="preview-transfer-name">${escapeHtml(transferChange.from)}</span><span class="preview-transfer-arrow">→</span><span class="preview-transfer-name">${escapeHtml(transferChange.to)}</span>`:(nm?escapeHtml(nm):'');
           const cellTabIndex=!isPreview?` tabindex="0"`:'';
-          return `<td class="cell${nm?' has-name':''}${bought?' bought-cell':''}${chinaDate?' china-cell':''}${!chinaDate&&islandDate?' island-cell':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" data-bought="${bought?'true':'false'}" contenteditable="false"${cellTabIndex} spellcheck="false" draggable="${!isPreview&&!matrixMarkMode&&nm?'true':'false'}">${personContent}${arrivalBadge}</td>`;
+          return `<td class="cell${nm?' has-name':''}${bought?' bought-cell':''}${chinaDate?' china-cell':''}${!chinaDate&&islandDate?' island-cell':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" data-bought="${bought?'true':'false'}" data-blind-sub="${blindSub?escapeAttr(blindSub):''}" contenteditable="false"${cellTabIndex} spellcheck="false" draggable="${!isPreview&&!matrixMarkMode&&nm?'true':'false'}">${personContent}${blindSubBadge}${arrivalBadge}</td>`;
         }).join('')+'</tr>';
       }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(displayColumns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
@@ -4624,13 +4846,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       const map=new Map();
       (sheets||[]).forEach(sheet=>{
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
-        const alloc=sheet.allocations||{}, china=sheet.matrixChinaCells||{};
+        const alloc=sheet.allocations||{}, china=sheet.matrixChinaCells||{}, sub=sheet.matrixBlindSubCells||{};
         const cols=orderDisplayColumns(Array.isArray(sheet.columns)?sheet.columns:[],groups,alloc);
         cols.forEach(c=>(alloc[c.id]||[]).forEach((person,row)=>{
           const name=String(person||'').trim(), date=logisticsCellMark(c,row,name,china,alloc); if(!name||!date) return;
           const id=`${sheet.id}|${date}`;
           if(!map.has(id)) map.set(id,{id,sheetId:Number(sheet.id)||0,sheet:String(sheet.name||'未命名排单'),date,items:new Map(),people:new Map()});
-          const batch=map.get(id), item=String(c.name||'未命名').trim()||'未命名', personKey=normalizeDispatchKey(name);
+          const batch=map.get(id), item=matrixItemDisplayName(c,row,sub), personKey=normalizeDispatchKey(name);
           batch.items.set(item,(batch.items.get(item)||0)+1);
           if(!batch.people.has(personKey)) batch.people.set(personKey,{name,key:personKey,items:new Map()});
           const pdata=batch.people.get(personKey); pdata.items.set(item,(pdata.items.get(item)||0)+1);
@@ -5469,7 +5691,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       sheet.name=newName;
       sheet.completed=false;
       sheet.completedAt='';
-      sheet.matrixBoughtCells={}; sheet.matrixIslandCells={}; sheet.matrixChinaCells={};
+      sheet.matrixBoughtCells={}; sheet.matrixIslandCells={}; sheet.matrixChinaCells={}; sheet.matrixBlindSubCells={};
       sheet.coldPromotionHighlights={completeRows:[],pendingRows:[]};
       sheet.coldPromotionBatches=[];
       sheet.coldPromotionSeriesBaseAllocations=null;
@@ -5598,13 +5820,18 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('sheetTabs').addEventListener('dragend',()=>{ draggedSheetId=null; document.querySelectorAll('.sheet-tab.dragging,.sheet-tab.drag-over').forEach(item=>item.classList.remove('dragging','drag-over')); });
     let dispatchStateFilter='all';
     function normalizeDispatchKey(name){ return String(name||'').replace(/\s+/g,'').toLowerCase(); }
+    function matrixItemDisplayName(c,row,subStore=matrixBlindSubCells){
+      const base=String(c?.name||'未命名').trim()||'未命名';
+      const sub=String((subStore||{})[matrixBoughtKey(c?.id,row)]||'').trim();
+      return sub?`${base}-${sub}`:base;
+    }
     function buildDispatchRecords(){
       captureActiveSheet();
       const people=new Map();
       (sheets||[]).forEach(sheet=>{
         const cols=Array.isArray(sheet.columns)?sheet.columns:[];
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
-        const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, paidGoods=sheet.paymentPaid||{};
+        const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, paidGoods=sheet.paymentPaid||{}, sub=sheet.matrixBlindSubCells||{};
         const displayCols=orderDisplayColumns(cols,groups,alloc);
         // 买齐标记按“每张排单”自适应：该表只要存在一个有效买齐标记，就视为已启用买齐；
         // 从未使用买齐标记的表，则所有有 CN 的排单格子都视为已购买。
@@ -5627,7 +5854,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             const intlRows=batchId?extraFees.filter(f=>f.feeType==='international'&&f.batchId===batchId&&normalizeDispatchKey(f.person)===key):[];
             const internationalGenerated=intlRows.length>0, internationalPaid=internationalGenerated&&intlRows.every(f=>f.paid);
             people.get(key).items.push({
-              item:String(c.name||'未命名').trim()||'未命名',
+              item:matrixItemDisplayName(c,r,sub),
               sheet:String(sheet.name||'').trim(),
               boughtTracked:usesBoughtMark,
               chinaDate,
@@ -5731,16 +5958,23 @@ body.export-rendering .cart-count{ font-size:28px; }
       let goodsCount=0,totalQty=0,chinaQty=0,overdueGoods=0;
       (sheets||[]).forEach(sheet=>{
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
-        const alloc=sheet.allocations||{}, isl=sheet.matrixIslandCells||{}, chn=sheet.matrixChinaCells||{};
+        const alloc=sheet.allocations||{}, isl=sheet.matrixIslandCells||{}, chn=sheet.matrixChinaCells||{}, sub=sheet.matrixBlindSubCells||{};
         const cols=orderDisplayColumns(sheet.columns||[],groups,alloc);
         const goods=[];
         cols.forEach(c=>{
           const names=(alloc[c.id]||[]).map(v=>String(v||'').trim());
           const occupied=names.map((name,row)=>({name,row})).filter(x=>x.name);
           if(!occupied.length) return;
+          const itemGroups=new Map();
+          occupied.forEach(entry=>{
+            const itemName=matrixItemDisplayName(c,entry.row,sub);
+            if(!itemGroups.has(itemName)) itemGroups.set(itemName,[]);
+            itemGroups.get(itemName).push(entry);
+          });
+          itemGroups.forEach((groupOccupied,itemName)=>{
           const islandDates=[],chinaDates=[];
           let islandCount=0,chinaCount=0;
-          occupied.forEach(({name,row})=>{
+          groupOccupied.forEach(({name,row})=>{
             const island=logisticsCellMark(c,row,name,isl,alloc), china=logisticsCellMark(c,row,name,chn,alloc);
             if(island){ islandCount++; islandDates.push(island); }
             if(china){ chinaCount++; chinaDates.push(china); }
@@ -5748,7 +5982,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const islandUnique=[...new Set(islandDates)].sort();
           const chinaUnique=[...new Set(chinaDates)].sort();
           if(dateFilter&&!chinaUnique.includes(dateFilter)) return;
-          const qty=occupied.length;
+          const qty=groupOccupied.length;
           const newestChina=chinaUnique[chinaUnique.length-1]||'';
           const days=newestChina?logiDaysSince(newestChina):null;
           const over=days!=null?Math.max(0,days-HOLD_FREE_DAYS):0;
@@ -5765,8 +5999,9 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(chinaCount&&newestChina){
             holdText=over>0?`超期 ${over} 天 · 囤货费 ¥${fee.toFixed(2)}${rate?'':'（未填费率）'}`:`囤货 ${days} 天 · 剩 ${Math.max(0,HOLD_FREE_DAYS-days)} 天免费`;
           }
-          goods.push({name:String(c.name||'未命名').trim()||'未命名',qty,islandCount,chinaCount,islandUnique,chinaUnique,cls,mainStatus,holdText});
+          goods.push({name:itemName,qty,islandCount,chinaCount,islandUnique,chinaUnique,cls,mainStatus,holdText});
           goodsCount++; totalQty+=qty; chinaQty+=chinaCount; if(over>0) overdueGoods++;
+          });
         });
         if(goods.length) sheetGroups.push({name:String(sheet.name||'未命名排单').trim()||'未命名排单',goods});
       });
@@ -5855,8 +6090,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('parseBtn').addEventListener('click',()=>{
       clearMatrixPreview();
       const raw=$('commentInput').value;
-      if(!raw.trim()){ alert('请先粘贴评论文字'); return; }
-      const comments=splitComments(raw);
+      if(!raw.trim()){ alert('请先在上面的文字框粘贴排单内容。\n\n普通格式例子：\n阿崩 冲击1 超梦2\n\n抽奖格式例子：\n阿崩\n抽了 1 次\n冲击 × 1\n\n如果是“抽奖结果导入”，可以点抽奖结果导入后在“默认挂到”里选盲抽列。'); return; }
+      const comments=splitOrderComments(raw);
       previewRows=comments.map(c=>{
         const items=parseDemandText(c.demandText);
         const itemsText=items.map(i=>`${i.name}${i.qty}`).join('，');
@@ -5868,12 +6103,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('previewPanel').style.display=previewRows.length?'block':'none';
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
+      $('blindResultPreviewPanel').style.display='none'; blindResultPreviewRows=[];
       $('coldPromotionPreviewPanel').style.display='none';
       if(previewRows.length) refreshOrderMatrixPreview();
-      if(previewRows.length===0) alert('没有识别到任何评论，请检查粘贴的文字格式');
+      if(previewRows.length===0) alert('没有识别到排单内容。\n\n这里可以粘贴两种格式：\n\n1）普通排单：\n阿崩 冲击1 超梦2\n红烧肉泡芙 秩序1\n\n2）抽奖结果排单：\n阿崩\n抽了 1 次\n冲击 × 1\n红烧肉泡芙\n抽了 3 次\n秩序 × 1\n超梦 × 2');
     });
     $('clearCommentBtn').addEventListener('click',()=>{
-      $('commentInput').value=''; previewRows=[]; orderPreviewSignature=''; transferPreviewRows=[]; cancelPreviewRows=[]; clearMatrixPreview(); $('previewPanel').style.display='none'; $('transferPreviewPanel').style.display='none'; $('cancelPreviewPanel').style.display='none'; $('commentInput').focus();
+      $('commentInput').value=''; previewRows=[]; orderPreviewSignature=''; transferPreviewRows=[]; cancelPreviewRows=[]; blindResultPreviewRows=[]; blindResultPreviewSignature=''; clearMatrixPreview(); $('previewPanel').style.display='none'; $('transferPreviewPanel').style.display='none'; $('cancelPreviewPanel').style.display='none'; $('blindResultPreviewPanel').style.display='none'; $('commentInput').focus();
     });
 
     $('generateBtn').addEventListener('click',()=>{
@@ -5900,6 +6136,60 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('cancelOrderPreviewBtn').addEventListener('click',()=>{
       previewRows=[]; orderPreviewSignature=''; renderPreview(); $('previewPanel').style.display='none'; clearMatrixPreview();
     });
+    $('blindResultPreviewBtn').addEventListener('click',()=>{
+      clearMatrixPreview();
+      const raw=$('commentInput').value.trim(); if(!raw){ alert('请先在上面的文字框粘贴抽奖结果。\n\n支持格式：\n小明：A1 B1 D1\n\n也支持一抽一行：\n小明 A\n小明 B\n\n也支持抽奖工具格式：\n小明\n抽了 2 次\nA × 1\nB × 1\n\n如果有多种盲抽制品，打开预览后在“默认挂到”里选一次就行。'); return; }
+      if($('blindResultDefaultColumn')) $('blindResultDefaultColumn').dataset.keepValue='0';
+      syncBlindResultColumnSelect();
+      blindResultPreviewRows=parseBlindResultRows(raw);
+      blindResultPreviewSignature=actionPreviewDataSignature();
+      renderBlindResultPreview();
+      $('previewPanel').style.display='none'; previewRows=[];
+      $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
+      $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
+      $('coldPromotionPreviewPanel').style.display='none';
+      $('blindResultPreviewPanel').style.display=blindResultPreviewRows.length?'block':'none';
+      if(blindResultPreviewRows.length) showBlindResultMatrixPreview(); else alert('没有识别到抽奖结果。\n\n请粘贴这些格式之一：\n\n小明：A1 B1 D1\n\n或：\n小明 A\n小明 B\n\n或：\n小明\n抽了 2 次\nA × 1\nB × 1');
+    });
+    $('blindResultDefaultColumn').addEventListener('change',()=>{ renderBlindResultPreview(); showBlindResultMatrixPreview(); });
+    $('blindResultPreviewTableBody').addEventListener('change',e=>{
+      const input=e.target.closest('[data-blind-result-id]'); if(!input) return;
+      const row=blindResultPreviewRows.find(item=>item.id===parseInt(input.dataset.blindResultId,10)); if(!row) return;
+      if(input.dataset.blindResultField==='blindColumnName'){
+        const matched=findBlindColumnByText(input.value);
+        row.blindColumnName=matched?matched.name:String(input.value||'').trim();
+      }else row[input.dataset.blindResultField]=input.value;
+      renderBlindResultPreview(); showBlindResultMatrixPreview();
+    });
+    $('blindResultPreviewTableBody').addEventListener('click',e=>{
+      const button=e.target.closest('[data-remove-blind-result]'); if(!button) return;
+      blindResultPreviewRows=blindResultPreviewRows.filter(row=>row.id!==parseInt(button.dataset.removeBlindResult,10)); renderBlindResultPreview();
+      if(blindResultPreviewRows.length) showBlindResultMatrixPreview(); else clearMatrixPreview();
+    });
+    $('confirmBlindResultBtn').addEventListener('click',()=>{
+      if(!blindResultPreviewRows.length) return;
+      const currentSignature=actionPreviewDataSignature();
+      if(blindResultPreviewSignature&&blindResultPreviewSignature!==currentSignature){
+        blindResultPreviewSignature=currentSignature; renderBlindResultPreview(); showBlindResultMatrixPreview();
+        $('blindResultPreviewStatus').textContent='正式排单在预览后发生过变化，已刷新模拟结果，请核对后再次确认。';
+        $('blindResultPreviewStatus').style.color='var(--warn)'; return;
+      }
+      renderBlindResultPreview();
+      if($('confirmBlindResultBtn').disabled) return;
+      if(!pushUndoSnapshot('blind-result','抽奖结果导入前')) return;
+      const blindMap=personBlindPositions();
+      blindResultPreviewRows.forEach(row=>{
+        const colId=blindColumnIdForRow(row), blindMap=personBlindPositions(allocations,colId);
+        const entry=blindMap.get(normalizeDispatchKey(row.person)); if(!entry) return;
+        const subs=expandBlindSubItems(parseDemandText(row.itemsText));
+        entry.positions.forEach((pos,index)=>{ const sub=subs[index]||'', key=matrixBoughtKey(pos.colId,pos.row); if(sub) matrixBlindSubCells[key]=sub; else delete matrixBlindSubCells[key]; });
+      });
+      saveState(); clearMatrixPreview(false); renderColumnList(); recalc();
+      blindResultPreviewRows=[]; blindResultPreviewSignature=''; renderBlindResultPreview(); $('blindResultPreviewPanel').style.display='none'; $('commentInput').value='';
+    });
+    $('cancelBlindResultPreviewBtn').addEventListener('click',()=>{
+      blindResultPreviewRows=[]; blindResultPreviewSignature=''; renderBlindResultPreview(); $('blindResultPreviewPanel').style.display='none'; clearMatrixPreview();
+    });
 
     $('regenBtn').addEventListener('click',renderMatrix);
     function knownPeople(){
@@ -5915,8 +6205,42 @@ body.export-rendering .cart-count{ font-size:28px; }
       return null;
     }
     function cleanTransferName(text){ return String(text||'').replace(/^[\s给由从]+|[把\s，,。；;：:]+$/g,'').trim(); }
+    function knownBlindSubs(){
+      return [...new Set(Object.values(matrixBlindSubCells||{}).map(v=>String(v||'').trim()).filter(Boolean))].sort((a,b)=>b.length-a.length);
+    }
+    function takeKnownSubFromText(text){
+      let value=String(text||'').trim();
+      const subs=knownBlindSubs();
+      const found=subs.find(sub=>new RegExp(`(?:^|\\s)${sub.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?:\\s|$)`).test(value));
+      if(!found) return {text:value,sub:''};
+      value=value.replace(new RegExp(`(^|\\s)${found.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?=\\s|$)`),' ').replace(/\s+/g,' ').trim();
+      return {text:value,sub:found};
+    }
+    function findBlindSubTransferPositions(source, sub, preferredText=''){
+      const preferred=findBlindColumnByText(preferredText);
+      const cols=preferred?[preferred]:blindColumns();
+      for(const col of cols){
+        const positions=(allocations[col.id]||[]).map((value,index)=>{
+          if(String(value||'').trim()!==source) return -1;
+          if(String(matrixBlindSubCells[matrixBoughtKey(col.id,index)]||'').trim()!==sub) return -1;
+          return index;
+        }).filter(index=>index>=0);
+        if(positions.length) return {col,positions};
+      }
+      return {col:preferred||cols[0]||null,positions:[]};
+    }
     function parseTransferLine(raw){
       let text=String(raw||'').trim(); if(!text) return null;
+      if(/(?:换|交换)/.test(text)){
+        const parts=text.split(/(?:交换|互换|换)/);
+        if(parts.length>=2){
+          const people=knownPeople(), leftRaw=parts[0].trim(), rightRaw=parts.slice(1).join('换').trim();
+          const leftPerson=people.find(name=>leftRaw.includes(name))||cleanTransferName(leftRaw.split(/\s+/)[0]||''), rightPerson=people.find(name=>rightRaw.includes(name))||cleanTransferName(rightRaw.split(/\s+/)[0]||'');
+          const leftSub=takeKnownSubFromText(leftRaw).sub||parseDemandText(leftRaw.replace(leftPerson,'')).map(x=>x.name).filter(Boolean)[0]||'';
+          const rightSub=takeKnownSubFromText(rightRaw).sub||parseDemandText(rightRaw.replace(rightPerson,'')).map(x=>x.name).filter(Boolean)[0]||'';
+          return {id:rowIdSeed++,source:leftPerson,itemText:'盲抽',qty:1,target:rightPerson,sub:leftSub,targetSub:rightSub,mode:'swap',raw:text};
+        }
+      }
       const mention=mentionedColumn(text), people=knownPeople();
       let itemText=mention?mention.col.name:'', qty=1, rest=text;
       if(mention){
@@ -5933,45 +6257,86 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(match){ source=match[1]; target=match[2]; }
       }
       source=cleanTransferName(source); target=cleanTransferName(target);
+      const sourceKnownBeforeSub=people.find(name=>source.includes(name));
+      let sourceLeftover='';
+      if(sourceKnownBeforeSub){
+        sourceLeftover=source.replace(sourceKnownBeforeSub,' ').replace(/\s+/g,' ').trim();
+        source=sourceKnownBeforeSub;
+      }
+      const sourceLeftoverQty=sourceLeftover.match(/(?:^|\s|[xX×*])(\d+)\s*$/);
+      if(sourceLeftoverQty){
+        qty=Math.max(1,parseInt(sourceLeftoverQty[1],10)||1);
+        sourceLeftover=sourceLeftover.slice(0,sourceLeftover.length-sourceLeftoverQty[0].length).replace(/\s+/g,' ').trim();
+      }
+      const sourceSubData=takeKnownSubFromText(sourceLeftover||source);
+      if(!sourceKnownBeforeSub) source=sourceSubData.text;
+      const itemSubData=takeKnownSubFromText(itemText); itemText=itemSubData.text||itemText;
       const sourceKnown=people.find(name=>source.includes(name)), targetKnown=people.find(name=>target.includes(name));
       if(sourceKnown) source=sourceKnown; if(targetKnown) target=targetKnown;
-      return {id:rowIdSeed++,source,itemText,qty,target,raw:text};
+      return {id:rowIdSeed++,source,itemText,qty,target,sub:sourceSubData.sub||sourceLeftover||itemSubData.sub,mode:'transfer',raw:text};
     }
     function transferRowCheck(row){
-      const col=findColumnByText(row.itemText||''), source=String(row.source||'').trim(), target=String(row.target||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
+      if(row.mode==='swap') return swapRowCheck(row);
+      const source=String(row.source||'').trim(), target=String(row.target||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1), sub=String(row.sub||'').trim();
+      const blindMatch=sub?findBlindSubTransferPositions(source,sub,row.itemText):null;
+      const col=sub?blindMatch.col:findColumnByText(row.itemText||'');
       if(!source||!target) return {ok:false,text:'名字没识别全'};
       if(!col) return {ok:false,text:'没找到谷子'};
-      const positions=(allocations[col.id]||[]).map((value,index)=>String(value||'').trim()===source?index:-1).filter(index=>index>=0), available=positions.length;
-      if(!available) return {ok:false,text:`没有找到 ${source}`};
+      const positions=sub?blindMatch.positions:(allocations[col.id]||[]).map((value,index)=>{
+        if(String(value||'').trim()!==source) return -1;
+        return index;
+      }).filter(index=>index>=0), available=positions.length;
+      if(!available) return {ok:false,text:sub?`没有找到 ${source} 的 ${sub}`:`没有找到 ${source}`};
       if(available<qty) return {ok:false,text:`只找到 ${available} 个`};
-      const affected=positions.slice(-qty).map(index=>index+1);
-      return {ok:true,text:`第${affected.join('、')}行 → ${target}`,col,qty,positions:affected};
+      const rows=positions.slice(-qty), affected=rows.map(index=>index+1);
+      return {ok:true,text:`${sub?sub+' · ':''}第${affected.join('、')}行 → ${target}`,col,qty,rows,positions:affected,sub};
+    }
+    function swapRowCheck(row){
+      const source=String(row.source||'').trim(), target=String(row.target||'').trim(), sub=String(row.sub||'').trim(), targetSub=String(row.targetSub||'').trim(), col=columns.find(isBlindColumn);
+      if(!source||!target||!sub||!targetSub) return {ok:false,text:'换赏名字或结果没识别全'};
+      if(!col) return {ok:false,text:'没找到盲抽列'};
+      const sourceIndex=(allocations[col.id]||[]).findIndex((value,index)=>String(value||'').trim()===source&&String(matrixBlindSubCells[matrixBoughtKey(col.id,index)]||'').trim()===sub);
+      const targetIndex=(allocations[col.id]||[]).findIndex((value,index)=>String(value||'').trim()===target&&String(matrixBlindSubCells[matrixBoughtKey(col.id,index)]||'').trim()===targetSub);
+      if(sourceIndex<0) return {ok:false,text:`没找到 ${source} 的 ${sub}`};
+      if(targetIndex<0) return {ok:false,text:`没找到 ${target} 的 ${targetSub}`};
+      return {ok:true,text:`${source} ${sub} ⇄ ${target} ${targetSub}`,col,sourceIndex,targetIndex,sub,targetSub};
     }
     function renderTransferPreview(){
       $('transferPreviewTableBody').innerHTML=transferPreviewRows.map((row,index)=>{
         const check=transferRowCheck(row);
-        return `<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="source" value="${escapeAttr(row.source)}"></td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="itemText" value="${escapeAttr(row.itemText)}"></td><td><input type="text" inputmode="numeric" pattern="[0-9]*" class="action-preview-input action-preview-qty" data-transfer-id="${row.id}" data-transfer-field="qty" value="${row.qty}"></td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="target" value="${escapeAttr(row.target)}"></td><td class="${check.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(check.text)}</td><td><button class="btn-danger btn-mini" data-remove-transfer="${row.id}">删除</button></td></tr>`;
+        const itemValue=row.mode==='swap'?`${row.sub||''} ⇄ ${row.targetSub||''}`:(row.sub?`${row.itemText||'盲抽'} ${row.sub}`:row.itemText);
+        return `<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="source" value="${escapeAttr(row.source)}"></td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="itemText" value="${escapeAttr(itemValue)}"></td><td><input type="text" inputmode="numeric" pattern="[0-9]*" class="action-preview-input action-preview-qty" data-transfer-id="${row.id}" data-transfer-field="qty" value="${row.qty}"></td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="target" value="${escapeAttr(row.target)}"></td><td class="${check.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(check.text)}</td><td><button class="btn-danger btn-mini" data-remove-transfer="${row.id}">删除</button></td></tr>`;
       }).join('');
       $('confirmTransferBtn').disabled=!transferPreviewRows.length||transferPreviewRows.some(row=>!transferRowCheck(row).ok);
     }
     function buildTransferMatrixPreview(){
       const preview=deepClone(allocations);
       const transferCells=[];
+      const blindSubCells=deepClone(matrixBlindSubCells);
       transferPreviewRows.forEach(row=>{
-        const col=findColumnByText(row.itemText||''), source=String(row.source||'').trim(), target=String(row.target||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
+        const check=transferRowCheck(row);
+        if(!check.ok) return;
+        if(row.mode==='swap'){
+          blindSubCells[matrixBoughtKey(check.col.id,check.sourceIndex)]=check.targetSub;
+          blindSubCells[matrixBoughtKey(check.col.id,check.targetIndex)]=check.sub;
+          transferCells.push({col:check.col.id,row:check.sourceIndex,from:`${check.source||row.source} ${check.sub}`,to:check.targetSub});
+          transferCells.push({col:check.col.id,row:check.targetIndex,from:`${check.target||row.target} ${check.targetSub}`,to:check.sub});
+          return;
+        }
+        const col=check.col, source=String(row.source||'').trim(), target=String(row.target||'').trim(), qty=check.qty;
         if(!col||!source||!target) return;
         if(!Array.isArray(preview[col.id])) preview[col.id]=deepClone(allocations[col.id]||[]);
-        const arr=preview[col.id]||(preview[col.id]=[]), positions=arr.map((value,index)=>String(value||'').trim()===source?index:-1).filter(index=>index>=0).slice(-qty);
+        const arr=preview[col.id]||(preview[col.id]=[]), positions=Array.isArray(check.rows)?check.rows:arr.map((value,index)=>String(value||'').trim()===source&&(check.sub?String(blindSubCells[matrixBoughtKey(col.id,index)]||'').trim()===check.sub:true)?index:-1).filter(index=>index>=0).slice(-qty);
         if(positions.length<qty) return;
         positions.forEach(index=>{ transferCells.push({col:col.id,row:index,from:source,to:target}); arr[index]=target; });
       });
-      return {allocations:preview,highlights:{transferCells}};
+      return {allocations:preview,highlights:{transferCells,blindSubCells}};
     }
     function showTransferMatrixPreview(label='转单模拟结果'){
       const preview=buildTransferMatrixPreview(); showMatrixPreview(preview.allocations,label,preview.highlights);
     }
     $('transferPreviewBtn').addEventListener('click',()=>{
-      const raw=$('commentInput').value.trim(); if(!raw){ alert('请先粘贴转单文字'); return; }
+      const raw=$('commentInput').value.trim(); if(!raw){ alert('请先在上面的文字框粘贴转单文字。\n\n普通转单格式：\n阿崩 冲击1 转 小明\n阿崩 超梦2 给 小红\n\n抽奖结果转单格式：\n傻白白 轻梦 转 壹\n傻白白 轻梦 给 壹\n\n换赏格式：\n阿崩 冲击 换 小明 超梦'); return; }
       transferPreviewRows=actionContentLines(raw).filter(line=>/(?:转给|出给|转|出|给|到|->|→|➡)/.test(line)).map(parseTransferLine).filter(Boolean);
       transferPreviewSignature=actionPreviewDataSignature();
       $('transferPreviewStatus').textContent='会从原 CN 最后一单开始向上修改。'; $('transferPreviewStatus').style.color='';
@@ -5979,13 +6344,21 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('transferPreviewPanel').style.display=transferPreviewRows.length?'block':'none';
       if(transferPreviewRows.length) showTransferMatrixPreview(); else clearMatrixPreview();
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
+      $('blindResultPreviewPanel').style.display='none'; blindResultPreviewRows=[];
       $('coldPromotionPreviewPanel').style.display='none';
-      if(!transferPreviewRows.length) alert('没有识别到转单内容');
+      if(!transferPreviewRows.length) alert('没有识别到转单内容。\n\n请用这些格式：\n\n阿崩 冲击1 转 小明\n阿崩 超梦2 给 小红\n\n如果是抽奖结果：\n傻白白 轻梦 转 壹\n傻白白 轻梦 给 壹\n\n如果是互换：\n阿崩 冲击 换 小明 超梦');
     });
     $('transferPreviewTableBody').addEventListener('change',e=>{
       const input=e.target.closest('[data-transfer-id]'); if(!input) return;
       const row=transferPreviewRows.find(item=>item.id===parseInt(input.dataset.transferId,10)); if(!row) return;
-      row[input.dataset.transferField]=input.dataset.transferField==='qty'?Math.max(1,parseInt(input.value,10)||1):input.value.trim(); renderTransferPreview(); showTransferMatrixPreview();
+      if(input.dataset.transferField==='qty') row.qty=Math.max(1,parseInt(input.value,10)||1);
+      else if(input.dataset.transferField==='itemText'){
+        const parsed=String(input.value||'').trim();
+        const swap=parsed.match(/^(.+?)\s*(?:⇄|<->|<>|换)\s*(.+)$/);
+        if(swap){ row.mode='swap'; row.sub=swap[1].trim(); row.targetSub=swap[2].trim(); row.itemText='盲抽'; }
+        else{ const data=takeKnownSubFromText(parsed); row.sub=data.sub; row.itemText=data.text||parsed; }
+      }else row[input.dataset.transferField]=input.value.trim();
+      renderTransferPreview(); showTransferMatrixPreview();
     });
     $('transferPreviewTableBody').addEventListener('click',e=>{
       const button=e.target.closest('[data-remove-transfer]'); if(!button) return;
@@ -6005,9 +6378,19 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!pushUndoSnapshot('transfer-apply','确认转单前')) return;
       let changedTotal=0;
       checks.forEach(({row,check})=>{
+        if(row.mode==='swap'){
+          matrixBlindSubCells[matrixBoughtKey(check.col.id,check.sourceIndex)]=check.targetSub;
+          matrixBlindSubCells[matrixBoughtKey(check.col.id,check.targetIndex)]=check.sub;
+          changedTotal+=2;
+          return;
+        }
         const arr=allocations[check.col.id]||(allocations[check.col.id]=[]); let changed=0;
-        for(let i=arr.length-1;i>=0&&changed<check.qty;i--){
-          if(String(arr[i]||'').trim()===String(row.source||'').trim()){ arr[i]=String(row.target||'').trim(); changed++; }
+        if(check.sub&&Array.isArray(check.rows)){
+          check.rows.forEach(i=>{ if(String(arr[i]||'').trim()===String(row.source||'').trim()){ arr[i]=String(row.target||'').trim(); changed++; } });
+        }else{
+          for(let i=arr.length-1;i>=0&&changed<check.qty;i--){
+            if(String(arr[i]||'').trim()===String(row.source||'').trim()){ arr[i]=String(row.target||'').trim(); changed++; }
+          }
         }
         changedTotal+=changed;
       });
@@ -6105,7 +6488,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const preview=buildCancelMatrixPreview(); showMatrixPreview(preview.allocations,label,preview.highlights);
     }
     $('cancelPreviewBtn').addEventListener('click',()=>{
-      const raw=$('commentInput').value.trim(); if(!raw){ alert('请先粘贴撤单文字'); return; }
+      const raw=$('commentInput').value.trim(); if(!raw){ alert('请先在上面的文字框粘贴撤单文字。\n\n格式例子：\n阿崩 撤 冲击1\n小明 取消 超梦2\n小红 不要 秩序1\n\n会从这个人在对应谷子的最后一单开始撤。'); return; }
       cancelPreviewRows=parseCancelRows(raw);
       cancelPreviewSignature=actionPreviewDataSignature();
       $('cancelPreviewStatus').textContent='会从这个人在对应谷子的最后一单开始向前删除；已买齐标记会自动跳过。'; $('cancelPreviewStatus').style.color='';
@@ -6113,8 +6496,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display=cancelPreviewRows.length?'block':'none';
       if(cancelPreviewRows.length) showCancelMatrixPreview(); else clearMatrixPreview();
+      $('blindResultPreviewPanel').style.display='none'; blindResultPreviewRows=[];
       $('coldPromotionPreviewPanel').style.display='none';
-      if(!cancelPreviewRows.length) alert('没有识别到撤单内容，请使用“谁 撤 谷子数量”的写法');
+      if(!cancelPreviewRows.length) alert('没有识别到撤单内容。\n\n请使用这些格式：\n\n阿崩 撤 冲击1\n小明 取消 超梦2\n小红 不要 秩序1\n\n会从这个人在对应谷子的最后一单开始撤。');
     });
     $('cancelPreviewTableBody').addEventListener('change',e=>{
       const input=e.target.closest('[data-cancel-id]'); if(!input) return;
@@ -6563,11 +6947,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       migrateLegacyColdPromotionDraft();
       if(raw){
         if(coldPromotionDraftApplied){ alert('这份带冷提已经正式应用。请先清除旧内容，再开始下一份带冷提。'); return; }
-        if(!parsePromotionCandidates(raw).length){ alert('这一批没有识别到“原谷子 带/提 新增谷子”的内容，尚未加入带冷提草稿'); return; }
+        if(!parsePromotionCandidates(raw).length){ alert('这一批没有识别到带冷提内容。\n\n格式例子：\n阿崩 冲击1 带 超梦1\n小明 秩序2 提 等离子1\n小红 午夜1 带 冲击1 超梦1\n\n意思是：左边是原来已有的谷子，右边是这次带冷/提到的谷子。'); return; }
         if(!coldPromotionDraftRows.length&&!coldPromotionDraftBaseAllocations) coldPromotionDraftBaseAllocations=deepClone(allocations);
         parsePromotionCandidates(raw).forEach(appendColdPromotionCandidate);
         $('commentInput').value=''; saveState();
-      }else if(!coldPromotionDraftRows.length){ alert('请先粘贴带冷提文字'); return; }
+      }else if(!coldPromotionDraftRows.length){ alert('请先在上面的文字框粘贴带冷提文字。\n\n格式例子：\n阿崩 冲击1 带 超梦1\n小明 秩序2 提 等离子1\n小红 午夜1 带 冲击1 超梦1\n\n可以不选捆位；不选时仅按普通提配移动。'); return; }
       if(coldPromotionDraftApplied){
         coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='block'; clearMatrixPreview();
         $('coldPromotionPreviewStatus').textContent='这份带冷提已经应用，内容仍会保留；可以导出正式排单，清除后再开始下一份。'; $('coldPromotionPreviewStatus').style.color='var(--ok)';
@@ -6577,6 +6961,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('previewPanel').style.display='none'; previewRows=[];
       $('transferPreviewPanel').style.display='none'; transferPreviewRows=[];
       $('cancelPreviewPanel').style.display='none'; cancelPreviewRows=[];
+      $('blindResultPreviewPanel').style.display='none'; blindResultPreviewRows=[];
       recalculateColdPromotionPreview(null,{preserveViewport:false});
       scrollColdPromotionPreviewIntoView();
     }
@@ -6791,7 +7176,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const nextName=(td.textContent||'').replace(/[\r\n]+/g,' ').trim();
       arr[row]=nextName;
       if(String(matrixBoughtCells[matrixBoughtKey(col,row)]||'')!==nextName) delete matrixBoughtCells[matrixBoughtKey(col,row)];
-      if(!nextName){ const key=matrixBoughtKey(col,row); delete matrixIslandCells[key]; delete matrixChinaCells[key]; }
+      if(!nextName){ const key=matrixBoughtKey(col,row); delete matrixIslandCells[key]; delete matrixChinaCells[key]; delete matrixBlindSubCells[key]; }
       trimTail(arr);
       td.dataset.editing='false';
       td.classList.remove('matrix-cell-editing');
@@ -6817,6 +7202,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       td.setAttribute('contenteditable','true');
       td.setAttribute('draggable','false');
       if(initialText!==null) td.textContent=initialText;
+      else{
+        const col=parseInt(td.dataset.col,10), row=parseInt(td.dataset.row,10);
+        td.textContent=String((allocations[col]||[])[row]||'').trim();
+      }
       td.focus();
       if(initialText!==null) placeCaretAtEnd(td); else selectCellText(td);
     }
@@ -7880,6 +8269,37 @@ body.export-rendering .cart-count{ font-size:28px; }
       copyTextWithFallback(lines.join('\n')).then(()=>{ const btn=button||$('copyTsvBtn'); if(!btn) return; const old=btn.textContent; btn.textContent='已复制 ✓'; setTimeout(()=>btn.textContent=old,1500); if(btn.id==='copyTsvBtn') $('dataActions').open=false; }).catch(()=>alert('复制失败，请允许浏览器访问剪贴板后重试'));
     }
     $('copyTsvBtn').addEventListener('click',()=>copyCurrentMatrixTsv($('copyTsvBtn')));
+    function blindResultCopyText(){
+      const blindCols=orderDisplayColumns().filter(isBlindColumn);
+      const sections=[];
+      blindCols.forEach(col=>{
+        const people=new Map();
+        (allocations[col.id]||[]).forEach((person,row)=>{
+          const name=String(person||'').trim(), sub=String(matrixBlindSubCells[matrixBoughtKey(col.id,row)]||'').trim();
+          if(!name||!sub) return;
+          const key=normalizeDispatchKey(name)||name;
+          if(!people.has(key)) people.set(key,{name,items:new Map(),total:0});
+          const record=people.get(key);
+          record.items.set(sub,(record.items.get(sub)||0)+1);
+          record.total++;
+        });
+        if(!people.size) return;
+        const lines=[];
+        if(blindCols.length>1) lines.push(`【${col.name}】`);
+        [...people.values()].forEach(record=>{
+          lines.push(record.name);
+          lines.push(`抽了 ${record.total} 次`);
+          record.items.forEach((count,item)=>lines.push(`${item} × ${count}`));
+        });
+        sections.push(lines.join('\n'));
+      });
+      return sections.join('\n\n');
+    }
+    $('copyBlindResultBtn').addEventListener('click',()=>{
+      const text=blindResultCopyText();
+      if(!text){ alert('当前没有可以复制的盲抽结果。\n\n需要先用“抽奖结果导入”把结果挂到盲抽格子下面，或确认这些列是盲抽列。'); return; }
+      copyTextWithFallback(text).then(()=>{ const btn=$('copyBlindResultBtn'), old=btn.textContent; btn.textContent='已复制 ✓'; setTimeout(()=>btn.textContent=old,1500); }).catch(()=>alert('复制失败，请允许浏览器访问剪贴板后重试'));
+    });
     function sheetPriceInfo(sheet){
       const cost={...COST_DEFAULTS,...(sheet.cost||{})}, cols=(sheet.columns||[]).map(c=>({...c}));
       const rate=Math.max(0,num(cost.exchangeRate)), enteredCount=parseInt(cost.count,10), count=Number.isFinite(enteredCount)&&enteredCount>0?enteredCount:Math.max(1,cols.length||1), raw=Math.max(0,num(cost.jpyPrice));
@@ -8107,7 +8527,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('clearAllBtn').addEventListener('click',async ()=>{
       if(!await appConfirm('确定清空当前排单里的全部名字吗？谷子列、图片、价格和其他设置都会保留。','清空当前排单','确认清空')) return;
       if(!pushUndoSnapshot('clear-order','清空排单前')) return;
-      allocations={}; columns.forEach(c=>{ allocations[c.id]=[]; }); matrixBoughtCells={}; matrixIslandCells={}; matrixChinaCells={}; highlightedPerson=''; coldPromotionHighlights={completeRows:[],pendingRows:[]}; coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionDraftBaseAllocations=null; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanSignature=''; $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview(false);
+      allocations={}; columns.forEach(c=>{ allocations[c.id]=[]; }); matrixBoughtCells={}; matrixIslandCells={}; matrixChinaCells={}; matrixBlindSubCells={}; highlightedPerson=''; coldPromotionHighlights={completeRows:[],pendingRows:[]}; coldPromotionDraftRows=[]; coldPromotionDraftApplied=false; coldPromotionDraftBaseAllocations=null; coldPromotionBatches=[]; coldPromotionSeriesBaseAllocations=null; coldPromotionSeriesBaseHighlights=null; coldPromotionSeriesFormalSignature=''; coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; coldPromotionPlanSignature=''; $('coldPromotionPreviewPanel').style.display='none'; clearMatrixPreview(false);
       saveState(); renderMatrix();
     });
 
