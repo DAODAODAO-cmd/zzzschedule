@@ -52,6 +52,8 @@
 .payment-admin-note{display:inline-block;min-width:96px;min-height:28px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:left;outline:none}
 .payment-admin-note:focus{border-color:var(--accent,#d1466a);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent,#d1466a) 12%,transparent)}
 .payment-admin-note:empty:before{content:attr(data-placeholder);color:var(--muted);font-weight:400}
+.settlement-result-detail{display:grid;gap:2px;width:100%;margin-top:5px;padding-top:5px;border-top:1px dashed #eadfe7;text-align:left;color:#685f6f;font-size:10px;font-weight:800;line-height:1.35}
+.settlement-result-detail span:first-child,.settlement-result-detail span:nth-child(2){color:#2a2731;font-weight:900}
 .matrix-blind-sub{display:block;margin-top:3px;color:#9a3d5d;font-size:10px;font-weight:900;line-height:1.2}
 .matrix-blind-sub::before{content:"";color:#8a7f8d;font-size:9px}
   .settlement-empty{padding:18px;color:var(--muted);text-align:center;font-weight:600}
@@ -1289,6 +1291,11 @@ html{ scrollbar-gutter:stable; }
 .payment-bought-inline{ display:inline-block; margin-left:5px; padding:1px 4px; border-radius:4px; background:#eef6fc; color:#4e7390; font-size:10px; font-weight:850; white-space:nowrap; }
 .payment-bought-inline.is-missing{ background:#fff0dc; color:#a45f0b; }
 .payment-bought-inline.is-complete{ background:#eaf5ed; color:#2b7547; }
+.payment-bought-inline.is-settlement-refund{background:#edf5ff;color:#286da7}
+.payment-bought-inline.is-settlement-due{background:#fff0f2;color:#b4364c}
+.payment-settlement-detail{display:block;margin-top:4px;padding-top:4px;border-top:1px dashed #eadfe7;color:#7a5360;font-size:10px;font-weight:850;line-height:1.45;text-align:left;white-space:normal}
+.payment-settlement-detail span{display:block}
+.payment-settlement-detail span:last-child{color:#8f3551;font-weight:950}
 .payment-bought-money{ display:block; margin-top:3px; padding:2px 5px; border-radius:5px; background:#eef6fc; color:#386f99; font-size:10.5px; font-weight:900; line-height:1.35; white-space:normal; }
 .payment-bought-money.refund{ background:#eaf3fc; color:#2f6f9f; }
 .payment-bought-money.due{ background:#fdebed; color:#a93645; }
@@ -3580,7 +3587,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
 
-    function recalc(){ readCost(); computeAverage(); renderMatrix(); renderPricingGroups(); renderCart(); saveState(); }
+    function recalc(){ rememberPaidGoodsSnapshotsBeforePriceChange(); readCost(); computeAverage(); renderMatrix(); renderPricingGroups(); renderCart(); saveState(); }
 
     // ---------- window-exposed handlers ----------
     const ggz={};
@@ -3600,6 +3607,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     ggz.updateColumn=(id,field,value)=>{
       const c=columns.find(x=>x.id===id); if(!c) return;
       cancelPendingCollabInstallForLocalEdit();
+      if(['priceAdj','fixedPrice','avgOverride','wholeSetPrice','sourceJpyPrice','mode'].includes(field)) rememberPaidGoodsSnapshotsBeforePriceChange();
       if(field==='aliases') c.aliases=value.split(/[，,]/).map(s=>s.trim()).filter(Boolean);
       else if(field==='priceAdj') c.priceAdj=parseFloat(value)||0;
       else if(field==='fixedPrice'){ const n=parseFloat(value); if(Number.isFinite(n)) c.fixedPrice=Math.max(0,n); }
@@ -4104,7 +4112,17 @@ body.export-rendering .cart-count{ font-size:28px; }
       return `<div class="combo-image-grid ${cls} ${extraClass}">${cells||'<div class="combo-image-cell"><span>未加图片</span></div>'}</div>`;
     }
 
-    function renderMatrix(){
+    let matrixRenderDeferred=false;
+    function activeMatrixEditingCell(){
+      const el=document.activeElement;
+      const td=el&&el.closest?el.closest('#matrixTableBody td.cell[data-col][data-row]'):null;
+      return td&&td.dataset.editing==='true'?td:null;
+    }
+    function renderMatrix(force=false){
+      if(!force&&activeMatrixEditingCell()){
+        matrixRenderDeferred=true;
+        return;
+      }
       const thead=document.querySelector('#matrixTable thead');
       const tbody=$('matrixTableBody');
       const emptyEl=$('matrixEmpty');
@@ -4326,9 +4344,26 @@ body.export-rendering .cart-count{ font-size:28px; }
       const missing=Math.max(0,planned-bought);
       return `<span class="payment-bought-inline ${missing>0?'is-missing':'is-complete'}" data-html2canvas-ignore="true">买到 ${bought}/${planned} · ${missing>0?`差${missing}`:'已齐'}</span>`;
     }
+    function paymentItemSettlementNote(data,itemName=''){
+      if(!showBoughtSettlement||!itemName) return '';
+      const notes=[];
+      const plannedAmount=Math.max(0,num(data.itemAmounts&&data.itemAmounts.get(itemName)));
+      const boughtAmount=Math.max(0,num(data.boughtItemAmounts&&data.boughtItemAmounts.get(itemName)));
+      const missingDiff=boughtAmount-plannedAmount;
+      if(missingDiff<-0.005) notes.push({type:'refund',text:`退${money(Math.abs(missingDiff))}`});
+      else if(missingDiff>0.005) notes.push({type:'due',text:`补${money(missingDiff)}`});
+      const snapshot=goodsPaidSnapshotFor(data.key,data.name);
+      if(snapshot&&snapshot.items&&Object.prototype.hasOwnProperty.call(snapshot.items,itemName)){
+        const oldAmount=Math.max(0,num(snapshot.items[itemName])), nowAmount=plannedAmount, priceDiff=nowAmount-oldAmount;
+        if(priceDiff>0.005) notes.push({type:'due',text:`改价补${money(priceDiff)}`});
+        else if(priceDiff<-0.005) notes.push({type:'refund',text:`改价退${money(Math.abs(priceDiff))}`});
+      }
+      const seen=new Set();
+      return notes.filter(n=>{ const key=n.type+n.text; if(seen.has(key)) return false; seen.add(key); return true; }).map(n=>`<span class="payment-bought-inline ${n.type==='refund'?'is-settlement-refund':'is-settlement-due'}" data-html2canvas-ignore="true">${escapeHtml(n.text)}</span>`).join('');
+    }
     function paymentMergedItemsDisplay(data,items,fallback){
       if(!showBoughtSettlement) return escapeHtml(fallback);
-      return items.map(([item,count])=>`<span class="payment-item-line">${escapeHtml(item)}×${count}${paymentBoughtItemNote(data,item)}</span>`).join('');
+      return items.map(([item,count])=>`<span class="payment-item-line">${escapeHtml(item)}×${count}${paymentBoughtItemNote(data,item)}${paymentItemSettlementNote(data,item)}</span>`).join('');
     }
     function paymentBoughtMoneyNote(data,receivedAmount){
       if(!showBoughtSettlement) return '';
@@ -4354,15 +4389,31 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
         const key=name.replace(/\s+/g,'').toLowerCase();
-        if(!people.has(key)) people.set(key,{key,name,planned:0,bought:0,items:new Map(),boughtItems:new Map()});
-        const data=people.get(key),price=unitPrice(c); data.planned+=price; data.items.set(c.name,(data.items.get(c.name)||0)+1);
-        if(isMatrixCellBought(c.id,index,name)){ data.bought+=price; data.boughtItems.set(c.name,(data.boughtItems.get(c.name)||0)+1); }
+        if(!people.has(key)) people.set(key,{key,name,planned:0,bought:0,items:new Map(),boughtItems:new Map(),itemAmounts:new Map(),boughtItemAmounts:new Map()});
+        const data=people.get(key),price=unitPrice(c); data.planned+=price; data.items.set(c.name,(data.items.get(c.name)||0)+1); data.itemAmounts.set(c.name,(data.itemAmounts.get(c.name)||0)+price);
+        if(isMatrixCellBought(c.id,index,name)){ data.bought+=price; data.boughtItems.set(c.name,(data.boughtItems.get(c.name)||0)+1); data.boughtItemAmounts.set(c.name,(data.boughtItemAmounts.get(c.name)||0)+price); }
       }));
       return [...people.values()].map(data=>{
         const expected=paymentVisibleAmount('paymentSummary','data-payment-key',paymentEdits,'alipay',data.name,data.key,data.planned);
         const received=paidAmountValue(paymentPaid,data.key,expected),actual=showBoughtSettlement?Math.max(0,num(data.bought)):expected;
         return {...data,expected,received,actual,refund:Math.max(0,received-actual),due:Math.max(0,actual-received)};
       });
+    }
+    function goodsSnapshotForKey(personKey){
+      const record=buildGoodsSettlementRecords().find(row=>row.key===personKey);
+      if(!record) return null;
+      const items={};
+      if(record.itemAmounts&&typeof record.itemAmounts.forEach==='function') record.itemAmounts.forEach((amount,name)=>{ items[name]=ceilMoneyValue(amount); });
+      return {total:ceilMoneyValue(record.expected),items};
+    }
+    function goodsPaidSnapshotFor(key,name=''){
+      const compact=s=>String(s||'').replace(/\s+/g,'').toLowerCase();
+      const candidates=[key,compact(key),name,compact(name)].filter(Boolean);
+      for(const candidate of candidates){
+        const snapshot=paymentEdits&&paymentEdits['__goods_snapshot__:'+candidate];
+        if(snapshot) return snapshot;
+      }
+      return null;
     }
     function buildShareSettlementRecords(){
       const sharedTotal=Math.max(0,num($('sharedFee').value)), people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow), displayColumns=orderDisplayColumns();
@@ -4434,6 +4485,47 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(diff>0.005) return money(diff);
       if(diff<-0.005) return money(Math.abs(diff));
       return '已平';
+    }
+    function settlementGoodsMoneyDetail(goods){
+      const planned=goods&&goods.itemAmounts&&typeof goods.itemAmounts.forEach==='function'?goods.itemAmounts:new Map();
+      const bought=goods&&goods.boughtItemAmounts&&typeof goods.boughtItemAmounts.forEach==='function'?goods.boughtItemAmounts:new Map();
+      const names=new Set();
+      planned.forEach((_,name)=>names.add(name)); bought.forEach((_,name)=>names.add(name));
+      const changed=[];
+      names.forEach(name=>{
+        const plannedAmount=Math.max(0,num(planned.get(name))), boughtAmount=Math.max(0,num(bought.get(name))), diff=boughtAmount-plannedAmount;
+        if(Math.abs(diff)<=0.005) return;
+        changed.push(name);
+      });
+      return changed.length?[`涉及谷子：${changed.join('、')}`]:[];
+    }
+    function settlementGoodsPriceChangeDetail(row){
+      const snapshot=goodsPaidSnapshotFor(row.key,row.name);
+      if(!snapshot||!snapshot.items||typeof snapshot.items!=='object') return [];
+      const current=row.g&&row.g.itemAmounts&&typeof row.g.itemAmounts.forEach==='function'?row.g.itemAmounts:new Map();
+      const names=new Set([...Object.keys(snapshot.items||{})]);
+      current.forEach((_,name)=>names.add(name));
+      const lines=[];
+      names.forEach(name=>{
+        const oldAmount=Math.max(0,num(snapshot.items[name])), nowAmount=Math.max(0,num(current.get(name))), diff=nowAmount-oldAmount;
+        if(diff>0.005) lines.push(`${name}：原收 ${money(oldAmount)} / 现价 ${money(nowAmount)} → 补 ${money(diff)}`);
+        else if(diff<-0.005) lines.push(`${name}：原收 ${money(oldAmount)} / 现价 ${money(nowAmount)} → 退 ${money(Math.abs(diff))}`);
+      });
+      return lines;
+    }
+    function settlementMoneyDetailParts(row){
+      const goodsNet=Math.max(0,num(row.g&&row.g.actual))-Math.max(0,num(row.g&&row.g.received));
+      const shareNet=Math.max(0,num(row.sh&&row.sh.expected))-Math.max(0,num(row.sh&&row.sh.received));
+      const priceChangeLines=settlementGoodsPriceChangeDetail(row), quantityLines=settlementGoodsMoneyDetail(row.g);
+      const hasSnapshot=!!goodsPaidSnapshotFor(row.key,row.name);
+      const goodsDetailLines=[...priceChangeLines,...quantityLines];
+      if(!goodsDetailLines.length&&Math.abs(goodsNet)>0.005&&!hasSnapshot) goodsDetailLines.push('价格可能改过：没有旧价快照，需按已收总额核对');
+      const result=row.refund>0.005?`退款 ${money(row.refund)}`:(row.due>0.005?`补款 ${money(row.due)}`:'已平');
+      const parts=[...goodsDetailLines];
+      if(shareNet>0.005) parts.push(`均摊：补 ${money(shareNet)}`);
+      else if(shareNet<-0.005) parts.push(`均摊：退 ${money(Math.abs(shareNet))}`);
+      if(row.manual) parts.push(`手动调整：${result}`);
+      return parts;
     }
     function sheetBoughtKey(c,row,name){ return String(name||'').trim()&&String((matrixBoughtCells||{})[matrixBoughtKey(c.id,row)]||'')===String(name||'').trim(); }
     function sheetSettlementContext(sourceSheet){
@@ -4708,9 +4800,9 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
         const key=name.replace(/\s+/g,'').toLowerCase();
-        if(!people.has(key)) people.set(key,{key,name,total:0,jpyTotal:0,items:new Map(),requestedQty:0,boughtQty:0,boughtTotal:0,boughtItems:new Map()});
-        const row=people.get(key), price=unitPrice(c); row.total+=price; row.jpyTotal+=columnOriginalJpy(c); row.requestedQty++; row.items.set(c.name,(row.items.get(c.name)||0)+1);
-        if(isMatrixCellBought(c.id,index,name)){ row.boughtQty++; row.boughtTotal+=price; row.boughtItems.set(c.name,(row.boughtItems.get(c.name)||0)+1); }
+        if(!people.has(key)) people.set(key,{key,name,total:0,jpyTotal:0,items:new Map(),requestedQty:0,boughtQty:0,boughtTotal:0,boughtItems:new Map(),itemAmounts:new Map(),boughtItemAmounts:new Map()});
+        const row=people.get(key), price=unitPrice(c); row.total+=price; row.jpyTotal+=columnOriginalJpy(c); row.requestedQty++; row.items.set(c.name,(row.items.get(c.name)||0)+1); row.itemAmounts.set(c.name,(row.itemAmounts.get(c.name)||0)+price);
+        if(isMatrixCellBought(c.id,index,name)){ row.boughtQty++; row.boughtTotal+=price; row.boughtItems.set(c.name,(row.boughtItems.get(c.name)||0)+1); row.boughtItemAmounts.set(c.name,(row.boughtItemAmounts.get(c.name)||0)+price); }
       }));
       const el=$('paymentSummary');
       if(!people.size){ el.innerHTML='<div class="empty">所选排单行范围内没有可统计的数据</div>'; $('paymentUnpaidCount').textContent='已收齐：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
@@ -4735,7 +4827,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         items.forEach(([item,count],index)=>{
           rows+=`<tr${paidClass}${personAttr}>`;
           if(index===0) rows+=`<td class="payment-cn" rowspan="${span}">${paidControl}</td>`;
-          rows+=`<td class="payment-item-name"><span ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</span>${paymentBoughtItemNote(data,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
+          rows+=`<td class="payment-item-name"><span ${editAttr('item:'+name+':'+item)}>${edited('item:'+name+':'+item,item)}</span>${paymentBoughtItemNote(data,item)}${paymentItemSettlementNote(data,item)}</td><td ${editAttr('qty:'+name+':'+item)}>${edited('qty:'+name+':'+item,count)}</td>`;
           if(index===0) rows+=`<td class="payment-money" rowspan="${span}"><span ${editAttr('alipay:'+name)} data-payment-auto="${moneyText(calcTotal)}">${edited('alipay:'+name,moneyText(calcTotal))}</span>${adjustmentNote}${receivedNote}${shareNote}</td><td class="payment-money" rowspan="${span}">${moneyText(payable)}</td>`;
           rows+='</tr>';
         });
@@ -4883,22 +4975,30 @@ body.export-rendering .cart-count{ font-size:28px; }
       const factors={}; if(mode!=='head') document.querySelectorAll('[data-intl-factor]').forEach(input=>factors[input.dataset.intlFactor]=Math.max(0,num(input.value)));
       const rows=[...batch.people.values()].map(person=>{
         let basis=mode==='head'?1:0;
-        if(mode!=='head') person.items.forEach((qty,item)=>{ basis+=qty*(factors[item]||0); });
-        return {person:person.name,key:person.key,basis,items:[...person.items.entries()].map(([item,qty])=>`${item}${qty>1?'×'+qty:''}`).join('、')};
+        const itemDetails=[];
+        person.items.forEach((qty,item)=>{
+          const factor=mode==='head'?0:(factors[item]||0), lineBasis=qty*factor;
+          if(mode!=='head') basis+=lineBasis;
+          itemDetails.push(mode==='head'?`${item}${qty>1?'×'+qty:''}`:`${item}${qty>1?'×'+qty:''}（${fmtNum(factor)}×${qty}=${fmtNum(lineBasis)}）`);
+        });
+        return {person:person.name,key:person.key,basis,items:[...person.items.entries()].map(([item,qty])=>`${item}${qty>1?'×'+qty:''}`).join('、'),itemDetails:itemDetails.join('、')};
       });
       const basisTotal=rows.reduce((sum,r)=>sum+r.basis,0); if(!basisTotal){ alert('重量或点数合计不能为 0'); return; }
-      rows.forEach(r=>{ r.amount=ceilMoneyValue(total*r.basis/basisTotal); });
+      rows.forEach(r=>{ r.amount=ceilMoneyValue(total*r.basis/basisTotal); r.basisTotal=basisTotal; r.totalAmount=total; });
       intlSplitPreviewRows=rows;
-      const modeText=mode==='weight'?'按重量':mode==='points'?'按点数':'按人头';
-      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总额 ${money(total)}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>本批到货</th><th>分摊依据</th><th>应收</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.person)}</td><td>${escapeHtml(r.items)}</td><td>${fmtNum(r.basis)}</td><td><input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"></td></tr>`).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
+      const modeText=mode==='weight'?'按重量':mode==='points'?'按点数':'按人头', basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
+      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　国际价格 ${money(total)}　${totalLabel} ${fmtNum(basisTotal)}${unit}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>本批到货</th><th>分摊依据</th><th>应收</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.person)}</td><td>${escapeHtml(r.items)}<small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">${escapeHtml(r.itemDetails)}</small></td><td>${basisLabel} ${fmtNum(r.basis)}${unit}；${totalLabel} ${fmtNum(basisTotal)}${unit}</td><td><input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"></td></tr>`).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
       $('confirmIntlSplitBtn').addEventListener('click',confirmIntlSplit);
     }
     function confirmIntlSplit(){
       const batch=selectedIntlBatch(), mode=$('intlSplitMode').value; if(!batch||!intlSplitPreviewRows.length) return;
       if(intlBatchAlreadyGenerated(batch.id)){ alert('这个批次已经生成过国际运费'); return; }
       document.querySelectorAll('[data-intl-preview-person]').forEach(input=>{ const row=intlSplitPreviewRows.find(r=>r.key===input.dataset.intlPreviewPerson); if(row) row.amount=Math.max(0,num(input.value)); });
-      const now=new Date().toISOString(), modeText=mode==='weight'?'按重量':mode==='points'?'按点数':'按人头';
-      intlSplitPreviewRows.filter(r=>r.amount>0).forEach(r=>extraFees.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:r.items,items:r.items,period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId}));
+      const now=new Date().toISOString(), basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
+      intlSplitPreviewRows.filter(r=>r.amount>0).forEach(r=>{
+        const note=`${basisLabel}${fmtNum(r.basis)}${unit}；${totalLabel}${fmtNum(r.basisTotal)}${unit}；国际${money(r.amount)}；${r.itemDetails||r.items}`;
+        extraFees.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note,items:r.items,period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId});
+      });
       saveState(); renderExtraFees(); renderDispatch(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; alert(`已生成 ${batch.people.size} 人的国际运费，请收齐后再排发。`);
     }
     function openExtraFeeForm(row=null){
@@ -4923,7 +5023,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function extraFeeGoodsText(row){
       let text=String(row.items||row.note||'').trim();
+      const note=String(row.note||'').trim();
       text=text.replace(/^(按重量|按点数|按人头)分摊[；;]\s*/,'').trim();
+      if(row.feeType==='international'&&note&&note!==text){
+        const detail=note.replace(/；/g,'； ').replace(/\s+/g,' ').trim();
+        return `${text||'国际运费'}｜${detail}`;
+      }
       return text||String(row.name||'费用').replace(/^\d{4}-\d{2}-\d{2}\s*/,'').trim()||'费用';
     }
     function compactExtraFeeSourceText(row){
@@ -4961,6 +5066,9 @@ body.export-rendering .cart-count{ font-size:28px; }
         group.amount=(group.amount||0)+Math.max(0,num(row.amount));
         group.goodsTexts=group.goodsTexts||[];
         if(goods&&!group.goodsTexts.includes(goods)) group.goodsTexts.push(goods);
+        const itemCountText=String(row.items||goods||'').trim();
+        const itemCount=itemCountText?itemCountText.split(/[、,，]/).filter(Boolean).length:1;
+        group.goodsCount=(group.goodsCount||0)+Math.max(1,itemCount);
         const sourceText=compactExtraFeeSourceText(row);
         if(sourceText&&!group.sourceTexts.includes(sourceText)) group.sourceTexts.push(sourceText);
       });
@@ -4984,7 +5092,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         rows.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
         const displayRows=extraFeeDisplayGroups(rows), personPaid=rows.length&&rows.every(r=>r.paid), rowSpan=displayRows.length;
         return displayRows.map((g,index)=>{
-          const amount=ceilMoneyValue(g.amount), wechat=extraFeeWechatAmount(amount), goodsText=(g.goodsTexts||[]).join('、'), goodsCount=(g.goodsTexts||[]).reduce((sum,t)=>sum+(t?t.split(/[、,，]/).filter(Boolean).length:1),0)||1;
+          const amount=ceilMoneyValue(g.amount), wechat=extraFeeWechatAmount(amount), goodsText=(g.goodsTexts||[]).join('、'), goodsCount=Math.max(1,Number(g.goodsCount)||1);
           alipayTotal+=amount;
           const personCell=index===0?`<td class="payment-cn" rowspan="${rowSpan}"><div class="extra-fee-person-control"><button type="button" class="extra-fee-person-toggle" data-extra-person-paid="${escapeAttr(person)}">${personPaid?'✓':''}</button><span class="extra-fee-person-name extra-fee-editable" contenteditable="true" spellcheck="false" data-extra-person-name="${escapeAttr(person)}" data-extra-field="person" data-placeholder="CN">${escapeHtml(person)}</span></div></td>`:'';
           const sourceDisplay=(g.sourceTexts||[]).join('、');
@@ -5441,6 +5549,7 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     // ---------- wire static controls ----------
     ['priceType','count','jpyPrice','exchangeRate','manualAveragePrice','sharedFee'].forEach(id=>{
+      $(id).addEventListener('focusin',rememberPaidGoodsSnapshotsBeforePriceChange);
       $(id).addEventListener('input',recalc);
       $(id).addEventListener('change',recalc);
     });
@@ -7181,7 +7290,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       td.dataset.editing='false';
       td.classList.remove('matrix-cell-editing');
       td.setAttribute('contenteditable','false');
-      saveState(); renderMatrix();
+      matrixRenderDeferred=false;
+      saveState(); renderMatrix(true);
     }
     function placeCaretAtEnd(el){
       const range=document.createRange(), sel=window.getSelection&&window.getSelection();
@@ -7326,7 +7436,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!td) return;
       if(td.dataset.editing==='true'){
         if(e.key==='Enter'){ e.preventDefault(); saveMatrixCellEdit(td); }
-        else if(e.key==='Escape'){ e.preventDefault(); renderMatrix(); }
+        else if(e.key==='Escape'){ e.preventDefault(); matrixRenderDeferred=false; renderMatrix(true); }
         return;
       }
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'&&matrixSelectionSize()>=1&&!hasRealTextSelection()){
@@ -7381,6 +7491,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const input=e.target.closest('input.modeval[data-price-field]'); if(!input) return;
       const c=columns.find(col=>col.id===parseInt(input.dataset.col,10)); if(!c) return;
       const field=input.dataset.priceField, text=String(input.value||'').trim(), value=parseFloat(text);
+      rememberPaidGoodsSnapshotsBeforePriceChange();
       if(field==='avgOverride'&&text==='') c.avgOverride=null;
       else if(field==='wholeSetPrice'&&text==='') c.wholeSetPrice=null;
       else if(!Number.isFinite(value)) return;
@@ -7391,6 +7502,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       else if(field==='wholeSetPrice') c.wholeSetPrice=Math.max(0,value);
       cancelPendingCollabInstallForLocalEdit();
       saveState(); readCost(); computeAverage();
+    });
+    $('columnList').addEventListener('focusin',e=>{
+      if(e.target.closest('input.modeval[data-price-field]')) rememberPaidGoodsSnapshotsBeforePriceChange();
     });
     $('columnList').addEventListener('change',e=>{
       if(e.target.matches('input.modeval[data-price-field],input[data-promotion-point]')) recalc();
@@ -7440,6 +7554,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     mhead.addEventListener('focusin',e=>{
       const input=e.target.closest('input[data-price-kind]'); if(!input) return;
+      rememberPaidGoodsSnapshotsBeforePriceChange();
       const c=matrixPriceColumn(input); input.dataset.modeBeforeEdit=c?c.mode:'';
       input.dataset.replaceNext='1';
       setTimeout(()=>input.select(),0);
@@ -7805,6 +7920,25 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(amount>0) paidMap[key]=amount; else delete paidMap[key];
       return true;
     }
+    function rememberGoodsPaidSnapshot(key){
+      if(!key) return;
+      const compact=String(key||'').replace(/\s+/g,'').toLowerCase();
+      const snapshot=goodsSnapshotForKey(compact);
+      if(snapshot){
+        paymentEdits['__goods_snapshot__:'+compact]=snapshot;
+        paymentEdits['__goods_snapshot__:'+key]=snapshot;
+      }
+    }
+    function rememberPaidGoodsSnapshotsBeforePriceChange(){
+      try{
+        buildGoodsSettlementRecords().forEach(row=>{
+          if(!row||!row.key) return;
+          if(paymentEdits&&paymentEdits['__goods_snapshot__:'+row.key]) return;
+          if(!Object.prototype.hasOwnProperty.call(paymentPaid||{},row.key)) return;
+          rememberGoodsPaidSnapshot(row.key);
+        });
+      }catch(_){}
+    }
     function rerenderPaymentInPlace(rootId,renderer){
       const root=$(rootId), scroller=root.querySelector('.payment-table-wrap');
       const position={pageX:window.scrollX,pageY:window.scrollY,left:scroller?.scrollLeft||0,top:scroller?.scrollTop||0};
@@ -7821,7 +7955,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(allButton){
         e.preventDefault(); e.stopPropagation();
         const buttons=[...$('paymentSummary').querySelectorAll('[data-payment-paid]')], allFull=buttons.length>0&&buttons.every(button=>button.getAttribute('aria-pressed')==='true');
-        buttons.forEach(button=>{ const key=decodeURIComponent(button.dataset.paymentPaid||''); if(!key) return; if(allFull) delete paymentPaid[key]; else { const amount=Math.max(0,num(button.dataset.paymentAmount)); paymentPaid[key]=amount>0?amount:true; } });
+        buttons.forEach(button=>{ const key=decodeURIComponent(button.dataset.paymentPaid||''); if(!key) return; if(allFull) delete paymentPaid[key]; else { rememberGoodsPaidSnapshot(key); const amount=Math.max(0,num(button.dataset.paymentAmount)); paymentPaid[key]=amount>0?amount:true; } });
         saveState(); rerenderPaymentInPlace('paymentSummary',renderPaymentSummary); return;
       }
       const refundButton=e.target.closest('[data-payment-refund]');
@@ -7843,6 +7977,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const checkbox=e.target.closest('[data-payment-paid]'); if(!checkbox) return;
       e.preventDefault(); e.stopPropagation();
       const key=decodeURIComponent(checkbox.dataset.paymentPaid||''); if(!key) return;
+      if(checkbox.getAttribute('aria-pressed')!=='true') rememberGoodsPaidSnapshot(key);
       if(await updateReceivedAmount(paymentPaid,key,checkbox)){ saveState(); rerenderPaymentInPlace('paymentSummary',renderPaymentSummary); }
     });
     $('paymentSummary').addEventListener('blur',e=>{
@@ -7865,6 +8000,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(key.startsWith('alipay:')){
         const autoBase=Math.max(0,paymentMoneyValue(cell.dataset.paymentAuto||value));
         paymentEdits['__auto_base__:'+key]=ceilMoneyValue(autoBase);
+        rememberGoodsPaidSnapshot(String(key).slice('alipay:'.length).replace(/\s+/g,'').toLowerCase());
       }
       saveState(); setTimeout(()=>rerenderPaymentInPlace('paymentSummary',renderPaymentSummary),0);
     },true);
