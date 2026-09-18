@@ -3234,6 +3234,24 @@ body.export-rendering .cart-count{ font-size:28px; }
       else if(Math.abs(adjSum)>0.005) msg=`调价合计为 ${(adjSum>0?'+':'')+money(adjSum)}，不为0 —— 收回的钱与成本相差 ${(adjSum>0?'+':'')+money(adjSum)}（正=多收，负=少收）。`;
       if(msg){ w.style.display='block'; w.textContent=msg; } else { w.style.display='none'; }
     }
+    function freezeLegacyPaidAmountsBeforePriceChange(){
+      let changed=false;
+      try{
+        buildGoodsSettlementRecords().forEach(row=>{
+          if(paymentPaid&&paymentPaid[row.key]===true){
+            paymentPaid[row.key]=Math.max(0,paymentMoneyValue(row.expected));
+            changed=true;
+          }
+        });
+        buildShareSettlementRecords().forEach(row=>{
+          if(sharePaymentPaid&&sharePaymentPaid[row.key]===true){
+            sharePaymentPaid[row.key]=Math.max(0,paymentMoneyValue(row.expected));
+            changed=true;
+          }
+        });
+      }catch(_){}
+      if(changed) saveState();
+    }
     function wholeSetAutoPrice(){ return columns.reduce((s,x)=>x.mode==='wholeset'?s:s+unitPrice(x),0); }
     function unitPrice(c){
       if(c.mode==='wholeset'){
@@ -3580,7 +3598,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
 
-    function recalc(){ readCost(); computeAverage(); renderMatrix(); renderPricingGroups(); renderCart(); saveState(); }
+    function recalc(){ freezeLegacyPaidAmountsBeforePriceChange(); readCost(); computeAverage(); renderMatrix(); renderPricingGroups(); renderCart(); saveState(); }
 
     // ---------- window-exposed handlers ----------
     const ggz={};
@@ -3600,6 +3618,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     ggz.updateColumn=(id,field,value)=>{
       const c=columns.find(x=>x.id===id); if(!c) return;
       cancelPendingCollabInstallForLocalEdit();
+      if(['priceAdj','fixedPrice','avgOverride','mode','sourceJpyPrice','wholeSetPrice','promotionPoints'].includes(field)) freezeLegacyPaidAmountsBeforePriceChange();
       if(field==='aliases') c.aliases=value.split(/[，,]/).map(s=>s.trim()).filter(Boolean);
       else if(field==='priceAdj') c.priceAdj=parseFloat(value)||0;
       else if(field==='fixedPrice'){ const n=parseFloat(value); if(Number.isFinite(n)) c.fixedPrice=Math.max(0,n); }
@@ -5441,6 +5460,7 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     // ---------- wire static controls ----------
     ['priceType','count','jpyPrice','exchangeRate','manualAveragePrice','sharedFee'].forEach(id=>{
+      $(id).addEventListener('focusin',freezeLegacyPaidAmountsBeforePriceChange);
       $(id).addEventListener('input',recalc);
       $(id).addEventListener('change',recalc);
     });
@@ -7440,6 +7460,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     mhead.addEventListener('focusin',e=>{
       const input=e.target.closest('input[data-price-kind]'); if(!input) return;
+      freezeLegacyPaidAmountsBeforePriceChange();
       const c=matrixPriceColumn(input); input.dataset.modeBeforeEdit=c?c.mode:'';
       input.dataset.replaceNext='1';
       setTimeout(()=>input.select(),0);
@@ -7453,6 +7474,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     mhead.addEventListener('keydown',e=>{ if(e.target.matches('[data-price-kind]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     mhead.addEventListener('blur',e=>{
       const td=e.target.closest('[data-price-kind]'); if(!td) return;
+      freezeLegacyPaidAmountsBeforePriceChange();
       if(td.dataset.priceKind==='combo-adjust'){
         const group=pricingGroups.find(g=>g.id===Number(td.dataset.comboGroup)), value=parseFloat(String(td.value||'').replace(/[^\d.+-]/g,''));
         if(group&&Number.isFinite(value)){ group.adjustment=value; saveState(); renderPricingGroups(); renderMatrix(); renderCart(); }
