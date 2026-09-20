@@ -799,7 +799,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单表</button>
       <label class="btn-ghost filelabel import-backup">导入排单备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
       <label class="btn-ghost filelabel">导入排单表<input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;"></label>
-      <button class="btn-ghost" id="exportImportTemplateBtn">下载排单表模板</button>
+      <button class="btn-ghost" id="exportImportTemplateBtn">下载/编辑排单 Excel</button>
       <button class="btn-ghost" id="copyTsvBtn">复制排单表文本</button>
     </div></details>
     <details class="data-actions settings-data-actions" id="archiveMaintenance" hidden><summary>云端维护</summary><div class="data-actions-pop">
@@ -4072,8 +4072,19 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function matrixBoughtKey(col,row){ return `${Number(col)}:${Number(row)}`; }
     function isMatrixCellBought(col,row,name){
-      const current=String(name||'').trim();
-      return !!current&&String(matrixBoughtCells[matrixBoughtKey(col,row)]||'')===current;
+      const current=String(name||'').trim(), currentKey=normalizeDispatchKey(current), colId=Number(col);
+      if(!current) return false;
+      const direct=String(matrixBoughtCells[matrixBoughtKey(colId,row)]||'').trim();
+      if(direct&&normalizeDispatchKey(direct)===currentKey) return true;
+      const combo=pricingGroups.find(g=>comboColumnId(g)===colId);
+      if(!combo) return false;
+      const memberMatches=pricingGroupMemberColumns(combo).map(member=>{
+        const memberName=String((allocations[member.id]||[])[row]||'').trim();
+        if(!memberName||normalizeDispatchKey(memberName)!==currentKey) return null;
+        const marked=String(matrixBoughtCells[matrixBoughtKey(member.id,row)]||'').trim();
+        return !!marked&&normalizeDispatchKey(marked)===currentKey;
+      }).filter(value=>value!==null);
+      return memberMatches.length>0&&memberMatches.every(Boolean);
     }
     function pruneMatrixCellStore(store){
       Object.keys(store||{}).forEach(key=>{
@@ -8476,14 +8487,29 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(c.mode==='single') return `原价${fmtNum(c.sourceJpyPrice)}日元`;
       return `${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`;
     }
+    function excelPriceType(c){
+      if(c.isPricingCombo) return '拼盒调价';
+      if(c.mode==='avg') return '均价';
+      if(c.mode==='fixed') return '入均';
+      if(c.mode==='single') return '原价换算';
+      return '调价';
+    }
+    function excelPriceValue(c){
+      if(c.isPricingCombo) return num(c.comboAdjustment);
+      if(c.mode==='fixed') return num(c.fixedPrice);
+      if(c.mode==='single') return num(c.sourceJpyPrice);
+      if(c.mode==='adjust') return num(c.priceAdj);
+      return '';
+    }
     function copyCurrentMatrixTsv(button){
       const displayColumns=orderDisplayColumns();
       if(displayColumns.length===0){ alert('还没有排单数据'); return; }
       const maxRows=Math.max(0,...displayColumns.map(c=>(allocations[c.id]||[]).length));
       let lines=[];
-      lines.push(['',...displayColumns.map(c=>c.name)].join('\t'));
-      lines.push(['调价',...displayColumns.map(matrixColumnPricingText)].join('\t'));
-      lines.push(['单价',...displayColumns.map(c=>unitPrice(c).toFixed(2))].join('\t'));
+      lines.push(['顺位',...displayColumns.map(c=>c.name)].join('\t'));
+      lines.push(['价格类型',...displayColumns.map(excelPriceType)].join('\t'));
+      lines.push(['价格数值',...displayColumns.map(excelPriceValue)].join('\t'));
+      lines.push(['参考单价RMB',...displayColumns.map(c=>unitPrice(c).toFixed(2))].join('\t'));
       lines.push(['提配点数',...displayColumns.map(c=>fmtPoint(c.promotionPoints))].join('\t'));
       const step=quantitySettingsReady()?groupSize:1;
       for(let r=0;r<maxRows;r++) lines.push([(r+1)*step,...displayColumns.map(c=>(allocations[c.id]||[])[r]||'')].join('\t'));
@@ -8551,8 +8577,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function sheetToAoa(sheet){
       const {cols,price}=sheetDisplayPriceInfo(sheet), data=sheet.allocations||{}, maxRows=Math.max(0,...cols.map(c=>(data[c.id]||[]).length));
-      const pricing=c=>c.isPricingCombo?`${num(c.comboAdjustment)>0?'+':''}${fmtNum(num(c.comboAdjustment))}`:(c.mode==='avg'?'均价':c.mode==='fixed'?`${fmtNum(c.fixedPrice)}/1`:c.mode==='single'?`原价${fmtNum(c.sourceJpyPrice)}日元`:`${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`);
-      const rows=[['',...cols.map(c=>c.name)],['调价',...cols.map(pricing)],['单价',...cols.map(c=>Number(price(c).toFixed(2)))],['提配点数',...cols.map(c=>Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1)]];
+      const rows=[['顺位',...cols.map(c=>c.name)],['价格类型',...cols.map(excelPriceType)],['价格数值',...cols.map(excelPriceValue)],['参考单价RMB',...cols.map(c=>Number(price(c).toFixed(2)))],['提配点数',...cols.map(c=>Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1)]];
       const step=sheet.quantityConfigured===true&&Number.isFinite(parseInt(sheet.boxSize,10))&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):1;
       for(let r=0;r<maxRows;r++) rows.push([(r+1)*step,...cols.map(c=>(data[c.id]||[])[r]||'')]);
       return rows;
@@ -8565,6 +8590,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function appendOrderSheet(wb,sheet,name){
       const rows=sheetToAoa(sheet), ws=XLSX.utils.aoa_to_sheet(rows);
       ws['!cols']=[{wch:8},...Array(Math.max(0,(rows[0]||[]).length-1)).fill(0).map(()=>({wch:16}))];
+      ws['!freeze']={xSplit:1,ySplit:5};
+      if(ws.A1) ws.A1.c=[{a:'Codex',t:'从第 6 行开始填写排单。第 2 行选价格类型；第 3 行只填数字：入均=人民币单价，原价换算=日元原价，调价/拼盒调价=加减人民币。'}];
       XLSX.utils.book_append_sheet(wb,ws,name);
     }
     function currentQuantityExportRows(mode){
@@ -8628,18 +8655,29 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('exportImportTemplateBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       const templateColumns=columns.length?columns:Array.from({length:8},(_,i)=>({name:`谷子${i+1}`,mode:'avg',priceAdj:0,fixedPrice:0,sourceJpyPrice:0,promotionPoints:1}));
-      const pricing=c=>c.mode==='fixed'?`${fmtNum(c.fixedPrice)}/1`:c.mode==='single'?`原价${fmtNum(c.sourceJpyPrice)}日元`:c.mode==='adjust'?`${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`:'均价';
       const rows=[
         ['顺位',...templateColumns.map(c=>c.name)],
-        ['调价',...templateColumns.map(pricing)],
-        ['单价',...templateColumns.map(c=>Number(unitPrice(c).toFixed(2)))],
+        ['价格类型',...templateColumns.map(excelPriceType)],
+        ['价格数值',...templateColumns.map(excelPriceValue)],
+        ['参考单价RMB',...templateColumns.map(c=>Number(unitPrice(c).toFixed(2)))],
         ['提配点数',...templateColumns.map(c=>Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1)],
       ];
       for(let row=1;row<=100;row++) rows.push([row,...templateColumns.map(()=>'')]);
-      const ws=XLSX.utils.aoa_to_sheet(rows), sheetName=String((sheets.find(s=>s.id===activeSheetId)||{}).name||'排单导入模板').replace(/[\\/?*\[\]:]/g,' ').slice(0,31)||'排单导入模板';
-      ws['!cols']=[{wch:9},...templateColumns.map(()=>({wch:18}))]; ws['!freeze']={xSplit:1,ySplit:4};
-      if(ws.A1) ws.A1.c=[{a:'Codex',t:'第一行填写谷子名称；第5行开始，每一行代表同一个排单顺位。可以增加、删除谷子列，也可以增加人员行。填好后回到网页点击“导入 Excel”。'}];
-      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,sheetName); XLSX.writeFile(wb,`${sheetName}-排单导入模板.xlsx`); $('dataActions').open=false;
+      const ws=XLSX.utils.aoa_to_sheet(rows), sheetName=String((sheets.find(s=>s.id===activeSheetId)||{}).name||'排单编辑表').replace(/[\\/?*\[\]:]/g,' ').slice(0,31)||'排单编辑表';
+      ws['!cols']=[{wch:9},...templateColumns.map(()=>({wch:18}))]; ws['!freeze']={xSplit:1,ySplit:5};
+      if(ws.A1) ws.A1.c=[{a:'Codex',t:'从第 6 行开始填写排单。第 2 行是价格类型，第 3 行只填数字，第 4 行是参考单价不需要手改。'}];
+      const helpRows=[
+        ['怎么填','说明','例子'],
+        ['第1行','谷子名称。可以直接改名、加列、删列。','万津莫妮帽'],
+        ['第2行 价格类型','填写：均价 / 入均 / 原价换算 / 调价。','原价换算'],
+        ['第3行 价格数值','只填数字。均价可留空；入均=人民币单价；原价换算=日元原价；调价=人民币加减。','1540 / 77 / 20 / -5'],
+        ['第4行 参考单价RMB','网页导出的参考价，方便你看；导入时主要看第2、3行。','77'],
+        ['第5行 提配点数','用于提配/均摊点数，默认 1。','1 / 2 / 2.5'],
+        ['第6行开始','每一行就是排单顺位；格子里填 CN。可以整列复制粘贴。','刻在'],
+        ['注意','旧格式“原价1540日元”“77/1”“+20”仍然可以导入。','']
+      ];
+      const help=XLSX.utils.aoa_to_sheet(helpRows); help['!cols']=[{wch:16},{wch:56},{wch:22}];
+      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,sheetName); XLSX.utils.book_append_sheet(wb,help,'填写说明'); XLSX.writeFile(wb,`${sheetName}-可编辑导入表.xlsx`); $('dataActions').open=false;
     });
     $('excelImportInput').addEventListener('change',e=>{
       const file=e.target.files[0]; if(!file) return;
@@ -8649,27 +8687,31 @@ body.export-rendering .cart-count{ font-size:28px; }
         try{
           const book=XLSX.read(reader.result,{type:'array'}), imported=[];
           book.SheetNames.forEach(sheetName=>{
+            if(/填写说明|说明|help/i.test(String(sheetName||''))) return;
             const rows=XLSX.utils.sheet_to_json(book.Sheets[sheetName],{header:1,raw:false,defval:''});
             if(!rows.length) return;
-            const hasLabelCol=['调价','定价','单价','提配点数'].some(label=>rows.slice(1,5).some(r=>String(r[0]||'').trim()===label));
+            const hasLabelCol=['调价','定价','价格类型','价格数值','单价','参考单价RMB','提配点数'].some(label=>rows.slice(1,6).some(r=>String(r[0]||'').trim()===label));
             const startCol=hasLabelCol||String(rows[0][0]||'').trim()===''?1:0;
             const headers=(rows[0]||[]).slice(startCol).map(v=>String(v||'').trim());
             while(headers.length&&!headers[headers.length-1]) headers.pop();
             if(!headers.length) return;
-            const pricingIndex=rows.findIndex((r,i)=>i>0&&['调价','定价'].includes(String(r[0]||'').trim()));
-            const unitIndex=rows.findIndex((r,i)=>i>0&&String(r[0]||'').trim()==='单价');
+            const pricingIndex=rows.findIndex((r,i)=>i>0&&['调价','定价','价格类型'].includes(String(r[0]||'').trim()));
+            const priceValueIndex=rows.findIndex((r,i)=>i>0&&String(r[0]||'').trim()==='价格数值');
+            const unitIndex=rows.findIndex((r,i)=>i>0&&['单价','参考单价RMB'].includes(String(r[0]||'').trim()));
             const promotionPointIndex=rows.findIndex((r,i)=>i>0&&String(r[0]||'').trim()==='提配点数');
-            const dataStart=Math.max(1,pricingIndex+1,unitIndex+1,promotionPointIndex+1);
+            const dataStart=Math.max(1,pricingIndex+1,priceValueIndex+1,unitIndex+1,promotionPointIndex+1);
             const sheet=blankSheet(sheetName||`表${sheets.length+imported.length+1}`);
             sheet.cost={...COST_DEFAULTS,count:String(headers.length)};
             sheet.columns=headers.map((name,i)=>{
               const id=i+1, pricing=pricingIndex>=0?String((rows[pricingIndex]||[])[i+startCol]||'').trim():'';
+              const priceValue=priceValueIndex>=0?parseFloat(String((rows[priceValueIndex]||[])[i+startCol]||'').replace(/[^\d.+-]/g,'')):NaN;
               const unit=unitIndex>=0?parseFloat((rows[unitIndex]||[])[i+startCol]):NaN;
               const promotionPoint=promotionPointIndex>=0?parseFloat((rows[promotionPointIndex]||[])[i+startCol]):NaN;
               let mode='avg',priceAdj=0,fixedPrice=0,sourceJpyPrice=0;
-              if(/固定|\/1/.test(pricing)||(/入均/.test(pricing)&&/\d/.test(pricing))){ mode='fixed'; fixedPrice=Math.max(0,parseFloat(pricing.replace(/[^\d.-]/g,''))||0); }
-              else if(/原价|日元/.test(pricing)){ mode='single'; sourceJpyPrice=Math.max(0,parseFloat(pricing.replace(/[^\d.-]/g,''))||0); }
-              else if(pricing&&!/^(?:入均|均价|均)$/.test(pricing)){ const n=parseFloat(pricing.replace(/[^\d.+-]/g,'')); if(Number.isFinite(n)){ mode='adjust'; priceAdj=n; } }
+              if(/原价|日元/.test(pricing)){ mode='single'; sourceJpyPrice=Math.max(0,Number.isFinite(priceValue)?priceValue:(parseFloat(pricing.replace(/[^\d.-]/g,''))||0)); }
+              else if(/固定|入均|\/1/.test(pricing)){ mode='fixed'; fixedPrice=Math.max(0,Number.isFinite(priceValue)?priceValue:(parseFloat(pricing.replace(/[^\d.-]/g,''))||0)); }
+              else if(/调价|拼盒/.test(pricing)){ mode='adjust'; priceAdj=Number.isFinite(priceValue)?priceValue:(parseFloat(pricing.replace(/[^\d.+-]/g,''))||0); }
+              else if(pricing&&!/^(?:均价|均)$/.test(pricing)){ const n=Number.isFinite(priceValue)?priceValue:parseFloat(pricing.replace(/[^\d.+-]/g,'')); if(Number.isFinite(n)){ mode='adjust'; priceAdj=n; } }
               else if(Number.isFinite(unit)&&!pricing){ mode='fixed'; fixedPrice=Math.max(0,unit); }
               return {id,name:name||`角色${i+1}`,aliases:[],mode,priceAdj,fixedPrice,sourceJpyPrice,promotionPoints:Number.isFinite(promotionPoint)?Math.max(0,promotionPoint):1,img:null};
             });
