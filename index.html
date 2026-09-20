@@ -1200,7 +1200,22 @@ html{ scrollbar-gutter:stable; }
 .dispatch-name{ font-weight:900; font-size:13px; color:var(--text); margin-bottom:8px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
 .dispatch-count{ font-size:10.5px; font-weight:800; color:#fff; background:var(--accent,#d1466a); border-radius:10px; padding:2px 7px; }
 .dispatch-person-summary{ margin-left:auto; color:var(--muted); font-size:10.5px; font-weight:800; }
-.dispatch-items{ display:grid; gap:5px; }
+.dispatch-items{ display:grid; gap:6px; }
+.dispatch-sheet-group{ padding:7px 8px; border:1px solid #eee7f0; border-radius:8px; background:#fcfafc; color:var(--text); font-size:11.5px; }
+.dispatch-sheet-head{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:5px; font-weight:900; }
+.dispatch-sheet-head b{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dispatch-sheet-head small{ color:var(--muted); font-size:9.5px; font-weight:850; }
+.dispatch-chip-list{ display:flex; flex-wrap:wrap; gap:4px; }
+.dispatch-chip{ display:inline-flex; align-items:center; max-width:100%; padding:3px 6px; border-radius:7px; background:#fff; border:1px solid #eee7f0; color:var(--text); font-size:11px; font-weight:850; line-height:1.25; }
+.dispatch-chip small{ margin-left:3px; color:var(--muted); font-size:9px; font-weight:900; }
+.dispatch-chip.is-ready{ background:#f0fbf4; border-color:#cfead7; color:#1f6f3d; }
+.dispatch-chip.has-unpaid{ background:#fff5f6; border-color:#f3c7cf; color:#9d3146; }
+.dispatch-pay-main{ color:#b33c55; font-weight:950; }
+.dispatch-pay-main.is-ok{ color:#25804a; }
+.dispatch-more{ display:inline-block; margin-top:4px; }
+.dispatch-more summary{ cursor:pointer; color:var(--accent,#d1466a); font-size:10.5px; font-weight:900; list-style:none; }
+.dispatch-more summary::-webkit-details-marker{ display:none; }
+.dispatch-more[open] summary{ margin-bottom:4px; }
 .dispatch-item{ display:grid; grid-template-columns:minmax(120px,1fr) auto; gap:8px; align-items:center; padding:7px 8px; border:1px solid #eee7f0; border-radius:8px; background:#fcfafc; color:var(--text); font-size:11.5px; }
 .dispatch-item-main{ min-width:0; }
 .dispatch-item-main b{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -5985,11 +6000,47 @@ body.export-rendering .cart-count{ font-size:28px; }
     function dispatchItemGroups(items){
       const map=new Map();
       items.forEach(it=>{
-        const k=[it.item,it.sheet,it.chinaDate,it.goodsPaid?'1':'0',it.internationalGenerated?'1':'0',it.internationalPaid?'1':'0',it.ready?'1':'0'].join('\u0000');
-        if(!map.has(k)) map.set(k,{...it,n:0});
-        map.get(k).n++;
+        const k=[it.item,it.sheet].join('\u0000');
+        if(!map.has(k)) map.set(k,{item:it.item,sheet:it.sheet,n:0,boughtTracked:false,chinaCount:0,chinaDates:[],goodsPaidCount:0,internationalGeneratedCount:0,internationalPaidCount:0,readyCount:0});
+        const group=map.get(k);
+        group.n++;
+        if(it.boughtTracked) group.boughtTracked=true;
+        if(it.chinaDate){ group.chinaCount++; group.chinaDates.push(it.chinaDate); }
+        if(it.goodsPaid) group.goodsPaidCount++;
+        if(it.internationalGenerated) group.internationalGeneratedCount++;
+        if(it.internationalPaid) group.internationalPaidCount++;
+        if(it.ready) group.readyCount++;
       });
       return [...map.values()];
+    }
+    function dispatchSheetGroups(groups){
+      const map=new Map();
+      groups.forEach(g=>{
+        const sheet=String(g.sheet||'未命名排单').trim()||'未命名排单';
+        if(!map.has(sheet)) map.set(sheet,{sheet,items:[],qty:0,readyQty:0,chinaQty:0,dates:[],goodsPaidQty:0,intlNeededQty:0,intlPaidQty:0});
+        const row=map.get(sheet);
+        row.items.push(g);
+        row.qty+=g.n;
+        row.readyQty+=g.readyCount;
+        row.chinaQty+=g.chinaCount;
+        row.goodsPaidQty+=g.goodsPaidCount;
+        row.intlNeededQty+=g.internationalGeneratedCount;
+        row.intlPaidQty+=g.internationalPaidCount;
+        row.dates.push(...(g.chinaDates||[]));
+      });
+      return [...map.values()];
+    }
+    function dispatchItemChip(g){
+      const dates=[...new Set(g.chinaDates||[])].sort();
+      const holdDays=dates[0]?logiDaysSince(dates[0]):null;
+      const bits=[];
+      if(g.n>1) bits.push(`×${g.n}`);
+      if(g.chinaCount&&g.chinaCount<g.n) bits.push(`国内${g.chinaCount}/${g.n}`);
+      if(g.goodsPaidCount<g.n) bits.push(g.goodsPaidCount?`谷款${g.goodsPaidCount}/${g.n}`:'未谷款');
+      if(g.internationalGeneratedCount&&g.internationalPaidCount<g.internationalGeneratedCount) bits.push(g.internationalPaidCount?`国际${g.internationalPaidCount}/${g.internationalGeneratedCount}`:'未国际');
+      if(holdDays!=null) bits.push(holdDays>30?`超${holdDays-30}天`:`屯${holdDays}天`);
+      if(g.readyCount&&g.readyCount<g.n) bits.push(`可发${g.readyCount}/${g.n}`);
+      return `<span class="dispatch-chip ${g.readyCount?'is-ready':''} ${g.goodsPaidCount<g.n||(g.internationalGeneratedCount&&g.internationalPaidCount<g.internationalGeneratedCount)?'has-unpaid':''}">${escapeHtml(g.item)}${bits.length?` <small>${escapeHtml(bits.join(' · '))}</small>`:''}</span>`;
     }
     function renderDispatch(){
       const list=$('dispatchList'); if(!list) return;
@@ -6003,13 +6054,20 @@ body.export-rendering .cart-count{ font-size:28px; }
       list.innerHTML=records.map(person=>{
         const chinaCount=person.items.filter(item=>item.chinaDate).length;
         const readyCount=person.items.filter(item=>item.ready).length;
-        const items=dispatchItemGroups(person.visibleItems).map(g=>{
-          const boughtStatus=g.boughtTracked?`<span class="dispatch-status paid">已买齐</span>`:`<span class="dispatch-status paid">已购买</span>`;
-          const arrival=g.chinaDate?`<span class="dispatch-status china">国内 ${escapeHtml(g.chinaDate)}</span>`:`<span class="dispatch-status wait">未到国内</span>`;
-          const payment=g.goodsPaid?`<span class="dispatch-status paid">谷子款已收</span>`:`<span class="dispatch-status unpaid">谷子款未收</span>`;
-          const intl=!g.chinaDate?'':(g.internationalPaid?`<span class="dispatch-status paid">国际运费已收</span>`:(g.internationalGenerated?`<span class="dispatch-status unpaid">国际运费未收</span>`:`<span class="dispatch-status wait">待生成国际运费</span>`));
-          const ready=g.ready?`<span class="dispatch-status ready">可排发</span>`:'';
-          return `<div class="dispatch-item"><div class="dispatch-item-main"><b>${escapeHtml(g.item)}${g.n>1?` ×${g.n}`:''}</b>${g.sheet?`<small>${escapeHtml(g.sheet)}</small>`:''}</div><div class="dispatch-item-states">${boughtStatus}${arrival}${payment}${intl}${ready}</div></div>`;
+        const items=dispatchSheetGroups(dispatchItemGroups(person.visibleItems)).map(group=>{
+          const dates=[...new Set(group.dates)].sort();
+          const holdDays=dates[0]?logiDaysSince(dates[0]):null;
+          const shown=group.items.slice(0,8).map(dispatchItemChip).join('');
+          const hidden=group.items.slice(8).map(dispatchItemChip).join('');
+          const status=[
+            group.goodsPaidQty===group.qty?`谷款已收`:`谷款 ${group.goodsPaidQty}/${group.qty}`,
+            group.intlNeededQty?(group.intlPaidQty===group.intlNeededQty?`国际已收`:`国际 ${group.intlPaidQty}/${group.intlNeededQty}`):'',
+            group.chinaQty===group.qty?'国内已到':(group.chinaQty?`国内 ${group.chinaQty}/${group.qty}`:'未到国内'),
+            holdDays==null?'':(holdDays>30?`超期 ${holdDays-30}天`:`屯货 ${holdDays}天`),
+            group.readyQty===group.qty?'可排发':(group.readyQty?`可发 ${group.readyQty}/${group.qty}`:'')
+          ].filter(Boolean).join(' · ');
+          const payOk=group.goodsPaidQty===group.qty&&(!group.intlNeededQty||group.intlPaidQty===group.intlNeededQty);
+          return `<div class="dispatch-sheet-group"><div class="dispatch-sheet-head"><b>${escapeHtml(group.sheet)}</b><small>${group.items.length}款 · ${group.qty}件 · <span class="dispatch-pay-main ${payOk?'is-ok':''}">${escapeHtml(status)}</span></small></div><div class="dispatch-chip-list">${shown}</div>${hidden?`<details class="dispatch-more"><summary>展开剩余 ${group.items.length-8} 款</summary><div class="dispatch-chip-list">${hidden}</div></details>`:''}</div>`;
         }).join('');
         return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount}</span></div><div class="dispatch-items">${items}</div></div>`;
       }).join('');
@@ -6017,7 +6075,16 @@ body.export-rendering .cart-count{ font-size:28px; }
     function dispatchTextManifest(){
       return buildDispatchRecords().map(person=>{
         const visible=dispatchVisibleItems(person); if(!visible.length) return '';
-        const items=dispatchItemGroups(visible).map(g=>`${g.item}${g.n>1?`×${g.n}`:''}${g.sheet?`(${g.sheet})`:''}${g.boughtTracked?'[已买齐]':'[已购买]'}${g.chinaDate?`[国内${g.chinaDate}]`:'[未到国内]'}${g.goodsPaid?'[谷子款已收]':'[谷子款未收]'}${g.chinaDate?(g.internationalPaid?'[国际运费已收]':(g.internationalGenerated?'[国际运费未收]':'[待生成国际运费]')):''}`).join('、');
+        const items=dispatchItemGroups(visible).map(g=>{
+          const dates=[...new Set(g.chinaDates)].sort();
+          const holdDays=dates[0]?logiDaysSince(dates[0]):null;
+          const china=g.chinaCount===g.n?(dates.length?`国内${dates.join('/')}`:'国内已到'):(g.chinaCount>0?`国内${g.chinaCount}/${g.n}`:'未到国内');
+          const hold=holdDays==null?'':(holdDays>30?`超期${holdDays-30}天`:`屯货${holdDays}天`);
+          const goods=g.goodsPaidCount===g.n?'谷款已收':(g.goodsPaidCount>0?`谷款${g.goodsPaidCount}/${g.n}`:'谷款未收');
+          const intl=!g.chinaCount?'':(g.internationalPaidCount===g.n?'国际已收':(g.internationalGeneratedCount>0?`国际${g.internationalPaidCount}/${g.internationalGeneratedCount}`:'待国际'));
+          const ready=g.readyCount?`可发${g.readyCount}/${g.n}`:'';
+          return `${g.item}${g.n>1?`×${g.n}`:''}${g.sheet?`(${g.sheet})`:''}[${[g.boughtTracked?'已买齐':'已购买',china,hold,goods,intl,ready].filter(Boolean).join('；')}]`;
+        }).join('、');
         return `${person.name}：${items}`;
       }).filter(Boolean).join('\n');
     }
