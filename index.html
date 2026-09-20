@@ -3301,7 +3301,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const rowNames=[];
         members.forEach(c=>{
           const name=String((sourceAllocations[c.id]||[])[row]||'').trim();
-          if(name&&!rowNames.includes(name)) rowNames.push(name);
+          if(name&&!rowNames.some(existing=>normalizeDispatchKey(existing)===normalizeDispatchKey(name))) rowNames.push(name);
         });
         rows.push(...rowNames);
       }
@@ -3886,11 +3886,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       else{
         const parts=text.split(/\s+/).filter(Boolean);
         if(parts.length>=2){
-          const people=knownPeople(), compact=text.replace(/\s+/g,'');
-          const known=people.find(name=>compact.startsWith(String(name||'').replace(/\s+/g,'')));
+          const people=knownPeople(), compact=normalizeDispatchKey(text);
+          const known=people.find(name=>compact.startsWith(normalizeDispatchKey(name)));
           if(known){
             person=known;
-            itemsText=text.slice(text.indexOf(parts[0])+String(known).length).trim()||parts.slice(1).join(' ');
+            itemsText=removeKnownPersonFromText(text,known)||parts.slice(1).join(' ');
           }else{ person=cleanPersonName(parts.shift()); itemsText=parts.join(' '); }
         }
       }
@@ -4274,7 +4274,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return Number.isFinite(parsed)?parsed:0;
     }
     function paymentEditAmount(edits,field,name,key,fallback){
-      const source=edits||{}, prefix=field+':', direct=prefix+String(name||''), compact=s=>String(s||'').replace(/\s+/g,'').toLowerCase();
+      const source=edits||{}, prefix=field+':', direct=prefix+String(name||''), compact=normalizeDispatchKey;
       const fallbackAmount=Math.max(0,paymentMoneyValue(fallback));
       // 微信金额始终由当前应收自动计算，不允许历史手动值覆盖。
       if(field==='wechat') return fallbackAmount;
@@ -4323,7 +4323,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return fallbackAmount;
     }
     function paymentVisibleAmount(containerId,attr,edits,field,name,key,fallback){
-      const fallbackAmount=paymentEditAmount(edits,field,name,key,fallback), box=$(containerId), prefix=field+':', compact=s=>String(s||'').replace(/\s+/g,'').toLowerCase(), wantName=compact(name), wantKey=compact(key);
+      const fallbackAmount=paymentEditAmount(edits,field,name,key,fallback), box=$(containerId), prefix=field+':', compact=normalizeDispatchKey, wantName=compact(name), wantKey=compact(key);
       if(!box) return fallbackAmount;
       const nodes=[...box.querySelectorAll(`[${attr}]`)];
       for(const node of nodes){
@@ -4388,7 +4388,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
         if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
-        const key=name.replace(/\s+/g,'').toLowerCase();
+        const key=normalizeDispatchKey(name);
         if(!people.has(key)) people.set(key,{key,name,planned:0,bought:0,items:new Map(),boughtItems:new Map(),itemAmounts:new Map(),boughtItemAmounts:new Map()});
         const data=people.get(key),price=unitPrice(c); data.planned+=price; data.items.set(c.name,(data.items.get(c.name)||0)+1); data.itemAmounts.set(c.name,(data.itemAmounts.get(c.name)||0)+price);
         if(isMatrixCellBought(c.id,index,name)){ data.bought+=price; data.boughtItems.set(c.name,(data.boughtItems.get(c.name)||0)+1); data.boughtItemAmounts.set(c.name,(data.boughtItemAmounts.get(c.name)||0)+price); }
@@ -4407,7 +4407,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {total:ceilMoneyValue(record.expected),items};
     }
     function goodsPaidSnapshotFor(key,name=''){
-      const compact=s=>String(s||'').replace(/\s+/g,'').toLowerCase();
+      const compact=normalizeDispatchKey;
       const candidates=[key,compact(key),name,compact(name)].filter(Boolean);
       for(const candidate of candidates){
         const snapshot=paymentEdits&&paymentEdits['__goods_snapshot__:'+candidate];
@@ -4420,7 +4420,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       let totalQty=0,fixedDeduction=0;
       displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
         if(index<startIndex||index>=endIndex) return; const name=String(person||'').trim(); if(!name) return;
-        const key=name.replace(/\s+/g,'').toLowerCase(); if(!people.has(key)) people.set(key,{key,name,qty:0});
+        const key=normalizeDispatchKey(name); if(!people.has(key)) people.set(key,{key,name,qty:0});
         if(showBoughtSettlement&&!isMatrixCellBought(c.id,index,name)) return;
         const pointValue=Number(c.promotionPoints), shareWeight=Number.isFinite(pointValue)?Math.max(0,pointValue):1;
         people.get(key).qty+=shareWeight; totalQty+=shareWeight;
@@ -4541,7 +4541,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       ctx.displayColumns.forEach(c=>(ctx.data[c.id]||[]).forEach((person,index)=>{
         if(index<ctx.startIndex||index>=ctx.endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
-        const key=name.replace(/\s+/g,'').toLowerCase(), price=ctx.price(c), bought=ctx.boughtKey(c,index,name);
+        const key=normalizeDispatchKey(name), price=ctx.price(c), bought=ctx.boughtKey(c,index,name);
         if(!goodsPeople.has(key)) goodsPeople.set(key,{key,name,planned:0,bought:0,items:new Map(),boughtItems:new Map()});
         const g=goodsPeople.get(key); g.planned+=price; g.items.set(c.name,(g.items.get(c.name)||0)+1);
         if(bought){ g.bought+=price; g.boughtItems.set(c.name,(g.boughtItems.get(c.name)||0)+1); }
@@ -4799,7 +4799,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
         if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
-        const key=name.replace(/\s+/g,'').toLowerCase();
+        const key=normalizeDispatchKey(name);
         if(!people.has(key)) people.set(key,{key,name,total:0,jpyTotal:0,items:new Map(),requestedQty:0,boughtQty:0,boughtTotal:0,boughtItems:new Map(),itemAmounts:new Map(),boughtItemAmounts:new Map()});
         const row=people.get(key), price=unitPrice(c); row.total+=price; row.jpyTotal+=columnOriginalJpy(c); row.requestedQty++; row.items.set(c.name,(row.items.get(c.name)||0)+1); row.itemAmounts.set(c.name,(row.itemAmounts.get(c.name)||0)+price);
         if(isMatrixCellBought(c.id,index,name)){ row.boughtQty++; row.boughtTotal+=price; row.boughtItems.set(c.name,(row.boughtItems.get(c.name)||0)+1); row.boughtItemAmounts.set(c.name,(row.boughtItemAmounts.get(c.name)||0)+price); }
@@ -4856,7 +4856,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
         if(index<startIndex||index>=endIndex) return;
         const name=String(person||'').trim(); if(!name) return;
-        const key=name.replace(/\s+/g,'').toLowerCase();
+        const key=normalizeDispatchKey(name);
         if(!people.has(key)) people.set(key,{key,name,qty:0,items:new Map(),itemPoints:new Map()});
         if(showBoughtSettlement&&!isMatrixCellBought(c.id,index,name)) return;
         const pointValue=Number(c.promotionPoints), shareWeight=Number.isFinite(pointValue)?Math.max(0,pointValue):1;
@@ -5928,7 +5928,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('sheetTabs').addEventListener('dragend',()=>{ draggedSheetId=null; document.querySelectorAll('.sheet-tab.dragging,.sheet-tab.drag-over').forEach(item=>item.classList.remove('dragging','drag-over')); });
     let dispatchStateFilter='all';
-    function normalizeDispatchKey(name){ return String(name||'').replace(/\s+/g,'').toLowerCase(); }
+    function normalizeDispatchKey(name){ return String(name||'').normalize('NFKC').replace(/\s+/g,'').toLowerCase(); }
     function matrixItemDisplayName(c,row,subStore=matrixBlindSubCells){
       const base=String(c?.name||'未命名').trim()||'未命名';
       const sub=String((subStore||{})[matrixBoughtKey(c?.id,row)]||'').trim();
@@ -6306,6 +6306,22 @@ body.export-rendering .cart-count{ font-size:28px; }
       orderDisplayColumns().forEach(c=>(allocations[c.id]||[]).forEach(value=>{ const name=String(value||'').trim(); if(name&&!seen.has(name)){ seen.add(name); result.push(name); } }));
       return result.sort((a,b)=>b.length-a.length);
     }
+    function findKnownPersonInText(text,people=knownPeople()){
+      const compact=normalizeDispatchKey(text);
+      return people.find(name=>compact.includes(normalizeDispatchKey(name)))||'';
+    }
+    function removeKnownPersonFromText(text,person){
+      let value=String(text||'');
+      if(!person) return value.trim();
+      if(value.includes(person)) return value.replace(person,' ').replace(/\s+/g,' ').trim();
+      const targetKey=normalizeDispatchKey(person);
+      for(let i=1;i<=value.length;i++){
+        if(normalizeDispatchKey(value.slice(0,i))===targetKey) return value.slice(i).replace(/\s+/g,' ').trim();
+      }
+      const parts=value.trim().split(/\s+/);
+      if(parts.length>1&&normalizeDispatchKey(parts[0])===normalizeDispatchKey(person)) return parts.slice(1).join(' ').trim();
+      return value.trim();
+    }
     function mentionedColumn(text){
       const lower=text.toLowerCase(), candidates=[];
       columns.forEach(c=>[c.name,...(c.aliases||[])].forEach(label=>{ const name=String(label||'').trim(); if(name) candidates.push({col:c,label:name}); }));
@@ -6330,7 +6346,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const cols=preferred?[preferred]:blindColumns();
       for(const col of cols){
         const positions=(allocations[col.id]||[]).map((value,index)=>{
-          if(String(value||'').trim()!==source) return -1;
+          if(normalizeDispatchKey(value)!==normalizeDispatchKey(source)) return -1;
           if(String(matrixBlindSubCells[matrixBoughtKey(col.id,index)]||'').trim()!==sub) return -1;
           return index;
         }).filter(index=>index>=0);
@@ -6344,9 +6360,10 @@ body.export-rendering .cart-count{ font-size:28px; }
         const parts=text.split(/(?:交换|互换|换)/);
         if(parts.length>=2){
           const people=knownPeople(), leftRaw=parts[0].trim(), rightRaw=parts.slice(1).join('换').trim();
-          const leftPerson=people.find(name=>leftRaw.includes(name))||cleanTransferName(leftRaw.split(/\s+/)[0]||''), rightPerson=people.find(name=>rightRaw.includes(name))||cleanTransferName(rightRaw.split(/\s+/)[0]||'');
-          const leftSub=takeKnownSubFromText(leftRaw).sub||parseDemandText(leftRaw.replace(leftPerson,'')).map(x=>x.name).filter(Boolean)[0]||'';
-          const rightSub=takeKnownSubFromText(rightRaw).sub||parseDemandText(rightRaw.replace(rightPerson,'')).map(x=>x.name).filter(Boolean)[0]||'';
+          const leftPerson=findKnownPersonInText(leftRaw,people)||cleanTransferName(leftRaw.split(/\s+/)[0]||''), rightPerson=findKnownPersonInText(rightRaw,people)||cleanTransferName(rightRaw.split(/\s+/)[0]||'');
+          const leftRemainder=removeKnownPersonFromText(leftRaw,leftPerson), rightRemainder=removeKnownPersonFromText(rightRaw,rightPerson);
+          const leftSub=takeKnownSubFromText(leftRaw).sub||parseDemandText(leftRemainder).map(x=>x.name).filter(Boolean)[0]||'';
+          const rightSub=takeKnownSubFromText(rightRaw).sub||parseDemandText(rightRemainder).map(x=>x.name).filter(Boolean)[0]||'';
           return {id:rowIdSeed++,source:leftPerson,itemText:'盲抽',qty:1,target:rightPerson,sub:leftSub,targetSub:rightSub,mode:'swap',raw:text};
         }
       }
@@ -6366,10 +6383,10 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(match){ source=match[1]; target=match[2]; }
       }
       source=cleanTransferName(source); target=cleanTransferName(target);
-      const sourceKnownBeforeSub=people.find(name=>source.includes(name));
+      const sourceKnownBeforeSub=findKnownPersonInText(source,people);
       let sourceLeftover='';
       if(sourceKnownBeforeSub){
-        sourceLeftover=source.replace(sourceKnownBeforeSub,' ').replace(/\s+/g,' ').trim();
+        sourceLeftover=removeKnownPersonFromText(source,sourceKnownBeforeSub);
         source=sourceKnownBeforeSub;
       }
       const sourceLeftoverQty=sourceLeftover.match(/(?:^|\s|[xX×*])(\d+)\s*$/);
@@ -6380,7 +6397,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sourceSubData=takeKnownSubFromText(sourceLeftover||source);
       if(!sourceKnownBeforeSub) source=sourceSubData.text;
       const itemSubData=takeKnownSubFromText(itemText); itemText=itemSubData.text||itemText;
-      const sourceKnown=people.find(name=>source.includes(name)), targetKnown=people.find(name=>target.includes(name));
+      const sourceKnown=findKnownPersonInText(source,people), targetKnown=findKnownPersonInText(target,people);
       if(sourceKnown) source=sourceKnown; if(targetKnown) target=targetKnown;
       return {id:rowIdSeed++,source,itemText,qty,target,sub:sourceSubData.sub||sourceLeftover||itemSubData.sub,mode:'transfer',raw:text};
     }
@@ -6392,7 +6409,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!source||!target) return {ok:false,text:'名字没识别全'};
       if(!col) return {ok:false,text:'没找到谷子'};
       const positions=sub?blindMatch.positions:(allocations[col.id]||[]).map((value,index)=>{
-        if(String(value||'').trim()!==source) return -1;
+        if(normalizeDispatchKey(value)!==normalizeDispatchKey(source)) return -1;
         return index;
       }).filter(index=>index>=0), available=positions.length;
       if(!available) return {ok:false,text:sub?`没有找到 ${source} 的 ${sub}`:`没有找到 ${source}`};
@@ -6404,8 +6421,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const source=String(row.source||'').trim(), target=String(row.target||'').trim(), sub=String(row.sub||'').trim(), targetSub=String(row.targetSub||'').trim(), col=columns.find(isBlindColumn);
       if(!source||!target||!sub||!targetSub) return {ok:false,text:'换赏名字或结果没识别全'};
       if(!col) return {ok:false,text:'没找到盲抽列'};
-      const sourceIndex=(allocations[col.id]||[]).findIndex((value,index)=>String(value||'').trim()===source&&String(matrixBlindSubCells[matrixBoughtKey(col.id,index)]||'').trim()===sub);
-      const targetIndex=(allocations[col.id]||[]).findIndex((value,index)=>String(value||'').trim()===target&&String(matrixBlindSubCells[matrixBoughtKey(col.id,index)]||'').trim()===targetSub);
+      const sourceIndex=(allocations[col.id]||[]).findIndex((value,index)=>normalizeDispatchKey(value)===normalizeDispatchKey(source)&&String(matrixBlindSubCells[matrixBoughtKey(col.id,index)]||'').trim()===sub);
+      const targetIndex=(allocations[col.id]||[]).findIndex((value,index)=>normalizeDispatchKey(value)===normalizeDispatchKey(target)&&String(matrixBlindSubCells[matrixBoughtKey(col.id,index)]||'').trim()===targetSub);
       if(sourceIndex<0) return {ok:false,text:`没找到 ${source} 的 ${sub}`};
       if(targetIndex<0) return {ok:false,text:`没找到 ${target} 的 ${targetSub}`};
       return {ok:true,text:`${source} ${sub} ⇄ ${target} ${targetSub}`,col,sourceIndex,targetIndex,sub,targetSub};
@@ -6435,7 +6452,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const col=check.col, source=String(row.source||'').trim(), target=String(row.target||'').trim(), qty=check.qty;
         if(!col||!source||!target) return;
         if(!Array.isArray(preview[col.id])) preview[col.id]=deepClone(allocations[col.id]||[]);
-        const arr=preview[col.id]||(preview[col.id]=[]), positions=Array.isArray(check.rows)?check.rows:arr.map((value,index)=>String(value||'').trim()===source&&(check.sub?String(blindSubCells[matrixBoughtKey(col.id,index)]||'').trim()===check.sub:true)?index:-1).filter(index=>index>=0).slice(-qty);
+        const arr=preview[col.id]||(preview[col.id]=[]), positions=Array.isArray(check.rows)?check.rows:arr.map((value,index)=>normalizeDispatchKey(value)===normalizeDispatchKey(source)&&(check.sub?String(blindSubCells[matrixBoughtKey(col.id,index)]||'').trim()===check.sub:true)?index:-1).filter(index=>index>=0).slice(-qty);
         if(positions.length<qty) return;
         positions.forEach(index=>{ transferCells.push({col:col.id,row:index,from:source,to:target}); arr[index]=target; });
       });
@@ -6658,7 +6675,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         let person=String(comment.person||'').trim(), demand=String(comment.demandText||'').trim();
         if(!/[带提]/.test(demand)) return null;
         if(!person){
-          const known=people.find(name=>demand.startsWith(name));
+          const compactDemand=normalizeDispatchKey(demand);
+          const known=people.find(name=>compactDemand.startsWith(normalizeDispatchKey(name)));
           if(known){ person=known; demand=demand.slice(known.length).trim(); }
         }
         const marker=demand.match(/可以带|可以提|可带|可提|带|提/); if(!marker) return null;
@@ -7743,9 +7761,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     let paymentSearchTimer=null;
     function clearPaymentSearchHighlight(){ clearTimeout(paymentSearchTimer); $('paymentSummary').querySelectorAll('.payment-search-hit').forEach(row=>row.classList.remove('payment-search-hit')); }
     function findPaymentPerson(){
-      const query=String($('paymentSearchInput').value||'').replace(/\s+/g,'').toLowerCase();
+      const query=normalizeDispatchKey($('paymentSearchInput').value);
       if(!query){ $('paymentSearchInput').focus(); return; }
-      const names=[...$('paymentSummary').querySelectorAll('.payment-cn-name')], match=names.find(el=>String(el.textContent||'').replace(/\s+/g,'').toLowerCase().includes(query));
+      const names=[...$('paymentSummary').querySelectorAll('.payment-cn-name')], match=names.find(el=>normalizeDispatchKey(el.textContent).includes(query));
       clearPaymentSearchHighlight();
       if(!match){ alert('当前收款统计范围里没有找到这个人'); return; }
       const key=match.closest('[data-payment-person]')?.dataset.paymentPerson||'';
@@ -7875,8 +7893,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     let sharePaymentSearchTimer=null;
     function clearSharePaymentSearchHighlight(){ clearTimeout(sharePaymentSearchTimer); $('sharePaymentSummary').querySelectorAll('.payment-search-hit').forEach(row=>row.classList.remove('payment-search-hit')); }
     function findSharePaymentPerson(){
-      const query=String($('sharePaymentSearchInput').value||'').replace(/\s+/g,'').toLowerCase(); if(!query){ $('sharePaymentSearchInput').focus(); return; }
-      const names=[...$('sharePaymentSummary').querySelectorAll('.payment-cn-name')], match=names.find(el=>String(el.textContent||'').replace(/\s+/g,'').toLowerCase().includes(query)); clearSharePaymentSearchHighlight();
+      const query=normalizeDispatchKey($('sharePaymentSearchInput').value); if(!query){ $('sharePaymentSearchInput').focus(); return; }
+      const names=[...$('sharePaymentSummary').querySelectorAll('.payment-cn-name')], match=names.find(el=>normalizeDispatchKey(el.textContent).includes(query)); clearSharePaymentSearchHighlight();
       if(!match){ alert('当前均摊统计范围里没有找到这个人'); return; }
       const key=match.closest('[data-share-payment-person]')?.dataset.sharePaymentPerson||'', rows=[...$('sharePaymentSummary').querySelectorAll('[data-share-payment-person]')].filter(row=>row.dataset.sharePaymentPerson===key);
       rows.forEach(row=>row.classList.add('payment-search-hit')); match.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'}); sharePaymentSearchTimer=setTimeout(()=>rows.forEach(row=>row.classList.remove('payment-search-hit')),3000);
@@ -7922,7 +7940,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function rememberGoodsPaidSnapshot(key){
       if(!key) return;
-      const compact=String(key||'').replace(/\s+/g,'').toLowerCase();
+      const compact=normalizeDispatchKey(key);
       const snapshot=goodsSnapshotForKey(compact);
       if(snapshot){
         paymentEdits['__goods_snapshot__:'+compact]=snapshot;
@@ -8000,7 +8018,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(key.startsWith('alipay:')){
         const autoBase=Math.max(0,paymentMoneyValue(cell.dataset.paymentAuto||value));
         paymentEdits['__auto_base__:'+key]=ceilMoneyValue(autoBase);
-        rememberGoodsPaidSnapshot(String(key).slice('alipay:'.length).replace(/\s+/g,'').toLowerCase());
+        rememberGoodsPaidSnapshot(normalizeDispatchKey(String(key).slice('alipay:'.length)));
       }
       saveState(); setTimeout(()=>rerenderPaymentInPlace('paymentSummary',renderPaymentSummary),0);
     },true);
