@@ -644,6 +644,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <div class="intl-split-grid">
           <label>国内到货批次<select id="intlBatchSelect"><option value="">请选择</option></select></label>
           <label>本批国际运费<input type="text" inputmode="decimal" id="intlTotalAmount" placeholder="0.00"></label>
+          <label>外包装重量<input type="text" inputmode="decimal" id="intlPackagingAmount" placeholder="如 120g"></label>
           <label>分摊方式<select id="intlSplitMode"><option value="weight">按重量</option><option value="points">按点数</option><option value="head">按人头</option></select></label>
         </div>
         <div class="hint intl-split-tip" id="intlSplitTip">选择批次并填写分摊依据。</div>
@@ -778,6 +779,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="logi-filters">
       <label class="mark-date-label">按批次日期<input type="date" id="logisticsDateFilter"></label>
       <button type="button" class="logi-filter is-on" id="logisticsDateClear">全部</button>
+      <label class="mark-date-label">免费囤货(月)<input type="text" inputmode="decimal" id="logisticsFreeMonths" value="1" placeholder="1"></label>
       <label class="mark-date-label">囤货费/天<input type="text" inputmode="decimal" id="logisticsHoldRate" placeholder="留空"></label>
       <span id="logisticsSummary" class="logi-summary"></span>
     </div>
@@ -1256,22 +1258,23 @@ html{ scrollbar-gutter:stable; }
 .logi-sheet-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
 .logi-sheet-head b{ font-size:14px; color:var(--text); }
 .logi-sheet-head span{ color:var(--muted); font-size:11px; font-weight:800; }
-.logi-goods-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:8px; }
+.logi-goods-grid{ display:flex; flex-wrap:wrap; gap:5px; }
 .logi-goods-card{ border:1px solid var(--line); border-left:4px solid #cbd3da; border-radius:10px; padding:10px; background:#fff; }
 .logi-goods-card.is-island{ border-left-color:#e6a23c; }
 .logi-goods-card.is-china{ border-left-color:#2f9e5c; }
 .logi-goods-card.is-partial{ border-left-color:#5c67c4; }
 .logi-goods-card.is-overdue{ border-left-color:#d14646; background:#fff7f7; }
-.logi-goods-title{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.logi-goods-title b{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
-.logi-goods-qty{ flex:0 0 auto; padding:2px 7px; border-radius:999px; background:#f3eff5; color:#625969; font-size:10px; font-weight:900; }
-.logi-goods-status{ margin-top:7px; color:var(--muted); font-size:11px; line-height:1.6; }
+.logi-goods-title{ display:flex; align-items:center; gap:3px; min-width:0; }
+.logi-goods-title b{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+.logi-goods-qty{ flex:0 0 auto; padding:1px 5px; border-radius:999px; background:#f3eff5; color:#625969; font-size:8px; font-weight:900; }
+.logi-goods-status{ margin-top:2px; color:var(--muted); font-size:8px; line-height:1.3; }
 .logi-goods-status strong{ color:var(--text); }
 .logi-goods-card.is-china .logi-goods-status strong{ color:#25804a; }
 .logi-goods-card.is-overdue .logi-goods-status strong{ color:#c43f4f; }
-.logi-goods-dates{ display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
-.logi-date-pill{ padding:3px 7px; border-radius:7px; background:#f6f3f7; color:#6d6472; font-size:10px; font-weight:800; }
-@media(max-width:620px){ .logi-goods-grid{ grid-template-columns:1fr; } }
+.logi-goods-dates{ display:flex; flex-wrap:wrap; gap:3px; margin-top:3px; }
+.logi-date-pill{ padding:1px 4px; border-radius:6px; background:#f6f3f7; color:#6d6472; font-size:8px; font-weight:800; }
+.logi-goods-grid .logi-goods-card{ flex:0 1 auto; min-width:86px; max-width:210px; padding:5px 6px; border-left-width:3px; border-radius:8px; }
+@media(max-width:620px){ .logi-goods-grid .logi-goods-card{ min-width:74px; max-width:calc(50% - 4px); } }
 .logi-line{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0; border-top:1px dashed #eee; font-size:12px; }
 .logi-line:first-of-type{ border-top:none; }
 .logi-line-item{ color:var(--text); font-weight:700; }
@@ -5006,11 +5009,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!batch){ list.innerHTML=''; $('intlSplitTip').textContent='选择批次并填写分摊依据。'; return; }
       if(mode==='head'){ list.innerHTML=''; $('intlSplitTip').textContent=`按人头平均：本批共 ${batch.people.size} 人。`; return; }
       const unit=mode==='weight'?'每件重量':'每件点数';
-      $('intlSplitTip').textContent=`${unit}只用于计算比例，不限制单位；相同谷子会自动乘以件数。`;
+      $('intlSplitTip').textContent=`${unit}只用于计算比例，不限制单位；相同谷子会自动乘以件数；如果填写外包装重量，会先从总国际里按重量占比拆出外包装运费，再按人头平均。`;
       list.innerHTML=[...batch.items.entries()].map(([item,qty])=>`<div class="intl-factor-row"><b>${escapeHtml(item)}</b><input type="text" inputmode="decimal" data-intl-factor="${escapeAttr(item)}" value="1"><small>${qty} 件 · ${unit}</small></div>`).join('');
     }
     function calculateIntlSplit(){
-      const batch=selectedIntlBatch(), total=Math.max(0,num($('intlTotalAmount').value)), mode=$('intlSplitMode').value;
+      const batch=selectedIntlBatch(), total=Math.max(0,num($('intlTotalAmount').value)), packagingWeight=Math.max(0,num(($('intlPackagingAmount')||{}).value)), mode=$('intlSplitMode').value;
       if(!batch){ alert('请先选择国内到货批次'); return; } if(!total){ alert('请填写大于 0 的本批国际运费'); return; }
       if(intlBatchAlreadyGenerated(batch.id)){ alert('这个批次已经生成过国际运费。请在流水中修改或删除原记录，避免重复收费。'); return; }
       const factors={}; if(mode!=='head') document.querySelectorAll('[data-intl-factor]').forEach(input=>factors[input.dataset.intlFactor]=Math.max(0,num(input.value)));
@@ -5025,10 +5028,21 @@ body.export-rendering .cart-count{ font-size:28px; }
         return {person:person.name,key:person.key,basis,items:[...person.items.entries()].map(([item,qty])=>`${item}${qty>1?'×'+qty:''}`).join('、'),itemDetails:itemDetails.join('、')};
       });
       const basisTotal=rows.reduce((sum,r)=>sum+r.basis,0); if(!basisTotal){ alert('重量或点数合计不能为 0'); return; }
-      rows.forEach(r=>{ r.amount=ceilMoneyValue(total*r.basis/basisTotal); r.basisTotal=basisTotal; r.totalAmount=total; });
+      const canSplitPackagingByWeight=mode==='weight'&&packagingWeight>0;
+      const allWeight=canSplitPackagingByWeight?basisTotal+packagingWeight:basisTotal;
+      const packagingCost=canSplitPackagingByWeight?ceilMoneyValue(total*packagingWeight/allWeight):0;
+      const goodsPool=Math.max(0,total-packagingCost);
+      const packEach=rows.length?ceilMoneyValue(packagingCost/rows.length):0;
+      rows.forEach(r=>{
+        r.goodsAmount=ceilMoneyValue(goodsPool*r.basis/basisTotal);
+        r.packagingAmount=packEach;
+        r.amount=ceilMoneyValue(r.goodsAmount+r.packagingAmount);
+        r.basisTotal=basisTotal; r.totalAmount=total; r.packagingWeight=packagingWeight; r.packagingCost=packagingCost;
+      });
       intlSplitPreviewRows=rows;
       const modeText=mode==='weight'?'按重量':mode==='points'?'按点数':'按人头', basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
-      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　国际价格 ${money(total)}　${totalLabel} ${fmtNum(basisTotal)}${unit}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>本批到货</th><th>分摊依据</th><th>应收</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.person)}</td><td>${escapeHtml(r.items)}<small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">${escapeHtml(r.itemDetails)}</small></td><td>${basisLabel} ${fmtNum(r.basis)}${unit}；${totalLabel} ${fmtNum(basisTotal)}${unit}</td><td><input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"></td></tr>`).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
+      const packagingSummary=canSplitPackagingByWeight?`　外包装 ${fmtNum(packagingWeight)}${unit}≈${money(packagingCost)}（按人头）`:(packagingWeight&&mode!=='weight'?'　外包装重量只在按重量时参与计算':'');
+      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}　商品部分 ${money(goodsPool)}${packagingSummary}　${totalLabel} ${fmtNum(basisTotal)}${unit}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>本批到货</th><th>分摊依据</th><th>应收</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.person)}</td><td>${escapeHtml(r.items)}<small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">${escapeHtml(r.itemDetails)}</small></td><td>${basisLabel} ${fmtNum(r.basis)}${unit}；${totalLabel} ${fmtNum(basisTotal)}${unit}<br><small>商品 ${money(r.goodsAmount)}${packagingCost?`；外包装均摊 ${money(r.packagingAmount)}`:''}</small></td><td><input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"></td></tr>`).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
       $('confirmIntlSplitBtn').addEventListener('click',confirmIntlSplit);
     }
     function confirmIntlSplit(){
@@ -5037,7 +5051,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       document.querySelectorAll('[data-intl-preview-person]').forEach(input=>{ const row=intlSplitPreviewRows.find(r=>r.key===input.dataset.intlPreviewPerson); if(row) row.amount=Math.max(0,num(input.value)); });
       const now=new Date().toISOString(), basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
       intlSplitPreviewRows.filter(r=>r.amount>0).forEach(r=>{
-        const note=`${basisLabel}${fmtNum(r.basis)}${unit}；${totalLabel}${fmtNum(r.basisTotal)}${unit}；国际${money(r.amount)}；${r.itemDetails||r.items}`;
+        const packText=Math.max(0,num(r.packagingAmount))>0?`；外包装${fmtNum(r.packagingWeight)}${unit}≈${money(r.packagingCost)}，均摊${money(r.packagingAmount)}`:'';
+        const note=`${basisLabel}${fmtNum(r.basis)}${unit}；${totalLabel}${fmtNum(r.basisTotal)}${unit}；商品国际${money(r.goodsAmount||r.amount)}${packText}；合计${money(r.amount)}；${r.itemDetails||r.items}`;
         extraFees.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note,items:r.items,period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId});
       });
       saveState(); renderExtraFees(); renderDispatch(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; alert(`已生成 ${batch.people.size} 人的国际运费，请收齐后再排发。`);
@@ -6114,8 +6129,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const items=dispatchSheetGroups(dispatchItemGroups(person.visibleItems)).map(group=>{
           const dates=[...new Set(group.dates)].sort();
           const holdDays=dates[0]?logiDaysSince(dates[0]):null;
-          const shown=group.items.slice(0,8).map(dispatchItemChip).join('');
-          const hidden=group.items.slice(8).map(dispatchItemChip).join('');
+          const shown=group.items.map(dispatchItemChip).join('');
           const status=[
             group.goodsPaidQty===group.qty?`谷款已收`:(group.goodsPartialQty?`谷款部分 ${group.goodsPaidQty}/${group.qty}`:`谷款 ${group.goodsPaidQty}/${group.qty}`),
             group.intlNeededQty?(group.intlPaidQty===group.intlNeededQty?`国际已收`:`国际 ${group.intlPaidQty}/${group.intlNeededQty}`):'',
@@ -6124,7 +6138,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             group.readyQty===group.qty?'可排发':(group.readyQty?`可发 ${group.readyQty}/${group.qty}`:'')
           ].filter(Boolean).join(' · ');
           const payOk=group.goodsPaidQty===group.qty&&(!group.intlNeededQty||group.intlPaidQty===group.intlNeededQty);
-          return `<div class="dispatch-sheet-group"><div class="dispatch-sheet-head"><b>${escapeHtml(group.sheet)}</b><small>${group.items.length}款 · ${group.qty}件 · <span class="dispatch-pay-main ${payOk?'is-ok':''}">${escapeHtml(status)}</span></small></div><div class="dispatch-chip-list">${shown}</div>${hidden?`<details class="dispatch-more"><summary>展开剩余 ${group.items.length-8} 款</summary><div class="dispatch-chip-list">${hidden}</div></details>`:''}</div>`;
+          return `<div class="dispatch-sheet-group"><div class="dispatch-sheet-head"><b>${escapeHtml(group.sheet)}</b><small>${group.items.length}款 · ${group.qty}件 · <span class="dispatch-pay-main ${payOk?'is-ok':''}">${escapeHtml(status)}</span></small></div><div class="dispatch-chip-list">${shown}</div></div>`;
         }).join('');
         return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount}</span></div><div class="dispatch-items">${items}</div></div>`;
       }).join('');
@@ -6171,6 +6185,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     let logisticsDateFilterVal='';
     const HOLD_FREE_DAYS=30;
+    function logisticsFreeDays(){ const months=Math.max(0,num(($('logisticsFreeMonths')||{}).value)||1); return Math.round(months*30); }
     function logiDaysSince(dateStr){ if(!dateStr) return null; const t=new Date(dateStr+'T00:00:00').getTime(); if(isNaN(t)) return null; return Math.max(0,Math.floor((Date.now()-t)/86400000)); }
     function logisticsCellMark(c,row,name,store,alloc){
       const direct=String(store[matrixBoughtKey(c.id,row)]||'').trim();
@@ -6185,7 +6200,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function renderLogistics(){
       const list=$('logisticsList'); if(!list) return;
       captureActiveSheet();
-      const rate=Number(($('logisticsHoldRate')||{}).value)||0;
+      const rate=Number(($('logisticsHoldRate')||{}).value)||0, freeDays=logisticsFreeDays();
       const dateFilter=logisticsDateFilterVal;
       const sheetGroups=[];
       let goodsCount=0,totalQty=0,chinaQty=0,overdueGoods=0;
@@ -6218,7 +6233,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const qty=groupOccupied.length;
           const newestChina=chinaUnique[chinaUnique.length-1]||'';
           const days=newestChina?logiDaysSince(newestChina):null;
-          const over=days!=null?Math.max(0,days-HOLD_FREE_DAYS):0;
+          const over=days!=null?Math.max(0,days-freeDays):0;
           const fee=over*rate;
           let cls='';
           if(chinaCount===qty) cls=over>0?'is-overdue':'is-china';
@@ -6230,7 +6245,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           else if(islandCount>0) mainStatus=`部分到岛内 ${islandCount}/${qty}`;
           let holdText='';
           if(chinaCount&&newestChina){
-            holdText=over>0?`超期 ${over} 天 · 囤货费 ¥${fee.toFixed(2)}${rate?'':'（未填费率）'}`:`囤货 ${days} 天 · 剩 ${Math.max(0,HOLD_FREE_DAYS-days)} 天免费`;
+            holdText=over>0?`超期 ${over} 天 · 囤货费 ¥${fee.toFixed(2)}${rate?'':'（未填费率）'}`:`囤货 ${days} 天 · 剩 ${Math.max(0,freeDays-days)} 天免费`;
           }
           goods.push({name:itemName,qty,islandCount,chinaCount,islandUnique,chinaUnique,cls,mainStatus,holdText});
           goodsCount++; totalQty+=qty; chinaQty+=chinaCount; if(over>0) overdueGoods++;
@@ -6252,6 +6267,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('logisticsRefreshBtn').addEventListener('click',renderLogistics);
     $('logisticsDateFilter').addEventListener('change',()=>{ logisticsDateFilterVal=$('logisticsDateFilter').value||''; $('logisticsDateClear').classList.toggle('is-on',!logisticsDateFilterVal); renderLogistics(); });
     $('logisticsDateClear').addEventListener('click',()=>{ logisticsDateFilterVal=''; $('logisticsDateFilter').value=''; $('logisticsDateClear').classList.add('is-on'); renderLogistics(); });
+    $('logisticsFreeMonths').addEventListener('input',renderLogistics);
     $('logisticsHoldRate').addEventListener('input',renderLogistics);
     $('logisticsExportBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
