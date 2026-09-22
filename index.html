@@ -1206,8 +1206,8 @@ html{ scrollbar-gutter:stable; }
 .dispatch-sheet-head b{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .dispatch-sheet-head small{ color:var(--muted); font-size:9.5px; font-weight:850; }
 .dispatch-chip-list{ display:flex; flex-wrap:wrap; gap:4px; }
-.dispatch-chip{ display:inline-flex; align-items:center; max-width:100%; padding:3px 6px; border-radius:7px; background:#fff; border:1px solid #eee7f0; color:var(--text); font-size:11px; font-weight:850; line-height:1.25; }
-.dispatch-chip small{ margin-left:3px; color:var(--muted); font-size:9px; font-weight:900; }
+.dispatch-chip{ display:inline-flex; align-items:center; max-width:100%; padding:2px 5px; border-radius:7px; background:#fff; border:1px solid #eee7f0; color:var(--text); font-size:10px; font-weight:850; line-height:1.2; }
+.dispatch-chip small{ margin-left:3px; color:var(--muted); font-size:8px; font-weight:900; }
 .dispatch-chip.is-ready{ background:#f0fbf4; border-color:#cfead7; color:#1f6f3d; }
 .dispatch-chip.has-unpaid{ background:#fff5f6; border-color:#f3c7cf; color:#9d3146; }
 .dispatch-pay-main{ color:#b33c55; font-weight:950; }
@@ -4293,6 +4293,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(supplement>0) parts.push(`<span class="payment-adjustment-supplement">+${money(supplement)}</span>`);
       return `<span class="payment-adjustment-note" data-html2canvas-ignore="true">（${parts.join(' ')}）</span>`;
     }
+    function paymentRowClassFor(key,paidStatus,refundMap=paymentRefund,supplementMap=paymentSupplement,refundDoneMap=paymentRefundDone,supplementDoneMap=paymentSupplementDone){
+      const hasSupplement=supplementMap&&Math.max(0,num(supplementMap[key]))>0, hasRefund=refundMap&&Math.max(0,num(refundMap[key]))>0;
+      if((supplementDoneMap&&supplementDoneMap[key])||hasSupplement) return ' class="payment-supplement-row"';
+      if((refundDoneMap&&refundDoneMap[key])||hasRefund) return ' class="payment-refund-row"';
+      if(paidStatus==='full') return ' class="payment-paid-row"';
+      if(paidStatus==='partial') return ' class="payment-partial-row"';
+      return '';
+    }
     function paymentMoneyValue(value){
       if(typeof value==='number') return Number.isFinite(value)?value:0;
       const cleaned=String(value??'').replace(/[^\d.-]/g,'');
@@ -4842,7 +4850,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, calcTotal=ceilMoneyValue(Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total), alipayAmount=paymentEditAmount(paymentEdits,'alipay',name,data.key,calcTotal), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), shareNote=paymentIncludeShare&&data.shareAmount>0?`<span class="payment-received-note payment-share-note" data-html2canvas-ignore="true">含均摊 ${money(data.shareAmount)}</span>`:'', adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const name=data.name, calcTotal=ceilMoneyValue(Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total), alipayAmount=paymentEditAmount(paymentEdits,'alipay',name,data.key,calcTotal), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), shareNote=paymentIncludeShare&&data.shareAmount>0?`<span class="payment-received-note payment-share-note" data-html2canvas-ignore="true">含均摊 ${money(data.shareAmount)}</span>`:'', adjustmentNote='', paidClass=paymentRowClassFor(data.key,paidStatus), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         const items=[...data.items.entries()], span=items.length, payable=wechatFeeAmount(calcTotal);
         if(paymentViewMode==='merged'){
           const itemText=items.map(([item,count])=>`${item}×${count}`).join('、'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
@@ -4895,7 +4903,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-share-payment-key="${encodeURIComponent(key)}"`;
       let rows='';
       [...people.values()].forEach(data=>{
-        const name=data.name, items=[...data.items.entries()], visibleItems=items.length?items:[['—',0]], span=visibleItems.length, raw=ceilMoneyValue(data.qty*perItem), payable=wechatFeeAmount(raw), alipayAmount=paymentEditAmount(sharePaymentEdits,'alipay',name,data.key,raw), receivedAmount=paidAmountValue(sharePaymentPaid,data.key,alipayAmount), paidStatus=paidState(sharePaymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), adjustmentNote='', paidClass=paidStatus==='full'?' class="payment-paid-row"':(paidStatus==='partial'?' class="payment-partial-row"':''), personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const name=data.name, items=[...data.items.entries()], visibleItems=items.length?items:[['—',0]], span=visibleItems.length, raw=ceilMoneyValue(data.qty*perItem), payable=wechatFeeAmount(raw), alipayAmount=paymentEditAmount(sharePaymentEdits,'alipay',name,data.key,raw), receivedAmount=paidAmountValue(sharePaymentPaid,data.key,alipayAmount), paidStatus=paidState(sharePaymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount), adjustmentNote='', paidClass=paymentRowClassFor(data.key,paidStatus,sharePaymentRefund,sharePaymentSupplement,{},{}), personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         if(sharePaymentViewMode==='merged'){
           const itemText=items.length?items.map(([item,count])=>`${item}×${count}`).join('、'):'—';
           rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,fmtPoint(data.qty))}</td><td class="payment-money"><span ${editAttr('alipay:'+name)} data-share-payment-auto="${moneyText(raw)}">${edited('alipay:'+name,moneyText(raw))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money">${moneyText(payable)}</td></tr>`;
@@ -4964,10 +4972,17 @@ body.export-rendering .cart-count{ font-size:28px; }
       const map=new Map();
       (sheets||[]).forEach(sheet=>{
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
-        const alloc=sheet.allocations||{}, china=sheet.matrixChinaCells||{}, sub=sheet.matrixBlindSubCells||{};
+        const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, sub=sheet.matrixBlindSubCells||{};
         const cols=orderDisplayColumns(Array.isArray(sheet.columns)?sheet.columns:[],groups,alloc);
+        const usesBoughtMark=Object.entries(bought).some(([cellKey,markedName])=>{
+          const match=String(cellKey||'').match(/^(.+):(\d+)$/); if(!match) return false;
+          const colId=match[1], row=Number(match[2]);
+          const current=String((alloc[colId]||[])[row]||'').trim();
+          return !!current&&normalizeDispatchKey(markedName)===normalizeDispatchKey(current);
+        });
         cols.forEach(c=>(alloc[c.id]||[]).forEach((person,row)=>{
           const name=String(person||'').trim(), date=logisticsCellMark(c,row,name,china,alloc); if(!name||!date) return;
+          if(usesBoughtMark&&!sheetCellBought(c,row,name,bought,alloc,groups,Array.isArray(sheet.columns)?sheet.columns:[])) return;
           const id=`${sheet.id}|${date}`;
           if(!map.has(id)) map.set(id,{id,sheetId:Number(sheet.id)||0,sheet:String(sheet.name||'未命名排单'),date,items:new Map(),people:new Map()});
           const batch=map.get(id), item=matrixItemDisplayName(c,row,sub), personKey=normalizeDispatchKey(name);
@@ -5960,6 +5975,29 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sub=String((subStore||{})[matrixBoughtKey(c?.id,row)]||'').trim();
       return sub?`${base}-${sub}`:base;
     }
+    function settledGoodsPaymentState(sheet,key,baseState){
+      const refundDone=sheet?.paymentRefundDone&&sheet.paymentRefundDone[key]===true;
+      const supplementDone=sheet?.paymentSupplementDone&&sheet.paymentSupplementDone[key]===true;
+      if(refundDone||supplementDone) return 'full';
+      return baseState;
+    }
+    function sheetCellBought(c,row,name,boughtStore,alloc,groups,sourceColumns){
+      const current=String(name||'').trim(), currentKey=normalizeDispatchKey(current);
+      if(!current) return false;
+      const direct=String((boughtStore||{})[matrixBoughtKey(c.id,row)]||'').trim();
+      if(direct&&normalizeDispatchKey(direct)===currentKey) return true;
+      if(!c.isPricingCombo) return false;
+      const combo=groups.find(g=>Number(g.id)===Number(c.comboGroupId));
+      if(!combo) return false;
+      const members=pricingGroupMemberColumns(combo,sourceColumns);
+      const memberMatches=members.map(member=>{
+        const memberName=String((alloc[member.id]||[])[row]||'').trim();
+        if(!memberName||normalizeDispatchKey(memberName)!==currentKey) return null;
+        const marked=String((boughtStore||{})[matrixBoughtKey(member.id,row)]||'').trim();
+        return !!marked&&normalizeDispatchKey(marked)===currentKey;
+      }).filter(value=>value!==null);
+      return memberMatches.length>0&&memberMatches.every(Boolean);
+    }
     function buildDispatchRecords(){
       captureActiveSheet();
       const people=new Map();
@@ -5968,6 +6006,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
         const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, paidGoods=sheet.paymentPaid||{}, sub=sheet.matrixBlindSubCells||{};
         const displayCols=orderDisplayColumns(cols,groups,alloc);
+        const displayPriceInfo=sheetDisplayPriceInfo(sheet), priceById=new Map(displayPriceInfo.cols.map(c=>[Number(c.id),displayPriceInfo.price(c)])), expectedByKey=new Map();
+        displayCols.forEach(c=>(alloc[c.id]||[]).forEach(person=>{
+          const name=String(person||'').trim(); if(!name) return;
+          const key=normalizeDispatchKey(name);
+          expectedByKey.set(key,(expectedByKey.get(key)||0)+Math.max(0,num(priceById.get(Number(c.id)))));
+        }));
         // 买齐标记按“每张排单”自适应：该表只要存在一个有效买齐标记，就视为已启用买齐；
         // 从未使用买齐标记的表，则所有有 CN 的排单格子都视为已购买。
         const usesBoughtMark=Object.entries(bought).some(([cellKey,markedName])=>{
@@ -5980,11 +6024,11 @@ body.export-rendering .cart-count{ font-size:28px; }
           (alloc[c.id]||[]).forEach((person,r)=>{
             const name=String(person||'').trim(); if(!name) return;
             const key=normalizeDispatchKey(name), cellKey=`${c.id}:${r}`;
-            const cellBought=String(bought[cellKey]||'').trim()===name;
+            const cellBought=sheetCellBought(c,r,name,bought,alloc,groups,cols);
             if(usesBoughtMark&&!cellBought) return;
             if(!people.has(key)) people.set(key,{name,key,items:[]});
             const chinaDate=String(china[cellKey]||'');
-            const goodsPaid=!!paidGoods[key];
+            const goodsPaidState=settledGoodsPaymentState(sheet,key,paidState(paidGoods,key,expectedByKey.get(key)||0));
             const batchId=chinaDate?`${sheet.id}|${chinaDate}`:'';
             const intlRows=batchId?extraFees.filter(f=>f.feeType==='international'&&f.batchId===batchId&&normalizeDispatchKey(f.person)===key):[];
             const internationalGenerated=intlRows.length>0, internationalPaid=internationalGenerated&&intlRows.every(f=>f.paid);
@@ -5993,10 +6037,10 @@ body.export-rendering .cart-count{ font-size:28px; }
               sheet:String(sheet.name||'').trim(),
               boughtTracked:usesBoughtMark,
               chinaDate,
-              goodsPaid,
+              goodsPaidState,
               internationalGenerated,
               internationalPaid,
-              ready:!!chinaDate&&goodsPaid&&internationalPaid
+              ready:!!chinaDate&&goodsPaidState==='full'&&internationalPaid
             });
           });
         });
@@ -6012,12 +6056,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       const map=new Map();
       items.forEach(it=>{
         const k=[it.item,it.sheet].join('\u0000');
-        if(!map.has(k)) map.set(k,{item:it.item,sheet:it.sheet,n:0,boughtTracked:false,chinaCount:0,chinaDates:[],goodsPaidCount:0,internationalGeneratedCount:0,internationalPaidCount:0,readyCount:0});
+        if(!map.has(k)) map.set(k,{item:it.item,sheet:it.sheet,n:0,boughtTracked:false,chinaCount:0,chinaDates:[],goodsPaidCount:0,goodsPartialCount:0,internationalGeneratedCount:0,internationalPaidCount:0,readyCount:0});
         const group=map.get(k);
         group.n++;
         if(it.boughtTracked) group.boughtTracked=true;
         if(it.chinaDate){ group.chinaCount++; group.chinaDates.push(it.chinaDate); }
-        if(it.goodsPaid) group.goodsPaidCount++;
+        if(it.goodsPaidState==='full') group.goodsPaidCount++;
+        else if(it.goodsPaidState==='partial') group.goodsPartialCount++;
         if(it.internationalGenerated) group.internationalGeneratedCount++;
         if(it.internationalPaid) group.internationalPaidCount++;
         if(it.ready) group.readyCount++;
@@ -6028,13 +6073,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       const map=new Map();
       groups.forEach(g=>{
         const sheet=String(g.sheet||'未命名排单').trim()||'未命名排单';
-        if(!map.has(sheet)) map.set(sheet,{sheet,items:[],qty:0,readyQty:0,chinaQty:0,dates:[],goodsPaidQty:0,intlNeededQty:0,intlPaidQty:0});
+        if(!map.has(sheet)) map.set(sheet,{sheet,items:[],qty:0,readyQty:0,chinaQty:0,dates:[],goodsPaidQty:0,goodsPartialQty:0,intlNeededQty:0,intlPaidQty:0});
         const row=map.get(sheet);
         row.items.push(g);
         row.qty+=g.n;
         row.readyQty+=g.readyCount;
         row.chinaQty+=g.chinaCount;
         row.goodsPaidQty+=g.goodsPaidCount;
+        row.goodsPartialQty+=g.goodsPartialCount;
         row.intlNeededQty+=g.internationalGeneratedCount;
         row.intlPaidQty+=g.internationalPaidCount;
         row.dates.push(...(g.chinaDates||[]));
@@ -6047,7 +6093,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const bits=[];
       if(g.n>1) bits.push(`×${g.n}`);
       if(g.chinaCount&&g.chinaCount<g.n) bits.push(`国内${g.chinaCount}/${g.n}`);
-      if(g.goodsPaidCount<g.n) bits.push(g.goodsPaidCount?`谷款${g.goodsPaidCount}/${g.n}`:'未谷款');
+      if(g.goodsPaidCount<g.n) bits.push(g.goodsPartialCount?`谷款部分${g.goodsPaidCount}/${g.n}`:(g.goodsPaidCount?`谷款${g.goodsPaidCount}/${g.n}`:'未谷款'));
       if(g.internationalGeneratedCount&&g.internationalPaidCount<g.internationalGeneratedCount) bits.push(g.internationalPaidCount?`国际${g.internationalPaidCount}/${g.internationalGeneratedCount}`:'未国际');
       if(holdDays!=null) bits.push(holdDays>30?`超${holdDays-30}天`:`屯${holdDays}天`);
       if(g.readyCount&&g.readyCount<g.n) bits.push(`可发${g.readyCount}/${g.n}`);
@@ -6071,7 +6117,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const shown=group.items.slice(0,8).map(dispatchItemChip).join('');
           const hidden=group.items.slice(8).map(dispatchItemChip).join('');
           const status=[
-            group.goodsPaidQty===group.qty?`谷款已收`:`谷款 ${group.goodsPaidQty}/${group.qty}`,
+            group.goodsPaidQty===group.qty?`谷款已收`:(group.goodsPartialQty?`谷款部分 ${group.goodsPaidQty}/${group.qty}`:`谷款 ${group.goodsPaidQty}/${group.qty}`),
             group.intlNeededQty?(group.intlPaidQty===group.intlNeededQty?`国际已收`:`国际 ${group.intlPaidQty}/${group.intlNeededQty}`):'',
             group.chinaQty===group.qty?'国内已到':(group.chinaQty?`国内 ${group.chinaQty}/${group.qty}`:'未到国内'),
             holdDays==null?'':(holdDays>30?`超期 ${holdDays-30}天`:`屯货 ${holdDays}天`),
@@ -6091,7 +6137,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const holdDays=dates[0]?logiDaysSince(dates[0]):null;
           const china=g.chinaCount===g.n?(dates.length?`国内${dates.join('/')}`:'国内已到'):(g.chinaCount>0?`国内${g.chinaCount}/${g.n}`:'未到国内');
           const hold=holdDays==null?'':(holdDays>30?`超期${holdDays-30}天`:`屯货${holdDays}天`);
-          const goods=g.goodsPaidCount===g.n?'谷款已收':(g.goodsPaidCount>0?`谷款${g.goodsPaidCount}/${g.n}`:'谷款未收');
+          const goods=g.goodsPaidCount===g.n?'谷款已收':(g.goodsPartialCount?`谷款部分${g.goodsPaidCount}/${g.n}`:(g.goodsPaidCount>0?`谷款${g.goodsPaidCount}/${g.n}`:'谷款未收'));
           const intl=!g.chinaCount?'':(g.internationalPaidCount===g.n?'国际已收':(g.internationalGeneratedCount>0?`国际${g.internationalPaidCount}/${g.internationalGeneratedCount}`:'待国际'));
           const ready=g.readyCount?`可发${g.readyCount}/${g.n}`:'';
           return `${g.item}${g.n>1?`×${g.n}`:''}${g.sheet?`(${g.sheet})`:''}[${[g.boughtTracked?'已买齐':'已购买',china,hold,goods,intl,ready].filter(Boolean).join('；')}]`;
