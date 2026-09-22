@@ -647,6 +647,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
           <label>本批国际运费<input type="text" inputmode="decimal" id="intlTotalAmount" placeholder="0.00"></label>
           <label>整箱总重<input type="text" inputmode="decimal" id="intlPackagingAmount" placeholder="商品+箱子，如 11000g"></label>
           <label>分摊方式<select id="intlSplitMode"><option value="weight">按重量</option><option value="points">按点数</option><option value="head">按人头</option></select></label>
+          <label>预览方式<select id="intlPreviewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         </div>
         <div class="hint intl-split-tip" id="intlSplitTip">选择批次并填写分摊依据。</div>
         <div id="intlFactorList" class="intl-factor-list"></div>
@@ -5014,6 +5015,24 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('intlSplitTip').textContent=`${unit}只用于计算比例，不限制单位；相同谷子会自动乘以件数；按重量时可填写整箱总重，系统会把包装重量按个人商品净重比例自然摊进去。`;
       list.innerHTML=[...batch.items.entries()].map(([item,qty])=>`<div class="intl-factor-row"><b>${escapeHtml(item)}</b><input type="text" inputmode="decimal" data-intl-factor="${escapeAttr(item)}" value="1"><small>${qty} 件 · ${unit}</small></div>`).join('');
     }
+    function renderIntlSplitPreview(batch,rows,meta){
+      const previewMode=($('intlPreviewMode')||{}).value==='merged'?'merged':'detail';
+      const {modeText,total,weightSummary,mode}=meta;
+      if(previewMode==='merged'){
+        $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}${weightSummary}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>谷类</th><th>点数</th><th>g重</th><th>国际r</th></tr></thead><tbody>${rows.map(r=>{
+          const items=(r.detailRows||[]).map(d=>`${d.item}${d.qty>1?`×${d.qty}`:''}`).join('、');
+          const points=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.point),0);
+          const weight=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.weight),0);
+          return `<tr><td>${escapeHtml(r.person)}</td><td>${escapeHtml(items)}</td><td>${mode==='head'?'':fmtNum(points)}</td><td>${mode==='weight'?fmtNum(weight):''}</td><td><input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}">${mode==='weight'?`<small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">计费 ${fmtNum(r.chargeWeight)}g</small>`:''}</td></tr>`;
+        }).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
+      }else{
+        $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}${weightSummary}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>谷类</th><th>点数</th><th>g重</th><th>国际r</th></tr></thead><tbody>${rows.map(r=>{
+          const details=(r.detailRows||[]).length?r.detailRows:[{item:'—',qty:0,point:0,weight:0}];
+          return details.map((d,index)=>`<tr><td>${index===0?escapeHtml(r.person):''}</td><td>${escapeHtml(d.item)}${d.qty>1?` ×${d.qty}`:''}</td><td>${mode==='head'?'':fmtNum(d.point)}</td><td>${mode==='weight'?fmtNum(d.weight):''}</td><td>${index===0?`<input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}">${mode==='weight'?`<small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">计费 ${fmtNum(r.chargeWeight)}g</small>`:''}`:''}</td></tr>`).join('');
+        }).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
+      }
+      $('confirmIntlSplitBtn').addEventListener('click',confirmIntlSplit);
+    }
     function calculateIntlSplit(){
       const batch=selectedIntlBatch(), total=Math.max(0,num($('intlTotalAmount').value)), billableTotalWeight=Math.max(0,num(($('intlPackagingAmount')||{}).value)), mode=$('intlSplitMode').value;
       if(!batch){ alert('请先选择国内到货批次'); return; } if(!total){ alert('请填写大于 0 的本批国际运费'); return; }
@@ -5042,11 +5061,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       intlSplitPreviewRows=rows;
       const modeText=mode==='weight'?'按重量':mode==='points'?'按点数':'按人头', basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
       const weightSummary=mode==='weight'?`　商品净重 ${fmtNum(basisTotal)}${unit}　整箱总重 ${fmtNum(chargeTotal)}${unit}`:'';
-      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}${weightSummary}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>谷类</th><th>点数</th><th>g重</th><th>国际r</th></tr></thead><tbody>${rows.map(r=>{
-        const details=(r.detailRows||[]).length?r.detailRows:[{item:'—',qty:0,point:0,weight:0}];
-        return details.map((d,index)=>`<tr><td>${index===0?escapeHtml(r.person):''}</td><td>${escapeHtml(d.item)}${d.qty>1?` ×${d.qty}`:''}</td><td>${mode==='head'?'':fmtNum(d.point)}</td><td>${mode==='weight'?fmtNum(d.weight):''}</td><td>${index===0?`<input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"><small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">计费 ${fmtNum(r.chargeWeight)}g</small>`:''}</td></tr>`).join('');
-      }).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
-      $('confirmIntlSplitBtn').addEventListener('click',confirmIntlSplit);
+      renderIntlSplitPreview(batch,rows,{modeText,total,weightSummary,mode});
     }
     function confirmIntlSplit(){
       const batch=selectedIntlBatch(), mode=$('intlSplitMode').value; if(!batch||!intlSplitPreviewRows.length) return;
@@ -7924,6 +7939,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('closeIntlSplitBtn').addEventListener('click',()=>{ $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; $('intlSplitPreview').innerHTML=''; });
     $('intlBatchSelect').addEventListener('change',renderIntlFactors);
     $('intlSplitMode').addEventListener('change',renderIntlFactors);
+    $('intlPreviewMode').addEventListener('change',()=>{ if(intlSplitPreviewRows.length) calculateIntlSplit(); });
     $('previewIntlSplitBtn').addEventListener('click',calculateIntlSplit);
     const addExtraFeeButton=document.getElementById('addExtraFeeBtn');
     if(addExtraFeeButton) addExtraFeeButton.addEventListener('click',()=>{ $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; $('intlSplitPreview').innerHTML=''; if($('extraFeeForm').hidden) openExtraFeeForm(); else closeExtraFeeForm(); });
