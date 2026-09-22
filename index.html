@@ -154,11 +154,11 @@ body.export-rendering .price-mark-tag .price-mark-remove,.price-mark-exporting .
   #clearExtraFeesBtn{grid-column:1/-1;}
   .logi-filters{display:grid!important;grid-template-columns:minmax(0,1.7fr) auto minmax(0,1fr);align-items:center;gap:5px!important;overflow:visible;}
   .logi-filters .mark-date-label{margin:0!important;min-width:0!important;display:flex!important;align-items:center!important;gap:4px!important;white-space:nowrap;font-size:9.5px!important;}
-  .logi-filters .mark-date-label:first-of-type{grid-column:1;grid-row:1;width:100%!important;}
-  .logi-filters .mark-date-label:first-of-type input{flex:1 1 auto;width:0!important;min-width:92px!important;max-width:none!important;height:34px!important;padding:5px 26px 5px 7px!important;font-size:11px!important;}
+  .logi-filters .logi-date-filter-label{grid-column:1;grid-row:1;width:100%!important;}
+  .logi-filters .logi-date-filter-label input{flex:1 1 auto;width:0!important;min-width:92px!important;max-width:none!important;height:34px!important;padding:5px 26px 5px 7px!important;font-size:11px!important;}
   #logisticsDateClear{grid-column:2;grid-row:1;align-self:center;white-space:nowrap;min-width:42px!important;height:34px!important;padding:5px 9px!important;font-size:10px!important;}
-  .logi-filters .mark-date-label:nth-of-type(2){grid-column:3;grid-row:1;width:100%!important;}
-  .logi-filters .mark-date-label:nth-of-type(2) input{flex:1 1 auto;width:0!important;min-width:38px!important;max-width:none!important;height:34px!important;padding:5px 6px!important;font-size:11px!important;text-align:center;}
+  .logi-filters .logi-free-months-label{grid-column:3;grid-row:1;width:100%!important;}
+  .logi-filters .logi-free-months-label input{flex:1 1 auto;width:0!important;min-width:58px!important;max-width:none!important;height:34px!important;padding:5px 6px!important;font-size:11px!important;text-align:center;}
   #logisticsFreeMonths,#logisticsHoldRate{width:58px!important;min-width:58px!important;max-width:58px!important;height:34px!important;padding:5px 6px!important;font-size:11px!important;text-align:center;box-sizing:border-box;}
   .logi-filters .logi-summary{grid-column:1/-1;grid-row:2;margin-left:0!important;font-size:10px!important;}
   .dispatch-state-tabs,.extra-fee-filter{display:flex!important;flex-wrap:nowrap!important;gap:5px!important;overflow-x:auto!important;scrollbar-width:none;padding-bottom:2px;}
@@ -778,10 +778,10 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <h2>物流 · 到货与囤货</h2>
     <div class="hint">按排单查看每款谷子的到货与囤货状态。</div>
     <div class="logi-filters">
-      <label class="mark-date-label">按批次日期<input type="date" id="logisticsDateFilter"></label>
+      <label class="mark-date-label logi-date-filter-label">按批次日期<input type="date" id="logisticsDateFilter"></label>
       <button type="button" class="logi-filter is-on" id="logisticsDateClear">全部</button>
-      <label class="mark-date-label">免费囤货(月)<input type="text" inputmode="decimal" id="logisticsFreeMonths" value="1" placeholder="1"></label>
-      <label class="mark-date-label">囤货费/天<input type="text" inputmode="decimal" id="logisticsHoldRate" placeholder="留空"></label>
+      <label class="mark-date-label logi-free-months-label">免费囤货(月)<input type="text" inputmode="decimal" id="logisticsFreeMonths" placeholder="留空=1"></label>
+      <label class="mark-date-label logi-hold-rate-label">囤货费/天<input type="text" inputmode="decimal" id="logisticsHoldRate" placeholder="留空"></label>
       <span id="logisticsSummary" class="logi-summary"></span>
     </div>
     <div class="toolbar">
@@ -5021,13 +5021,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       const factors={}; if(mode!=='head') document.querySelectorAll('[data-intl-factor]').forEach(input=>factors[input.dataset.intlFactor]=Math.max(0,num(input.value)));
       const rows=[...batch.people.values()].map(person=>{
         let basis=mode==='head'?1:0;
-        const itemDetails=[];
+        const itemDetails=[], detailRows=[];
         person.items.forEach((qty,item)=>{
           const factor=mode==='head'?0:(factors[item]||0), lineBasis=qty*factor;
           if(mode!=='head') basis+=lineBasis;
-          itemDetails.push(mode==='head'?`${item}${qty>1?'×'+qty:''}`:`${item}${qty>1?'×'+qty:''}（${fmtNum(factor)}×${qty}=${fmtNum(lineBasis)}）`);
+          itemDetails.push(mode==='head'?`${item}${qty>1?'×'+qty:''}`:`${item}${qty>1?'×'+qty:''}`);
+          detailRows.push({item,qty,point:qty,weight:mode==='weight'?lineBasis:factor,unitValue:factor,lineBasis});
         });
-        return {person:person.name,key:person.key,basis,items:[...person.items.entries()].map(([item,qty])=>`${item}${qty>1?'×'+qty:''}`).join('、'),itemDetails:itemDetails.join('、')};
+        return {person:person.name,key:person.key,basis,items:[...person.items.entries()].map(([item,qty])=>`${item}${qty>1?'×'+qty:''}`).join('、'),itemDetails:itemDetails.join('、'),detailRows};
       });
       const basisTotal=rows.reduce((sum,r)=>sum+r.basis,0); if(!basisTotal){ alert('重量或点数合计不能为 0'); return; }
       const chargeTotal=mode==='weight'&&billableTotalWeight>0?billableTotalWeight:basisTotal;
@@ -5041,7 +5042,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       intlSplitPreviewRows=rows;
       const modeText=mode==='weight'?'按重量':mode==='points'?'按点数':'按人头', basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
       const weightSummary=mode==='weight'?`　商品净重 ${fmtNum(basisTotal)}${unit}　整箱总重 ${fmtNum(chargeTotal)}${unit}`:'';
-      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}${weightSummary}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>商品</th><th>${mode==='weight'?'克重g / 总重g':'分摊依据'}</th><th>国际r</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.person)}</td><td>${escapeHtml(r.items)}<small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">${escapeHtml(r.itemDetails)}</small></td><td>${mode==='weight'?`净重 ${fmtNum(r.basis)}g；计费 ${fmtNum(r.chargeWeight)}g`:`${basisLabel} ${fmtNum(r.basis)}${unit}；${totalLabel} ${fmtNum(basisTotal)}${unit}`}</td><td><input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"></td></tr>`).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
+      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}${weightSummary}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>谷类</th><th>点数</th><th>g重</th><th>国际r</th></tr></thead><tbody>${rows.map(r=>{
+        const details=(r.detailRows||[]).length?r.detailRows:[{item:'—',qty:0,point:0,weight:0}];
+        return details.map((d,index)=>`<tr><td>${index===0?escapeHtml(r.person):''}</td><td>${escapeHtml(d.item)}${d.qty>1?` ×${d.qty}`:''}</td><td>${mode==='head'?'':fmtNum(d.point)}</td><td>${mode==='weight'?fmtNum(d.weight):''}</td><td>${index===0?`<input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"><small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">计费 ${fmtNum(r.chargeWeight)}g</small>`:''}</td></tr>`).join('');
+      }).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
       $('confirmIntlSplitBtn').addEventListener('click',confirmIntlSplit);
     }
     function confirmIntlSplit(){
@@ -5050,8 +5054,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       document.querySelectorAll('[data-intl-preview-person]').forEach(input=>{ const row=intlSplitPreviewRows.find(r=>r.key===input.dataset.intlPreviewPerson); if(row) row.amount=Math.max(0,num(input.value)); });
       const now=new Date().toISOString(), basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
       intlSplitPreviewRows.filter(r=>r.amount>0).forEach(r=>{
-        const weightText=mode==='weight'?`；计费重${fmtNum(r.chargeWeight)}${unit}；整箱总重${fmtNum(r.billableTotalWeight)}${unit}`:'';
-        const note=`${basisLabel}${fmtNum(r.basis)}${unit}${weightText}；${totalLabel}${fmtNum(r.basisTotal)}${unit}；国际${money(r.amount)}；${r.itemDetails||r.items}`;
+        const detailText=(r.detailRows||[]).map(d=>mode==='weight'?`${d.item}｜克重${fmtNum(d.weight)}g`:(mode==='points'?`${d.item}｜点数${fmtNum(d.point)}`:d.item)).join('、');
+        const note=detailText;
         extraFees.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note,items:r.items,period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId});
       });
       saveState(); renderExtraFees(); renderDispatch(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; alert(`已生成 ${batch.people.size} 人的国际运费，请收齐后再排发。`);
