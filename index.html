@@ -159,6 +159,7 @@ body.export-rendering .price-mark-tag .price-mark-remove,.price-mark-exporting .
   #logisticsDateClear{grid-column:2;grid-row:1;align-self:center;white-space:nowrap;min-width:42px!important;height:34px!important;padding:5px 9px!important;font-size:10px!important;}
   .logi-filters .mark-date-label:nth-of-type(2){grid-column:3;grid-row:1;width:100%!important;}
   .logi-filters .mark-date-label:nth-of-type(2) input{flex:1 1 auto;width:0!important;min-width:38px!important;max-width:none!important;height:34px!important;padding:5px 6px!important;font-size:11px!important;text-align:center;}
+  #logisticsFreeMonths,#logisticsHoldRate{width:58px!important;min-width:58px!important;max-width:58px!important;height:34px!important;padding:5px 6px!important;font-size:11px!important;text-align:center;box-sizing:border-box;}
   .logi-filters .logi-summary{grid-column:1/-1;grid-row:2;margin-left:0!important;font-size:10px!important;}
   .dispatch-state-tabs,.extra-fee-filter{display:flex!important;flex-wrap:nowrap!important;gap:5px!important;overflow-x:auto!important;scrollbar-width:none;padding-bottom:2px;}
   .dispatch-state-tabs::-webkit-scrollbar,.extra-fee-filter::-webkit-scrollbar{display:none;}
@@ -644,7 +645,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <div class="intl-split-grid">
           <label>国内到货批次<select id="intlBatchSelect"><option value="">请选择</option></select></label>
           <label>本批国际运费<input type="text" inputmode="decimal" id="intlTotalAmount" placeholder="0.00"></label>
-          <label>外包装重量<input type="text" inputmode="decimal" id="intlPackagingAmount" placeholder="如 120g"></label>
+          <label>整箱总重<input type="text" inputmode="decimal" id="intlPackagingAmount" placeholder="商品+箱子，如 11000g"></label>
           <label>分摊方式<select id="intlSplitMode"><option value="weight">按重量</option><option value="points">按点数</option><option value="head">按人头</option></select></label>
         </div>
         <div class="hint intl-split-tip" id="intlSplitTip">选择批次并填写分摊依据。</div>
@@ -1233,6 +1234,7 @@ html{ scrollbar-gutter:stable; }
 .dispatch-hit{ box-shadow:0 0 0 2px var(--accent,#d1466a); }
 @media(max-width:560px){ .dispatch-item{ grid-template-columns:1fr; }.dispatch-item-states{ justify-content:flex-start; }.dispatch-person-summary{ width:100%; margin-left:0; } }
 .logi-filters{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:8px 0; }
+#logisticsFreeMonths,#logisticsHoldRate{ width:64px!important; min-width:64px!important; text-align:center; }
 #logisticsPanel .logi-filter{ width:auto!important; padding:5px 12px!important; border:1.4px solid var(--line)!important; border-radius:16px!important; background:#fff!important; color:var(--muted)!important; font-size:12px; font-weight:800; cursor:pointer; }
 #logisticsPanel .logi-filter.is-on{ border-color:var(--accent,#d1466a)!important; background:#fff0f4!important; color:var(--accent,#d1466a)!important; }
 .logi-summary{ font-size:12px; color:var(--muted); font-weight:700; margin-left:auto; }
@@ -5009,11 +5011,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!batch){ list.innerHTML=''; $('intlSplitTip').textContent='选择批次并填写分摊依据。'; return; }
       if(mode==='head'){ list.innerHTML=''; $('intlSplitTip').textContent=`按人头平均：本批共 ${batch.people.size} 人。`; return; }
       const unit=mode==='weight'?'每件重量':'每件点数';
-      $('intlSplitTip').textContent=`${unit}只用于计算比例，不限制单位；相同谷子会自动乘以件数；如果填写外包装重量，会先从总国际里按重量占比拆出外包装运费，再按人头平均。`;
+      $('intlSplitTip').textContent=`${unit}只用于计算比例，不限制单位；相同谷子会自动乘以件数；按重量时可填写整箱总重，系统会把包装重量按个人商品净重比例自然摊进去。`;
       list.innerHTML=[...batch.items.entries()].map(([item,qty])=>`<div class="intl-factor-row"><b>${escapeHtml(item)}</b><input type="text" inputmode="decimal" data-intl-factor="${escapeAttr(item)}" value="1"><small>${qty} 件 · ${unit}</small></div>`).join('');
     }
     function calculateIntlSplit(){
-      const batch=selectedIntlBatch(), total=Math.max(0,num($('intlTotalAmount').value)), packagingWeight=Math.max(0,num(($('intlPackagingAmount')||{}).value)), mode=$('intlSplitMode').value;
+      const batch=selectedIntlBatch(), total=Math.max(0,num($('intlTotalAmount').value)), billableTotalWeight=Math.max(0,num(($('intlPackagingAmount')||{}).value)), mode=$('intlSplitMode').value;
       if(!batch){ alert('请先选择国内到货批次'); return; } if(!total){ alert('请填写大于 0 的本批国际运费'); return; }
       if(intlBatchAlreadyGenerated(batch.id)){ alert('这个批次已经生成过国际运费。请在流水中修改或删除原记录，避免重复收费。'); return; }
       const factors={}; if(mode!=='head') document.querySelectorAll('[data-intl-factor]').forEach(input=>factors[input.dataset.intlFactor]=Math.max(0,num(input.value)));
@@ -5028,21 +5030,18 @@ body.export-rendering .cart-count{ font-size:28px; }
         return {person:person.name,key:person.key,basis,items:[...person.items.entries()].map(([item,qty])=>`${item}${qty>1?'×'+qty:''}`).join('、'),itemDetails:itemDetails.join('、')};
       });
       const basisTotal=rows.reduce((sum,r)=>sum+r.basis,0); if(!basisTotal){ alert('重量或点数合计不能为 0'); return; }
-      const canSplitPackagingByWeight=mode==='weight'&&packagingWeight>0;
-      const allWeight=canSplitPackagingByWeight?basisTotal+packagingWeight:basisTotal;
-      const packagingCost=canSplitPackagingByWeight?ceilMoneyValue(total*packagingWeight/allWeight):0;
-      const goodsPool=Math.max(0,total-packagingCost);
-      const packEach=rows.length?ceilMoneyValue(packagingCost/rows.length):0;
+      const chargeTotal=mode==='weight'&&billableTotalWeight>0?billableTotalWeight:basisTotal;
       rows.forEach(r=>{
-        r.goodsAmount=ceilMoneyValue(goodsPool*r.basis/basisTotal);
-        r.packagingAmount=packEach;
-        r.amount=ceilMoneyValue(r.goodsAmount+r.packagingAmount);
-        r.basisTotal=basisTotal; r.totalAmount=total; r.packagingWeight=packagingWeight; r.packagingCost=packagingCost;
+        const ratio=r.basis/basisTotal;
+        r.chargeWeight=mode==='weight'?chargeTotal*ratio:0;
+        r.goodsAmount=ceilMoneyValue(total*ratio);
+        r.amount=r.goodsAmount;
+        r.basisTotal=basisTotal; r.totalAmount=total; r.billableTotalWeight=chargeTotal;
       });
       intlSplitPreviewRows=rows;
       const modeText=mode==='weight'?'按重量':mode==='points'?'按点数':'按人头', basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
-      const packagingSummary=canSplitPackagingByWeight?`　外包装 ${fmtNum(packagingWeight)}${unit}≈${money(packagingCost)}（按人头）`:(packagingWeight&&mode!=='weight'?'　外包装重量只在按重量时参与计算':'');
-      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}　商品部分 ${money(goodsPool)}${packagingSummary}　${totalLabel} ${fmtNum(basisTotal)}${unit}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>本批到货</th><th>分摊依据</th><th>应收</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.person)}</td><td>${escapeHtml(r.items)}<small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">${escapeHtml(r.itemDetails)}</small></td><td>${basisLabel} ${fmtNum(r.basis)}${unit}；${totalLabel} ${fmtNum(basisTotal)}${unit}<br><small>商品 ${money(r.goodsAmount)}${packagingCost?`；外包装均摊 ${money(r.packagingAmount)}`:''}</small></td><td><input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"></td></tr>`).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
+      const weightSummary=mode==='weight'?`　商品净重 ${fmtNum(basisTotal)}${unit}　整箱总重 ${fmtNum(chargeTotal)}${unit}`:'';
+      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}${weightSummary}</div><table class="intl-preview-table"><thead><tr><th>CN</th><th>商品</th><th>${mode==='weight'?'克重g / 总重g':'分摊依据'}</th><th>国际r</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.person)}</td><td>${escapeHtml(r.items)}<small style="display:block;color:var(--muted);font-weight:800;margin-top:2px">${escapeHtml(r.itemDetails)}</small></td><td>${mode==='weight'?`净重 ${fmtNum(r.basis)}g；计费 ${fmtNum(r.chargeWeight)}g`:`${basisLabel} ${fmtNum(r.basis)}${unit}；${totalLabel} ${fmtNum(basisTotal)}${unit}`}</td><td><input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"></td></tr>`).join('')}</tbody></table><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认生成 ${rows.length} 笔国际运费</button></div>`;
       $('confirmIntlSplitBtn').addEventListener('click',confirmIntlSplit);
     }
     function confirmIntlSplit(){
@@ -5051,8 +5050,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       document.querySelectorAll('[data-intl-preview-person]').forEach(input=>{ const row=intlSplitPreviewRows.find(r=>r.key===input.dataset.intlPreviewPerson); if(row) row.amount=Math.max(0,num(input.value)); });
       const now=new Date().toISOString(), basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
       intlSplitPreviewRows.filter(r=>r.amount>0).forEach(r=>{
-        const packText=Math.max(0,num(r.packagingAmount))>0?`；外包装${fmtNum(r.packagingWeight)}${unit}≈${money(r.packagingCost)}，均摊${money(r.packagingAmount)}`:'';
-        const note=`${basisLabel}${fmtNum(r.basis)}${unit}；${totalLabel}${fmtNum(r.basisTotal)}${unit}；商品国际${money(r.goodsAmount||r.amount)}${packText}；合计${money(r.amount)}；${r.itemDetails||r.items}`;
+        const weightText=mode==='weight'?`；计费重${fmtNum(r.chargeWeight)}${unit}；整箱总重${fmtNum(r.billableTotalWeight)}${unit}`:'';
+        const note=`${basisLabel}${fmtNum(r.basis)}${unit}${weightText}；${totalLabel}${fmtNum(r.basisTotal)}${unit}；国际${money(r.amount)}；${r.itemDetails||r.items}`;
         extraFees.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note,items:r.items,period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId});
       });
       saveState(); renderExtraFees(); renderDispatch(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; alert(`已生成 ${batch.people.size} 人的国际运费，请收齐后再排发。`);
