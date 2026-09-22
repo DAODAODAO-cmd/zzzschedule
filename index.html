@@ -4289,8 +4289,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function paymentReceivedNote(received,total){
       const safeTotal=Math.max(0,num(total)), safeReceived=Math.max(0,num(received));
-      if(!(safeReceived>0&&safeReceived<safeTotal-0.005)) return '';
-      return `<span class="payment-received-note" data-html2canvas-ignore="true">已收 ${money(safeReceived)}，待收 ${money(safeTotal-safeReceived)}</span>`;
+      if(!(safeReceived>0&&Math.abs(safeReceived-safeTotal)>0.005)) return '';
+      if(safeReceived<safeTotal) return `<span class="payment-received-note" data-html2canvas-ignore="true">应收变动：已收 ${money(safeReceived)}，少 ${money(safeTotal-safeReceived)}</span>`;
+      return `<span class="payment-received-note" data-html2canvas-ignore="true">应收变动：已收 ${money(safeReceived)}，多 ${money(safeReceived-safeTotal)}</span>`;
     }
     function paymentAdjustmentNote(refund,supplement){
       if(!(refund>0||supplement>0)) return '';
