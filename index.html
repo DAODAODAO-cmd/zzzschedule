@@ -642,6 +642,12 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <div><strong>追加费用收款</strong><span>按到货批次分摊和收取费用。</span></div>
         <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
       </div>
+      <div class="extra-archive-tools">
+        <button type="button" class="btn-primary" id="archiveExtraFeesBtn">存档当前追加</button>
+        <select id="extraFeeArchiveSelect"><option value="">选择追加存档</option></select>
+        <button type="button" class="btn-ghost" id="restoreExtraFeeArchiveBtn">恢复存档</button>
+        <button type="button" class="btn-danger" id="deleteExtraFeeArchiveBtn">删除存档</button>
+      </div>
       <div class="intl-split-panel" id="intlSplitPanel" hidden>
         <div class="intl-split-grid">
           <label>国内到货批次<select id="intlBatchSelect"><option value="">请选择</option></select></label>
@@ -1185,6 +1191,7 @@ html{ scrollbar-gutter:stable; }
 .extra-payment-heading-tools{grid-template-columns:minmax(180px,1fr) auto auto;margin-bottom:10px}.extra-payment-qr-tools{margin-bottom:10px}.extra-fee-export-wrap{margin-top:10px;background:#fff}.extra-fee-export-wrap .payment-table-wrap{max-height:640px;overflow:auto}.extra-fee-payment-table{min-width:760px}.extra-fee-payment-table th:first-child{width:112px}.extra-fee-payment-table th.extra-manage-col{width:26px}.extra-fee-payment-table td.extra-fee-detail-cell{text-align:center}.extra-fee-payment-table .extra-fee-person-control{display:flex;align-items:center;gap:5px;justify-content:flex-start}.extra-fee-payment-table .extra-fee-person-toggle{display:inline-grid;width:18px;height:18px;padding:0!important;place-items:center;border:1px solid #83c49a!important;border-radius:5px!important;background:#effaf2!important;color:#1f8d4b!important;font-size:12px!important;font-weight:900!important;flex:0 0 auto}.extra-fee-payment-table .extra-fee-person-name{min-width:0;font-weight:900}.extra-fee-payment-table .extra-fee-count{font-weight:900}.extra-fee-payment-table .extra-fee-money{color:#16703a;font-weight:900;white-space:nowrap}.extra-fee-payment-table tr.payment-paid-row td{background:#dff4e6}.extra-fee-payment-table .extra-fee-actions{width:26px;padding:2px!important;white-space:nowrap}.extra-fee-payment-table .extra-fee-actions button{width:18px;height:18px;padding:0!important;border-radius:999px!important;font-size:12px!important;line-height:1!important;color:#c64d68!important;background:#fff7fa!important;border-color:#f2bdca!important}.extra-fee-main-line{font-weight:900;color:var(--text)}.extra-fee-sub-line,.extra-fee-source-line{margin-top:2px;color:#287247;font-size:11px;font-weight:800;line-height:1.35}.extra-fee-source-line{color:var(--muted);font-size:10px;font-weight:750}.extra-fee-weight-cell{min-width:70px;color:#287247!important;vertical-align:middle}.extra-intl-line{display:block;min-height:16px;line-height:1.35}.extra-intl-total-line{margin-top:4px;padding-top:3px;border-top:1px dashed #cfe3d4;color:#8a6a15;font-size:10px}.extra-fee-editable{display:block;min-height:15px;border-radius:5px;padding:1px 2px}.extra-fee-editable:empty:before{content:attr(data-placeholder);color:#b6aabb}.extra-fee-editable[contenteditable=true]:focus{outline:none;background:#fff7fa;box-shadow:inset 0 0 0 2px var(--accent)}.extra-exporting .extra-manage-col,.extra-exporting .extra-fee-person-toggle,.extra-exporting .extra-fee-source-line:empty,.extra-exporting .extra-intl-total-line{display:none!important}.extra-exporting .payment-table-wrap{max-height:none!important;overflow:visible!important}.extra-exporting .extra-fee-payment-table{min-width:0}.extra-exporting{padding-bottom:0}.extra-fee-list .extra-fee-empty{padding:20px;text-align:center;color:var(--muted)}
 .extra-clear-control{display:inline-flex!important;align-items:center;gap:6px;margin:0!important;padding:0 2px;color:var(--muted);font-size:11px!important;font-weight:800;white-space:nowrap}.extra-clear-control select{width:auto!important;min-width:112px;padding:7px 28px 7px 9px!important;background:#fff!important}.toolbar #clearExtraFeesBtn{margin-left:0}@media(max-width:620px){.extra-clear-control{width:auto}.extra-clear-control select{min-width:104px;font-size:11px!important}}
 @media(max-width:620px){.extra-payment-heading-tools{grid-template-columns:minmax(0,1fr) auto}}
+.extra-archive-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 10px}.extra-archive-tools select{width:auto;min-width:180px}.extra-archive-tools button{padding:7px 10px;font-size:11px}
 .extra-fee-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.extra-fee-head strong{display:block;font-size:14px}.extra-fee-head span{display:block;margin-top:2px;color:var(--muted);font-size:10.5px}.extra-fee-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#faf8fb}.extra-fee-form label{margin:0}.extra-fee-note-field{grid-column:1/4}.extra-fee-form-actions{display:flex;align-items:end;justify-content:flex-end;gap:6px}.extra-fee-filter{display:flex;gap:5px;margin:8px 0}.extra-fee-filter button{padding:5px 11px;border:1px solid var(--line);background:#fff;color:var(--muted)}.extra-fee-filter button.active{border-color:var(--accent);background:#fff0f4;color:var(--accent)}.extra-fee-summary{color:var(--muted);font-size:11px;font-weight:800}.extra-fee-list{display:grid;gap:8px}.extra-fee-person{border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}.extra-fee-person-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;background:#faf8fb}.extra-fee-person-head b{font-size:13px}.extra-fee-person-head span{font-size:11px;font-weight:900}.extra-fee-row{display:grid;grid-template-columns:minmax(130px,1.2fr) minmax(120px,1fr) 90px 86px auto;align-items:center;gap:7px;padding:8px 10px;border-top:1px solid #eee8f0;font-size:11.5px}.extra-fee-row.is-paid{background:#eff9f2;color:#287247}.extra-fee-main b{display:block}.extra-fee-main small,.extra-fee-source{color:var(--muted);font-size:10px}.extra-fee-money{font-weight:900;text-align:right}.extra-fee-status{padding:4px 7px;border:1px solid #efbdc5;border-radius:999px;background:#fff5f6;color:#b4364c;font-size:10px;font-weight:900;cursor:pointer}.extra-fee-row.is-paid .extra-fee-status{border-color:#b6ddc3;background:#e8f6ed;color:#287247}.extra-fee-actions{display:flex;gap:4px}.extra-fee-actions button{padding:4px 7px;font-size:10px}.extra-fee-empty{padding:20px;color:var(--muted);text-align:center}
 .extra-fee-head-actions{display:flex;gap:6px;flex-wrap:wrap}.intl-split-panel{margin:10px 0;padding:12px;border:1px solid #ded5e2;border-radius:11px;background:#faf8fb}.intl-split-grid{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(120px,.7fr) minmax(120px,.7fr);gap:8px}.intl-split-grid label{margin:0}.intl-split-tip{margin:8px 0}.intl-factor-list{display:grid;gap:5px}.intl-factor-row{display:grid;grid-template-columns:minmax(150px,1fr) 90px auto;align-items:center;gap:8px;padding:7px 9px;border:1px solid #e7e0e9;border-radius:8px;background:#fff;font-size:11px}.intl-factor-row input{padding:5px 7px!important;text-align:center}.intl-split-preview{margin-top:8px}.intl-preview-table{width:100%;border-collapse:collapse}.intl-preview-table th,.intl-preview-table td{padding:7px 8px;border-bottom:1px solid #e9e2eb;text-align:left}.intl-preview-total{margin:8px 0;color:var(--muted);font-size:11px}.intl-table-summary{padding:6px 8px;border-left:1px solid #d8d1db;border-right:1px solid #d8d1db;background:#fff8fb;color:#8a3d55;font-size:11px;font-weight:900;text-align:center}.intl-preview-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}@media(max-width:620px){.intl-split-grid{grid-template-columns:1fr}.intl-factor-row{grid-template-columns:minmax(0,1fr) 78px}.intl-factor-row small{grid-column:1/-1}}@media(max-width:700px){.extra-fee-form{grid-template-columns:1fr 1fr}.extra-fee-note-field{grid-column:1/-1}.extra-fee-form-actions{grid-column:1/-1}.extra-fee-row{grid-template-columns:minmax(0,1fr) 74px 70px}.extra-fee-source{grid-column:1/2}.extra-fee-actions{grid-column:1/-1}.extra-fee-head{align-items:flex-start}}
 .cost-human-tip{ margin-top:10px; padding:9px 11px; border-radius:8px; background:#faf7fb; line-height:1.55; }
@@ -1805,7 +1812,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', showPaymentTotal=true, showBoughtSettlement=false, paymentIncludeShare=false;
     let paymentEdits={}, paymentPaid={}, paymentRefund={}, paymentSupplement={}, paymentRefundDone={}, paymentSupplementDone={}, paymentNotes={}, settlementDashboardOpen=false, settlementFilter='pending', sharePaymentTitle='', sharePaymentTitleCustom=false, sharePaymentColor='#d1466a', sharePaymentViewMode='detail', sharePaymentEdits={}, sharePaymentPaid={}, sharePaymentRefund={}, sharePaymentSupplement={}, shareDeductFixed=false;
     let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='', extraPaymentQrImg='';
-    let extraFees=[], extraFeeIdSeed=1, extraFeeFilter='all', extraFeeTitle='追加费用收款', extraFeeColor='#d1466a', extraFeeShowTotal=true, extraFeeViewMode='detail';
+    let extraFees=[], extraFeeIdSeed=1, extraFeeFilter='all', extraFeeTitle='追加费用收款', extraFeeColor='#d1466a', extraFeeShowTotal=true, extraFeeViewMode='detail', extraFeeArchives=[];
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
     let coldPromotionHighlights={completeRows:[],pendingRows:[]};
@@ -2104,7 +2111,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sheet=blankSheet('表1');
       sheetIdSeed=savedSeed;
       sheet.id=1;
-      return {sheets:[sheet],sheetIdSeed:2,itemCatalog:[],catalogIdSeed:1,sharedCartQrImg:'',sharedPaymentQrImg:'',extraPaymentQrImg:'',extraFees:[],extraFeeIdSeed:1,extraFeeTitle:'追加费用收款',extraFeeColor:'#d1466a',extraFeeShowTotal:true,extraFeeViewMode:'detail'};
+      return {sheets:[sheet],sheetIdSeed:2,itemCatalog:[],catalogIdSeed:1,sharedCartQrImg:'',sharedPaymentQrImg:'',extraPaymentQrImg:'',extraFees:[],extraFeeIdSeed:1,extraFeeTitle:'追加费用收款',extraFeeColor:'#d1466a',extraFeeShowTotal:true,extraFeeViewMode:'detail',extraFeeArchives:[]};
     }
     function sheetUsesCustomTitle(sheet,key){
       const flag=sheet?.[key+'Custom'];
@@ -2224,7 +2231,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
     function localStatePayload(){
-      return {sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode};
+      return {sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives};
     }
     function lightLocalStatePayload(){
       const payload=deepClone(localStatePayload());
@@ -2375,7 +2382,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(raw){
           const d=JSON.parse(raw);
           extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):[];
-          extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail';
+          extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):[];
           if(Array.isArray(d.sheets)&&d.sheets.length){
             sheets=d.sheets;
             sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
@@ -2433,7 +2440,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             first.matrixTitle=d.matrixTitle||''; first.matrixTitleCustom=!!String(first.matrixTitle).trim()&&String(first.matrixTitle).trim()!==first.name; first.matrixColor=d.matrixColor||'#d1466a';
             first.quantityTitle=d.quantityTitle||''; first.quantityTitleCustom=!!String(first.quantityTitle).trim()&&String(first.quantityTitle).trim()!==first.name;
             first.paymentTitle=d.paymentTitle||''; first.paymentTitleCustom=!!String(first.paymentTitle).trim()&&String(first.paymentTitle).trim()!==first.name; first.paymentColor=d.paymentColor||'#d1466a';
-            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||''; extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):extraFees; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail';
+            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||''; extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):extraFees; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):extraFeeArchives;
             sheets=[first]; watermarkArchive=Array.isArray(first.watermarkArchive)?deepClone(first.watermarkArchive):[]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
             cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=resolvedSheetTitle(first,'matrixTitle'); matrixColor=first.matrixColor; quantityTitle=resolvedSheetTitle(first,'quantityTitle'); paymentTitle=resolvedSheetTitle(first,'paymentTitle'); paymentColor=first.paymentColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldPromotionDraftBaseAllocations=deepClone(first.coldPromotionDraftBaseAllocations); coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
           }
@@ -2750,7 +2757,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function collabProjectSnapshot(){
       captureActiveSheet();
-      return deepClone({sheets,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode});
+      return deepClone({sheets,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives});
     }
     const cloudImageCompressionCache=new Map();
     async function compressCloudImageBlob(source,label){
@@ -2883,7 +2890,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         sheets=deepClone(state.sheets); sheetIdSeed=Number(state.sheetIdSeed)||Math.max(...sheets.map(s=>(Number(s.id)||0)+1));
         itemCatalog=migrateCatalogItems(deepClone(Array.isArray(state.itemCatalog)?state.itemCatalog:[]));
         catalogIdSeed=Math.max(Number(state.catalogIdSeed)||1,...itemCatalog.map(x=>(Number(x.catalogId)||0)+1));
-        sharedCartQrImg=state.sharedCartQrImg||''; sharedPaymentQrImg=state.sharedPaymentQrImg||''; extraFees=Array.isArray(state.extraFees)?state.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(state.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(state.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(state.extraFeeColor||''))?state.extraFeeColor:'#d1466a'; extraFeeShowTotal=state.extraFeeShowTotal!==false; extraFeeViewMode=state.extraFeeViewMode==='merged'?'merged':'detail'; extraPaymentQrImg=state.extraPaymentQrImg||'';
+        sharedCartQrImg=state.sharedCartQrImg||''; sharedPaymentQrImg=state.sharedPaymentQrImg||''; extraFees=Array.isArray(state.extraFees)?state.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(state.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(state.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(state.extraFeeColor||''))?state.extraFeeColor:'#d1466a'; extraFeeShowTotal=state.extraFeeShowTotal!==false; extraFeeViewMode=state.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(state.extraFeeArchives)?state.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):[]; extraPaymentQrImg=state.extraPaymentQrImg||'';
         activeSheetId=sheets.some(s=>s.id===preferredSheet)?preferredSheet:sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
         if($('commentInput')) $('commentInput').value=commentText;
@@ -3146,7 +3153,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           cloudConflictPaused=false;
         }
         const now=new Date().toISOString();
-        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,sharedCartQrImg:cloudCartQrImg,sharedPaymentQrImg:cloudPaymentQrImg,extraPaymentQrImg:cloudExtraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,version:Date.now()};
+        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,sharedCartQrImg:cloudCartQrImg,sharedPaymentQrImg:cloudPaymentQrImg,extraPaymentQrImg:cloudExtraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,version:Date.now()};
         let writeSucceeded=false;
         if(remoteNow){
           const {data,error}=await client.from('ggz_sync_data').update({payload,updated_at:now}).eq('sync_code',code).eq('updated_at',remoteNow).select('updated_at').maybeSingle();
@@ -3188,7 +3195,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         applyingCloud=true; sheets=d.sheets;
         sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
         sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||'';
-        extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail';
+        extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):[];
         sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
         itemCatalog=migrateCatalogItems(d.itemCatalog); catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
         if(!sheets.some(s=>s.id===activeSheetId)) activeSheetId=sheets[0].id;
@@ -4983,6 +4990,24 @@ body.export-rendering .cart-count{ font-size:28px; }
       })).filter(d=>d.item):[];
       return {id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
     }
+    function normalizeExtraFeeArchive(row){
+      if(!row||typeof row!=='object') return null;
+      const id=String(row.id||`archive_${Date.now()}_${Math.random().toString(36).slice(2,7)}`);
+      const name=String(row.name||'未命名追加存档').trim()||'未命名追加存档';
+      const fees=Array.isArray(row.extraFees)?row.extraFees.map(normalizeExtraFee).filter(Boolean):[];
+      return {id,name,createdAt:String(row.createdAt||new Date().toISOString()),extraFees:fees,extraFeeTitle:String(row.extraFeeTitle||name||'追加费用收款'),extraFeeColor:/^#[0-9a-f]{6}$/i.test(String(row.extraFeeColor||''))?row.extraFeeColor:'#d1466a',extraFeeShowTotal:row.extraFeeShowTotal!==false,extraFeeViewMode:row.extraFeeViewMode==='merged'?'merged':'detail'};
+    }
+    function renderExtraFeeArchives(){
+      const select=$('extraFeeArchiveSelect'); if(!select) return;
+      const current=select.value;
+      const archives=(extraFeeArchives||[]).map(normalizeExtraFeeArchive).filter(Boolean).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+      extraFeeArchives=archives;
+      select.innerHTML='<option value="">选择追加存档</option>'+archives.map(a=>`<option value="${escapeAttr(a.id)}">${escapeHtml(a.name)} · ${new Date(a.createdAt).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</option>`).join('');
+      if(archives.some(a=>a.id===current)) select.value=current;
+    }
+    function snapshotExtraFeeArchive(name){
+      return normalizeExtraFeeArchive({id:`archive_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,name,createdAt:new Date().toISOString(),extraFees:deepClone(extraFees),extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode});
+    }
     let intlSplitPreviewRows=[];
     let intlSplitCalcTimer=null;
     function readIntlDrafts(){
@@ -5317,6 +5342,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function renderExtraFees(){
       const list=$('extraFeeList'); if(!list) return;
+      renderExtraFeeArchives();
       const visible=visibleExtraFees(), grouped=new Map();
       visible.forEach(row=>{ if(!grouped.has(row.person)) grouped.set(row.person,[]); grouped.get(row.person).push(row); });
       let unpaid=0,paidCount=0,unpaidPeople=new Set(); extraFees.forEach(row=>{ if(row.paid) paidCount++; else { unpaid+=num(row.amount); unpaidPeople.add(row.person); } });
@@ -5348,6 +5374,40 @@ body.export-rendering .cart-count{ font-size:28px; }
       const qrHtml=extraPaymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(extraPaymentQrImg)}" alt="追加费用收款码"></div>`:'';
       const color=/^#[0-9a-f]{6}$/i.test(extraFeeColor)?extraFeeColor:'#d1466a';
       list.innerHTML=`<div class="payment-table-wrap"><div id="extraFeeExportTitle" class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(extraFeeTitle||'追加费用收款')}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>${paidAllControl} CN</th><th>谷类</th><th>数量</th><th>g重</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody>${extraFeeShowTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">追加费用总价</td><td class="payment-total-value">${moneyText(alipayTotal)}</td><td class="payment-total-value">${moneyText(extraFeeWechatAmount(alipayTotal))}</td></tr></tfoot>`:''}</table>${qrHtml}</div>`;
+    }
+    async function archiveCurrentExtraFees(){
+      if(!extraFees.length){ alert('当前没有追加费用可以存档'); return; }
+      const fallback=(extraFeeTitle||'追加费用收款').trim()||'追加费用存档';
+      const name=String(await appPrompt('给这份追加费用存档起个名字',fallback,'存档当前追加','保存存档')||'').trim();
+      if(!name) return;
+      const archive=snapshotExtraFeeArchive(name);
+      if(!archive) return;
+      extraFeeArchives=[archive,...(extraFeeArchives||[]).filter(a=>a.id!==archive.id)];
+      saveState(); renderExtraFeeArchives(); alert(`已存档：${name}`);
+    }
+    async function restoreExtraFeeArchive(){
+      const id=$('extraFeeArchiveSelect')?.value||'';
+      const archive=(extraFeeArchives||[]).find(a=>a.id===id);
+      if(!archive){ alert('请先选择一个追加存档'); return; }
+      if(extraFees.length){
+        const ok=await appConfirm(`恢复存档“${archive.name}”会替换当前追加费用表。\n如果当前表还要保留，请先点“存档当前追加”。`,'恢复追加存档','确认恢复');
+        if(!ok) return;
+      }
+      extraFees=deepClone(archive.extraFees||[]).map(normalizeExtraFee).filter(Boolean);
+      extraFeeIdSeed=Math.max(1,...extraFees.map(x=>(Number(x.id)||0)+1));
+      extraFeeTitle=archive.extraFeeTitle||archive.name||'追加费用收款';
+      extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(archive.extraFeeColor||''))?archive.extraFeeColor:'#d1466a';
+      extraFeeShowTotal=archive.extraFeeShowTotal!==false;
+      extraFeeViewMode=archive.extraFeeViewMode==='merged'?'merged':'detail';
+      saveState(); renderExtraFeesKeepScroll(); renderDispatch();
+    }
+    async function deleteExtraFeeArchive(){
+      const id=$('extraFeeArchiveSelect')?.value||'';
+      const archive=(extraFeeArchives||[]).find(a=>a.id===id);
+      if(!archive){ alert('请先选择一个追加存档'); return; }
+      if(!await appConfirm(`确定删除追加存档“${archive.name}”吗？\n只删除存档，不会删除当前追加费用表。`,'删除追加存档','确认删除')) return;
+      extraFeeArchives=(extraFeeArchives||[]).filter(a=>a.id!==id);
+      saveState(); renderExtraFeeArchives();
     }
     function captureExtraFeeScroll(){
       const scroller=$('extraFeeList')?.querySelector('.payment-table-wrap'), main=document.querySelector('.app-main');
@@ -8132,6 +8192,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('extraFeeViewMode').addEventListener('change',e=>{ extraFeeViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderExtraFeesKeepScroll(); });
     $('extraFeeColorInput').addEventListener('input',e=>{ extraFeeColor=e.target.value; if($('extraFeeExportTitle')) $('extraFeeExportTitle').style.background=extraFeeColor; saveState(); });
     $('showExtraFeeTotalBtn').addEventListener('click',()=>{ extraFeeShowTotal=!extraFeeShowTotal; saveState(); renderExtraFeesKeepScroll(); });
+    $('archiveExtraFeesBtn').addEventListener('click',archiveCurrentExtraFees);
+    $('restoreExtraFeeArchiveBtn').addEventListener('click',restoreExtraFeeArchive);
+    $('deleteExtraFeeArchiveBtn').addEventListener('click',deleteExtraFeeArchive);
     function handleExtraPaymentQr(file){ if(!file) return; compressQrPng(file,1600).then(data=>{ extraPaymentQrImg=data; saveState(); renderExtraFeesKeepScroll(); }).catch(()=>alert('追加费用收款码图片处理失败')); }
     $('extraPaymentQrInput').addEventListener('change',e=>{ handleExtraPaymentQr(e.target.files[0]); e.target.value=''; });
     $('clearExtraPaymentQrBtn').addEventListener('click',()=>{ extraPaymentQrImg=''; saveState(); renderExtraFeesKeepScroll(); });
@@ -8907,7 +8970,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('exportJsonBtn').addEventListener('click',()=>{
       captureActiveSheet();
-      downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode},'全部排单备份.json');
+      downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives},'全部排单备份.json');
     });
     $('exportImportTemplateBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
@@ -8996,7 +9059,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             sheets=d.sheets; itemCatalog=migrateCatalogItems(d.itemCatalog); catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
             sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
             sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||'';
-            extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail';
+            extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):[];
             sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
             activeSheetId=sheets.some(s=>s.id===d.activeSheetId)?d.activeSheetId:sheets[0].id;
             applySheet(sheets.find(s=>s.id===activeSheetId)); saveState();
@@ -9004,7 +9067,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             columns=Array.isArray(d.columns)?d.columns.map(migrateColumn):[]; allocations=d.allocations||{};
             cartNote=d.cartNote||''; cartTargetMode=d.cartTargetMode||'auto';
             cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null; applyCost(d.cost);
-            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||''; extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):extraFees; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail';
+            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||''; extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):extraFees; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):extraFeeArchives;
             cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=sharedCartQrImg;
             const importedTargetSheet=sheets.find(s=>s.id===activeSheetId), importedSheetName=String(importedTargetSheet?.name||'表1');
             matrixTitle=d.matrixTitle||importedSheetName; matrixColor=d.matrixColor||'#d1466a';
