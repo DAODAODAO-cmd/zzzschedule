@@ -1771,6 +1771,7 @@ body.export-rendering .cart-count{ font-size:28px; }
   initApp(){
     const STORAGE_KEY='ggzCombinedTool_v1';
     const UNDO_STORAGE_KEY='ggzOrderUndoHistory_v1';
+    const INTL_DRAFT_STORAGE_KEY='ggzIntlSplitDrafts_v1';
     const $=id=>document.getElementById(id);
     const ceilMoneyValue=v=>{
       const n=Math.max(0,Number(v)||0);
@@ -4984,6 +4985,47 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     let intlSplitPreviewRows=[];
     let intlSplitCalcTimer=null;
+    function readIntlDrafts(){
+      try{ const data=JSON.parse(localStorage.getItem(INTL_DRAFT_STORAGE_KEY)||'{}'); return data&&typeof data==='object'?data:{}; }catch(_){ return {}; }
+    }
+    function writeIntlDrafts(drafts){
+      try{ localStorage.setItem(INTL_DRAFT_STORAGE_KEY,JSON.stringify(drafts||{})); }catch(_){}
+    }
+    function currentIntlDraftKey(){
+      const id=String($('intlBatchSelect')?.value||'').trim();
+      return id?`${activeWorkspaceId||syncCode||'local'}::${id}`:'';
+    }
+    function saveIntlDraft(){
+      const key=currentIntlDraftKey(); if(!key) return;
+      const factors={};
+      document.querySelectorAll('[data-intl-factor]').forEach(input=>{ factors[input.dataset.intlFactor]=input.value; });
+      const drafts=readIntlDrafts();
+      drafts[key]={batchId:String($('intlBatchSelect').value||''),total:String($('intlTotalAmount')?.value||''),packaging:String($('intlPackagingAmount')?.value||''),mode:String($('intlSplitMode')?.value||'weight'),viewMode:String($('intlPreviewMode')?.value||'detail'),factors,updatedAt:new Date().toISOString()};
+      writeIntlDrafts(drafts);
+    }
+    function loadIntlDraft(batchId){
+      const key=`${activeWorkspaceId||syncCode||'local'}::${batchId}`;
+      const draft=readIntlDrafts()[key];
+      return draft&&typeof draft==='object'?draft:null;
+    }
+    function clearIntlDraft(batchId){
+      const key=`${activeWorkspaceId||syncCode||'local'}::${batchId}`;
+      const drafts=readIntlDrafts();
+      if(drafts[key]){ delete drafts[key]; writeIntlDrafts(drafts); }
+    }
+    function applyIntlDraftForSelectedBatch(){
+      const batchId=String($('intlBatchSelect')?.value||'');
+      const draft=batchId?loadIntlDraft(batchId):null;
+      if(draft){
+        if($('intlTotalAmount')) $('intlTotalAmount').value=draft.total||'';
+        if($('intlPackagingAmount')) $('intlPackagingAmount').value=draft.packaging||'';
+        if($('intlSplitMode')&&['weight','points','head'].includes(draft.mode)) $('intlSplitMode').value=draft.mode;
+        if($('intlPreviewMode')) $('intlPreviewMode').value=draft.viewMode==='merged'?'merged':'detail';
+      }else{
+        if($('intlTotalAmount')) $('intlTotalAmount').value='';
+        if($('intlPackagingAmount')) $('intlPackagingAmount').value='';
+      }
+    }
     function scheduleIntlSplitCalculation(){
       clearTimeout(intlSplitCalcTimer);
       intlSplitCalcTimer=setTimeout(()=>calculateIntlSplit(true),80);
@@ -5020,6 +5062,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const select=$('intlBatchSelect'), current=select.value, batches=internationalBatches();
       select.innerHTML='<option value="">请选择国内到货批次</option>'+batches.map(b=>`<option value="${escapeAttr(b.id)}">${escapeHtml(b.date)} · ${escapeHtml(b.sheet)} · ${b.items.size}款 / ${[...b.items.values()].reduce((a,n)=>a+n,0)}件${intlBatchAlreadyGenerated(b.id)?'（已生成）':''}</option>`).join('');
       if(batches.some(b=>b.id===current)) select.value=current;
+      applyIntlDraftForSelectedBatch();
       renderIntlFactors();
     }
     function renderIntlFactors(){
@@ -5027,8 +5070,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!batch){ list.innerHTML=''; $('intlSplitTip').textContent='选择批次并填写分摊依据。'; return; }
       if(mode==='head'){ list.innerHTML=''; $('intlSplitTip').textContent=`按人头平均：本批共 ${batch.people.size} 人。填写本批国际运费后，下方会自动生成收款表。`; scheduleIntlSplitCalculation(); return; }
       const unit=mode==='weight'?'每件重量':'每件点数';
+      const draft=loadIntlDraft(batch.id);
+      const draftFactors=draft&&draft.factors&&typeof draft.factors==='object'?draft.factors:{};
       $('intlSplitTip').textContent=`填写${unit}后会自动生成下方收款表；相同谷子会自动乘以件数；按重量时用整箱总重计算，包装重量会按个人商品净重比例自然均进去。`;
-      list.innerHTML=[...batch.items.entries()].map(([item,qty])=>`<div class="intl-factor-row"><b>${escapeHtml(item)}</b><input type="text" inputmode="decimal" data-intl-factor="${escapeAttr(item)}" value="1"><small>${qty} 件 · ${unit}</small></div>`).join('');
+      list.innerHTML=[...batch.items.entries()].map(([item,qty])=>`<div class="intl-factor-row"><b>${escapeHtml(item)}</b><input type="text" inputmode="decimal" data-intl-factor="${escapeAttr(item)}" value="${escapeAttr(draftFactors[item]??'1')}"><small>${qty} 件 · ${unit}</small></div>`).join('');
       scheduleIntlSplitCalculation();
     }
     function renderIntlSplitPreview(batch,rows,meta){
@@ -5095,6 +5140,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const note=detailText;
         extraFees.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0});
       });
+      clearIntlDraft(batch.id);
       saveState(); renderExtraFees(); renderDispatch(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; alert(`已生成 ${batch.people.size} 人的国际运费，请收齐后再排发。`);
     }
     function openExtraFeeForm(row=null){
@@ -8009,12 +8055,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       paymentActiveTab=['goods','extra','share'].includes(button.dataset.paymentTab)?button.dataset.paymentTab:'goods'; closeExtraFeeForm(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML=''; syncPaymentControls();
     });
     $('openIntlSplitBtn').addEventListener('click',()=>{ closeExtraFeeForm(); $('intlSplitPanel').hidden=false; renderIntlBatchSelect(); $('intlSplitPanel').scrollIntoView({behavior:'smooth',block:'nearest'}); });
-    $('closeIntlSplitBtn').addEventListener('click',()=>{ $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; $('intlSplitPreview').innerHTML=''; });
-    $('intlBatchSelect').addEventListener('change',renderIntlFactors);
-    $('intlSplitMode').addEventListener('change',renderIntlFactors);
-    $('intlPreviewMode').addEventListener('change',()=>{ if(intlSplitPreviewRows.length) calculateIntlSplit(true); });
+    $('closeIntlSplitBtn').addEventListener('click',()=>{ saveIntlDraft(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; $('intlSplitPreview').innerHTML=''; });
+    $('intlBatchSelect').addEventListener('change',()=>{ applyIntlDraftForSelectedBatch(); renderIntlFactors(); });
+    $('intlSplitMode').addEventListener('change',()=>{ saveIntlDraft(); renderIntlFactors(); });
+    $('intlPreviewMode').addEventListener('change',()=>{ saveIntlDraft(); if(intlSplitPreviewRows.length) calculateIntlSplit(true); });
     $('intlSplitPanel').addEventListener('input',e=>{
-      if(e.target.matches('#intlTotalAmount,#intlPackagingAmount,[data-intl-factor]')) scheduleIntlSplitCalculation();
+      if(e.target.matches('#intlTotalAmount,#intlPackagingAmount,[data-intl-factor]')){ saveIntlDraft(); scheduleIntlSplitCalculation(); }
     });
     const addExtraFeeButton=document.getElementById('addExtraFeeBtn');
     if(addExtraFeeButton) addExtraFeeButton.addEventListener('click',()=>{ $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; $('intlSplitPreview').innerHTML=''; if($('extraFeeForm').hidden) openExtraFeeForm(); else closeExtraFeeForm(); });
