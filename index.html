@@ -640,7 +640,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
       <div class="extra-fee-head">
         <div><strong>追加费用收款</strong><span>按到货批次分摊和收取费用。</span></div>
-        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button></div>
+        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
       </div>
       <div class="intl-split-panel" id="intlSplitPanel" hidden>
         <div class="intl-split-grid">
@@ -4981,7 +4981,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         unitValue:num(d?.unitValue),
         lineBasis:num(d?.lineBasis)
       })).filter(d=>d.item):[];
-      return {id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight)};
+      return {id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
     }
     let intlSplitPreviewRows=[];
     let intlSplitCalcTimer=null;
@@ -5097,31 +5097,40 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}</div><div class="payment-table-wrap"><div class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(`${batch.date} 国际运费`)}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>CN</th><th>谷类</th><th>数量</th><th>${mode==='points'?'点数':'g重'}</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody></table></div><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认写入 ${rows.length} 笔国际运费</button></div>`;
       $('confirmIntlSplitBtn').addEventListener('click',confirmIntlSplit);
     }
-    function calculateIntlSplit(silent=false){
-      const batch=selectedIntlBatch(), total=Math.max(0,num($('intlTotalAmount').value)), billableTotalWeight=Math.max(0,num(($('intlPackagingAmount')||{}).value)), mode=$('intlSplitMode').value;
-      if(!batch){ if(!silent) alert('请先选择国内到货批次'); return; } if(!total){ if(!silent) alert('请填写大于 0 的本批国际运费'); return; }
-      if(intlBatchAlreadyGenerated(batch.id)){ if(!silent) alert('这个批次已经生成过国际运费。请在流水中修改或删除原记录，避免重复收费。'); else $('intlSplitPreview').innerHTML='<div class="hint">这个批次已经生成过国际运费。如需重算，请先在追加费用收款里修改或删除原记录。</div>'; return; }
-      const factors={}; if(mode!=='head') document.querySelectorAll('[data-intl-factor]').forEach(input=>factors[input.dataset.intlFactor]=Math.max(0,num(input.value)));
+    function buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors){
       const rows=[...batch.people.values()].map(person=>{
         let basis=mode==='head'?1:0;
         const itemDetails=[], detailRows=[];
         person.items.forEach((qty,item)=>{
           const factor=mode==='head'?0:(factors[item]||0), lineBasis=qty*factor;
           if(mode!=='head') basis+=lineBasis;
-          itemDetails.push(mode==='head'?`${item}${qty>1?'×'+qty:''}`:`${item}${qty>1?'×'+qty:''}`);
+          itemDetails.push(`${item}${qty>1?'×'+qty:''}`);
           detailRows.push({item,qty,point:qty,weight:mode==='weight'?lineBasis:factor,unitValue:factor,lineBasis});
         });
         return {person:person.name,key:person.key,basis,items:[...person.items.entries()].map(([item,qty])=>`${item}${qty>1?'×'+qty:''}`).join('、'),itemDetails:itemDetails.join('、'),detailRows};
       });
-      const basisTotal=rows.reduce((sum,r)=>sum+r.basis,0); if(!basisTotal){ if(!silent) alert('重量或点数合计不能为 0'); return; }
+      const basisTotal=rows.reduce((sum,r)=>sum+r.basis,0);
+      if(!basisTotal) return null;
       const chargeTotal=mode==='weight'&&billableTotalWeight>0?billableTotalWeight:basisTotal;
       rows.forEach(r=>{
         const ratio=r.basis/basisTotal;
         r.chargeWeight=mode==='weight'?chargeTotal*ratio:0;
         r.goodsAmount=ceilMoneyValue(total*ratio);
         r.amount=r.goodsAmount;
-        r.basisTotal=basisTotal; r.totalAmount=total; r.billableTotalWeight=chargeTotal;
+        r.basisTotal=basisTotal;
+        r.totalAmount=total;
+        r.billableTotalWeight=chargeTotal;
       });
+      return {rows,basisTotal,chargeTotal};
+    }
+    function calculateIntlSplit(silent=false){
+      const batch=selectedIntlBatch(), total=Math.max(0,num($('intlTotalAmount').value)), billableTotalWeight=Math.max(0,num(($('intlPackagingAmount')||{}).value)), mode=$('intlSplitMode').value;
+      if(!batch){ if(!silent) alert('请先选择国内到货批次'); return; } if(!total){ if(!silent) alert('请填写大于 0 的本批国际运费'); return; }
+      if(intlBatchAlreadyGenerated(batch.id)){ if(!silent) alert('这个批次已经生成过国际运费。请在流水中修改或删除原记录，避免重复收费。'); else $('intlSplitPreview').innerHTML='<div class="hint">这个批次已经生成过国际运费。如需重算，请先在追加费用收款里修改或删除原记录。</div>'; return; }
+      const factors={}; if(mode!=='head') document.querySelectorAll('[data-intl-factor]').forEach(input=>factors[input.dataset.intlFactor]=Math.max(0,num(input.value)));
+      const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors);
+      if(!built){ if(!silent) alert('重量或点数合计不能为 0'); return; }
+      const {rows,basisTotal,chargeTotal}=built;
       intlSplitPreviewRows=rows;
       const modeText=mode==='weight'?'按重量':mode==='points'?'按点数':'按人头', basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
       const weightSummary=mode==='weight'?`商品净重 ${fmtNum(basisTotal)}${unit}｜整箱总重 ${fmtNum(chargeTotal)}${unit}｜约 ¥${moneyText(total/Math.max(chargeTotal,1))}/g`:'';
@@ -5138,10 +5147,54 @@ body.export-rendering .cart-count{ font-size:28px; }
           ? (()=>{ const items=(r.detailRows||[]).map(d=>`${d.item}${d.qty>1?`×${d.qty}`:''}`).join('、'), points=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.point),0), weight=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.weight),0); return mode==='weight'?`${items}｜克重${fmtNum(weight)}g`:(mode==='points'?`${items}｜点数${fmtNum(points)}`:items); })()
           : (r.detailRows||[]).map(d=>mode==='weight'?`${d.item}｜克重${fmtNum(d.weight)}g`:(mode==='points'?`${d.item}｜点数${fmtNum(d.point)}`:d.item)).join('、');
         const note=detailText;
-        extraFees.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0});
+        extraFees.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:r.totalAmount||0});
       });
       clearIntlDraft(batch.id);
       saveState(); renderExtraFees(); renderDispatch(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; alert(`已生成 ${batch.people.size} 人的国际运费，请收齐后再排发。`);
+    }
+    function intlRecordFactors(rows){
+      const factors={};
+      (rows||[]).forEach(row=>(row.rawDetails||[]).forEach(d=>{
+        if(d.item&&!factors[d.item]) factors[d.item]=num(d.unitValue)||num(d.weight)||1;
+      }));
+      return factors;
+    }
+    async function recalcInternationalFees(){
+      const intlRows=extraFees.filter(row=>row.feeType==='international'&&row.batchId);
+      if(!intlRows.length){ alert('当前还没有可重算的国际运费'); return; }
+      const batches=[...new Map(intlRows.map(row=>[row.batchId,{id:row.batchId,label:`${row.batchDate||''} ${row.source||row.name||'国际运费'}`.trim()}])).values()];
+      let batchId=batches[0].id;
+      if(batches.length>1){
+        const list=batches.map((b,i)=>`${i+1}. ${b.label||b.id}`).join('\n');
+        const input=await appPrompt(`有多批国际运费，请输入要重算的序号：\n${list}`,'1','选择重算批次','继续');
+        if(input===null) return;
+        const index=Math.max(1,Math.min(batches.length,Number(input)||0))-1;
+        if(index<0||!batches[index]) return;
+        batchId=batches[index].id;
+      }
+      const oldRows=extraFees.filter(row=>row.feeType==='international'&&row.batchId===batchId);
+      const batch=internationalBatches().find(b=>b.id===batchId);
+      if(!batch){ alert('当前排单里找不到这批到货记录，无法重算。'); return; }
+      const total=oldRows.find(row=>num(row.totalAmount)>0)?.totalAmount||oldRows.reduce((sum,row)=>sum+num(row.amount),0);
+      const mode=oldRows[0]?.splitMode||'weight';
+      const billableTotalWeight=oldRows.find(row=>num(row.batchTotalWeight)>0)?.batchTotalWeight||oldRows.reduce((sum,row)=>sum+num(row.chargeWeight),0);
+      const factors=intlRecordFactors(oldRows);
+      const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors);
+      if(!built){ alert('当前排单这批国际的重量/点数合计为 0，不能重算。'); return; }
+      const oldPaidByPerson=new Map(oldRows.map(row=>[normalizeDispatchKey(row.person),{paid:row.paid===true,paidAt:row.paidAt||''}]));
+      const oldIds=new Set(oldRows.map(row=>row.id));
+      const now=new Date().toISOString(), previewMode=extraFeeViewMode==='merged'?'merged':'detail';
+      const newRows=built.rows.filter(r=>r.amount>0).map(r=>{
+        const detailText=previewMode==='merged'
+          ? (()=>{ const items=(r.detailRows||[]).map(d=>`${d.item}${d.qty>1?`×${d.qty}`:''}`).join('、'), points=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.point),0), weight=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.weight),0); return mode==='weight'?`${items}｜克重${fmtNum(weight)}g`:(mode==='points'?`${items}｜点数${fmtNum(points)}`:items); })()
+          : (r.detailRows||[]).map(d=>mode==='weight'?`${d.item}｜克重${fmtNum(d.weight)}g`:(mode==='points'?`${d.item}｜点数${fmtNum(d.point)}`:d.item)).join('、');
+        const paidState=oldPaidByPerson.get(normalizeDispatchKey(r.person))||{};
+        return {id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:detailText,items:detailText,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:paidState.paid===true,createdAt:now,paidAt:paidState.paid?paidState.paidAt||now:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total};
+      });
+      const ok=await appConfirm(`会按当前排单重新计算“${batch.date} · ${batch.sheet}”的国际运费，并覆盖原来的 ${oldRows.length} 笔记录。\n同名 CN 的已收状态会尽量保留。`,'重算国际运费','确认重算');
+      if(!ok) return;
+      extraFees=extraFees.filter(row=>!oldIds.has(row.id)).concat(newRows);
+      saveState(); renderExtraFeesKeepScroll(); renderDispatch(); alert(`已重算 ${newRows.length} 笔国际运费`);
     }
     function openExtraFeeForm(row=null){
       $('extraFeeForm').hidden=false;
@@ -5273,6 +5326,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if($('extraFeeViewMode')) $('extraFeeViewMode').value=extraFeeViewMode;
       if($('extraFeeColorInput')) $('extraFeeColorInput').value=/^#[0-9a-f]{6}$/i.test(extraFeeColor)?extraFeeColor:'#d1466a';
       if($('extraFeePaidAllBtn')) $('extraFeePaidAllBtn').textContent=extraFees.length&&extraFees.every(r=>r.paid)?'全部改为未收':'全部标记收齐'; if($('showExtraFeeTotalBtn')) $('showExtraFeeTotalBtn').textContent=extraFeeShowTotal?'隐藏总价':'显示总价'; if($('clearExtraPaymentQrBtn')) $('clearExtraPaymentQrBtn').style.display=extraPaymentQrImg?'':'none';
+      if($('recalcIntlFeesBtn')) $('recalcIntlFeesBtn').style.display=extraFees.some(row=>row.feeType==='international')?'':'none';
       if(!grouped.size){ list.innerHTML='<div class="extra-fee-empty">暂无符合条件的追加费用</div>'; return; }
       const allVisibleRows=[...grouped.values()].flat(), allPaid=allVisibleRows.length&&allVisibleRows.every(r=>r.paid), partialPaid=!allPaid&&allVisibleRows.some(r=>r.paid);
       const paidAllControl=`<button type="button" class="payment-paid-all extra-fee-person-toggle" data-extra-paid-all-table="1" aria-pressed="${allPaid?'true':(partialPaid?'mixed':'false')}" title="全选或取消当前表格的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
@@ -8054,6 +8108,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       paymentActiveTab=['goods','extra','share'].includes(button.dataset.paymentTab)?button.dataset.paymentTab:'goods'; closeExtraFeeForm(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML=''; syncPaymentControls();
     });
     $('openIntlSplitBtn').addEventListener('click',()=>{ closeExtraFeeForm(); $('intlSplitPanel').hidden=false; renderIntlBatchSelect(); $('intlSplitPanel').scrollIntoView({behavior:'smooth',block:'nearest'}); });
+    $('recalcIntlFeesBtn').addEventListener('click',recalcInternationalFees);
     $('closeIntlSplitBtn').addEventListener('click',()=>{ saveIntlDraft(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; $('intlSplitPreview').innerHTML=''; });
     $('intlBatchSelect').addEventListener('change',()=>{ applyIntlDraftForSelectedBatch(); renderIntlFactors(); });
     $('intlSplitMode').addEventListener('change',()=>{ saveIntlDraft(); renderIntlFactors(); });
