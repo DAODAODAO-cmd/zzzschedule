@@ -5480,12 +5480,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!row) return false;
       if(row.feeType==='international_refund') return true;
       if(row.feeType==='international_supplement'||row.feeType==='manual_batch') return true;
-      return /退补|退款|补款|补差|少收|追加|补收/i.test(`${row.name||''} ${row.note||''} ${row.items||''}`);
+      return /退补|退款|单人退|单人补/i.test(`${row.name||''} ${row.note||''} ${row.items||''}`);
     }
     function isExtraFeeSupplement(row){
       if(!row||row.feeType==='international_refund') return false;
-      if(row.feeType==='international_supplement'||row.feeType==='manual_batch') return true;
-      return /补款|补差|少收|追加|补收/i.test(`${row.name||''} ${row.note||''} ${row.items||''}`);
+      if(row.feeType==='manual_batch') return true;
+      return /补充费用|材料费|手续费差额|临时补收/i.test(`${row.name||''} ${row.note||''} ${row.items||''}`);
     }
     function renderExtraFeeBatchSelect(){
       const select=$('extraFeeBatchSelect'); if(!select) return;
