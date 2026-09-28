@@ -5242,7 +5242,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const oldRows=extraFees.filter(row=>row.feeType==='international'&&extraFeeArrivalBatchId(row)===batchId);
       const batch=internationalBatches().find(b=>b.id===batchId);
       if(!batch){ alert('当前排单里找不到这批到货记录，无法重算。'); return; }
-      const oldTotal=oldRows.find(row=>num(row.totalAmount)>0)?.totalAmount||oldRows.reduce((sum,row)=>sum+num(row.amount),0);
+      const oldTotal=oldRows.find(row=>num(row.totalAmount)>0)?.totalAmount||oldRows.reduce((sum,row)=>sum+Math.max(0,num(row.amount)),0);
       const mode=oldRows[0]?.splitMode||'weight';
       const oldBillableTotalWeight=oldRows.find(row=>num(row.batchTotalWeight)>0)?.batchTotalWeight||oldRows.reduce((sum,row)=>sum+num(row.chargeWeight),0);
       const factors=intlRecordFactors(oldRows);
@@ -5575,6 +5575,26 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       return [...groups.values()].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
     }
+    function extraFeeAdjustmentDisplayGroups(rows){
+      const signed=rows.reduce((sum,row)=>sum+extraFeeSignedAmount(row),0);
+      if(Math.abs(signed)<0.01) return [];
+      const isRefund=signed<0, amount=ceilMoneyValue(Math.abs(signed));
+      const createdAt=rows.reduce((latest,row)=>String(latest||'')>String(row.createdAt||'')?latest:String(row.createdAt||''),'');
+      const goodsTexts=[''];
+      const sourceTexts=[...new Set(rows.map(compactExtraFeeSourceText).filter(Boolean))];
+      return [{
+        rows,
+        ids:rows.map(row=>row.id),
+        name:isRefund?'退补合计（退款）':'退补合计（补款）',
+        sourceTexts,
+        paid:rows.length&&rows.every(row=>row.paid),
+        createdAt,
+        amount,
+        isRefund,
+        goodsTexts,
+        goodsCount:rows.length
+      }];
+    }
     function extraFeeIntlParts(rows){
       const intlRows=(rows||[]).filter(row=>row&&row.feeType==='international'&&Array.isArray(row.rawDetails)&&row.rawDetails.length);
       if(!intlRows.length) return null;
@@ -5633,7 +5653,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       let alipayTotal=0;
       const body=[...grouped.entries()].sort((a,b)=>a[0].localeCompare(b[0],'zh-CN')).map(([person,rows])=>{
         rows.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-        const displayRows=extraFeeDisplayGroups(rows), personPaid=rows.length&&rows.every(r=>r.paid), rowSpan=displayRows.length;
+        const displayRows=extraFeeFilter==='adjustment'?extraFeeAdjustmentDisplayGroups(rows):extraFeeDisplayGroups(rows), personPaid=rows.length&&rows.every(r=>r.paid), rowSpan=displayRows.length;
         return displayRows.map((g,index)=>{
           const intlParts=extraFeeIntlParts(g.rows||[]);
           const amount=ceilMoneyValue(g.amount), signedAmount=g.isRefund?-amount:amount, wechat=g.isRefund?amount:extraFeeWechatAmount(amount), goodsText=intlParts?intlParts.goodsHtml:(g.goodsTexts||[]).join('、'), goodsCount=intlParts?intlParts.count:Math.max(1,Number(g.goodsCount)||1);
@@ -5648,7 +5668,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const qrHtml=extraPaymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(extraPaymentQrImg)}" alt="追加费用收款码"></div>`:'';
       const color=/^#[0-9a-f]{6}$/i.test(extraFeeColor)?extraFeeColor:'#d1466a';
       const totalWechat=alipayTotal<0?alipayTotal:extraFeeWechatAmount(alipayTotal);
-      list.innerHTML=`<div class="payment-table-wrap"><div id="extraFeeExportTitle" class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(extraFeeTitle||'追加费用收款')}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>${paidAllControl} CN</th><th>谷类</th><th>数量</th><th>g重</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody>${extraFeeShowTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">追加费用总价</td><td class="payment-total-value">${moneyText(alipayTotal)}</td><td class="payment-total-value">${moneyText(totalWechat)}</td></tr></tfoot>`:''}</table>${qrHtml}</div>`;
+      list.innerHTML=`<div class="payment-table-wrap"><div id="extraFeeExportTitle" class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(extraFeeTitle||'追加费用收款')}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>${paidAllControl} CN</th><th>谷类</th><th>数量</th><th>g重</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody>${extraFeeShowTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">当前显示合计</td><td class="payment-total-value">${moneyText(alipayTotal)}</td><td class="payment-total-value">${moneyText(totalWechat)}</td></tr></tfoot>`:''}</table>${qrHtml}</div>`;
     }
     async function archiveCurrentExtraFees(){
       const rows=visibleExtraFees();
