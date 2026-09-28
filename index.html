@@ -640,7 +640,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
       <div class="extra-fee-head">
         <div><strong>追加费用收款</strong><span>按到货批次分摊和收取费用。</span></div>
-        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="addExtraFeeBtn">＋ 手动追加</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
+        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="addExtraFeeBtn">＋ 表级追加</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
       </div>
       <div class="extra-archive-tools">
         <button type="button" class="btn-primary" id="archiveExtraFeesBtn">存档当前追加</button>
@@ -5215,27 +5215,79 @@ body.export-rendering .cart-count{ font-size:28px; }
       const oldRows=extraFees.filter(row=>row.feeType==='international'&&extraFeeArrivalBatchId(row)===batchId);
       const batch=internationalBatches().find(b=>b.id===batchId);
       if(!batch){ alert('当前排单里找不到这批到货记录，无法重算。'); return; }
-      const total=oldRows.find(row=>num(row.totalAmount)>0)?.totalAmount||oldRows.reduce((sum,row)=>sum+num(row.amount),0);
+      const oldTotal=oldRows.find(row=>num(row.totalAmount)>0)?.totalAmount||oldRows.reduce((sum,row)=>sum+num(row.amount),0);
       const mode=oldRows[0]?.splitMode||'weight';
-      const billableTotalWeight=oldRows.find(row=>num(row.batchTotalWeight)>0)?.batchTotalWeight||oldRows.reduce((sum,row)=>sum+num(row.chargeWeight),0);
+      const oldBillableTotalWeight=oldRows.find(row=>num(row.batchTotalWeight)>0)?.batchTotalWeight||oldRows.reduce((sum,row)=>sum+num(row.chargeWeight),0);
       const factors=intlRecordFactors(oldRows);
+      const totalInput=await appPrompt(`修改“${batch.date} · ${batch.sheet}”的本批国际总价。\n如果只是改克重/总重，总价保持原数即可。`,fmtNum(oldTotal),'重算国际总价','继续');
+      if(totalInput===null) return;
+      const total=Math.max(0,num(String(totalInput).trim()===''?oldTotal:totalInput));
+      if(!total){ alert('本批国际总价必须大于 0'); return; }
+      let billableTotalWeight=oldBillableTotalWeight;
+      if(mode==='weight'){
+        const weightInput=await appPrompt('修改整箱总重 / 计费总重（g）。\n这里填的是整箱国际计费重量，不是商品净重；包装重量会按个人商品净重比例均进去。',fmtNum(oldBillableTotalWeight||0),'重算整箱总重','继续');
+        if(weightInput===null) return;
+        billableTotalWeight=Math.max(0,num(String(weightInput).trim()===''?oldBillableTotalWeight:weightInput));
+      }
+      if(mode!=='head'){
+        const label=mode==='weight'?'克重(g)':'点数';
+        const shouldEditFactors=await appConfirm(`要逐项修改每个谷子的${label}吗？\n如果只是改总价/整箱总重，可以跳过。`,'修改分摊依据','逐项修改','跳过');
+        if(shouldEditFactors){
+          const itemNames=[...batch.items.keys()].sort((a,b)=>String(a).localeCompare(String(b),'zh-CN'));
+          for(const item of itemNames){
+            const previous=Math.max(0,num(factors[item]||0))||1;
+            const input=await appPrompt(`填写「${item}」的${label}。`,fmtNum(previous),`修改${label}`,'下一项');
+            if(input===null) return;
+            const value=Math.max(0,num(String(input).trim()===''?previous:input));
+            factors[item]=value;
+          }
+        }
+      }
       const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors);
       if(!built){ alert('当前排单这批国际的重量/点数合计为 0，不能重算。'); return; }
-      const oldPaidByPerson=new Map(oldRows.map(row=>[normalizeDispatchKey(row.person),{paid:row.paid===true,paidAt:row.paidAt||''}]));
+      const oldPaidByPerson=new Map();
+      oldRows.forEach(row=>{
+        const key=normalizeDispatchKey(row.person);
+        if(!key) return;
+        if(!oldPaidByPerson.has(key)) oldPaidByPerson.set(key,{person:row.person,paid:false,paidAt:'',amount:0});
+        const entry=oldPaidByPerson.get(key);
+        entry.person=row.person||entry.person;
+        entry.amount+=Math.max(0,num(row.amount));
+        if(row.paid===true){ entry.paid=true; entry.paidAt=row.paidAt||entry.paidAt||''; }
+      });
       const oldIds=new Set(oldRows.map(row=>row.id));
       const now=new Date().toISOString(), previewMode=extraFeeViewMode==='merged'?'merged':'detail';
+      const adjustmentRows=[];
+      const newPersonKeys=new Set();
       const newRows=built.rows.filter(r=>r.amount>0).map(r=>{
+        newPersonKeys.add(normalizeDispatchKey(r.person));
         const detailText=previewMode==='merged'
           ? (()=>{ const items=(r.detailRows||[]).map(d=>`${d.item}${d.qty>1?`×${d.qty}`:''}`).join('、'), points=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.point),0), weight=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.weight),0); return mode==='weight'?`${items}｜克重${fmtNum(weight)}g`:(mode==='points'?`${items}｜点数${fmtNum(points)}`:items); })()
           : (r.detailRows||[]).map(d=>mode==='weight'?`${d.item}｜克重${fmtNum(d.weight)}g`:(mode==='points'?`${d.item}｜点数${fmtNum(d.point)}`:d.item)).join('、');
         const paidState=oldPaidByPerson.get(normalizeDispatchKey(r.person))||{};
-        return {id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:detailText,items:detailText,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:paidState.paid===true,createdAt:now,paidAt:paidState.paid?paidState.paidAt||now:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total};
+        const diff=ceilMoneyValue(num(r.amount)-num(paidState.amount||0));
+        if(paidState.paid===true&&Math.abs(diff)>=0.01){
+          const isRefund=diff<0, amount=ceilMoneyValue(Math.abs(diff));
+          const note=`原已收 ${moneyText(paidState.amount||0)} → 重算后 ${moneyText(r.amount)}；${isRefund?'需退':'需补'} ${moneyText(amount)}。`;
+          adjustmentRows.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际${isRefund?'退款':'补款'}`,amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:[],period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:isRefund?'international_refund':'international_supplement',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:'detail',chargeWeight:0,goodsWeight:0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total});
+        }
+        const keepPaid=paidState.paid===true&&Math.abs(diff)<0.01;
+        return {id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:detailText,items:detailText,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:keepPaid,createdAt:now,paidAt:keepPaid?paidState.paidAt||now:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total};
       });
-      const ok=await appConfirm(`会按当前排单重新计算“${batch.date} · ${batch.sheet}”的国际运费，并覆盖原来的 ${oldRows.length} 笔记录。\n同名 CN 的已收状态会尽量保留。`,'重算国际运费','确认重算');
+      oldPaidByPerson.forEach((paidState,key)=>{
+        if(!paidState.paid||newPersonKeys.has(key)||!num(paidState.amount)) return;
+        const amount=ceilMoneyValue(paidState.amount);
+        const note=`原已收 ${moneyText(amount)} → 重算后没有本批谷子；需退 ${moneyText(amount)}。`;
+        adjustmentRows.push({id:extraFeeIdSeed++,person:paidState.person||key,name:`${batch.date} 国际退款`,amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:[],period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international_refund',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:'detail',chargeWeight:0,goodsWeight:0,batchGoodsWeight:built.basisTotal||0,batchTotalWeight:built.chargeTotal||0,totalAmount:total});
+      });
+      const supplementCount=adjustmentRows.filter(row=>row.feeType==='international_supplement').length;
+      const refundCount=adjustmentRows.filter(row=>row.feeType==='international_refund').length;
+      const adjustmentText=adjustmentRows.length?`\n已收过但金额变化的 CN，会额外新增：补款 ${supplementCount} 笔、退款 ${refundCount} 笔。`:'';
+      const ok=await appConfirm(`会按当前排单重新计算“${batch.date} · ${batch.sheet}”的国际运费，并覆盖原来的 ${oldRows.length} 笔记录。\n本批总价：${money(total)}${mode==='weight'?`；整箱总重：${fmtNum(billableTotalWeight)}g`:''}${adjustmentText}\n金额没变的同名 CN 会保留已收状态。`,'重算国际运费','确认覆盖');
       if(!ok) return;
-      extraFees=extraFees.filter(row=>!oldIds.has(row.id)).concat(newRows);
+      extraFees=extraFees.filter(row=>!oldIds.has(row.id)).concat(newRows,adjustmentRows);
       extraFeeBatchFilter=batch.id;
-      saveState(); renderExtraFeesKeepScroll(); renderDispatch(); alert(`已重算 ${newRows.length} 笔国际运费`);
+      saveState(); renderExtraFeesKeepScroll(); renderDispatch(); alert(`已重算 ${newRows.length} 笔国际运费${adjustmentRows.length?`，并生成补/退款 ${adjustmentRows.length} 笔`:''}`);
     }
     function extraFeeSignedAmount(row){
       const amount=Math.max(0,num(row?.amount));
@@ -5316,6 +5368,47 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('saveExtraFeeBtn').textContent=row?'保存修改':'保存'; setTimeout(()=>$('extraFeePerson').focus(),0);
     }
     function closeExtraFeeForm(){ $('extraFeeForm').hidden=true; ['extraFeeEditId','extraFeePerson','extraFeeName','extraFeeAmount','extraFeeSource','extraFeeNote'].forEach(id=>$(id).value=''); }
+    function extraFeeBatchPeople(batchId){
+      const normalized=normalizeArrivalBatchId(batchId);
+      const people=new Map();
+      extraFees.forEach(row=>{
+        if(extraFeeArrivalBatchId(row)!==normalized) return;
+        const key=normalizeDispatchKey(row.person);
+        if(key&&!people.has(key)) people.set(key,{key,name:row.person});
+      });
+      const batch=internationalBatches().find(b=>b.id===normalized);
+      if(batch) [...batch.people.values()].forEach(person=>{ if(person.key&&!people.has(person.key)) people.set(person.key,{key:person.key,name:person.name}); });
+      return [...people.values()].filter(p=>String(p.name||'').trim()).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-CN'));
+    }
+    async function addBatchManualExtraFee(){
+      closeExtraFeeForm(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML='';
+      let batchId=extraFeeBatchFilter&&extraFeeBatchFilter!=='all'?extraFeeBatchFilter:'';
+      const batches=[...new Map([...internationalBatches().map(b=>[b.id,{id:b.id,label:`${b.date} 到货 · ${b.sheet||'多排单'}`}]),...extraFees.map(row=>[extraFeeArrivalBatchId(row),{id:extraFeeArrivalBatchId(row),label:`${row.batchDate||extraFeeVisibleDate(row)||extraFeeArrivalBatchId(row).replace(/^arrival:/,'')} 到货`}])])].map(([,v])=>v).filter(b=>b.id);
+      if(!batchId){
+        if(batches.length===1) batchId=batches[0].id;
+        else{
+          alert('请先在“到货批次”里选中要追加的那一张表。手动追加现在是按当前表全员分摊，不再针对单个人。');
+          return;
+        }
+      }
+      const people=extraFeeBatchPeople(batchId);
+      if(!people.length){ alert('当前到货批次里还没有可分摊的人。请先生成国际或选择有记录的批次。'); return; }
+      const name=String(await appPrompt('这笔公共追加叫什么？例如：国际补款、材料费、少收补款','公共追加','表级追加','继续')||'').trim();
+      if(!name) return;
+      const totalInput=await appPrompt(`填写这张表要追加的总金额。\n会自动分给当前批次 ${people.length} 个 CN。`,'','表级追加总额','生成');
+      if(totalInput===null) return;
+      const total=Math.max(0,num(totalInput));
+      if(!total){ alert('追加总金额必须大于 0'); return; }
+      const noteInput=await appPrompt('备注/原因（可留空）',`公共追加总额 ${moneyText(total)}；${people.length} 人平摊`,'追加备注','确认');
+      if(noteInput===null) return;
+      const batch=internationalBatches().find(b=>b.id===normalizeArrivalBatchId(batchId));
+      const date=batch?.date||batchId.replace(/^arrival:/,''), source=batch?`${batch.sheet} · ${batch.date}`:date;
+      const per=ceilMoneyValue(total/people.length), now=new Date().toISOString();
+      const note=String(noteInput||'').trim()||`公共追加总额 ${moneyText(total)}；${people.length} 人平摊，每人 ${moneyText(per)}`;
+      people.forEach(person=>extraFees.push({id:extraFeeIdSeed++,person:person.name,name,amount:per,source,note,items:note,rawDetails:[],period:batch?.sheet||source,paid:false,createdAt:now,paidAt:'',feeType:'manual_batch',batchId:normalizeArrivalBatchId(batchId),splitMode:'head',batchDate:date,sheetId:batch?.sheetId||0,displayMode:'detail',chargeWeight:0,goodsWeight:0,batchGoodsWeight:0,batchTotalWeight:0,totalAmount:total}));
+      extraFeeBatchFilter=normalizeArrivalBatchId(batchId);
+      saveState(); renderExtraFeesKeepScroll(); renderDispatch(); alert(`已把「${name}」追加到当前表：${people.length} 人，每人 ${moneyText(per)}。`);
+    }
     function visibleExtraFees(){
       const q=String($('extraFeeSearchInput')?.value||'').trim().toLowerCase();
       return extraFees.filter(row=>(extraFeeFilter==='all'||(extraFeeFilter==='paid')===row.paid)&&(extraFeeBatchFilter==='all'||extraFeeArrivalBatchId(row)===extraFeeBatchFilter)&&(!q||[row.person,row.name,row.source,row.note,row.items].some(v=>String(v||'').toLowerCase().includes(q))));
@@ -8294,7 +8387,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(e.target.matches('#intlTotalAmount,#intlPackagingAmount,[data-intl-factor]')){ saveIntlDraft(); scheduleIntlSplitCalculation(); }
     });
     const addExtraFeeButton=document.getElementById('addExtraFeeBtn');
-    if(addExtraFeeButton) addExtraFeeButton.addEventListener('click',()=>{ $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; $('intlSplitPreview').innerHTML=''; if($('extraFeeForm').hidden) openExtraFeeForm(); else closeExtraFeeForm(); });
+    if(addExtraFeeButton) addExtraFeeButton.addEventListener('click',addBatchManualExtraFee);
     $('cancelExtraFeeBtn').addEventListener('click',closeExtraFeeForm);
     $('saveExtraFeeBtn').addEventListener('click',()=>{
       const id=Number($('extraFeeEditId').value)||0, person=$('extraFeePerson').value.trim(), name=$('extraFeeName').value.trim(), amount=Math.max(0,num($('extraFeeAmount').value));
