@@ -640,7 +640,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
       <div class="extra-fee-head">
         <div><strong>追加费用收款</strong><span>按到货批次分摊和收取费用。</span></div>
-        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="addExtraFeeBtn">＋ 补充费用</button><button type="button" class="btn-ghost" id="addSingleAdjustmentBtn">＋ 单人退补</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
+        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="addSingleAdjustmentBtn">＋ 单人退补</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
       </div>
       <div class="extra-archive-tools">
         <button type="button" class="btn-primary" id="archiveExtraFeesBtn">存档当前追加</button>
@@ -675,12 +675,12 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <label>到货批次 <select id="extraFeeBatchSelect"><option value="all">全部到货批次</option></select></label>
       </div>
       <div class="payment-search-tools"><input id="extraFeeSearchInput" type="text" placeholder="搜索 CN、费用名称或批次"><button type="button" class="btn-ghost" id="extraFeeSearchBtn">查找</button><span class="extra-fee-summary" id="extraFeeSummary"></span></div>
-      <div class="extra-fee-filter"><button type="button" class="active" data-extra-filter="all">全部</button><button type="button" data-extra-filter="adjustment">退补</button><button type="button" data-extra-filter="supplement">补充</button><button type="button" data-extra-filter="unpaid">未收</button><button type="button" data-extra-filter="paid">已收</button></div>
+      <div class="extra-fee-filter"><button type="button" class="active" data-extra-filter="all">全部</button><button type="button" data-extra-filter="adjustment">退补</button><button type="button" data-extra-filter="unpaid">未收</button><button type="button" data-extra-filter="paid">已收</button></div>
       <div id="extraFeeExportWrap" class="extra-fee-export-wrap">
         <div id="extraFeeList" class="extra-fee-list"></div>
         <div id="extraFeeExportQr" class="payment-code-export" style="display:none;"><img id="extraFeeQrImage" crossorigin="anonymous" alt="收款码"></div>
       </div>
-      <div class="toolbar"><button type="button" class="btn-ghost" id="extraFeePaidAllBtn">全部标记收齐</button><button type="button" class="btn-ghost" id="showExtraFeeTotalBtn">隐藏总价</button><button type="button" class="btn-ghost" id="exportExtraFeeBtn">导出收款图</button><button type="button" class="btn-ghost" id="exportExtraFeeAdjustmentBtn">导出退补图</button><button type="button" class="btn-ghost" id="exportExtraFeeSupplementBtn">导出补充图</button><button type="button" class="btn-ghost" id="exportExtraFeeUnpaidBtn">导出未收图</button><button type="button" class="btn-ghost" id="exportExtraFeeExcelBtn">导出 Excel</button><button type="button" class="btn-ghost" id="copyExtraFeeBtn">复制表格</button><label class="extra-clear-control">清空范围 <select id="extraFeeClearScope"><option value="visible">当前显示</option><option value="unpaid">全部未收</option><option value="paid">全部已收</option><option value="all">全部追加费用</option></select></label><button type="button" class="btn-danger" id="clearExtraFeesBtn">清空表</button></div>
+      <div class="toolbar"><button type="button" class="btn-ghost" id="extraFeePaidAllBtn">全部标记收齐</button><button type="button" class="btn-ghost" id="showExtraFeeTotalBtn">隐藏总价</button><button type="button" class="btn-ghost" id="exportExtraFeeBtn">导出收款图</button><button type="button" class="btn-ghost" id="exportExtraFeeAdjustmentBtn">导出退补图</button><button type="button" class="btn-ghost" id="exportExtraFeeUnpaidBtn">导出未收图</button><button type="button" class="btn-ghost" id="exportExtraFeeExcelBtn">导出 Excel</button><button type="button" class="btn-ghost" id="copyExtraFeeBtn">复制表格</button><label class="extra-clear-control">清空范围 <select id="extraFeeClearScope"><option value="visible">当前显示</option><option value="unpaid">全部未收</option><option value="paid">全部已收</option><option value="all">全部追加费用</option></select></label><button type="button" class="btn-danger" id="clearExtraFeesBtn">清空表</button></div>
     </div>
     <div id="sharePaymentView" style="display:none;">
       <div class="payment-heading-tools">
@@ -1199,7 +1199,7 @@ html{ scrollbar-gutter:stable; }
 .payment-tab{ flex:1; padding:8px 12px; border:0; border-radius:8px; background:transparent; color:var(--muted); font-weight:850; cursor:pointer; }
 .payment-tab.active{ background:#fff; color:var(--accent); box-shadow:0 1px 5px rgba(75,45,61,.12); }
 
-.extra-payment-heading-tools{grid-template-columns:minmax(180px,1fr) auto auto;margin-bottom:10px}.extra-payment-qr-tools{margin-bottom:10px}.extra-fee-export-wrap{margin-top:10px;background:#fff}.extra-fee-export-wrap .payment-table-wrap{max-height:640px;overflow:auto}.extra-fee-payment-table{min-width:760px}.extra-fee-payment-table th:first-child{width:112px}.extra-fee-payment-table th.extra-manage-col{width:26px}.extra-fee-payment-table td.extra-fee-detail-cell{text-align:center}.extra-fee-payment-table .extra-fee-person-control{display:flex;align-items:center;gap:5px;justify-content:flex-start}.extra-fee-payment-table .extra-fee-person-toggle{display:inline-grid;width:18px;height:18px;padding:0!important;place-items:center;border:1px solid #83c49a!important;border-radius:5px!important;background:#effaf2!important;color:#1f8d4b!important;font-size:12px!important;font-weight:900!important;flex:0 0 auto}.extra-fee-payment-table .extra-fee-person-name{min-width:0;font-weight:900}.extra-fee-payment-table .extra-fee-count{font-weight:900}.extra-fee-payment-table .extra-fee-money{color:#16703a;font-weight:900;white-space:nowrap}.extra-fee-payment-table tr.payment-paid-row td{background:#dff4e6}.extra-fee-payment-table .extra-fee-actions{width:26px;padding:2px!important;white-space:nowrap}.extra-fee-payment-table .extra-fee-actions button{width:18px;height:18px;padding:0!important;border-radius:999px!important;font-size:12px!important;line-height:1!important;color:#c64d68!important;background:#fff7fa!important;border-color:#f2bdca!important}.extra-fee-main-line{font-weight:900;color:var(--text)}.extra-fee-sub-line,.extra-fee-source-line{margin-top:2px;color:#287247;font-size:11px;font-weight:800;line-height:1.35}.extra-fee-source-line{color:var(--muted);font-size:10px;font-weight:750}.extra-fee-weight-cell{min-width:70px;color:#287247!important;vertical-align:middle}.extra-intl-line{display:block;min-height:16px;line-height:1.35}.extra-intl-total-line{margin-top:4px;padding-top:3px;border-top:1px dashed #cfe3d4;color:#8a6a15;font-size:10px}.extra-fee-editable{display:block;min-height:15px;border-radius:5px;padding:1px 2px}.extra-fee-editable:empty:before{content:attr(data-placeholder);color:#b6aabb}.extra-fee-editable[contenteditable=true]:focus{outline:none;background:#fff7fa;box-shadow:inset 0 0 0 2px var(--accent)}.extra-exporting .extra-manage-col,.extra-exporting .extra-fee-person-toggle,.extra-exporting .extra-fee-source-line:empty,.extra-exporting .extra-intl-total-line{display:none!important}.extra-exporting .payment-table-wrap{max-height:none!important;overflow:visible!important}.extra-exporting .extra-fee-payment-table{min-width:0}.extra-exporting{padding-bottom:0}.extra-fee-list .extra-fee-empty{padding:20px;text-align:center;color:var(--muted)}
+.extra-payment-heading-tools{grid-template-columns:minmax(180px,1fr) auto auto;margin-bottom:10px}.extra-payment-qr-tools{margin-bottom:10px}.extra-fee-export-wrap{margin-top:10px;background:#fff}.extra-fee-export-wrap .payment-table-wrap{max-height:640px;overflow:auto;overflow-anchor:none}.extra-fee-payment-table{min-width:760px}.extra-fee-payment-table th:first-child{width:112px}.extra-fee-payment-table th.extra-manage-col{width:26px}.extra-fee-payment-table td.extra-fee-detail-cell{text-align:center}.extra-fee-payment-table .extra-fee-person-control{display:flex;align-items:center;gap:5px;justify-content:flex-start}.extra-fee-payment-table .extra-fee-person-toggle{display:inline-grid;width:18px;height:18px;padding:0!important;place-items:center;border:1px solid #83c49a!important;border-radius:5px!important;background:#effaf2!important;color:#1f8d4b!important;font-size:12px!important;font-weight:900!important;flex:0 0 auto}.extra-fee-payment-table .extra-fee-person-name{min-width:0;font-weight:900}.extra-fee-payment-table .extra-fee-count{font-weight:900}.extra-fee-payment-table .extra-fee-money{color:#16703a;font-weight:900;white-space:nowrap}.extra-fee-payment-table tr.payment-paid-row td{background:#dff4e6}.extra-fee-payment-table .extra-fee-actions{width:26px;padding:2px!important;white-space:nowrap}.extra-fee-payment-table .extra-fee-actions button{width:18px;height:18px;padding:0!important;border-radius:999px!important;font-size:12px!important;line-height:1!important;color:#c64d68!important;background:#fff7fa!important;border-color:#f2bdca!important}.extra-fee-main-line{font-weight:900;color:var(--text)}.extra-fee-sub-line,.extra-fee-source-line{margin-top:2px;color:#287247;font-size:11px;font-weight:800;line-height:1.35}.extra-fee-source-line{color:var(--muted);font-size:10px;font-weight:750}.extra-fee-weight-cell{min-width:70px;color:#287247!important;vertical-align:middle}.extra-intl-line{display:block;min-height:16px;line-height:1.35}.extra-intl-total-line{margin-top:4px;padding-top:3px;border-top:1px dashed #cfe3d4;color:#8a6a15;font-size:10px}.extra-fee-editable{display:block;min-height:15px;border-radius:5px;padding:1px 2px}.extra-fee-editable:empty:before{content:attr(data-placeholder);color:#b6aabb}.extra-fee-editable[contenteditable=true]:focus{outline:none;background:#fff7fa;box-shadow:inset 0 0 0 2px var(--accent)}.extra-exporting .extra-manage-col,.extra-exporting .extra-fee-person-toggle,.extra-exporting .extra-fee-source-line:empty,.extra-exporting .extra-intl-total-line{display:none!important}.extra-exporting .payment-table-wrap{max-height:none!important;overflow:visible!important}.extra-exporting .extra-fee-payment-table{min-width:0}.extra-exporting{padding-bottom:0}.extra-fee-list .extra-fee-empty{padding:20px;text-align:center;color:var(--muted)}
 .extra-clear-control{display:inline-flex!important;align-items:center;gap:6px;margin:0!important;padding:0 2px;color:var(--muted);font-size:11px!important;font-weight:800;white-space:nowrap}.extra-clear-control select{width:auto!important;min-width:112px;padding:7px 28px 7px 9px!important;background:#fff!important}.toolbar #clearExtraFeesBtn{margin-left:0}@media(max-width:620px){.extra-clear-control{width:auto}.extra-clear-control select{min-width:104px;font-size:11px!important}}
 @media(max-width:620px){.extra-payment-heading-tools{grid-template-columns:minmax(0,1fr) auto}}
 .extra-archive-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 10px}.extra-archive-tools select{width:auto;min-width:180px}.extra-archive-tools button{padding:7px 10px;font-size:11px}
@@ -5471,8 +5471,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const filterOk=extraFeeFilter==='all'
           ||(extraFeeFilter==='paid'&&row.paid===true)
           ||(extraFeeFilter==='unpaid'&&row.paid!==true)
-          ||(extraFeeFilter==='adjustment'&&isExtraFeeAdjustment(row))
-          ||(extraFeeFilter==='supplement'&&isExtraFeeSupplement(row));
+          ||(extraFeeFilter==='adjustment'&&isExtraFeeAdjustment(row));
         return filterOk&&(extraFeeBatchFilter==='all'||extraFeeArrivalBatchId(row)===extraFeeBatchFilter)&&(!q||[row.person,row.name,row.source,row.note,row.items].some(v=>String(v||'').toLowerCase().includes(q)));
       });
     }
@@ -5481,11 +5480,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(row.feeType==='international_refund') return true;
       if(row.feeType==='international_supplement'||row.feeType==='manual_batch') return true;
       return /退补|退款|单人退|单人补/i.test(`${row.name||''} ${row.note||''} ${row.items||''}`);
-    }
-    function isExtraFeeSupplement(row){
-      if(!row||row.feeType==='international_refund') return false;
-      if(row.feeType==='manual_batch') return true;
-      return /补充费用|材料费|手续费差额|临时补收/i.test(`${row.name||''} ${row.note||''} ${row.items||''}`);
     }
     function renderExtraFeeBatchSelect(){
       const select=$('extraFeeBatchSelect'); if(!select) return;
@@ -5707,9 +5701,18 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function captureExtraFeeScroll(){
       const scroller=$('extraFeeList')?.querySelector('.payment-table-wrap'), main=document.querySelector('.app-main');
+      let anchorId='', anchorOffset=0;
+      if(scroller){
+        const rows=[...scroller.querySelectorAll('tbody tr[data-extra-ids]')];
+        const top=scroller.getBoundingClientRect().top;
+        const anchor=rows.find(row=>row.getBoundingClientRect().bottom>=top+8)||rows[0];
+        if(anchor){ anchorId=anchor.dataset.extraIds||''; anchorOffset=anchor.getBoundingClientRect().top-top; }
+      }
       return {
         tableTop:scroller?scroller.scrollTop:0,
         tableLeft:scroller?scroller.scrollLeft:0,
+        anchorId,
+        anchorOffset,
         windowX:window.scrollX||window.pageXOffset||0,
         windowY:window.scrollY||window.pageYOffset||document.documentElement.scrollTop||document.body.scrollTop||0,
         mainTop:main?main.scrollTop:0,
@@ -5720,29 +5723,39 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!pos) return;
       const scroller=$('extraFeeList')?.querySelector('.payment-table-wrap'), main=document.querySelector('.app-main');
       if(scroller){ scroller.scrollTop=pos.tableTop||0; scroller.scrollLeft=pos.tableLeft||0; }
+      if(scroller&&pos.anchorId){
+        const esc=window.CSS&&CSS.escape?CSS.escape(pos.anchorId):String(pos.anchorId).replace(/"/g,'\\"');
+        const anchor=scroller.querySelector(`tbody tr[data-extra-ids="${esc}"]`);
+        if(anchor&&Math.abs((scroller.scrollTop||0)-(pos.tableTop||0))>2){
+          scroller.scrollTop+=anchor.getBoundingClientRect().top-scroller.getBoundingClientRect().top-(pos.anchorOffset||0);
+        }
+      }
       if(main){ main.scrollTop=pos.mainTop||0; main.scrollLeft=pos.mainLeft||0; }
       window.scrollTo(pos.windowX||0,pos.windowY||0);
     }
-    function renderExtraFeesKeepScroll(){
-      const pos=captureExtraFeeScroll();
+    function renderExtraFeesKeepScroll(pos=null){
+      pos=pos||captureExtraFeeScroll();
       renderExtraFees();
       restoreExtraFeeScroll(pos);
-      requestAnimationFrame(()=>restoreExtraFeeScroll(pos));
+      requestAnimationFrame(()=>{ restoreExtraFeeScroll(pos); requestAnimationFrame(()=>restoreExtraFeeScroll(pos)); });
       setTimeout(()=>restoreExtraFeeScroll(pos),0);
+      setTimeout(()=>restoreExtraFeeScroll(pos),80);
     }
     function setExtraFeesPaid(rows,paid){
+      const pos=captureExtraFeeScroll();
+      if(document.activeElement&&$('extraFeeList')?.contains(document.activeElement)) document.activeElement.blur();
       const now=new Date().toISOString(); (rows||[]).forEach(row=>{ row.paid=!!paid; row.paidAt=paid?now:''; });
-      saveState(); renderExtraFeesKeepScroll(); renderDispatch();
+      saveState(); renderExtraFeesKeepScroll(pos); renderDispatch();
     }
     function exportExtraFeeImage(filter='all'){
       if(typeof html2canvas==='undefined'||!extraFees.length){ alert('还没有追加费用数据'); return; }
-      const previousFilter=extraFeeFilter, previousSearch=$('extraFeeSearchInput').value;
+      const pos=captureExtraFeeScroll(), previousFilter=extraFeeFilter, previousSearch=$('extraFeeSearchInput').value;
       extraFeeFilter=filter; $('extraFeeSearchInput').value=''; renderExtraFees();
       const wrap=$('extraFeeExportWrap'); wrap.classList.add('extra-exporting');
       const width=Math.max(760,wrap.scrollWidth), name=(extraFeeTitle||'追加费用收款').replace(/[\\/:*?"<>|]/g,' ').trim()||'追加费用收款';
       const suffix=filter==='unpaid'?'_未收':(filter==='adjustment'?'_退补':(filter==='supplement'?'_补充':''));
       requestAnimationFrame(()=>renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+suffix+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
-        wrap.classList.remove('extra-exporting'); extraFeeFilter=previousFilter; $('extraFeeSearchInput').value=previousSearch; renderExtraFees();
+        wrap.classList.remove('extra-exporting'); extraFeeFilter=previousFilter; $('extraFeeSearchInput').value=previousSearch; renderExtraFees(); restoreExtraFeeScroll(pos); requestAnimationFrame(()=>restoreExtraFeeScroll(pos)); setTimeout(()=>restoreExtraFeeScroll(pos),80);
       }));
     }
 
@@ -8481,8 +8494,6 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('intlSplitPanel').addEventListener('input',e=>{
       if(e.target.matches('#intlTotalAmount,#intlPackagingAmount,[data-intl-factor]')){ saveIntlDraft(); scheduleIntlSplitCalculation(); }
     });
-    const addExtraFeeButton=document.getElementById('addExtraFeeBtn');
-    if(addExtraFeeButton) addExtraFeeButton.addEventListener('click',addBatchManualExtraFee);
     const addSingleAdjustmentButton=document.getElementById('addSingleAdjustmentBtn');
     if(addSingleAdjustmentButton) addSingleAdjustmentButton.addEventListener('click',()=>{ $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML=''; openExtraFeeForm({name:'单人补款',feeType:'international_supplement',batchId:extraFeeBatchFilter&&extraFeeBatchFilter!=='all'?extraFeeBatchFilter:''}); });
     $('cancelExtraFeeBtn').addEventListener('click',closeExtraFeeForm);
@@ -8513,7 +8524,6 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('extraFeePaidAllBtn').addEventListener('click',()=>{ const rows=visibleExtraFees(); if(!rows.length) return; const allPaid=rows.every(r=>r.paid); setExtraFeesPaid(rows,!allPaid); });
     $('exportExtraFeeBtn').addEventListener('click',()=>exportExtraFeeImage('all'));
     $('exportExtraFeeAdjustmentBtn').addEventListener('click',()=>exportExtraFeeImage('adjustment'));
-    $('exportExtraFeeSupplementBtn').addEventListener('click',()=>exportExtraFeeImage('supplement'));
     $('exportExtraFeeUnpaidBtn').addEventListener('click',()=>exportExtraFeeImage('unpaid'));
     $('exportExtraFeeExcelBtn').addEventListener('click',()=>{
       const table=$('extraFeeList').querySelector('table'); if(!table){ alert('还没有追加费用数据'); return; }
@@ -8588,7 +8598,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       const allButton=e.target.closest('[data-extra-paid-all-table]'); if(allButton){ const rows=visibleExtraFees(); if(rows.length) setExtraFeesPaid(rows,!rows.every(x=>x.paid)); return; }
       const personButton=e.target.closest('[data-extra-person-paid],[data-extra-person-status]'); if(personButton){ const rows=extraFees.filter(x=>x.person===personButton.dataset.extraPersonPaid||personButton.dataset.extraPersonStatus); if(rows.length) setExtraFeesPaid(rows,!rows.every(x=>x.paid)); return; }
       const rowEl=e.target.closest('[data-extra-ids],[data-extra-id]'); if(!rowEl) return; const rows=extraRowsFromElement(rowEl), row=rows[0]; if(!row) return;
-      if(e.target.closest('[data-extra-paid]')){ row.paid=!row.paid; row.paidAt=row.paid?new Date().toISOString():''; saveState(); renderExtraFeesKeepScroll(); renderDispatch(); return; }
+      if(e.target.closest('[data-extra-paid]')){
+        const pos=captureExtraFeeScroll();
+        if(document.activeElement&&$('extraFeeList')?.contains(document.activeElement)) document.activeElement.blur();
+        row.paid=!row.paid; row.paidAt=row.paid?new Date().toISOString():'';
+        saveState(); renderExtraFeesKeepScroll(pos); renderDispatch(); return;
+      }
       if(e.target.closest('[data-extra-edit]')){ openExtraFeeForm(row); return; }
     });
 
