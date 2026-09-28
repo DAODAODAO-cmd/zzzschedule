@@ -640,7 +640,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
       <div class="extra-fee-head">
         <div><strong>追加费用收款</strong><span>按到货批次分摊和收取费用。</span></div>
-        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="addExtraFeeBtn">＋ 表级追加</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
+        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="addExtraFeeBtn">＋ 补充费用</button><button type="button" class="btn-ghost" id="addSingleAdjustmentBtn">＋ 单人退补</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
       </div>
       <div class="extra-archive-tools">
         <button type="button" class="btn-primary" id="archiveExtraFeesBtn">存档当前追加</button>
@@ -664,6 +664,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="extra-fee-form" id="extraFeeForm" hidden>
         <input type="hidden" id="extraFeeEditId">
         <label>CN<input type="text" id="extraFeePerson" placeholder="填写名字"></label>
+        <label>类型<select id="extraFeeKind"><option value="supplement">补款</option><option value="refund">退款</option></select></label>
         <label>费用名称<input type="text" id="extraFeeName" placeholder="例如：8月6日到货运费"></label>
         <label>金额<input type="text" inputmode="decimal" id="extraFeeAmount" placeholder="0.00"></label>
         <label>批次/来源<input type="text" id="extraFeeSource" placeholder="例如：2026-08-06 第1批，可留空"></label>
@@ -674,12 +675,12 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <label>到货批次 <select id="extraFeeBatchSelect"><option value="all">全部到货批次</option></select></label>
       </div>
       <div class="payment-search-tools"><input id="extraFeeSearchInput" type="text" placeholder="搜索 CN、费用名称或批次"><button type="button" class="btn-ghost" id="extraFeeSearchBtn">查找</button><span class="extra-fee-summary" id="extraFeeSummary"></span></div>
-      <div class="extra-fee-filter"><button type="button" class="active" data-extra-filter="all">全部</button><button type="button" data-extra-filter="unpaid">未收</button><button type="button" data-extra-filter="paid">已收</button></div>
+      <div class="extra-fee-filter"><button type="button" class="active" data-extra-filter="all">全部</button><button type="button" data-extra-filter="adjustment">退补</button><button type="button" data-extra-filter="supplement">补充</button><button type="button" data-extra-filter="unpaid">未收</button><button type="button" data-extra-filter="paid">已收</button></div>
       <div id="extraFeeExportWrap" class="extra-fee-export-wrap">
         <div id="extraFeeList" class="extra-fee-list"></div>
         <div id="extraFeeExportQr" class="payment-code-export" style="display:none;"><img id="extraFeeQrImage" crossorigin="anonymous" alt="收款码"></div>
       </div>
-      <div class="toolbar"><button type="button" class="btn-ghost" id="extraFeePaidAllBtn">全部标记收齐</button><button type="button" class="btn-ghost" id="showExtraFeeTotalBtn">隐藏总价</button><button type="button" class="btn-ghost" id="exportExtraFeeBtn">导出收款图</button><button type="button" class="btn-ghost" id="exportExtraFeeUnpaidBtn">导出未收图</button><button type="button" class="btn-ghost" id="exportExtraFeeExcelBtn">导出 Excel</button><button type="button" class="btn-ghost" id="copyExtraFeeBtn">复制表格</button><label class="extra-clear-control">清空范围 <select id="extraFeeClearScope"><option value="visible">当前显示</option><option value="unpaid">全部未收</option><option value="paid">全部已收</option><option value="all">全部追加费用</option></select></label><button type="button" class="btn-danger" id="clearExtraFeesBtn">清空表</button></div>
+      <div class="toolbar"><button type="button" class="btn-ghost" id="extraFeePaidAllBtn">全部标记收齐</button><button type="button" class="btn-ghost" id="showExtraFeeTotalBtn">隐藏总价</button><button type="button" class="btn-ghost" id="exportExtraFeeBtn">导出收款图</button><button type="button" class="btn-ghost" id="exportExtraFeeAdjustmentBtn">导出退补图</button><button type="button" class="btn-ghost" id="exportExtraFeeSupplementBtn">导出补充图</button><button type="button" class="btn-ghost" id="exportExtraFeeUnpaidBtn">导出未收图</button><button type="button" class="btn-ghost" id="exportExtraFeeExcelBtn">导出 Excel</button><button type="button" class="btn-ghost" id="copyExtraFeeBtn">复制表格</button><label class="extra-clear-control">清空范围 <select id="extraFeeClearScope"><option value="visible">当前显示</option><option value="unpaid">全部未收</option><option value="paid">全部已收</option><option value="all">全部追加费用</option></select></label><button type="button" class="btn-danger" id="clearExtraFeesBtn">清空表</button></div>
     </div>
     <div id="sharePaymentView" style="display:none;">
       <div class="payment-heading-tools">
@@ -960,11 +961,18 @@ html{ scrollbar-gutter:stable; }
 .app-confirm-overlay{ position:fixed; z-index:320; inset:0; display:grid; place-items:center; padding:18px; background:rgba(35,27,40,.38); backdrop-filter:blur(3px); }
 .app-confirm-overlay[hidden]{ display:none; }
 .app-confirm-card{ width:min(400px,100%); padding:18px; border:1px solid #eadde5; border-radius:15px; background:#fff; box-shadow:0 18px 55px rgba(43,28,50,.22); }
+.app-confirm-card.wide{ width:min(720px,calc(100vw - 24px)); max-height:min(86vh,720px); display:flex; flex-direction:column; }
 .app-confirm-card strong{ display:block; color:var(--text); font-size:16px; }
 .app-confirm-card p{ margin:9px 0 16px; color:var(--muted); font-size:13px; line-height:1.65; white-space:pre-wrap; }
 .app-confirm-card>div{ display:flex; justify-content:flex-end; gap:8px; }
 .app-prompt-input{ width:100%; min-height:40px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:#faf8fb; color:var(--text); font-size:16px; font-weight:800; box-sizing:border-box; outline:none; }
 .app-prompt-input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(209,70,106,.12); }
+.app-dialog-body{ min-height:0; overflow:auto; margin:0 0 14px; }
+.app-table-input-wrap{ max-height:min(52vh,430px); overflow:auto; border:1px solid var(--line); border-radius:12px; }
+.app-table-input{ width:100%; border-collapse:collapse; font-size:12px; }
+.app-table-input th,.app-table-input td{ padding:8px 9px; border-bottom:1px solid #eee7f0; text-align:left; vertical-align:middle; }
+.app-table-input th{ position:sticky; top:0; z-index:1; background:#faf8fb; color:#7d7183; font-size:11px; font-weight:900; }
+.app-table-input input{ width:100%; min-height:32px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--text); font-size:14px; font-weight:800; box-sizing:border-box; }
 .custom-select-overlay{ position:fixed; z-index:260; inset:0; background:rgba(31,24,36,.18); }
 .custom-select-overlay[hidden]{ display:none; }
 .custom-select-menu{ position:fixed; display:grid; max-height:min(340px,70vh); padding:5px; overflow:auto; border:1px solid #ded5e2; border-radius:10px; background:#fff; box-shadow:0 14px 38px rgba(40,27,47,.22); overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
@@ -2519,8 +2527,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function appDialog({message,title='提示',okText='确定',cancelText='取消',input=false,value='',placeholder=''}){
       return new Promise(resolve=>{
-        const overlay=$('appConfirmOverlay'), ok=$('appConfirmOk'), cancel=$('appConfirmCancel');
-        const oldInput=overlay.querySelector('.app-prompt-input'); if(oldInput) oldInput.remove();
+        const overlay=$('appConfirmOverlay'), card=overlay.querySelector('.app-confirm-card'), ok=$('appConfirmOk'), cancel=$('appConfirmCancel');
+        overlay.querySelectorAll('.app-prompt-input,.app-dialog-body').forEach(el=>el.remove()); card.classList.remove('wide');
         $('appConfirmTitle').textContent=title; $('appConfirmMessage').textContent=message; ok.textContent=okText; cancel.textContent=cancelText||'取消'; cancel.style.display=cancelText===null?'none':'';
         let inputEl=null;
         if(input){
@@ -2528,7 +2536,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           $('appConfirmMessage').insertAdjacentElement('afterend',inputEl);
         }
         overlay.hidden=false; overlay.style.display='grid';
-        const finish=result=>{ overlay.hidden=true; overlay.style.display='none'; ok.removeEventListener('click',accept); cancel.removeEventListener('click',reject); overlay.removeEventListener('click',backdrop); document.removeEventListener('keydown',keyboard); if(inputEl) inputEl.remove(); cancel.style.display=''; resolve(result); };
+        const finish=result=>{ overlay.hidden=true; overlay.style.display='none'; ok.removeEventListener('click',accept); cancel.removeEventListener('click',reject); overlay.removeEventListener('click',backdrop); document.removeEventListener('keydown',keyboard); if(inputEl) inputEl.remove(); overlay.querySelectorAll('.app-dialog-body').forEach(el=>el.remove()); card.classList.remove('wide'); cancel.style.display=''; resolve(result); };
         const accept=()=>finish(inputEl?inputEl.value:true), reject=()=>finish(inputEl?null:false), backdrop=e=>{ if(e.target===overlay) finish(inputEl?null:false); }, keyboard=e=>{ if(e.key==='Escape') finish(inputEl?null:false); if(inputEl&&e.key==='Enter'){ e.preventDefault(); finish(inputEl.value); } };
         ok.addEventListener('click',accept); cancel.addEventListener('click',reject); overlay.addEventListener('click',backdrop); document.addEventListener('keydown',keyboard); setTimeout(()=>inputEl?inputEl.focus():ok.focus(),0);
       });
@@ -2536,6 +2544,25 @@ body.export-rendering .cart-count{ font-size:28px; }
     function appConfirm(message,title='请确认',okText='确定'){ return appDialog({message,title,okText,cancelText:'取消'}); }
     function appAlert(message,title='提示'){ return appDialog({message,title,okText:'知道了',cancelText:null}); }
     function appPrompt(message,value='',title='请输入',okText='确定'){ return appDialog({message,title,okText,cancelText:'取消',input:true,value}); }
+    function appFactorTablePrompt(items,factors,{title='修改分摊依据',label='重量(g)'}={}){
+      return new Promise(resolve=>{
+        const overlay=$('appConfirmOverlay'), card=overlay.querySelector('.app-confirm-card'), ok=$('appConfirmOk'), cancel=$('appConfirmCancel');
+        overlay.querySelectorAll('.app-prompt-input,.app-dialog-body').forEach(el=>el.remove());
+        card.classList.add('wide');
+        $('appConfirmTitle').textContent=title;
+        $('appConfirmMessage').textContent='一次性修改这批谷子的分摊依据。留空会按 0 计算。';
+        ok.textContent='确认修改'; cancel.textContent='取消'; cancel.style.display='';
+        const body=document.createElement('div'); body.className='app-dialog-body';
+        body.innerHTML=`<div class="app-table-input-wrap"><table class="app-table-input"><thead><tr><th>谷子</th><th style="width:86px;">件数</th><th style="width:180px;">${escapeHtml(label)}</th></tr></thead><tbody>${items.map(item=>`<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(String(item.qty||0))}</td><td><input type="text" inputmode="decimal" data-factor-item="${escapeAttr(item.name)}" value="${escapeAttr(fmtNum(factors[item.name]||0))}"></td></tr>`).join('')}</tbody></table></div>`;
+        $('appConfirmMessage').insertAdjacentElement('afterend',body);
+        overlay.hidden=false; overlay.style.display='grid';
+        const finish=result=>{ overlay.hidden=true; overlay.style.display='none'; ok.removeEventListener('click',accept); cancel.removeEventListener('click',reject); overlay.removeEventListener('click',backdrop); document.removeEventListener('keydown',keyboard); body.remove(); card.classList.remove('wide'); cancel.style.display=''; resolve(result); };
+        const accept=()=>{ const next={}; body.querySelectorAll('[data-factor-item]').forEach(input=>{ next[input.dataset.factorItem]=Math.max(0,num(input.value)); }); finish(next); };
+        const reject=()=>finish(null), backdrop=e=>{ if(e.target===overlay) finish(null); }, keyboard=e=>{ if(e.key==='Escape') finish(null); };
+        ok.addEventListener('click',accept); cancel.addEventListener('click',reject); overlay.addEventListener('click',backdrop); document.addEventListener('keydown',keyboard);
+        setTimeout(()=>body.querySelector('input')?.focus(),0);
+      });
+    }
     window.alert=message=>{ appAlert(message); };
     let customSelectTarget=null;
     function mobileCustomSelectEnabled(){ return window.innerWidth<=760; }
@@ -5233,14 +5260,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         const label=mode==='weight'?'克重(g)':'点数';
         const shouldEditFactors=await appConfirm(`要逐项修改每个谷子的${label}吗？\n如果只是改总价/整箱总重，可以跳过。`,'修改分摊依据','逐项修改','跳过');
         if(shouldEditFactors){
-          const itemNames=[...batch.items.keys()].sort((a,b)=>String(a).localeCompare(String(b),'zh-CN'));
-          for(const item of itemNames){
-            const previous=Math.max(0,num(factors[item]||0))||1;
-            const input=await appPrompt(`填写「${item}」的${label}。`,fmtNum(previous),`修改${label}`,'下一项');
-            if(input===null) return;
-            const value=Math.max(0,num(String(input).trim()===''?previous:input));
-            factors[item]=value;
-          }
+          const items=[...batch.items.entries()].map(([name,qty])=>({name,qty})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-CN'));
+          items.forEach(item=>{ if(!num(factors[item.name])) factors[item.name]=1; });
+          const nextFactors=await appFactorTablePrompt(items,factors,{title:`修改${label}`,label});
+          if(nextFactors===null) return;
+          Object.assign(factors,nextFactors);
         }
       }
       const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors);
@@ -5364,10 +5388,11 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function openExtraFeeForm(row=null){
       $('extraFeeForm').hidden=false;
+      if($('extraFeeKind')) $('extraFeeKind').value=row?.feeType==='international_refund'?'refund':'supplement';
       $('extraFeeEditId').value=row?.id||''; $('extraFeePerson').value=row?.person||''; $('extraFeeName').value=row?.name||''; $('extraFeeAmount').value=row?.amount||''; $('extraFeeSource').value=row?.source||''; $('extraFeeNote').value=row?.note||'';
       $('saveExtraFeeBtn').textContent=row?'保存修改':'保存'; setTimeout(()=>$('extraFeePerson').focus(),0);
     }
-    function closeExtraFeeForm(){ $('extraFeeForm').hidden=true; ['extraFeeEditId','extraFeePerson','extraFeeName','extraFeeAmount','extraFeeSource','extraFeeNote'].forEach(id=>$(id).value=''); }
+    function closeExtraFeeForm(){ $('extraFeeForm').hidden=true; ['extraFeeEditId','extraFeePerson','extraFeeName','extraFeeAmount','extraFeeSource','extraFeeNote'].forEach(id=>$(id).value=''); if($('extraFeeKind')) $('extraFeeKind').value='supplement'; }
     function extraFeeBatchPeople(batchId){
       const normalized=normalizeArrivalBatchId(batchId);
       const people=new Map();
@@ -5379,6 +5404,27 @@ body.export-rendering .cart-count{ font-size:28px; }
       const batch=internationalBatches().find(b=>b.id===normalized);
       if(batch) [...batch.people.values()].forEach(person=>{ if(person.key&&!people.has(person.key)) people.set(person.key,{key:person.key,name:person.name}); });
       return [...people.values()].filter(p=>String(p.name||'').trim()).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-CN'));
+    }
+    function extraFeeBatchBasisRows(batchId,mode='auto'){
+      const normalized=normalizeArrivalBatchId(batchId);
+      const intlRows=extraFees.filter(row=>row.feeType==='international'&&extraFeeArrivalBatchId(row)===normalized);
+      const splitMode=mode==='auto'?(intlRows[0]?.splitMode||'weight'):mode;
+      const people=extraFeeBatchPeople(normalized);
+      const basisMap=new Map(people.map(person=>[person.key,{person:person.name,key:person.key,basis:splitMode==='head'?1:0,items:[]}]));
+      if(splitMode==='head') return {mode:splitMode,rows:[...basisMap.values()],basisTotal:basisMap.size};
+      intlRows.forEach(row=>{
+        const key=normalizeDispatchKey(row.person);
+        if(!key) return;
+        if(!basisMap.has(key)) basisMap.set(key,{person:row.person,key,basis:0,items:[]});
+        const entry=basisMap.get(key), detail=row.rawDetails||[];
+        const basis=splitMode==='points'
+          ? detail.reduce((sum,d)=>sum+num(d.point),0)
+          : (num(row.goodsWeight)||detail.reduce((sum,d)=>sum+num(d.weight),0));
+        entry.basis+=basis;
+        detail.forEach(d=>{ if(d.item) entry.items.push(`${d.item}${Number(d.qty)>1?`×${Number(d.qty)}`:''}`); });
+      });
+      const rows=[...basisMap.values()].filter(row=>row.basis>0);
+      return {mode:splitMode,rows,basisTotal:rows.reduce((sum,row)=>sum+num(row.basis),0)};
     }
     async function addBatchManualExtraFee(){
       closeExtraFeeForm(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML='';
@@ -5393,25 +5439,46 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       const people=extraFeeBatchPeople(batchId);
       if(!people.length){ alert('当前到货批次里还没有可分摊的人。请先生成国际或选择有记录的批次。'); return; }
-      const name=String(await appPrompt('这笔公共追加叫什么？例如：国际补款、材料费、少收补款','公共追加','表级追加','继续')||'').trim();
+      const name=String(await appPrompt('这笔补充费用叫什么？例如：材料费、手续费差额、临时补收。\n如果是重量/谷子/国际总价算错，请优先用“重算国际”。','补充费用','补充费用','继续')||'').trim();
       if(!name) return;
-      const totalInput=await appPrompt(`填写这张表要追加的总金额。\n会自动分给当前批次 ${people.length} 个 CN。`,'','表级追加总额','生成');
+      const basis=extraFeeBatchBasisRows(batchId,'auto');
+      const modeLabel=basis.mode==='points'?'点数占比':(basis.mode==='weight'?'重量占比':'人头平均');
+      if(!basis.rows.length||!basis.basisTotal){ alert('当前批次没有可用的分摊依据。请先生成国际运费，或用重算国际修正重量/点数。'); return; }
+      const totalInput=await appPrompt(`填写这张表的补充总金额。\n会按当前批次的${modeLabel}分给 ${basis.rows.length} 个 CN，不会平均乱分。`,'','补充费用总额','生成');
       if(totalInput===null) return;
       const total=Math.max(0,num(totalInput));
       if(!total){ alert('追加总金额必须大于 0'); return; }
-      const noteInput=await appPrompt('备注/原因（可留空）',`公共追加总额 ${moneyText(total)}；${people.length} 人平摊`,'追加备注','确认');
+      const noteInput=await appPrompt('备注/原因（可留空）',`补充费用总额 ${moneyText(total)}；按${modeLabel}分摊`,'补充备注','确认');
       if(noteInput===null) return;
       const batch=internationalBatches().find(b=>b.id===normalizeArrivalBatchId(batchId));
       const date=batch?.date||batchId.replace(/^arrival:/,''), source=batch?`${batch.sheet} · ${batch.date}`:date;
-      const per=ceilMoneyValue(total/people.length), now=new Date().toISOString();
-      const note=String(noteInput||'').trim()||`公共追加总额 ${moneyText(total)}；${people.length} 人平摊，每人 ${moneyText(per)}`;
-      people.forEach(person=>extraFees.push({id:extraFeeIdSeed++,person:person.name,name,amount:per,source,note,items:note,rawDetails:[],period:batch?.sheet||source,paid:false,createdAt:now,paidAt:'',feeType:'manual_batch',batchId:normalizeArrivalBatchId(batchId),splitMode:'head',batchDate:date,sheetId:batch?.sheetId||0,displayMode:'detail',chargeWeight:0,goodsWeight:0,batchGoodsWeight:0,batchTotalWeight:0,totalAmount:total}));
+      const now=new Date().toISOString(), noteBase=String(noteInput||'').trim()||`补充费用总额 ${moneyText(total)}；按${modeLabel}分摊`;
+      let used=0;
+      basis.rows.forEach((person,index)=>{
+        const ratio=basis.basisTotal?num(person.basis)/basis.basisTotal:1/basis.rows.length;
+        const amount=index===basis.rows.length-1?ceilMoneyValue(Math.max(0,total-used)):ceilMoneyValue(total*ratio);
+        used+=amount;
+        const basisText=basis.mode==='weight'?`依据 ${fmtNum(person.basis)}g / ${fmtNum(basis.basisTotal)}g`:(basis.mode==='points'?`依据 ${fmtNum(person.basis)}点 / ${fmtNum(basis.basisTotal)}点`:`依据 ${basis.rows.length} 人平均`);
+        const note=`${noteBase}；${basisText}`;
+        extraFees.push({id:extraFeeIdSeed++,person:person.person,name,amount,source,note,items:note,rawDetails:[],period:batch?.sheet||source,paid:false,createdAt:now,paidAt:'',feeType:'manual_batch',batchId:normalizeArrivalBatchId(batchId),splitMode:basis.mode,batchDate:date,sheetId:batch?.sheetId||0,displayMode:'detail',chargeWeight:0,goodsWeight:basis.mode==='weight'?person.basis:0,batchGoodsWeight:basis.mode==='weight'?basis.basisTotal:0,batchTotalWeight:0,totalAmount:total});
+      });
       extraFeeBatchFilter=normalizeArrivalBatchId(batchId);
-      saveState(); renderExtraFeesKeepScroll(); renderDispatch(); alert(`已把「${name}」追加到当前表：${people.length} 人，每人 ${moneyText(per)}。`);
+      saveState(); renderExtraFeesKeepScroll(); renderDispatch(); alert(`已把「${name}」按${modeLabel}追加到当前表：${basis.rows.length} 人。`);
     }
     function visibleExtraFees(){
       const q=String($('extraFeeSearchInput')?.value||'').trim().toLowerCase();
-      return extraFees.filter(row=>(extraFeeFilter==='all'||(extraFeeFilter==='paid')===row.paid)&&(extraFeeBatchFilter==='all'||extraFeeArrivalBatchId(row)===extraFeeBatchFilter)&&(!q||[row.person,row.name,row.source,row.note,row.items].some(v=>String(v||'').toLowerCase().includes(q))));
+      return extraFees.filter(row=>(extraFeeFilter==='all'||(extraFeeFilter==='paid')===row.paid||(extraFeeFilter==='adjustment'&&isExtraFeeAdjustment(row))||(extraFeeFilter==='supplement'&&isExtraFeeSupplement(row)))&&(extraFeeBatchFilter==='all'||extraFeeArrivalBatchId(row)===extraFeeBatchFilter)&&(!q||[row.person,row.name,row.source,row.note,row.items].some(v=>String(v||'').toLowerCase().includes(q))));
+    }
+    function isExtraFeeAdjustment(row){
+      if(!row) return false;
+      if(row.feeType==='international_refund') return true;
+      if(row.feeType==='international_supplement'||row.feeType==='manual_batch') return true;
+      return /退补|退款|补款|补差|少收|追加|补收/i.test(`${row.name||''} ${row.note||''} ${row.items||''}`);
+    }
+    function isExtraFeeSupplement(row){
+      if(!row||row.feeType==='international_refund') return false;
+      if(row.feeType==='international_supplement'||row.feeType==='manual_batch') return true;
+      return /补款|补差|少收|追加|补收/i.test(`${row.name||''} ${row.note||''} ${row.items||''}`);
     }
     function renderExtraFeeBatchSelect(){
       const select=$('extraFeeBatchSelect'); if(!select) return;
@@ -5640,13 +5707,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       const now=new Date().toISOString(); (rows||[]).forEach(row=>{ row.paid=!!paid; row.paidAt=paid?now:''; });
       saveState(); renderExtraFeesKeepScroll(); renderDispatch();
     }
-    function exportExtraFeeImage(unpaidOnly=false){
+    function exportExtraFeeImage(filter='all'){
       if(typeof html2canvas==='undefined'||!extraFees.length){ alert('还没有追加费用数据'); return; }
       const previousFilter=extraFeeFilter, previousSearch=$('extraFeeSearchInput').value;
-      extraFeeFilter=unpaidOnly?'unpaid':'all'; $('extraFeeSearchInput').value=''; renderExtraFees();
+      extraFeeFilter=filter; $('extraFeeSearchInput').value=''; renderExtraFees();
       const wrap=$('extraFeeExportWrap'); wrap.classList.add('extra-exporting');
       const width=Math.max(760,wrap.scrollWidth), name=(extraFeeTitle||'追加费用收款').replace(/[\\/:*?"<>|]/g,' ').trim()||'追加费用收款';
-      requestAnimationFrame(()=>renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+(unpaidOnly?'_未收':'')+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      const suffix=filter==='unpaid'?'_未收':(filter==='adjustment'?'_退补':(filter==='supplement'?'_补充':''));
+      requestAnimationFrame(()=>renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+suffix+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         wrap.classList.remove('extra-exporting'); extraFeeFilter=previousFilter; $('extraFeeSearchInput').value=previousSearch; renderExtraFees();
       }));
     }
@@ -8388,13 +8456,16 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     const addExtraFeeButton=document.getElementById('addExtraFeeBtn');
     if(addExtraFeeButton) addExtraFeeButton.addEventListener('click',addBatchManualExtraFee);
+    const addSingleAdjustmentButton=document.getElementById('addSingleAdjustmentBtn');
+    if(addSingleAdjustmentButton) addSingleAdjustmentButton.addEventListener('click',()=>{ $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML=''; openExtraFeeForm({name:'单人补款',feeType:'international_supplement',batchId:extraFeeBatchFilter&&extraFeeBatchFilter!=='all'?extraFeeBatchFilter:''}); });
     $('cancelExtraFeeBtn').addEventListener('click',closeExtraFeeForm);
     $('saveExtraFeeBtn').addEventListener('click',()=>{
       const id=Number($('extraFeeEditId').value)||0, person=$('extraFeePerson').value.trim(), name=$('extraFeeName').value.trim(), amount=Math.max(0,num($('extraFeeAmount').value));
       if(!person||!name||!amount){ alert('请填写 CN、费用名称和大于 0 的金额'); return; }
       const selectedBatch=extraFeeBatchFilter&&extraFeeBatchFilter!=='all'?extraFeeBatchFilter:'';
       const selectedDate=selectedBatch?selectedBatch.replace(/^arrival:/,''):'';
-      const old=extraFees.find(row=>row.id===id), next={id:id||extraFeeIdSeed++,person,name,amount,source:$('extraFeeSource').value.trim(),note:$('extraFeeNote').value.trim(),paid:old?.paid===true,createdAt:old?.createdAt||new Date().toISOString(),paidAt:old?.paidAt||'',feeType:old?.feeType||'manual',batchId:old?.batchId||selectedBatch,splitMode:old?.splitMode||'',batchDate:old?.batchDate||selectedDate,sheetId:old?.sheetId||0};
+      const old=extraFees.find(row=>row.id===id), kind=$('extraFeeKind')?.value==='refund'?'refund':'supplement', feeType=kind==='refund'?'international_refund':'international_supplement';
+      const next={id:id||extraFeeIdSeed++,person,name,amount,source:$('extraFeeSource').value.trim(),note:$('extraFeeNote').value.trim(),paid:old?.paid===true,createdAt:old?.createdAt||new Date().toISOString(),paidAt:old?.paidAt||'',feeType,batchId:old?.batchId||selectedBatch,splitMode:old?.splitMode||'',batchDate:old?.batchDate||selectedDate,sheetId:old?.sheetId||0};
       if(old) Object.assign(old,next); else extraFees.push(next);
       saveState(); closeExtraFeeForm(); renderExtraFeesKeepScroll();
     });
@@ -8413,8 +8484,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('extraPaymentQrInput').addEventListener('change',e=>{ handleExtraPaymentQr(e.target.files[0]); e.target.value=''; });
     $('clearExtraPaymentQrBtn').addEventListener('click',()=>{ extraPaymentQrImg=''; saveState(); renderExtraFeesKeepScroll(); });
     $('extraFeePaidAllBtn').addEventListener('click',()=>{ const rows=visibleExtraFees(); if(!rows.length) return; const allPaid=rows.every(r=>r.paid); setExtraFeesPaid(rows,!allPaid); });
-    $('exportExtraFeeBtn').addEventListener('click',()=>exportExtraFeeImage(false));
-    $('exportExtraFeeUnpaidBtn').addEventListener('click',()=>exportExtraFeeImage(true));
+    $('exportExtraFeeBtn').addEventListener('click',()=>exportExtraFeeImage('all'));
+    $('exportExtraFeeAdjustmentBtn').addEventListener('click',()=>exportExtraFeeImage('adjustment'));
+    $('exportExtraFeeSupplementBtn').addEventListener('click',()=>exportExtraFeeImage('supplement'));
+    $('exportExtraFeeUnpaidBtn').addEventListener('click',()=>exportExtraFeeImage('unpaid'));
     $('exportExtraFeeExcelBtn').addEventListener('click',()=>{
       const table=$('extraFeeList').querySelector('table'); if(!table){ alert('还没有追加费用数据'); return; }
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
