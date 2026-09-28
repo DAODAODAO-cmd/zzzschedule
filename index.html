@@ -5467,7 +5467,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function visibleExtraFees(){
       const q=String($('extraFeeSearchInput')?.value||'').trim().toLowerCase();
-      return extraFees.filter(row=>(extraFeeFilter==='all'||(extraFeeFilter==='paid')===row.paid||(extraFeeFilter==='adjustment'&&isExtraFeeAdjustment(row))||(extraFeeFilter==='supplement'&&isExtraFeeSupplement(row)))&&(extraFeeBatchFilter==='all'||extraFeeArrivalBatchId(row)===extraFeeBatchFilter)&&(!q||[row.person,row.name,row.source,row.note,row.items].some(v=>String(v||'').toLowerCase().includes(q))));
+      return extraFees.filter(row=>{
+        const filterOk=extraFeeFilter==='all'
+          ||(extraFeeFilter==='paid'&&row.paid===true)
+          ||(extraFeeFilter==='unpaid'&&row.paid!==true)
+          ||(extraFeeFilter==='adjustment'&&isExtraFeeAdjustment(row))
+          ||(extraFeeFilter==='supplement'&&isExtraFeeSupplement(row));
+        return filterOk&&(extraFeeBatchFilter==='all'||extraFeeArrivalBatchId(row)===extraFeeBatchFilter)&&(!q||[row.person,row.name,row.source,row.note,row.items].some(v=>String(v||'').toLowerCase().includes(q)));
+      });
     }
     function isExtraFeeAdjustment(row){
       if(!row) return false;
