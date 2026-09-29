@@ -639,7 +639,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <button class="btn-ghost" id="clearExtraPaymentQrBtn" style="display:none;">删除追加费用收款码</button>
       </div>
       <div class="extra-fee-head">
-        <div><strong>追加费用收款</strong><span>按到货批次分摊和收取费用。</span></div>
+        <div><strong>追加费用收款</strong><span>按收款批次查看、导出和标记收齐。</span></div>
         <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="addSingleAdjustmentBtn">＋ 单人退补</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
       </div>
       <div class="extra-archive-tools">
@@ -672,7 +672,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <div class="extra-fee-form-actions"><button type="button" class="btn-primary" id="saveExtraFeeBtn">保存</button><button type="button" class="btn-ghost" id="cancelExtraFeeBtn">取消</button></div>
       </div>
       <div class="extra-batch-tools">
-        <label>到货批次 <select id="extraFeeBatchSelect"><option value="all">全部到货批次</option></select></label>
+        <label>当前收款批次 <select id="extraFeeBatchSelect"><option value="all">全部到货批次</option></select></label>
       </div>
       <div class="payment-search-tools"><input id="extraFeeSearchInput" type="text" placeholder="搜索 CN、费用名称或批次"><button type="button" class="btn-ghost" id="extraFeeSearchBtn">查找</button><span class="extra-fee-summary" id="extraFeeSummary"></span></div>
       <div class="extra-fee-filter"><button type="button" class="active" data-extra-filter="all">全部</button><button type="button" data-extra-filter="adjustment">退补</button><button type="button" data-extra-filter="unpaid">未收</button><button type="button" data-extra-filter="paid">已收</button></div>
@@ -752,6 +752,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <label class="hint hintrow">每行图片
         <select id="cartColumns"><option value="3">3 张</option><option value="4">4 张</option><option value="5">5 张</option><option value="6">6 张</option></select>
       </label>
+      <label class="hint hintrow"><input type="checkbox" id="cartExportHidePrice"> 导出隐藏价格</label>
       <span class="hint" id="cartTargetInfo"></span>
     </div>
     <div id="cartWrap">
@@ -1519,6 +1520,7 @@ input[type=file]{ display:none!important; }
 #cartWrap.hide-empty-export-images .cart-card[data-has-photo="0"] > .combo-image-grid{ display:none!important; }
 #cartWrap.hide-empty-export-images .cart-card[data-has-photo="0"]{ min-height:72px; display:flex; align-items:flex-end; justify-content:center; }
 #cartWrap.hide-empty-export-images .cart-card[data-has-photo="0"] .cart-name{ width:100%; padding-top:34px; }
+#cartWrap.hide-cart-export-price .cart-price{ display:none!important; }
 #matrixWrap.hide-empty-export-images #matrixTable thead th[data-has-photo="0"] .matrix-combo-image{ display:none!important; }
 .cart-card .cart-name{ padding:13px 8px 14px; font-size:17px; font-weight:800; text-align:center; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cart-badge{ position:absolute; padding:9px 14px; border-radius:999px; font-size:25px; font-weight:900; color:#fff; box-shadow:0 3px 9px rgba(35,25,40,.18); line-height:1; }
@@ -1817,7 +1819,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let coldPromotionDraftRows=[], coldPromotionDraftApplied=false, coldPromotionDraftBaseAllocations=null, coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
     let coldCarryBundleColumnIds=[];
     let colIdSeed=1, rowIdSeed=1;
-    let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
+    let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartExportHidePrice=true, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
     let matrixTitle='', matrixColor='#d1466a', matrixBoughtCells={}, matrixIslandCells={}, matrixChinaCells={}, matrixBlindSubCells={}, matrixMarkMode='', matrixMarkDate='';
     let quantityTitle='';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', showPaymentTotal=true, showBoughtSettlement=false, paymentIncludeShare=false;
@@ -2112,10 +2114,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function snapshotSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
-      return {id:activeSheetId,name:'',columns,allocations,pricingGroups,pricingGroupIdSeed,watermarkArchive,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,matrixBoughtCells,matrixIslandCells,matrixChinaCells,matrixBlindSubCells,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,showBoughtSettlement,paymentIncludeShare,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,paymentNotes,settlementDashboardOpen,sharePaymentTitle,sharePaymentTitleCustom,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
+      return {id:activeSheetId,name:'',columns,allocations,pricingGroups,pricingGroupIdSeed,watermarkArchive,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartExportHidePrice,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,matrixBoughtCells,matrixIslandCells,matrixChinaCells,matrixBlindSubCells,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,showBoughtSettlement,paymentIncludeShare,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,paymentNotes,settlementDashboardOpen,sharePaymentTitle,sharePaymentTitleCustom,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},pricingGroups:[],pricingGroupIdSeed:1,watermarkArchive:[],cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:"#d1466a",matrixBoughtCells:{},matrixIslandCells:{},matrixChinaCells:{},matrixBlindSubCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentIncludeShare:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},pricingGroups:[],pricingGroupIdSeed:1,watermarkArchive:[],cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartExportHidePrice:true,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:"#d1466a",matrixBoughtCells:{},matrixIslandCells:{},matrixChinaCells:{},matrixBlindSubCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentIncludeShare:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function blankCollabProjectSnapshot(){
       const savedSeed=sheetIdSeed;
@@ -2167,7 +2169,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       cartTargetMode=sheet.cartTargetMode||'auto';
       cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
       if(!sharedCartQrImg) sharedCartQrImg=sheet.cartQrImg||'';
-      cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sharedCartQrImg;
+      cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartExportHidePrice=sheet.cartExportHidePrice!==false; cartQrImg=sharedCartQrImg;
       matrixTitle=resolvedSheetTitle(sheet,'matrixTitle'); matrixColor=sheet.matrixColor||'#d1466a';
       matrixBoughtCells=sheet.matrixBoughtCells&&typeof sheet.matrixBoughtCells==='object'?deepClone(sheet.matrixBoughtCells):{};
       matrixIslandCells=sheet.matrixIslandCells&&typeof sheet.matrixIslandCells==='object'?deepClone(sheet.matrixIslandCells):{};
@@ -2408,7 +2410,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             columns=Array.isArray(sheet.columns)?sheet.columns.map(migrateColumn):[];
             allocations=sheet.allocations||{}; cartNote=sheet.cartNote||'';
             cartTargetMode=sheet.cartTargetMode||'auto'; cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
-            cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartQrImg=sharedCartQrImg;
+            cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartExportHidePrice=sheet.cartExportHidePrice!==false; cartQrImg=sharedCartQrImg;
             matrixTitle=resolvedSheetTitle(sheet,'matrixTitle'); matrixColor=sheet.matrixColor||'#d1466a';
             quantityTitle=resolvedSheetTitle(sheet,'quantityTitle');
             paymentTitle=resolvedSheetTitle(sheet,'paymentTitle'); paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
@@ -5838,6 +5840,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('cartTargetNum').value=(cartTargetNum!==null)?cartTargetNum:'';
       $('cartCountMode').value=cartCountMode;
       $('cartColumns').value=String(cartColumns);
+      if($('cartExportHidePrice')) $('cartExportHidePrice').checked=cartExportHidePrice!==false;
       $('cartGrid').style.gridTemplateColumns=`repeat(${cartColumns},minmax(0,1fr))`;
       $('clearCartQrBtn').style.display=cartQrImg?'':'none';
     }
@@ -8455,6 +8458,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('cartTargetNum').addEventListener('input',e=>{ const v=parseInt(e.target.value,10); cartTargetNum=Number.isFinite(v)?v:null; saveState(); renderCart(); });
     $('cartCountMode').addEventListener('change',e=>{ cartCountMode=e.target.value; saveState(); renderCart(); });
     $('cartColumns').addEventListener('change',e=>{ cartColumns=Math.max(2,parseInt(e.target.value,10)||4); saveState(); renderCart(); });
+    $('cartExportHidePrice').addEventListener('change',e=>{ cartExportHidePrice=e.target.checked; saveState(); });
     $('paymentTitleInput').addEventListener('input',e=>{
       paymentTitle=e.target.value;
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -8815,6 +8819,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderCart();
       const wrap=$('cartWrap'), oldWidth=wrap.style.width;
       wrap.classList.add('hide-empty-export-images');
+      if(cartExportHidePrice) wrap.classList.add('hide-cart-export-price');
       wrap.style.width='1000px';
       requestAnimationFrame(async ()=>{
         const h=Math.max(wrap.scrollHeight, 80);
@@ -8823,7 +8828,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           .then(canvas=>saveCanvasImage(canvas,'推车图.png'))
           .catch(()=>alert('导出失败，请确认图片已加载后重试'))
           .finally(()=>{
-            wrap.classList.remove('hide-empty-export-images');
+            wrap.classList.remove('hide-empty-export-images','hide-cart-export-price');
             wrap.style.width=oldWidth;
           });
       });
@@ -9397,7 +9402,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             cartNote=d.cartNote||''; cartTargetMode=d.cartTargetMode||'auto';
             cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null; applyCost(d.cost);
             sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||''; extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):extraFees; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):extraFeeArchives;
-            cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartQrImg=sharedCartQrImg;
+            cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartExportHidePrice=d.cartExportHidePrice!==false; cartQrImg=sharedCartQrImg;
             const importedTargetSheet=sheets.find(s=>s.id===activeSheetId), importedSheetName=String(importedTargetSheet?.name||'表1');
             matrixTitle=d.matrixTitle||importedSheetName; matrixColor=d.matrixColor||'#d1466a';
             quantityTitle=d.quantityTitle||importedSheetName;
