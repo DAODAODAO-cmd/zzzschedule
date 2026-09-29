@@ -1853,7 +1853,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let syncCode=UUID_RE.test(storedSyncCode)?storedSyncCode:'';
     let workspaces=[],workspaceInvites=[],archivedWorkspaces=[],activeWorkspaceId=localStorage.getItem(WORKSPACE_STORAGE_KEY)||syncCode,workspaceLoading=false,archiveAccess=false;
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
-    let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false, pendingCollabInstallState=null, dataSaverMode=localStorage.getItem(DATA_SAVER_KEY)!=='0';
+    let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false, collabForceFullSync=false, pendingCollabInstallState=null, dataSaverMode=localStorage.getItem(DATA_SAVER_KEY)!=='0';
     const APP_SECTIONS=['goods','order','stats','payment','dispatch','logistics','settings'];
     function storedAppSection(){
       const section=localStorage.getItem(APP_SECTION_KEY);
@@ -3042,6 +3042,32 @@ body.export-rendering .cart-count{ font-size:28px; }
       collabSendTimer=setTimeout(flushCollabChanges,dataSaverMode?1200:350);
       setCollabStatus('本机有新修改 · 正在同步…','warn');
     }
+    function readableSyncError(error){
+      const raw=String(error?.message||error?.details||error?.hint||error||'未知错误');
+      if(!raw||raw==='[object Object]') return '未知错误';
+      return raw.length>140?raw.slice(0,140)+'…':raw;
+    }
+    async function replaceCollabState(sentState,label='整表同步'){
+      const client=getCloudClient(syncCode), previousRevision=Number(collabRevision)||0, nextRevision=previousRevision+1;
+      const {data,error}=await lockRequest(
+        client.from('ggz_collab_projects')
+          .update({state:sentState,revision:nextRevision,updated_by:editorName||'未命名'})
+          .eq('sync_code',syncCode)
+          .eq('revision',previousRevision)
+          .select('state,revision')
+          .maybeSingle(),
+        60000,
+        label
+      );
+      if(error) throw error;
+      if(!data) throw new Error('协作云端版本已变化，请先等页面读取最新数据后再复制/重试。');
+      collabBaseline=deepClone(data.state||sentState);
+      collabRevision=Number(data.revision)||nextRevision;
+      collabNeedsSend=false;
+      setCollabStatus(`实时协作已同步 · 版本 ${collabRevision}`,'ok');
+      refreshCollabActivity();
+      return true;
+    }
     async function flushCollabChanges(){
       clearTimeout(collabSendTimer); collabSendTimer=null;
       if(!collabEnabled||applyingCollab) return true;
@@ -3055,8 +3081,14 @@ body.export-rendering .cart-count{ font-size:28px; }
         }
       });
       if(!ops.length){ collabNeedsSend=false; setCollabStatus(`实时协作已同步 · 版本 ${collabRevision}`,'ok'); return true; }
+      const forceFullSync=collabForceFullSync||ops.length>300||JSON.stringify(ops).length>450000;
       collabSending=true; collabNeedsSend=false;
       try{
+        if(forceFullSync){
+          await replaceCollabState(sentState,collabForceFullSync?'复制排单整表同步':'大批量整表同步');
+          collabForceFullSync=false;
+          return true;
+        }
         const client=getCloudClient(syncCode), {data,error}=await lockRequest(client.rpc('ggz_apply_collab_patch',{p_sync_code:syncCode,p_patch:ops,p_author_name:editorName||'未命名'}),45000,'实时协作同步');
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
@@ -3073,7 +3105,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         refreshCollabActivity();
         if(laterOps.length){ collabNeedsSend=true; scheduleCollabSync(); }
         return conflicts.length===0;
-      }catch(error){ collabNeedsSend=true; setCollabStatus('同步失败，正在保留本机修改并重试','bad'); return false; }
+      }catch(error){ collabNeedsSend=true; setCollabStatus('同步失败：'+readableSyncError(error)+'，已保留本机修改并重试','bad'); return false; }
       finally{ collabSending=false; if(collabNeedsSend&&!collabSendTimer) collabSendTimer=setTimeout(flushCollabChanges,dataSaverMode?5000:1800); }
     }
     async function pollCollabState(){
@@ -6456,6 +6488,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       sheetStatusFilter='ongoing';
       localStorage.setItem(SHEET_STATUS_FILTER_KEY,sheetStatusFilter);
       applySheet(copy);
+      if(collabEnabled) collabForceFullSync=true;
       saveState();
       renderSheetTabs();
     }
