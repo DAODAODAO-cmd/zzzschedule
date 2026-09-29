@@ -1082,7 +1082,13 @@ html{ scrollbar-gutter:stable; }
 .wrap thead th{ text-align:left; font-size:11.5px; color:var(--muted); font-weight:700; padding:8px; border-bottom:1px solid var(--line); white-space:nowrap; }
 .wrap tbody td{ padding:7px 8px; border-bottom:1px solid #ece7f0; vertical-align:middle; }
 .wrap .table-scroll{ overflow-x:auto; }
-.wrap .col-card{ display:grid; grid-template-columns:42px 76px minmax(130px,1fr) minmax(170px,1.35fr) 86px 132px 100px 108px; align-items:center; gap:8px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px; }
+.wrap .col-card{ display:grid; grid-template-columns:24px 42px 76px minmax(130px,1fr) minmax(170px,1.35fr) 86px 132px 100px 108px; align-items:center; gap:8px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px; background:#fff; }
+.wrap .col-card.dragging{ opacity:.42; }
+.wrap .col-card.drop-before{ box-shadow:0 -3px 0 var(--accent); }
+.wrap .col-card.drop-after{ box-shadow:0 3px 0 var(--accent); }
+.wrap .col-drag-handle{ position:relative; width:22px; height:30px; border:1px solid #e3dae6; border-radius:7px; background:#faf8fb; cursor:grab; }
+.wrap .col-drag-handle::before{ content:""; position:absolute; left:6px; top:7px; width:10px; height:16px; background:radial-gradient(circle,#9e91a2 1.2px,transparent 1.35px) 0 0/5px 5px; }
+.wrap .col-drag-handle:active{ cursor:grabbing; }
 .wrap .col-index{ width:42px; text-align:center; white-space:nowrap; color:var(--muted); font-size:12px; }
 .wrap .col-card input[type=text]{ min-width:0; width:100%; }
 .wrap .col-card .alias-input{ min-width:0; }
@@ -1537,7 +1543,7 @@ input[type=file]{ display:none!important; }
   .price-grid{ grid-template-areas:"type count" "jpy rate" "average manual" "ticket transport"; }
   .wrap .summary{ grid-template-columns:1fr 1fr; }
 }
-@media(max-width:1050px){ .wrap .col-card{ grid-template-columns:42px 76px minmax(125px,1fr) minmax(150px,1fr) 82px 125px 100px 108px; overflow-x:auto; } }
+@media(max-width:1050px){ .wrap .col-card{ grid-template-columns:24px 42px 76px minmax(125px,1fr) minmax(150px,1fr) 82px 125px 100px 108px; overflow-x:auto; } }
 @media(max-width:760px){
   body{ min-height:100vh; min-height:100dvh; padding-bottom:0; }
   .wrap{ display:block; max-width:none; min-height:100vh; min-height:100dvh; padding:10px 9px calc(84px + constant(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); padding-bottom:calc(84px + env(safe-area-inset-bottom) + var(--browser-bottom-offset,0px)); }
@@ -3518,7 +3524,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const visibleColumns=columns.filter(c=>!groupForColumn(c.id));
       if(!visibleColumns.length){ el.innerHTML='<div class="hint">所有单品都已加入拼盒。请在下方“拼盒组合”中编辑或删除组合。</div>'; return; }
       el.innerHTML=visibleColumns.map((c,i)=>`
-        <div class="col-card">
+        <div class="col-card" data-column-card="${c.id}">
+          <span class="col-drag-handle" draggable="true" title="按住拖动换位置" aria-label="拖动换位置"></span>
           <span class="col-index">#${i+1}</span>
           <div class="col-media"><label class="img-label" title="点击上传/更换图片">
             ${c.img?`<img class="col-thumb" src="${c.img}">`:`<span class="col-thumb-empty">加图片</span>`}
@@ -3716,6 +3723,19 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(i<0||j<0||j>=columns.length) return;
       [columns[i],columns[j]]=[columns[j],columns[i]];
       saveState(); renderColumnList(); renderMatrix();
+    };
+    ggz.moveColumnTo=(dragId,targetId,after=false)=>{
+      dragId=Number(dragId); targetId=Number(targetId);
+      if(!Number.isFinite(dragId)||!Number.isFinite(targetId)||dragId===targetId) return;
+      const from=columns.findIndex(c=>Number(c.id)===dragId), targetBefore=columns.findIndex(c=>Number(c.id)===targetId);
+      if(from<0||targetBefore<0) return;
+      const [item]=columns.splice(from,1);
+      let to=columns.findIndex(c=>Number(c.id)===targetId);
+      if(to<0){ columns.splice(from,0,item); return; }
+      if(after) to+=1;
+      columns.splice(to,0,item);
+      cancelPendingCollabInstallForLocalEdit();
+      saveState(); renderColumnList(); renderMatrix(); renderCart();
     };
     ggz.removeColumn=async id=>{
       if(!await appConfirm('确定删除这一列吗？该列已生成的配比数据也会一并清除。','删除谷子列','确认删除')) return;
@@ -6620,7 +6640,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const match=String(cellKey||'').match(/^(.+):(\d+)$/); if(!match) return false;
           const colId=match[1], row=Number(match[2]);
           const current=String((alloc[colId]||[])[row]||'').trim();
-          return !!current&&String(markedName||'').trim()===current;
+          return !!current&&normalizeDispatchKey(markedName)===normalizeDispatchKey(current);
         });
         displayCols.forEach(c=>{
           (alloc[c.id]||[]).forEach((person,r)=>{
@@ -6628,14 +6648,14 @@ body.export-rendering .cart-count{ font-size:28px; }
             const key=normalizeDispatchKey(name), cellKey=`${c.id}:${r}`;
             const cellBought=sheetCellBought(c,r,name,bought,alloc,groups,cols);
             if(usesBoughtMark&&!cellBought) return;
-            if(!people.has(key)) people.set(key,{name,key,items:[]});
+            if(!people.has(key)) people.set(key,{name:name||key,key,items:[]});
             const chinaDate=String(china[cellKey]||'');
             const goodsPaidState=settledGoodsPaymentState(sheet,key,paidState(paidGoods,key,expectedByKey.get(key)||0));
             const batchId=chinaDate?`${sheet.id}|${chinaDate}`:'';
             const intlRows=batchId?extraFees.filter(f=>f.feeType==='international'&&f.batchId===batchId&&normalizeDispatchKey(f.person)===key):[];
             const internationalGenerated=intlRows.length>0, internationalPaid=internationalGenerated&&intlRows.every(f=>f.paid);
             people.get(key).items.push({
-              item:matrixItemDisplayName(c,r,sub),
+              item:matrixItemDisplayName(c,r,sub)||'未命名谷子',
               sheet:String(sheet.name||'').trim(),
               boughtTracked:usesBoughtMark,
               chinaDate,
@@ -6716,7 +6736,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const items=dispatchSheetGroups(dispatchItemGroups(person.visibleItems)).map(group=>{
           const dates=[...new Set(group.dates)].sort();
           const holdDays=dates[0]?logiDaysSince(dates[0]):null;
-          const shown=group.items.map(dispatchItemChip).join('');
+          const shown=group.items.map(dispatchItemChip).join('')||'<span class="dispatch-chip has-unpaid">未命名谷子</span>';
           const status=[
             group.goodsPaidQty===group.qty?`谷款已收`:(group.goodsPartialQty?`谷款部分 ${group.goodsPaidQty}/${group.qty}`:`谷款 ${group.goodsPaidQty}/${group.qty}`),
             group.intlNeededQty?(group.intlPaidQty===group.intlNeededQty?`国际已收`:`国际 ${group.intlPaidQty}/${group.intlNeededQty}`):'',
@@ -8239,6 +8259,45 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!grid.length) return;
       e.preventDefault();
       applyMatrixGrid(matrixSelection.focus,grid);
+    });
+    let columnDragId=null;
+    function clearColumnDropMarks(){
+      document.querySelectorAll('#columnList .col-card.drop-before,#columnList .col-card.drop-after').forEach(card=>card.classList.remove('drop-before','drop-after'));
+    }
+    $('columnList').addEventListener('dragstart',e=>{
+      const card=e.target.closest('.col-card[data-column-card]');
+      if(!card||!e.target.closest('.col-drag-handle')){ e.preventDefault(); return; }
+      columnDragId=Number(card.dataset.columnCard);
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',String(columnDragId));
+    });
+    $('columnList').addEventListener('dragover',e=>{
+      const card=e.target.closest('.col-card[data-column-card]');
+      if(!card||!columnDragId||Number(card.dataset.columnCard)===columnDragId) return;
+      e.preventDefault();
+      clearColumnDropMarks();
+      const rect=card.getBoundingClientRect(), after=e.clientY>rect.top+rect.height/2;
+      card.classList.add(after?'drop-after':'drop-before');
+      e.dataTransfer.dropEffect='move';
+    });
+    $('columnList').addEventListener('dragleave',e=>{
+      if(!e.relatedTarget||!$('columnList').contains(e.relatedTarget)) clearColumnDropMarks();
+    });
+    $('columnList').addEventListener('drop',e=>{
+      const card=e.target.closest('.col-card[data-column-card]');
+      if(!card||!columnDragId) return;
+      e.preventDefault();
+      const rect=card.getBoundingClientRect(), after=e.clientY>rect.top+rect.height/2;
+      const targetId=Number(card.dataset.columnCard);
+      clearColumnDropMarks();
+      ggz.moveColumnTo(columnDragId,targetId,after);
+      columnDragId=null;
+    });
+    $('columnList').addEventListener('dragend',()=>{
+      columnDragId=null;
+      clearColumnDropMarks();
+      document.querySelectorAll('#columnList .col-card.dragging').forEach(card=>card.classList.remove('dragging'));
     });
     $('columnList').addEventListener('input',e=>{
       const pointInput=e.target.closest('input[data-promotion-point]');
