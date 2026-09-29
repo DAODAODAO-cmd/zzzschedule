@@ -8172,8 +8172,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         return;
       }
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'&&matrixSelectionSize()>=1&&!hasRealTextSelection()){
-        const text=matrixSelectionText();
-        if(text){ e.preventDefault(); e.stopPropagation(); copyTextWithFallback(text); }
+        e.stopPropagation();
         return;
       }
       if((e.key==='Delete'||e.key==='Backspace')&&matrixSelectionSize()>=1){
