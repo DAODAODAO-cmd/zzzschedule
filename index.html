@@ -1336,7 +1336,9 @@ html{ scrollbar-gutter:stable; }
 .payment-table tr.payment-paid-row td.payment-cn,.payment-table tr.payment-paid-row td.payment-money{ background:#d9f1e0; color:#176b38; }
 .payment-table tr.payment-partial-row td{ background:#fff8e3; }
 .payment-table tr.payment-partial-row td.payment-cn,.payment-table tr.payment-partial-row td.payment-money{ background:#fff1c8; color:#835a12; }
-.payment-received-note{ display:block; margin-top:3px; color:#a46d18; font-size:11px; font-weight:800; white-space:nowrap; }
+.payment-received-note{ display:block; max-width:360px; margin-top:3px; color:#a46d18; font-size:11px; font-weight:800; line-height:1.45; white-space:normal; overflow-wrap:anywhere; }
+.payment-received-note b{ display:block; margin-bottom:2px; color:#89590f; }
+.payment-received-note small{ display:block; margin-top:2px; color:#7c6a43; font-size:10px; font-weight:800; line-height:1.45; }
 .payment-bought-note{ display:block; margin-top:3px; color:#4e7390; font-size:10.5px; font-weight:800; line-height:1.35; white-space:normal; }
 .payment-item-line{ display:block; line-height:1.55; }
 .payment-item-line+.payment-item-line{ margin-top:2px; }
@@ -4484,7 +4486,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!(safeReceived>0&&Math.abs(safeReceived-safeTotal)>0.005)) return '';
       const diff=safeReceived-safeTotal, label=diff>0?`多 ${money(diff)}`:`少 ${money(Math.abs(diff))}`;
       const reason=String(reasonHtml||'').trim();
-      return `<span class="payment-received-note" data-html2canvas-ignore="true">应收变动：${label}${reason?`；${reason}`:`；当前应收 ${money(safeTotal)}，已收 ${money(safeReceived)}`}</span>`;
+      return `<span class="payment-received-note" data-html2canvas-ignore="true"><b>${reason.includes('均摊')?'均摊差额':'谷子收款差额'}：${label}</b>${reason?reason:`<small>当前应收 ${money(safeTotal)}；已收 ${money(safeReceived)}</small>`}</span>`;
     }
     function paymentReceivedReasonForGoods(data,currentAmount,receivedAmount){
       const parts=[], snapshot=goodsPaidSnapshotFor(data.key,data.name);
@@ -4504,7 +4506,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       if(paymentIncludeShare&&Math.max(0,num(data.shareAmount))>0) parts.push(`谷子收款已加入均摊 ${money(data.shareAmount)}`);
       if(!parts.length) parts.push(snapshot?'旧收款和当前明细差额':'没有旧收款快照，只能确认当前应收与已收不一致');
-      return `来源：${parts.slice(0,4).map(escapeHtml).join('；')}`;
+      return parts.slice(0,5).map(part=>`<small>${escapeHtml(part)}</small>`).join('');
     }
     function paymentAdjustmentNote(refund,supplement){
       if(!(refund>0||supplement>0)) return '';
@@ -5151,7 +5153,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const shareVisibleData=[...people.values()].filter(data=>paymentPassesStatusFilter(data,sharePaymentFilter,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,shareAmountFor(data))));
       let rows='';
       shareVisibleData.forEach(data=>{
-        const name=data.name, items=[...data.items.entries()], visibleItems=items.length?items:[['—',0]], span=visibleItems.length, raw=shareAmountFor(data), payable=wechatFeeAmount(raw), alipayAmount=paymentEditAmount(sharePaymentEdits,'alipay',name,data.key,raw), receivedAmount=paidAmountValue(sharePaymentPaid,data.key,alipayAmount), paidStatus=paidState(sharePaymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount,`来源：均摊当前应收 ${money(alipayAmount)}，已收 ${money(receivedAmount)}；差额来自本次均摊金额/点数变化`), adjustmentNote='', paidClass=paymentRowClassFor(data.key,paidStatus,sharePaymentRefund,sharePaymentSupplement,{},{}), personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
+        const name=data.name, items=[...data.items.entries()], visibleItems=items.length?items:[['—',0]], span=visibleItems.length, raw=shareAmountFor(data), payable=wechatFeeAmount(raw), alipayAmount=paymentEditAmount(sharePaymentEdits,'alipay',name,data.key,raw), receivedAmount=paidAmountValue(sharePaymentPaid,data.key,alipayAmount), paidStatus=paidState(sharePaymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount,`<small>均摊当前应收 ${money(alipayAmount)}；已收 ${money(receivedAmount)}</small><small>差额来自本次均摊金额/点数变化</small>`), adjustmentNote='', paidClass=paymentRowClassFor(data.key,paidStatus,sharePaymentRefund,sharePaymentSupplement,{},{}), personAttr=` data-share-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-share-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         if(sharePaymentViewMode==='merged'){
           const itemText=items.length?items.map(([item,count])=>`${item}×${count}`).join('、'):'—';
           rows+=`<tr${paidClass}${personAttr}><td class="payment-cn">${paidControl}</td><td class="payment-item-name" ${editAttr('merged-items:'+name)}>${edited('merged-items:'+name,itemText)}</td><td ${editAttr('merged-qty:'+name)}>${edited('merged-qty:'+name,fmtPoint(data.qty))}</td><td class="payment-money"><span ${editAttr('alipay:'+name)} data-share-payment-auto="${moneyText(raw)}">${edited('alipay:'+name,moneyText(raw))}</span>${adjustmentNote}${receivedNote}</td><td class="payment-money">${moneyText(payable)}</td></tr>`;
@@ -9210,7 +9212,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         copy.querySelectorAll('.payment-share-note').forEach(el=>el.remove());
         const totalLabel=copy.querySelector('.payment-total-label');
         if(totalLabel) totalLabel.textContent='排单总价';
-        copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove());
+        copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove());
         body.appendChild(copy);
       });
       exportTable.appendChild(body);
@@ -9221,7 +9223,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('copyPaymentBtn').addEventListener('click',()=>{
       const table=$('paymentSummary').querySelector('table'); if(!table){ alert('还没有收款数据'); return; }
-      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('.payment-share-note').forEach(el=>el.remove()); cleanTable.querySelectorAll('.payment-total-label').forEach(el=>{ el.textContent='排单总价'; }); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove());
+      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('.payment-share-note').forEach(el=>el.remove()); cleanTable.querySelectorAll('.payment-total-label').forEach(el=>{ el.textContent='排单总价'; }); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove());
       const lines=[...cleanTable.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const b=$('copyPaymentBtn'),old=b.textContent;b.textContent='已复制';setTimeout(()=>b.textContent=old,1200); });
     });
@@ -9242,13 +9244,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       const exportTable=document.createElement('table'), body=document.createElement('tbody'), titleRow=document.createElement('tr'), titleCell=document.createElement('td');
       titleCell.colSpan=5; titleCell.textContent=sharePaymentTitle||'均摊统计'; titleRow.appendChild(titleCell); body.appendChild(titleRow);
-      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove()); body.appendChild(copy); });
+      [...table.rows].forEach(row=>{ const copy=row.cloneNode(true); copy.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable')); copy.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove()); body.appendChild(copy); });
       exportTable.appendChild(body); const ws=XLSX.utils.table_to_sheet(exportTable,{raw:true}); ws['!cols']=[{wch:16},{wch:24},{wch:10},{wch:16},{wch:16}];
       const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'均摊统计'); XLSX.writeFile(wb,(sharePaymentTitle||'均摊统计')+'.xlsx');
     });
     $('copySharePaymentBtn').addEventListener('click',()=>{
       const table=$('sharePaymentSummary').querySelector('table'); if(!table){ alert('还没有均摊数据'); return; }
-      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note):not(.payment-received-note)').forEach(el=>el.remove());
+      const cleanTable=table.cloneNode(true); cleanTable.querySelectorAll('[data-html2canvas-ignore]:not(.payment-adjustment-note)').forEach(el=>el.remove());
       const lines=[...cleanTable.rows].map(row=>[...row.cells].map(cell=>cell.textContent.trim()).join('\t'));
       navigator.clipboard.writeText(lines.join('\n')).then(()=>{ const b=$('copySharePaymentBtn'),old=b.textContent;b.textContent='已复制';setTimeout(()=>b.textContent=old,1200); });
     });
