@@ -616,8 +616,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="payment-qr-tools">
       <label>当前收款码 <select id="paymentQrSlotSelect"><option value="0">收款码1</option><option value="1">收款码2</option></select></label>
-      <label>收款码1名 <input id="paymentQrSlotLabel0" type="text" value="收款码1" placeholder="收款码1"></label>
-      <label>收款码2名 <input id="paymentQrSlotLabel1" type="text" value="收款码2" placeholder="收款码2"></label>
+      <button class="btn-ghost" id="renamePaymentQrSlotBtn" type="button">改名</button>
       <label class="qr-upload">上传收款码<input type="file" id="paymentQrInput" accept="image/*"></label>
       <button class="btn-ghost" id="clearPaymentQrBtn" style="display:none;">删除收款码</button>
     </div>
@@ -5229,7 +5228,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(boughtMarkBtn) boughtMarkBtn.hidden=false;
       $('paymentStartRow').value=paymentStartRow;
       $('paymentEndRow').value=paymentEndRow===null?'':paymentEndRow;
-      ['paymentQrSlotLabel0','paymentQrSlotLabel1'].forEach((id,index)=>{ const input=$(id); if(input&&input!==document.activeElement) input.value=paymentQrSlotName(index); });
       const updateQrSlotSelect=select=>{
         if(!select) return;
         select.innerHTML=[0,1].map(index=>`<option value="${index}">${escapeHtml(paymentQrSlotName(index))}</option>`).join('');
@@ -9113,13 +9111,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       setActivePaymentQrSlot(e.target.value);
       saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
     });
-    ['paymentQrSlotLabel0','paymentQrSlotLabel1'].forEach((id,index)=>{
-      const input=$(id);
-      if(!input) return;
-      input.addEventListener('input',e=>{
-        sharedPaymentQrLabels[index]=String(e.target.value||'').trim()||(index===1?'收款码2':'收款码1');
-        saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
-      });
+    $('renamePaymentQrSlotBtn').addEventListener('click',async()=>{
+      const index=activePaymentQrSlot===1?1:0, fallback=index===1?'收款码2':'收款码1';
+      const name=String(await appPrompt(`给${fallback}改个名字`,paymentQrSlotName(index))||'').trim();
+      if(!name) return;
+      sharedPaymentQrLabels[index]=name;
+      saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
     });
     document.addEventListener('change',e=>{
       if(!e.target.matches('[data-payment-qr-slot-select]')) return;
