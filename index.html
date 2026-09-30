@@ -336,9 +336,9 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <span id="localStatus">本机已保存</span>
     <span id="cloudStatus">尚未选择协作组</span>
     <span id="collabStatus">打开自动读取最新；修改后自动上传</span>
-    <button id="acquireEditLockBtn" type="button" class="btn-primary">开始编辑</button>
-    <button id="releaseEditLockBtn" type="button" class="btn-ghost">保存并结束编辑</button>
-    <span id="editLockStatus">正在确认是否有人编辑…</span>
+    <button id="acquireEditLockBtn" type="button" class="btn-primary" style="display:none;">开始编辑</button>
+    <button id="releaseEditLockBtn" type="button" class="btn-ghost" style="display:none;">保存并结束编辑</button>
+    <span id="editLockStatus" style="display:none;"></span>
   </div>
   <div id="collabActivityPanel" class="collab-activity" style="display:none;">
     <div><strong>当前协作者</strong><span id="collabOnlinePeople">正在读取…</span></div>
@@ -1991,7 +1991,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('syncCodeInput').value=next; renderWorkspaceUI(); setWorkspaceStatus(`已进入「${currentWorkspace()?.name||'协作组'}」`,'ok');
       setCloudStatus(cloudDirty?'云端完整备份未更新':'云端完整备份已同步',cloudDirty?'warn':'');
       if(!autoConnect) setTimeout(()=>autoReadLatestCloudOnOpen(next),0);
-      setTimeout(()=>refreshEditLockStatus(),0);
       if(autoConnect&&!collabEnabled) await startCollab(true);
       return true;
     }
@@ -2736,37 +2735,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function syncEditLockUI(){
       const acquire=$('acquireEditLockBtn'), release=$('releaseEditLockBtn'), status=$('editLockStatus');
-      const activeName=editLockRecord?.holder_name||'其他人';
       document.documentElement.classList.remove('cloud-edit-readonly');
       $('editLockBanner').style.display='none';
-      acquire.style.display='';
-      release.style.display='';
-      status.style.display='';
-      acquire.textContent='开始编辑';
-      release.textContent='保存并结束编辑';
-      acquire.disabled=cloudBusy||!syncCode||editLockOwned||editLockSupported===false;
-      release.disabled=cloudBusy||!editLockOwned;
+      acquire.style.display='none';
+      release.style.display='none';
+      status.style.display='none';
       $('cloudUploadBtn').disabled=cloudBusy;
-      if(!syncCode){
-        status.textContent='请先选择协作组';
-        return;
-      }
-      if(editLockSupported===false){
-        status.textContent='编辑提醒未安装；仍会用版本号防止覆盖';
-        acquire.style.display='none';
-        release.style.display='none';
-        return;
-      }
-      if(editLockOwned){
-        status.textContent='你正在编辑，别人会看到占用提醒';
-        return;
-      }
-      if(editLockRecord&&!editLockExpired(editLockRecord)){
-        status.textContent=`${activeName} 正在编辑，建议等对方结束`;
-        acquire.disabled=true;
-        return;
-      }
-      status.textContent=editLockSupported===true?'当前没人占用，可开始编辑':'正在确认是否有人编辑…';
     }
     function lockFeatureMissing(error){ return ['42P01','42883','PGRST202','PGRST205'].includes(error?.code); }
     function lockRequest(request,timeoutMs=12000,label='云端请求'){
@@ -2806,15 +2780,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
     }
     async function confirmEditLockForUpload(code){
-      if(editLockSupported!==true) return true;
-      try{
-        const client=getCloudClient(code), {data,error}=await lockRequest(client.rpc('ggz_try_edit_lock',{p_sync_code:code,p_holder_id:editSessionId,p_holder_name:editorName||'未命名',p_ttl_seconds:EDIT_LOCK_TTL_SECONDS}),12000,'编辑权确认');
-        if(error) throw error;
-        const row=editLockRow(data); editLockRecord=row;
-        if(!row?.acquired){ editLockOwned=false; cloudConflictPaused=true; clearIdleCloudUpload(); setCloudStatus(`${row?.holder_name||'其他人'} 正在编辑，已暂停上传避免覆盖`,'warn'); syncEditLockUI(); return false; }
-        editLockOwned=true; cloudConflictPaused=false; startEditLockTimer(); syncEditLockUI();
-        return true;
-      }catch(error){ setCloudStatus('无法确认编辑权，已暂停上传','warn'); return false; }
+      return true;
     }
     async function releaseEditLock(uploadFirst=true,quiet=false){
       const code=syncCode;
