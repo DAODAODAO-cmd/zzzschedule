@@ -615,7 +615,9 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <span class="hint">结束行留空即统计到最后。</span>
     </div>
     <div class="payment-qr-tools">
-      <label>当前收款码 <select id="paymentQrSlotSelect"><option value="0">荀咪</option><option value="1">白酱</option></select></label>
+      <label>当前收款码 <select id="paymentQrSlotSelect"><option value="0">收款码1</option><option value="1">收款码2</option></select></label>
+      <label>收款码1名 <input id="paymentQrSlotLabel0" type="text" value="收款码1" placeholder="收款码1"></label>
+      <label>收款码2名 <input id="paymentQrSlotLabel1" type="text" value="收款码2" placeholder="收款码2"></label>
       <label class="qr-upload">上传收款码<input type="file" id="paymentQrInput" accept="image/*"></label>
       <button class="btn-ghost" id="clearPaymentQrBtn" style="display:none;">删除收款码</button>
     </div>
@@ -624,7 +626,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <input id="paymentTitleInput" type="text" placeholder="填写项目名称">
         <label>显示方式 <select id="paymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
-        <label>当前收款码 <select data-payment-qr-slot-select><option value="0">荀咪</option><option value="1">白酱</option></select></label>
+        <label>当前收款码 <select data-payment-qr-slot-select><option value="0">收款码1</option><option value="1">收款码2</option></select></label>
       </div>
       <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收齐：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div class="extra-fee-filter payment-status-filter" data-payment-status-filter="goods"><button type="button" class="active" data-payment-filter="all">全部</button><button type="button" data-payment-filter="refund">退款</button><button type="button" data-payment-filter="unpaid">未收</button><button type="button" data-payment-filter="paid">已收</button></div>
@@ -690,7 +692,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <input id="sharePaymentTitleInput" type="text" placeholder="填写均摊项目名称">
         <label>显示方式 <select id="sharePaymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="sharePaymentColorInput" type="color" value="#d1466a"></label>
-        <label>当前收款码 <select data-payment-qr-slot-select><option value="0">荀咪</option><option value="1">白酱</option></select></label>
+        <label>当前收款码 <select data-payment-qr-slot-select><option value="0">收款码1</option><option value="1">收款码2</option></select></label>
       </div>
       <div class="payment-search-tools"><input id="sharePaymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="sharePaymentSearchBtn">查找</button><span class="payment-unpaid-count" id="sharePaymentUnpaidCount">已收齐：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div class="extra-fee-filter payment-status-filter" data-payment-status-filter="share"><button type="button" class="active" data-payment-filter="all">全部</button><button type="button" data-payment-filter="refund">退款</button><button type="button" data-payment-filter="unpaid">未收</button><button type="button" data-payment-filter="paid">已收</button></div>
@@ -1844,7 +1846,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let quantityTitle='';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', paymentFilter='all', sharePaymentFilter='all', showPaymentTotal=true, showBoughtSettlement=false, paymentIncludeShare=false;
     let paymentEdits={}, paymentPaid={}, paymentRefund={}, paymentSupplement={}, paymentRefundDone={}, paymentSupplementDone={}, paymentNotes={}, settlementDashboardOpen=false, settlementFilter='pending', sharePaymentTitle='', sharePaymentTitleCustom=false, sharePaymentColor='#d1466a', sharePaymentViewMode='detail', sharePaymentEdits={}, sharePaymentPaid={}, sharePaymentRefund={}, sharePaymentSupplement={}, shareDeductFixed=false;
-    let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='', sharedPaymentQrImgs=['',''], activePaymentQrSlot=0, extraPaymentQrImg='';
+    let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='', sharedPaymentQrImgs=['',''], sharedPaymentQrLabels=['收款码1','收款码2'], activePaymentQrSlot=0, extraPaymentQrImg='';
     let extraFees=[], extraFeeIdSeed=1, extraFeeFilter='all', extraFeeBatchFilter='all', extraFeeTitle='追加费用收款', extraFeeColor='#d1466a', extraFeeShowTotal=true, extraFeeViewMode='detail', extraFeeArchives=[];
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
@@ -1992,12 +1994,18 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     async function activateWorkspace(groupId,autoConnect=false){
       const next=String(groupId||''); if(!next||!workspaces.some(group=>group.id===next)) return false;
-      if(next!==syncCode&&!(await disconnectCurrentWorkspace())) return false;
+      const previousCode=syncCode, switchingWorkspace=next!==previousCode;
+      if(switchingWorkspace&&cloudDirty&&previousCode){
+        setWorkspaceStatus('正在先保存当前协作组，再切换…','warn');
+        await uploadCloud(true);
+        if(cloudDirty){ setWorkspaceStatus('当前协作组还有修改没有同步成功，已暂不切换，避免丢数据','bad'); renderWorkspaceUI(); return false; }
+      }
+      if(switchingWorkspace&&!(await disconnectCurrentWorkspace())) return false;
       activeWorkspaceId=next; syncCode=next; localStorage.setItem(WORKSPACE_STORAGE_KEY,next); localStorage.setItem('ggzSyncCode',next);
       lastCloudUpdatedAt=localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+next)||''; cloudConflictPaused=false; cloudDirty=rememberedCloudDirty(next,lastCloudUpdatedAt);
       $('syncCodeInput').value=next; renderWorkspaceUI(); setWorkspaceStatus(`已进入「${currentWorkspace()?.name||'协作组'}」`,'ok');
       setCloudStatus(cloudDirty?'云端完整备份未更新':'云端完整备份已同步',cloudDirty?'warn':'');
-      if(!autoConnect) setTimeout(()=>autoReadLatestCloudOnOpen(next),0);
+      if(!autoConnect) setTimeout(()=>autoReadLatestCloudOnOpen(next,switchingWorkspace),0);
       if(autoConnect&&!collabEnabled) await startCollab(true);
       return true;
     }
@@ -2145,7 +2153,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sheet=blankSheet('表1');
       sheetIdSeed=savedSeed;
       sheet.id=1;
-      return {sheets:[sheet],sheetIdSeed:2,itemCatalog:[],catalogIdSeed:1,sharedCartQrImg:'',sharedPaymentQrImg:'',sharedPaymentQrImgs:['',''],activePaymentQrSlot:0,extraPaymentQrImg:'',extraFees:[],extraFeeIdSeed:1,extraFeeTitle:'追加费用收款',extraFeeColor:'#d1466a',extraFeeShowTotal:true,extraFeeViewMode:'detail',extraFeeArchives:[]};
+      return {sheets:[sheet],sheetIdSeed:2,itemCatalog:[],catalogIdSeed:1,sharedCartQrImg:'',sharedPaymentQrImg:'',sharedPaymentQrImgs:['',''],sharedPaymentQrLabels:['收款码1','收款码2'],activePaymentQrSlot:0,extraPaymentQrImg:'',extraFees:[],extraFeeIdSeed:1,extraFeeTitle:'追加费用收款',extraFeeColor:'#d1466a',extraFeeShowTotal:true,extraFeeViewMode:'detail',extraFeeArchives:[]};
     }
     function isProbablyBlankProject(payload){
       const project=payload||{}, list=Array.isArray(project.sheets)?project.sheets:[];
@@ -2164,13 +2172,21 @@ body.export-rendering .cart-count{ font-size:28px; }
       const slots=Array.isArray(source?.sharedPaymentQrImgs)?source.sharedPaymentQrImgs:[source?.sharedPaymentQrImg||source?.paymentQrImg||source?.alipayQrImg||source?.wechatQrImg||'',''];
       return [String(slots[0]||''),String(slots[1]||'')];
     }
+    function normalizePaymentQrLabels(source){
+      const raw=Array.isArray(source?.sharedPaymentQrLabels)?source.sharedPaymentQrLabels:[source?.paymentQrSlotLabel0,source?.paymentQrSlotLabel1];
+      const label0=String(raw?.[0]||'').trim()||'收款码1', label1=String(raw?.[1]||'').trim()||'收款码2';
+      return [label0,label1];
+    }
+    function setPaymentQrLabelsFromState(source){
+      sharedPaymentQrLabels=normalizePaymentQrLabels(source||{});
+    }
     function syncActivePaymentQr(){
       activePaymentQrSlot=activePaymentQrSlot===1?1:0;
       sharedPaymentQrImg=sharedPaymentQrImgs[activePaymentQrSlot]||'';
       paymentQrImg=sharedPaymentQrImg;
     }
     function paymentQrSlotName(slot=activePaymentQrSlot){
-      return Number(slot)===1?'白酱':'荀咪';
+      return sharedPaymentQrLabels[Number(slot)===1?1:0]||(Number(slot)===1?'收款码2':'收款码1');
     }
     function setActivePaymentQrSlot(value){
       activePaymentQrSlot=Number(value)===1?1:0;
@@ -2178,6 +2194,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function setPaymentQrSlotsFromState(source,fallback=''){
       sharedPaymentQrImgs=normalizePaymentQrSlots(source||{sharedPaymentQrImg:fallback});
+      setPaymentQrLabelsFromState(source||{});
       activePaymentQrSlot=Number(source?.activePaymentQrSlot)===1?1:0;
       syncActivePaymentQr();
     }
@@ -2300,7 +2317,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function localStatePayload(){
       syncActivePaymentQr();
-      return {sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter};
+      return {sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,sharedPaymentQrLabels,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter};
     }
     function lightLocalStatePayload(){
       const payload=deepClone(localStatePayload());
@@ -2843,7 +2860,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function collabProjectSnapshot(){
       captureActiveSheet();
       syncActivePaymentQr();
-      return deepClone({sheets,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives});
+      return deepClone({sheets,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,sharedPaymentQrLabels,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives});
     }
     const cloudImageCompressionCache=new Map();
     async function compressCloudImageBlob(source,label){
@@ -3278,7 +3295,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           cloudConflictPaused=false;
         }
         const now=new Date().toISOString();
-        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,sharedCartQrImg:cloudCartQrImg,sharedPaymentQrImg:cloudPaymentQrImg,sharedPaymentQrImgs:cloudPaymentQrImgs,activePaymentQrSlot,extraPaymentQrImg:cloudExtraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter,version:Date.now()};
+        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,sharedCartQrImg:cloudCartQrImg,sharedPaymentQrImg:cloudPaymentQrImg,sharedPaymentQrImgs:cloudPaymentQrImgs,sharedPaymentQrLabels,activePaymentQrSlot,extraPaymentQrImg:cloudExtraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter,version:Date.now()};
         let writeSucceeded=false;
         if(remoteNow){
           const {data,error}=await client.from('ggz_sync_data').update({payload,updated_at:now}).eq('sync_code',code).eq('updated_at',remoteNow).select('updated_at').maybeSingle();
@@ -3305,7 +3322,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       finally{ cloudBusy=false; }
     }
-    async function downloadCloud(silent){
+    async function downloadCloud(silent,force=false){
       const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先加入或新建协作组',true); return false; } if(cloudBusy) return false;
       if(cloudDirty&&!await appConfirm('本机有尚未上传的内容。读取云端会覆盖本机当前数据，确定继续吗？','读取云端','继续读取')) return false;
       clearIdleCloudUpload();
@@ -3315,7 +3332,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const {data,error}=await client.from('ggz_sync_data').select('payload,updated_at').eq('sync_code',code).maybeSingle();
         if(error) throw error;
         if(!data){ if(!silent) setCloudStatus('云端还没有数据'); return true; }
-        if(silent&&lastCloudUpdatedAt&&new Date(data.updated_at)<=new Date(lastCloudUpdatedAt)) return true;
+        if(silent&&!force&&lastCloudUpdatedAt&&new Date(data.updated_at)<=new Date(lastCloudUpdatedAt)) return true;
         const d=data.payload||{}; if(!Array.isArray(d.sheets)||!d.sheets.length) throw new Error('云端数据为空');
         if(silent&&isProbablyBlankProject(d)){ setCloudStatus('云端像是空表，已停止自动读取以免覆盖本机','warn'); return false; }
         applyingCloud=true; sheets=d.sheets;
@@ -3331,7 +3348,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }catch(err){ setCloudStatus('读取失败：'+(err.message||err),true); return false; }
       finally{ applyingCloud=false; cloudBusy=false; }
     }
-    async function autoReadLatestCloudOnOpen(code){
+    async function autoReadLatestCloudOnOpen(code,force=false){
       if(!code||code!==syncCode||cloudBusy) return false;
       try{
         const client=getCloudClient(code);
@@ -3339,11 +3356,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(error) throw error;
         const remote=data?.updated_at||'', known=lastCloudUpdatedAt||localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+code)||'';
         if(!remote){ setCloudStatus('云端还没有完整备份，请先上传云端','warn'); return true; }
-        if(!known||new Date(remote)>new Date(known)){
+        if(force||!known||new Date(remote)>new Date(known)){
           setCloudStatus('发现云端较新版本，正在自动读取…','warn');
           const wasDirty=cloudDirty;
           cloudDirty=false;
-          const ok=await downloadCloud(true);
+          const ok=await downloadCloud(true,force);
           if(!ok&&wasDirty){ cloudDirty=true; rememberCloudDirty(code,true); }
           return ok;
         }
@@ -4699,11 +4716,22 @@ body.export-rendering .cart-count{ font-size:28px; }
       const perItem=totalQty?Math.max(0,sharedTotal-fixedDeduction)/totalQty:0;
       return [...people.values()].map(data=>{ const autoExpected=ceilMoneyValue(data.qty*perItem), expected=paymentVisibleAmount('sharePaymentSummary','data-share-payment-key',sharePaymentEdits,'alipay',data.name,data.key,autoExpected),received=paidAmountValue(sharePaymentPaid,data.key,expected); return {...data,expected,received,refund:refundAmountValue(sharePaymentRefund,data.key,expected),supplement:refundAmountValue(sharePaymentSupplement,data.key,expected)}; });
     }
+    function splitCombinedPaymentIntoSettlement(key,g,sh,paidMap=paymentPaid,includeShare=paymentIncludeShare){
+      if(!includeShare||!paidMap||!Object.prototype.hasOwnProperty.call(paidMap,key)) return {g,sh};
+      const goodsExpected=Math.max(0,num(g&&g.expected)), shareExpected=Math.max(0,num(sh&&sh.expected));
+      const combinedReceived=paidAmountValue(paidMap,key,goodsExpected+shareExpected);
+      const goodsReceived=Math.min(goodsExpected,combinedReceived), shareReceived=Math.max(0,combinedReceived-goodsReceived);
+      return {
+        g:{...g,received:goodsReceived,combinedPaidReceived:combinedReceived},
+        sh:{...sh,received:shareReceived,combinedPaidViaGoods:true,combinedPaidReceived:combinedReceived}
+      };
+    }
     function combinedSettlementRecords(){
       const goods=buildGoodsSettlementRecords(), shares=buildShareSettlementRecords(), shareMap=new Map(shares.map(x=>[x.key,x])), goodsMap=new Map(goods.map(x=>[x.key,x])), keys=new Set([...goodsMap.keys(),...shareMap.keys()]);
       return [...keys].map(key=>{
-        const g=goodsMap.get(key)||{key,name:shareMap.get(key)?.name||key,expected:0,received:0,actual:0};
-        const sh=shareMap.get(key)||{key,name:g.name,expected:0,received:0};
+        let g=goodsMap.get(key)||{key,name:shareMap.get(key)?.name||key,expected:0,received:0,actual:0};
+        let sh=shareMap.get(key)||{key,name:g.name,expected:0,received:0};
+        ({g,sh}=splitCombinedPaymentIntoSettlement(key,g,sh));
         const net=(g.actual-g.received)+(sh.expected-sh.received), autoRefund=Math.max(0,-net), autoDue=Math.max(0,net);
         const manualRefund=Math.max(0,num(paymentRefund[key]||sharePaymentRefund[key]||0));
         const manualDue=Math.max(0,num(paymentSupplement[key]||sharePaymentSupplement[key]||0));
@@ -4808,13 +4836,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       const autoResult=net<-0.005?`自动应退 ${money(Math.abs(net))}`:(net>0.005?`自动应补 ${money(net)}`:'自动已平');
       const finalResult=row.refund>0.005?`最终退款 ${money(row.refund)}`:(row.due>0.005?`最终补款 ${money(row.due)}`:'最终已平');
       const manual=row.manual?`<span>手动覆盖：${escapeHtml(autoResult)} → ${escapeHtml(finalResult)}</span>`:`<span>合计：${escapeHtml(signText(goodsNet))} + ${escapeHtml(signText(shareNet))} = ${escapeHtml(finalResult)}</span>`;
-      return `<div class="settlement-result-detail" data-html2canvas-ignore="true"><span>谷子：实际 ${money(goodsActual)} − 已收 ${money(goodsReceived)} = ${escapeHtml(signText(goodsNet))}</span><span>均摊：应收 ${money(shareExpected)} − 已收 ${money(shareReceived)} = ${escapeHtml(signText(shareNet))}</span>${manual}</div>`;
+      const shareSource=row.sh&&row.sh.combinedPaidViaGoods?`<span>说明：均摊已收来自“谷子收款”的合并收款，不需要在均摊收款里再勾一次。</span>`:'';
+      return `<div class="settlement-result-detail" data-html2canvas-ignore="true"><span>谷子：实际 ${money(goodsActual)} − 已收 ${money(goodsReceived)} = ${escapeHtml(signText(goodsNet))}</span><span>均摊：应收 ${money(shareExpected)} − 已收 ${money(shareReceived)} = ${escapeHtml(signText(shareNet))}</span>${shareSource}${manual}</div>`;
     }
     function sheetBoughtKey(c,row,name){ return String(name||'').trim()&&String((matrixBoughtCells||{})[matrixBoughtKey(c.id,row)]||'')===String(name||'').trim(); }
     function sheetSettlementContext(sourceSheet){
       const cost={...COST_DEFAULTS,...(sourceSheet.cost||{})}, rawCols=(sourceSheet.columns||[]).map(c=>migrateColumn({...c})), priceInfo=sheetDisplayPriceInfo({...sourceSheet,columns:rawCols}), displayColumns=priceInfo.cols;
       const data=sourceSheet.allocations||{}, boughtCells=sourceSheet.matrixBoughtCells&&typeof sourceSheet.matrixBoughtCells==='object'?sourceSheet.matrixBoughtCells:{}, startIndex=Math.max(0,(parseInt(sourceSheet.paymentStartRow,10)||1)-1), endIndex=Number.isFinite(parseInt(sourceSheet.paymentEndRow,10))?Math.max(startIndex+1,parseInt(sourceSheet.paymentEndRow,10)):Infinity;
-      const settings={showBought:sourceSheet.showBoughtSettlement===true, shareDeductFixed:sourceSheet.shareDeductFixed===true, sharedTotal:Math.max(0,num(cost.sharedFee)), paymentEdits:sourceSheet.paymentEdits||{}, paymentPaid:sourceSheet.paymentPaid||{}, paymentRefund:sourceSheet.paymentRefund||{}, paymentSupplement:sourceSheet.paymentSupplement||{}, paymentRefundDone:sourceSheet.paymentRefundDone||{}, paymentSupplementDone:sourceSheet.paymentSupplementDone||{}, sharePaymentEdits:sourceSheet.sharePaymentEdits||{}, sharePaymentPaid:sourceSheet.sharePaymentPaid||{}, sharePaymentRefund:sourceSheet.sharePaymentRefund||{}, sharePaymentSupplement:sourceSheet.sharePaymentSupplement||{}};
+      const settings={showBought:sourceSheet.showBoughtSettlement===true, includeShare:sourceSheet.paymentIncludeShare===true, shareDeductFixed:sourceSheet.shareDeductFixed===true, sharedTotal:Math.max(0,num(cost.sharedFee)), paymentEdits:sourceSheet.paymentEdits||{}, paymentPaid:sourceSheet.paymentPaid||{}, paymentRefund:sourceSheet.paymentRefund||{}, paymentSupplement:sourceSheet.paymentSupplement||{}, paymentRefundDone:sourceSheet.paymentRefundDone||{}, paymentSupplementDone:sourceSheet.paymentSupplementDone||{}, sharePaymentEdits:sourceSheet.sharePaymentEdits||{}, sharePaymentPaid:sourceSheet.sharePaymentPaid||{}, sharePaymentRefund:sourceSheet.sharePaymentRefund||{}, sharePaymentSupplement:sourceSheet.sharePaymentSupplement||{}};
       const boughtKey=(c,row,name)=>!!String(name||'').trim()&&String(boughtCells[matrixBoughtKey(c.id,row)]||'')===String(name||'').trim();
       return {sheet:sourceSheet,displayColumns,data,startIndex,endIndex,price:priceInfo.price,settings,boughtKey};
     }
@@ -4842,8 +4871,9 @@ body.export-rendering .cart-count{ font-size:28px; }
         const gRaw=goodsPeople.get(key)||{key,name:shareMap.get(key)?.name||key,planned:0,bought:0,items:new Map(),boughtItems:new Map()};
         const expected=paymentEditAmount(ctx.settings.paymentEdits,'alipay',gRaw.name,key,gRaw.planned);
         const received=paidAmountValue(ctx.settings.paymentPaid,key,expected), actual=ctx.settings.showBought?Math.max(0,num(gRaw.bought)):expected;
-        const g={...gRaw,expected,received,actual};
-        const sh=shareMap.get(key)||{key,name:g.name,qty:0,expected:0,received:0,boughtItems:new Map(),missingItems:new Map()};
+        let g={...gRaw,expected,received,actual};
+        let sh=shareMap.get(key)||{key,name:g.name,qty:0,expected:0,received:0,boughtItems:new Map(),missingItems:new Map()};
+        ({g,sh}=splitCombinedPaymentIntoSettlement(key,g,sh,ctx.settings.paymentPaid,ctx.settings.includeShare));
         const net=(g.actual-g.received)+(sh.expected-sh.received), autoRefund=Math.max(0,-net), autoDue=Math.max(0,net), manualRefund=Math.max(0,num(ctx.settings.paymentRefund[key]||ctx.settings.sharePaymentRefund[key]||0)), manualDue=Math.max(0,num(ctx.settings.paymentSupplement[key]||ctx.settings.sharePaymentSupplement[key]||0)), manual=manualRefund>0.005||manualDue>0.005;
         return {key,name:g.name||sh.name||key,sheetName:String(sourceSheet.name||'未命名表'),g,sh,refund:manual?manualRefund:autoRefund,due:manual?manualDue:autoDue,manual,refundDone:ctx.settings.paymentRefundDone[key]===true,supplementDone:ctx.settings.paymentSupplementDone[key]===true};
       });
@@ -5199,8 +5229,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(boughtMarkBtn) boughtMarkBtn.hidden=false;
       $('paymentStartRow').value=paymentStartRow;
       $('paymentEndRow').value=paymentEndRow===null?'':paymentEndRow;
-      if($('paymentQrSlotSelect')) $('paymentQrSlotSelect').value=String(activePaymentQrSlot);
-      document.querySelectorAll('[data-payment-qr-slot-select]').forEach(select=>{ select.value=String(activePaymentQrSlot); select.title=`当前使用：${paymentQrSlotName()}`; });
+      ['paymentQrSlotLabel0','paymentQrSlotLabel1'].forEach((id,index)=>{ const input=$(id); if(input&&input!==document.activeElement) input.value=paymentQrSlotName(index); });
+      const updateQrSlotSelect=select=>{
+        if(!select) return;
+        select.innerHTML=[0,1].map(index=>`<option value="${index}">${escapeHtml(paymentQrSlotName(index))}</option>`).join('');
+        select.value=String(activePaymentQrSlot); select.title=`当前使用：${paymentQrSlotName()}`;
+      };
+      updateQrSlotSelect($('paymentQrSlotSelect'));
+      document.querySelectorAll('[data-payment-qr-slot-select]').forEach(updateQrSlotSelect);
       $('clearPaymentQrBtn').style.display=paymentQrImg?'':'none';
       $('sharePaymentTitleInput').value=sharePaymentTitle;
       $('sharePaymentColorInput').value=/^#[0-9a-f]{6}$/i.test(sharePaymentColor)?sharePaymentColor:'#d1466a';
@@ -9077,6 +9113,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       setActivePaymentQrSlot(e.target.value);
       saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
     });
+    ['paymentQrSlotLabel0','paymentQrSlotLabel1'].forEach((id,index)=>{
+      const input=$(id);
+      if(!input) return;
+      input.addEventListener('input',e=>{
+        sharedPaymentQrLabels[index]=String(e.target.value||'').trim()||(index===1?'收款码2':'收款码1');
+        saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
+      });
+    });
     document.addEventListener('change',e=>{
       if(!e.target.matches('[data-payment-qr-slot-select]')) return;
       setActivePaymentQrSlot(e.target.value);
@@ -9572,12 +9616,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       captureActiveSheet();
       const sheet=sheets.find(s=>s.id===activeSheetId);
       syncActivePaymentQr();
-      downloadBackup({...sheet,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,activePaymentQrSlot},`${sheet.name||'本表'}备份.json`);
+      downloadBackup({...sheet,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,sharedPaymentQrLabels,activePaymentQrSlot},`${sheet.name||'本表'}备份.json`);
     });
     $('exportJsonBtn').addEventListener('click',()=>{
       captureActiveSheet();
       syncActivePaymentQr();
-      downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter},'全部排单备份.json');
+      downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,sharedPaymentQrLabels,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter},'全部排单备份.json');
     });
     $('exportImportTemplateBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
@@ -9751,3 +9795,4 @@ body.export-rendering .cart-count{ font-size:28px; }
 </script>
 </body>
 </html>
+
