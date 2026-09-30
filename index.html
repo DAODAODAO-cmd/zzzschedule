@@ -615,6 +615,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <span class="hint">结束行留空即统计到最后。</span>
     </div>
     <div class="payment-qr-tools">
+      <label>当前收款码 <select id="paymentQrSlotSelect"><option value="0">收款码1</option><option value="1">收款码2</option></select></label>
       <label class="qr-upload">上传收款码<input type="file" id="paymentQrInput" accept="image/*"></label>
       <button class="btn-ghost" id="clearPaymentQrBtn" style="display:none;">删除收款码</button>
     </div>
@@ -1836,7 +1837,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let quantityTitle='';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', showPaymentTotal=true, showBoughtSettlement=false, paymentIncludeShare=false;
     let paymentEdits={}, paymentPaid={}, paymentRefund={}, paymentSupplement={}, paymentRefundDone={}, paymentSupplementDone={}, paymentNotes={}, settlementDashboardOpen=false, settlementFilter='pending', sharePaymentTitle='', sharePaymentTitleCustom=false, sharePaymentColor='#d1466a', sharePaymentViewMode='detail', sharePaymentEdits={}, sharePaymentPaid={}, sharePaymentRefund={}, sharePaymentSupplement={}, shareDeductFixed=false;
-    let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='', extraPaymentQrImg='';
+    let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='', sharedPaymentQrImgs=['',''], activePaymentQrSlot=0, extraPaymentQrImg='';
     let extraFees=[], extraFeeIdSeed=1, extraFeeFilter='all', extraFeeBatchFilter='all', extraFeeTitle='追加费用收款', extraFeeColor='#d1466a', extraFeeShowTotal=true, extraFeeViewMode='detail', extraFeeArchives=[];
     let boxSize=null, groupSize=null, completeMultiple=null, quantityConfigured=false;
     let highlightedPerson='';
@@ -2136,7 +2137,21 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sheet=blankSheet('表1');
       sheetIdSeed=savedSeed;
       sheet.id=1;
-      return {sheets:[sheet],sheetIdSeed:2,itemCatalog:[],catalogIdSeed:1,sharedCartQrImg:'',sharedPaymentQrImg:'',extraPaymentQrImg:'',extraFees:[],extraFeeIdSeed:1,extraFeeTitle:'追加费用收款',extraFeeColor:'#d1466a',extraFeeShowTotal:true,extraFeeViewMode:'detail',extraFeeArchives:[]};
+      return {sheets:[sheet],sheetIdSeed:2,itemCatalog:[],catalogIdSeed:1,sharedCartQrImg:'',sharedPaymentQrImg:'',sharedPaymentQrImgs:['',''],activePaymentQrSlot:0,extraPaymentQrImg:'',extraFees:[],extraFeeIdSeed:1,extraFeeTitle:'追加费用收款',extraFeeColor:'#d1466a',extraFeeShowTotal:true,extraFeeViewMode:'detail',extraFeeArchives:[]};
+    }
+    function normalizePaymentQrSlots(source){
+      const slots=Array.isArray(source?.sharedPaymentQrImgs)?source.sharedPaymentQrImgs:[source?.sharedPaymentQrImg||source?.paymentQrImg||source?.alipayQrImg||source?.wechatQrImg||'',''];
+      return [String(slots[0]||''),String(slots[1]||'')];
+    }
+    function syncActivePaymentQr(){
+      activePaymentQrSlot=activePaymentQrSlot===1?1:0;
+      sharedPaymentQrImg=sharedPaymentQrImgs[activePaymentQrSlot]||'';
+      paymentQrImg=sharedPaymentQrImg;
+    }
+    function setPaymentQrSlotsFromState(source,fallback=''){
+      sharedPaymentQrImgs=normalizePaymentQrSlots(source||{sharedPaymentQrImg:fallback});
+      activePaymentQrSlot=Number(source?.activePaymentQrSlot)===1?1:0;
+      syncActivePaymentQr();
     }
     function sheetUsesCustomTitle(sheet,key){
       const flag=sheet?.[key+'Custom'];
@@ -2204,8 +2219,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       sharePaymentRefund=sheet.sharePaymentRefund&&typeof sheet.sharePaymentRefund==='object'?sheet.sharePaymentRefund:{};
       sharePaymentSupplement=sheet.sharePaymentSupplement&&typeof sheet.sharePaymentSupplement==='object'?sheet.sharePaymentSupplement:{};
       coldCarryBundleColumnIds=(Array.isArray(sheet.coldCarryBundleColumnIds)?sheet.coldCarryBundleColumnIds:[]).map(Number).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
-      if(!sharedPaymentQrImg) sharedPaymentQrImg=sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'';
-      paymentQrImg=sharedPaymentQrImg;
+      if(!sharedPaymentQrImgs.some(Boolean)) setPaymentQrSlotsFromState(sheet,sheet.paymentQrImg||sheet.alipayQrImg||sheet.wechatQrImg||'');
+      else syncActivePaymentQr();
       highlightedPerson='';
       matrixPreviewAllocations=null; matrixPreviewColumns=null; matrixPreviewLabel=''; matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[],blindSubCells:null};
       quantityConfigured=sheet.quantityConfigured===true;
@@ -2256,7 +2271,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
     function localStatePayload(){
-      return {sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter};
+      syncActivePaymentQr();
+      return {sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter};
     }
     function lightLocalStatePayload(){
       const payload=deepClone(localStatePayload());
@@ -2268,6 +2284,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       (payload.itemCatalog||[]).forEach(item=>{ item.img=slimImage(item.img); });
       payload.sharedCartQrImg=slimImage(payload.sharedCartQrImg);
       payload.sharedPaymentQrImg=slimImage(payload.sharedPaymentQrImg);
+      payload.sharedPaymentQrImgs=(payload.sharedPaymentQrImgs||['','']).map(slimImage);
       payload.extraPaymentQrImg=slimImage(payload.extraPaymentQrImg);
       return payload;
     }
@@ -2411,7 +2428,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(Array.isArray(d.sheets)&&d.sheets.length){
             sheets=d.sheets;
             sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
-            sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||'';
+            setPaymentQrSlotsFromState(d,d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||''); extraPaymentQrImg=d.extraPaymentQrImg||'';
             sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
             itemCatalog=migrateCatalogItems(d.itemCatalog);
             catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1));
@@ -2438,7 +2455,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             sharePaymentRefund=sheet.sharePaymentRefund&&typeof sheet.sharePaymentRefund==='object'?sheet.sharePaymentRefund:{};
             sharePaymentSupplement=sheet.sharePaymentSupplement&&typeof sheet.sharePaymentSupplement==='object'?sheet.sharePaymentSupplement:{};
             coldCarryBundleColumnIds=(Array.isArray(sheet.coldCarryBundleColumnIds)?sheet.coldCarryBundleColumnIds:[]).map(Number).filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed'));
-            paymentQrImg=sharedPaymentQrImg;
+            syncActivePaymentQr();
             quantityConfigured=sheet.quantityConfigured===true;
             boxSize=quantityConfigured&&Number.isFinite(parseInt(sheet.boxSize,10))?Math.max(1,parseInt(sheet.boxSize,10)):null;
             groupSize=quantityConfigured&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):null;
@@ -2465,9 +2482,9 @@ body.export-rendering .cart-count{ font-size:28px; }
             first.matrixTitle=d.matrixTitle||''; first.matrixTitleCustom=!!String(first.matrixTitle).trim()&&String(first.matrixTitle).trim()!==first.name; first.matrixColor=d.matrixColor||'#d1466a';
             first.quantityTitle=d.quantityTitle||''; first.quantityTitleCustom=!!String(first.quantityTitle).trim()&&String(first.quantityTitle).trim()!==first.name;
             first.paymentTitle=d.paymentTitle||''; first.paymentTitleCustom=!!String(first.paymentTitle).trim()&&String(first.paymentTitle).trim()!==first.name; first.paymentColor=d.paymentColor||'#d1466a';
-            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||''; extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):extraFees; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):extraFeeArchives;
+            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; setPaymentQrSlotsFromState(d,d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||''); extraPaymentQrImg=d.extraPaymentQrImg||''; extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):extraFees; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):extraFeeArchives;
             sheets=[first]; watermarkArchive=Array.isArray(first.watermarkArchive)?deepClone(first.watermarkArchive):[]; columns=first.columns; allocations=first.allocations; cartNote=first.cartNote;
-            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; paymentQrImg=sharedPaymentQrImg; matrixTitle=resolvedSheetTitle(first,'matrixTitle'); matrixColor=first.matrixColor; quantityTitle=resolvedSheetTitle(first,'quantityTitle'); paymentTitle=resolvedSheetTitle(first,'paymentTitle'); paymentColor=first.paymentColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldPromotionDraftBaseAllocations=deepClone(first.coldPromotionDraftBaseAllocations); coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
+            cartTargetMode=first.cartTargetMode; cartTargetNum=first.cartTargetNum; cartQrImg=sharedCartQrImg; syncActivePaymentQr(); matrixTitle=resolvedSheetTitle(first,'matrixTitle'); matrixColor=first.matrixColor; quantityTitle=resolvedSheetTitle(first,'quantityTitle'); paymentTitle=resolvedSheetTitle(first,'paymentTitle'); paymentColor=first.paymentColor; showPricingRow=first.showPricingRow; showUnitPriceRow=first.showUnitPriceRow; showPromotionPointRow=first.showPromotionPointRow; showCompleteRowColor=first.showCompleteRowColor; showColdPromotionColor=first.showColdPromotionColor; coldPromotionHighlights=deepClone(first.coldPromotionHighlights); coldPromotionDraftRows=deepClone(first.coldPromotionDraftRows); coldPromotionDraftApplied=first.coldPromotionDraftApplied; coldPromotionDraftBaseAllocations=deepClone(first.coldPromotionDraftBaseAllocations); coldCarryBundleColumnIds=first.coldCarryBundleColumnIds.filter(id=>columns.some(c=>c.id===id&&c.mode!=='fixed')); applyCost(first.cost);
           }
           return;
         }
@@ -2801,7 +2818,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function collabProjectSnapshot(){
       captureActiveSheet();
-      return deepClone({sheets,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives});
+      syncActivePaymentQr();
+      return deepClone({sheets,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives});
     }
     const cloudImageCompressionCache=new Map();
     async function compressCloudImageBlob(source,label){
@@ -2836,6 +2854,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       for(const item of cloud.itemCatalog||[]) item.img=await compressedCloudDataUrl(item.img,`library${item.catalogId||item.id||0}`);
       cloud.sharedCartQrImg=await compressedCloudDataUrl(cloud.sharedCartQrImg,'shared-qr');
       cloud.sharedPaymentQrImg=await compressedCloudDataUrl(cloud.sharedPaymentQrImg,'shared-payment');
+      cloud.sharedPaymentQrImgs=await Promise.all((cloud.sharedPaymentQrImgs||normalizePaymentQrSlots(cloud)).map((img,index)=>compressedCloudDataUrl(img,`shared-payment-${index+1}`)));
       cloud.extraPaymentQrImg=await compressedCloudDataUrl(cloud.extraPaymentQrImg,'extra-payment');
       return cloud;
     }
@@ -2853,6 +2872,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       for(const item of result.itemCatalog||[]){ const key=String(item.catalogId||item.id),local=localCatalog.get(key),compressed=compressedCatalog.get(key); if(String(local?.img||'').startsWith('data:image/')&&item.img===compressed?.img) item.img=local.img; }
       if(String(localState?.sharedCartQrImg||'').startsWith('data:image/')&&result.sharedCartQrImg===compressedLocalState?.sharedCartQrImg) result.sharedCartQrImg=localState.sharedCartQrImg;
       if(String(localState?.sharedPaymentQrImg||'').startsWith('data:image/')&&result.sharedPaymentQrImg===compressedLocalState?.sharedPaymentQrImg) result.sharedPaymentQrImg=localState.sharedPaymentQrImg;
+      if(Array.isArray(result.sharedPaymentQrImgs)){
+        result.sharedPaymentQrImgs=result.sharedPaymentQrImgs.map((img,index)=>String(localState?.sharedPaymentQrImgs?.[index]||'').startsWith('data:image/')&&img===compressedLocalState?.sharedPaymentQrImgs?.[index]?localState.sharedPaymentQrImgs[index]:img);
+      }
       if(String(localState?.extraPaymentQrImg||'').startsWith('data:image/')&&result.extraPaymentQrImg===compressedLocalState?.extraPaymentQrImg) result.extraPaymentQrImg=localState.extraPaymentQrImg;
       return result;
     }
@@ -2934,7 +2956,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         sheets=deepClone(state.sheets); sheetIdSeed=Number(state.sheetIdSeed)||Math.max(...sheets.map(s=>(Number(s.id)||0)+1));
         itemCatalog=migrateCatalogItems(deepClone(Array.isArray(state.itemCatalog)?state.itemCatalog:[]));
         catalogIdSeed=Math.max(Number(state.catalogIdSeed)||1,...itemCatalog.map(x=>(Number(x.catalogId)||0)+1));
-        sharedCartQrImg=state.sharedCartQrImg||''; sharedPaymentQrImg=state.sharedPaymentQrImg||''; extraFees=Array.isArray(state.extraFees)?state.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(state.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(state.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(state.extraFeeColor||''))?state.extraFeeColor:'#d1466a'; extraFeeShowTotal=state.extraFeeShowTotal!==false; extraFeeViewMode=state.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(state.extraFeeArchives)?state.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):[]; extraFeeBatchFilter=String(state.extraFeeBatchFilter||'all'); extraPaymentQrImg=state.extraPaymentQrImg||'';
+        sharedCartQrImg=state.sharedCartQrImg||''; setPaymentQrSlotsFromState(state); extraFees=Array.isArray(state.extraFees)?state.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(state.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(state.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(state.extraFeeColor||''))?state.extraFeeColor:'#d1466a'; extraFeeShowTotal=state.extraFeeShowTotal!==false; extraFeeViewMode=state.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(state.extraFeeArchives)?state.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):[]; extraFeeBatchFilter=String(state.extraFeeBatchFilter||'all'); extraPaymentQrImg=state.extraPaymentQrImg||'';
         activeSheetId=sheets.some(s=>s.id===preferredSheet)?preferredSheet:sheets[0].id;
         applySheet(sheets.find(s=>s.id===activeSheetId));
         if($('commentInput')) $('commentInput').value=commentText;
@@ -3210,7 +3232,9 @@ body.export-rendering .cart-count{ font-size:28px; }
           delete sheet.cartQrImg; delete sheet.paymentQrImg; delete sheet.alipayQrImg; delete sheet.wechatQrImg;
         }
         const cloudCartQrImg=await uploadImage(sharedCartQrImg,'shared-qr');
-        const cloudPaymentQrImg=await uploadImage(sharedPaymentQrImg,'shared-payment');
+        syncActivePaymentQr();
+        const cloudPaymentQrImgs=await Promise.all((sharedPaymentQrImgs||['','']).map((img,index)=>uploadImage(img,`shared-payment-${index+1}`)));
+        const cloudPaymentQrImg=cloudPaymentQrImgs[activePaymentQrSlot]||cloudPaymentQrImgs[0]||'';
         const cloudExtraPaymentQrImg=await uploadImage(extraPaymentQrImg,'extra-payment');
         for(const item of cloudCatalog) item.img=await uploadImage(item.img,`library${item.catalogId||item.id||0}`);
         const remoteNow=await fetchRemoteVersion();
@@ -3221,7 +3245,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           cloudConflictPaused=false;
         }
         const now=new Date().toISOString();
-        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,sharedCartQrImg:cloudCartQrImg,sharedPaymentQrImg:cloudPaymentQrImg,extraPaymentQrImg:cloudExtraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter,version:Date.now()};
+        const payload={sheets:cloudSheets,activeSheetId,sheetIdSeed,itemCatalog:cloudCatalog,catalogIdSeed,sharedCartQrImg:cloudCartQrImg,sharedPaymentQrImg:cloudPaymentQrImg,sharedPaymentQrImgs:cloudPaymentQrImgs,activePaymentQrSlot,extraPaymentQrImg:cloudExtraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter,version:Date.now()};
         let writeSucceeded=false;
         if(remoteNow){
           const {data,error}=await client.from('ggz_sync_data').update({payload,updated_at:now}).eq('sync_code',code).eq('updated_at',remoteNow).select('updated_at').maybeSingle();
@@ -3262,7 +3286,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const d=data.payload||{}; if(!Array.isArray(d.sheets)||!d.sheets.length) throw new Error('云端数据为空');
         applyingCloud=true; sheets=d.sheets;
         sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
-        sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||'';
+        setPaymentQrSlotsFromState(d,d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||''); extraPaymentQrImg=d.extraPaymentQrImg||'';
         extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):[]; extraFeeBatchFilter=String(d.extraFeeBatchFilter||'all');
         sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
         itemCatalog=migrateCatalogItems(d.itemCatalog); catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); activeSheetId=d.activeSheetId; sheetIdSeed=d.sheetIdSeed||Math.max(...sheets.map(s=>(s.id||0)+1));
@@ -5068,6 +5092,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(boughtMarkBtn) boughtMarkBtn.hidden=false;
       $('paymentStartRow').value=paymentStartRow;
       $('paymentEndRow').value=paymentEndRow===null?'':paymentEndRow;
+      if($('paymentQrSlotSelect')) $('paymentQrSlotSelect').value=String(activePaymentQrSlot);
       $('clearPaymentQrBtn').style.display=paymentQrImg?'':'none';
       $('sharePaymentTitleInput').value=sharePaymentTitle;
       $('sharePaymentColorInput').value=/^#[0-9a-f]{6}$/i.test(sharePaymentColor)?sharePaymentColor:'#d1466a';
@@ -8926,12 +8951,19 @@ body.export-rendering .cart-count{ font-size:28px; }
     function handlePaymentQr(file){
       if(!file) return;
       compressQrPng(file,1600).then(data=>{
-        sharedPaymentQrImg=paymentQrImg=data;
+        activePaymentQrSlot=activePaymentQrSlot===1?1:0;
+        sharedPaymentQrImgs[activePaymentQrSlot]=data;
+        syncActivePaymentQr();
         saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
       }).catch(()=>alert('收款码图片处理失败'));
     }
+    $('paymentQrSlotSelect').addEventListener('change',e=>{
+      activePaymentQrSlot=Number(e.target.value)===1?1:0;
+      syncActivePaymentQr();
+      saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
+    });
     $('paymentQrInput').addEventListener('change',e=>{ handlePaymentQr(e.target.files[0]); e.target.value=''; });
-    $('clearPaymentQrBtn').addEventListener('click',()=>{ sharedPaymentQrImg=paymentQrImg=''; saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); });
+    $('clearPaymentQrBtn').addEventListener('click',()=>{ sharedPaymentQrImgs[activePaymentQrSlot]=''; syncActivePaymentQr(); saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); });
     $('cartRefreshBtn').addEventListener('click',renderCart);
     $('cartExportPngBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
@@ -9419,11 +9451,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('exportCurrentJsonBtn').addEventListener('click',()=>{
       captureActiveSheet();
       const sheet=sheets.find(s=>s.id===activeSheetId);
-      downloadBackup({...sheet,sharedCartQrImg,sharedPaymentQrImg},`${sheet.name||'本表'}备份.json`);
+      syncActivePaymentQr();
+      downloadBackup({...sheet,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,activePaymentQrSlot},`${sheet.name||'本表'}备份.json`);
     });
     $('exportJsonBtn').addEventListener('click',()=>{
       captureActiveSheet();
-      downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter},'全部排单备份.json');
+      syncActivePaymentQr();
+      downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter},'全部排单备份.json');
     });
     $('exportImportTemplateBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
@@ -9511,7 +9545,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(Array.isArray(d.sheets)&&d.sheets.length){
             sheets=d.sheets; itemCatalog=migrateCatalogItems(d.itemCatalog); catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
             sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
-            sharedPaymentQrImg=d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||'';
+            setPaymentQrSlotsFromState(d,d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||''); extraPaymentQrImg=d.extraPaymentQrImg||'';
             extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):[]; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):[];
             sheets.forEach(s=>{ delete s.cartQrImg; delete s.paymentQrImg; delete s.alipayQrImg; delete s.wechatQrImg; });
             activeSheetId=sheets.some(s=>s.id===d.activeSheetId)?d.activeSheetId:sheets[0].id;
@@ -9520,7 +9554,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             columns=Array.isArray(d.columns)?d.columns.map(migrateColumn):[]; allocations=d.allocations||{};
             cartNote=d.cartNote||''; cartTargetMode=d.cartTargetMode||'auto';
             cartTargetNum=d.cartTargetNum!==undefined?d.cartTargetNum:null; applyCost(d.cost);
-            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; sharedPaymentQrImg=d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||''; extraPaymentQrImg=d.extraPaymentQrImg||''; extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):extraFees; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):extraFeeArchives;
+            sharedCartQrImg=d.sharedCartQrImg||d.cartQrImg||''; setPaymentQrSlotsFromState(d,d.sharedPaymentQrImg||d.paymentQrImg||d.alipayQrImg||d.wechatQrImg||''); extraPaymentQrImg=d.extraPaymentQrImg||''; extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):extraFees; extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):extraFeeArchives;
             cartCountMode=d.cartCountMode||'short'; cartColumns=d.cartColumns||4; cartExportHidePrice=d.cartExportHidePrice!==false; cartQrImg=sharedCartQrImg;
             const importedTargetSheet=sheets.find(s=>s.id===activeSheetId), importedSheetName=String(importedTargetSheet?.name||'表1');
             matrixTitle=d.matrixTitle||importedSheetName; matrixColor=d.matrixColor||'#d1466a';
@@ -9540,7 +9574,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             sharePaymentPaid=d.sharePaymentPaid&&typeof d.sharePaymentPaid==='object'?d.sharePaymentPaid:{}; shareDeductFixed=d.shareDeductFixed===true;
             sharePaymentRefund=d.sharePaymentRefund&&typeof d.sharePaymentRefund==='object'?d.sharePaymentRefund:{};
             sharePaymentSupplement=d.sharePaymentSupplement&&typeof d.sharePaymentSupplement==='object'?d.sharePaymentSupplement:{};
-            paymentQrImg=sharedPaymentQrImg;
+            syncActivePaymentQr();
             quantityConfigured=d.quantityConfigured===true;
             boxSize=quantityConfigured&&Number.isFinite(parseInt(d.boxSize,10))?Math.max(1,parseInt(d.boxSize,10)):null;
             groupSize=quantityConfigured&&Number.isFinite(parseInt(d.groupSize,10))?Math.max(1,parseInt(d.groupSize,10)):null;
