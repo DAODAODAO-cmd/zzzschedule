@@ -387,11 +387,13 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
     </div>
     <div class="hint cost-human-tip">填了日元原价和汇率，就会自动算谷子均价；原价留空时，直接填写手动均价就好。均摊金额单独在收款统计里计算，不会混进谷子价格。</div>
+    <label class="toggle-line"><input id="avgDeductFixed" type="checkbox"> 入均降均：入均款按已排数量抵扣总成本，给其他谷子降均价</label>
 
     <div class="summary">
       <div class="stat"><span>整套日元原价</span><strong id="jpyTotal">0 日元</strong></div>
       <div class="stat"><span>折合人民币</span><strong id="rmbGoods">¥0.00</strong></div>
       <div class="stat"><span>谷子总成本</span><strong id="targetTotal">¥0.00</strong></div>
+      <div class="stat"><span>入均降均抵扣</span><strong id="avgDeductFixedText">未开启</strong></div>
       <div class="stat"><span>均摊金额（另算）</span><strong id="sharedFeeText">未填写</strong></div>
       <div class="stat"><span>平摊数量</span><strong id="effCount">0 项</strong></div>
       <div class="stat highlight"><span>均价</span><strong id="avgPriceText">¥0.00</strong></div>
@@ -1851,7 +1853,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let highlightedPerson='';
     let coldPromotionHighlights={completeRows:[],pendingRows:[]};
     let matrixPreviewAllocations=null, matrixPreviewColumns=null, matrixPreviewLabel='', matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[],blindSubCells:null};
-    let totalCost=0, avgPrice=0, adjSum=0;
+    let totalCost=0, avgPrice=0, adjSum=0, avgDeductFixedTotal=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let undoHistoryBySheet={};
     let itemCatalog=[], catalogIdSeed=1;
@@ -2136,12 +2138,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
     }
 
-    const COST_DEFAULTS={priceType:'total',count:'',jpyPrice:'',exchangeRate:'',manualAveragePrice:'',sharedFee:''};
+    const COST_DEFAULTS={priceType:'total',count:'',jpyPrice:'',exchangeRate:'',manualAveragePrice:'',sharedFee:'',avgDeductFixed:false};
 
     // ---------- persistence ----------
     function snapshotCost(){
       return {priceType:$('priceType').value,count:$('count').value,jpyPrice:$('jpyPrice').value,
-        exchangeRate:$('exchangeRate').value,manualAveragePrice:$('manualAveragePrice').value,sharedFee:$('sharedFee').value};
+        exchangeRate:$('exchangeRate').value,manualAveragePrice:$('manualAveragePrice').value,sharedFee:$('sharedFee').value,avgDeductFixed:$('avgDeductFixed').checked===true};
     }
     function snapshotSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -2316,6 +2318,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       ['priceType','count','jpyPrice','exchangeRate','manualAveragePrice','sharedFee'].forEach(k=>{
         $(k).value = (c[k]!==undefined && c[k]!=='') ? c[k] : COST_DEFAULTS[k];
       });
+      $('avgDeductFixed').checked=c.avgDeductFixed===true;
     }
     function localStatePayload(){
       syncActivePaymentQr();
@@ -3451,12 +3454,19 @@ body.export-rendering .cart-count{ font-size:28px; }
         else if(c.mode==='adjust'){ adjSum+=num(c.priceAdj); }
       });
       const denom=N-fixedCount;
-      // 入均仍按自己的价格收款；这里只从均分数量中排除，不从总成本扣除入均价格。
+      const deductFixed=$('avgDeductFixed').checked===true;
+      avgDeductFixedTotal=deductFixed?columns.reduce((sum,c)=>{
+        if(c.mode!=='fixed') return sum;
+        const qty=(allocations[c.id]||[]).filter(name=>String(name||'').trim()).length;
+        return sum+Math.max(0,num(c.fixedPrice))*qty;
+      },0):0;
       const hasAutoCost=Math.max(0,num($('jpyPrice').value))>0&&Math.max(0,num($('exchangeRate').value))>0;
       const type=$('priceType').value, raw=Math.max(0,num($('jpyPrice').value)), rate=Math.max(0,num($('exchangeRate').value));
-      const calculatedAverage=type==='single'?raw*rate:(denom>0?totalCost/denom:0);
+      const adjustedTotal=Math.max(0,totalCost-avgDeductFixedTotal);
+      const calculatedAverage=type==='single'?raw*rate:(denom>0?adjustedTotal/denom:0);
       avgPrice=hasAutoCost?calculatedAverage:Math.max(0,num($('manualAveragePrice').value));
       $('avgPriceText').textContent=money(avgPrice);
+      $('avgDeductFixedText').textContent=deductFixed?(avgDeductFixedTotal>0?`-${money(avgDeductFixedTotal)}`:'暂无已排入均'):'未开启';
       const separateLabels=[];
       if(inAverageCount) separateLabels.push(`入均${inAverageCount}项`);
       if(sourcePriceCount) separateLabels.push(`原价${sourcePriceCount}项`);
@@ -6440,7 +6450,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
 
     // ---------- wire static controls ----------
-    ['priceType','count','jpyPrice','exchangeRate','manualAveragePrice','sharedFee'].forEach(id=>{
+    ['priceType','count','jpyPrice','exchangeRate','manualAveragePrice','sharedFee','avgDeductFixed'].forEach(id=>{
       $(id).addEventListener('focusin',rememberPaidGoodsSnapshotsBeforePriceChange);
       $(id).addEventListener('input',recalc);
       $(id).addEventListener('change',recalc);
@@ -9554,7 +9564,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       let fixedCount=0;
       cols.forEach(c=>{ if(c.mode==='fixed'||c.mode==='single') fixedCount++; });
       const denom=(cols.length||count)-fixedCount;
-      const average=raw>0&&rate>0?(cost.priceType==='single'?raw*rate:(denom>0?total/denom:0)):Math.max(0,num(cost.manualAveragePrice));
+      const fixedDeduction=cost.avgDeductFixed===true?cols.reduce((sum,c)=>{
+        if(c.mode!=='fixed') return sum;
+        const qty=((sheet.allocations||{})[c.id]||[]).filter(name=>String(name||'').trim()).length;
+        return sum+Math.max(0,num(c.fixedPrice))*qty;
+      },0):0;
+      const average=raw>0&&rate>0?(cost.priceType==='single'?raw*rate:(denom>0?Math.max(0,total-fixedDeduction)/denom:0)):Math.max(0,num(cost.manualAveragePrice));
       const price=c=>c.mode==='fixed'?num(c.fixedPrice):c.mode==='single'?Math.max(0,num(c.sourceJpyPrice))*rate:c.mode==='adjust'?average+num(c.priceAdj):(c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))?Math.max(0,Number(c.avgOverride)):average);
       return {cols,price};
     }
