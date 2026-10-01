@@ -387,13 +387,12 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
     </div>
     <div class="hint cost-human-tip">填了日元原价和汇率，就会自动算谷子均价；原价留空时，直接填写手动均价就好。均摊金额单独在收款统计里计算，不会混进谷子价格。</div>
-    <label class="toggle-line"><input id="avgDeductFixed" type="checkbox"> 入均降均：入均款按已排数量抵扣总成本，给其他谷子降均价</label>
 
     <div class="summary">
       <div class="stat"><span>整套日元原价</span><strong id="jpyTotal">0 日元</strong></div>
       <div class="stat"><span>折合人民币</span><strong id="rmbGoods">¥0.00</strong></div>
       <div class="stat"><span>谷子总成本</span><strong id="targetTotal">¥0.00</strong></div>
-      <div class="stat"><span>入均降均抵扣</span><strong id="avgDeductFixedText">未开启</strong></div>
+      <div class="stat"><span>降均抵扣</span><strong id="avgDeductFixedText">暂无降均</strong></div>
       <div class="stat"><span>均摊金额（另算）</span><strong id="sharedFeeText">未填写</strong></div>
       <div class="stat"><span>平摊数量</span><strong id="effCount">0 项</strong></div>
       <div class="stat highlight"><span>均价</span><strong id="avgPriceText">¥0.00</strong></div>
@@ -2138,12 +2137,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
     }
 
-    const COST_DEFAULTS={priceType:'total',count:'',jpyPrice:'',exchangeRate:'',manualAveragePrice:'',sharedFee:'',avgDeductFixed:false};
+    const COST_DEFAULTS={priceType:'total',count:'',jpyPrice:'',exchangeRate:'',manualAveragePrice:'',sharedFee:''};
 
     // ---------- persistence ----------
     function snapshotCost(){
       return {priceType:$('priceType').value,count:$('count').value,jpyPrice:$('jpyPrice').value,
-        exchangeRate:$('exchangeRate').value,manualAveragePrice:$('manualAveragePrice').value,sharedFee:$('sharedFee').value,avgDeductFixed:$('avgDeductFixed').checked===true};
+        exchangeRate:$('exchangeRate').value,manualAveragePrice:$('manualAveragePrice').value,sharedFee:$('sharedFee').value};
     }
     function snapshotSheet(){
       const sheet=sheets.find(s=>s.id===activeSheetId);
@@ -2318,7 +2317,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       ['priceType','count','jpyPrice','exchangeRate','manualAveragePrice','sharedFee'].forEach(k=>{
         $(k).value = (c[k]!==undefined && c[k]!=='') ? c[k] : COST_DEFAULTS[k];
       });
-      $('avgDeductFixed').checked=c.avgDeductFixed===true;
     }
     function localStatePayload(){
       syncActivePaymentQr();
@@ -3448,25 +3446,24 @@ body.export-rendering .cart-count{ font-size:28px; }
       let fixedCount=0, inAverageCount=0, sourcePriceCount=0;
       adjSum=0;
       columns.forEach(c=>{
-        if(c.mode==='fixed'){ fixedCount++; inAverageCount++; }
+        if(c.mode==='fixed'||c.mode==='deduct'){ fixedCount++; inAverageCount++; }
         else if(c.mode==='single'){ fixedCount++; sourcePriceCount++; }
         else if(c.mode==='wholeset'){ fixedCount++; }
         else if(c.mode==='adjust'){ adjSum+=num(c.priceAdj); }
       });
       const denom=N-fixedCount;
-      const deductFixed=$('avgDeductFixed').checked===true;
-      avgDeductFixedTotal=deductFixed?columns.reduce((sum,c)=>{
-        if(c.mode!=='fixed') return sum;
+      avgDeductFixedTotal=columns.reduce((sum,c)=>{
+        if(c.mode!=='deduct') return sum;
         const qty=(allocations[c.id]||[]).filter(name=>String(name||'').trim()).length;
         return sum+Math.max(0,num(c.fixedPrice))*qty;
-      },0):0;
+      },0);
       const hasAutoCost=Math.max(0,num($('jpyPrice').value))>0&&Math.max(0,num($('exchangeRate').value))>0;
       const type=$('priceType').value, raw=Math.max(0,num($('jpyPrice').value)), rate=Math.max(0,num($('exchangeRate').value));
       const adjustedTotal=Math.max(0,totalCost-avgDeductFixedTotal);
       const calculatedAverage=type==='single'?raw*rate:(denom>0?adjustedTotal/denom:0);
       avgPrice=hasAutoCost?calculatedAverage:Math.max(0,num($('manualAveragePrice').value));
       $('avgPriceText').textContent=money(avgPrice);
-      $('avgDeductFixedText').textContent=deductFixed?(avgDeductFixedTotal>0?`-${money(avgDeductFixedTotal)}`:'暂无已排入均'):'未开启';
+      $('avgDeductFixedText').textContent=avgDeductFixedTotal>0?`-${money(avgDeductFixedTotal)}`:'暂无降均';
       const separateLabels=[];
       if(inAverageCount) separateLabels.push(`入均${inAverageCount}项`);
       if(sourcePriceCount) separateLabels.push(`原价${sourcePriceCount}项`);
@@ -3485,7 +3482,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(c.wholeSetPrice!=null&&c.wholeSetPrice!==''&&Number.isFinite(Number(c.wholeSetPrice))) return Math.max(0,Number(c.wholeSetPrice));
         return wholeSetAutoPrice();
       }
-      if(c.mode==='fixed') return num(c.fixedPrice);
+      if(c.mode==='fixed'||c.mode==='deduct') return num(c.fixedPrice);
       if(c.mode==='adjust') return avgPrice+num(c.priceAdj);
       if(c.mode==='single') return Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value));
       if(c.mode==='avg'&&c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))) return Math.max(0,Number(c.avgOverride));
@@ -3496,7 +3493,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!raw) return 0;
       const type=$('priceType').value;
       if(type==='single') return raw;
-      const fixedCount=columns.reduce((sum,c)=>sum+(c.mode==='fixed'||c.mode==='single'||c.mode==='wholeset'?1:0),0);
+      const fixedCount=columns.reduce((sum,c)=>sum+(c.mode==='fixed'||c.mode==='deduct'||c.mode==='single'||c.mode==='wholeset'?1:0),0);
       const denom=Math.max(1,(columns.length||1)-fixedCount);
       return raw/denom;
     }
@@ -3509,7 +3506,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       if(c.mode==='single') return Math.max(0,num(c.sourceJpyPrice));
       if(c.mode==='wholeset') return columns.filter(x=>x.mode!=='wholeset').reduce((sum,x)=>sum+columnOriginalJpy(x,seen),0);
-      if(c.mode==='fixed'){
+      if(c.mode==='fixed'||c.mode==='deduct'){
         const rate=Math.max(0,num($('exchangeRate').value));
         return Math.max(0,num(c.sourceJpyPrice))||(rate>0?Math.max(0,num(c.fixedPrice))/rate:0);
       }
@@ -3659,7 +3656,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function modeValueHtml(c){
       if(c.mode==='adjust') return `<label>调价 <input class="modeval" data-col="${c.id}" data-price-field="priceAdj" type="text" inputmode="decimal" value="${c.priceAdj}"></label>`;
-      if(c.mode==='fixed') return `<label>入均 <input class="modeval" data-col="${c.id}" data-price-field="fixedPrice" type="text" inputmode="decimal" value="${c.fixedPrice}"></label>`;
+      if(c.mode==='fixed'||c.mode==='deduct') return `<label>${c.mode==='deduct'?'降均':'入均'} <input class="modeval" data-col="${c.id}" data-price-field="fixedPrice" type="text" inputmode="decimal" value="${c.fixedPrice}"></label>`;
       if(c.mode==='single') return `<label>日元 <input class="modeval" data-col="${c.id}" data-price-field="sourceJpyPrice" type="text" inputmode="decimal" value="${c.sourceJpyPrice||''}"></label>`;
       if(c.mode==='wholeset') return `<label>整套价 <input class="modeval" data-col="${c.id}" data-price-field="wholeSetPrice" type="text" inputmode="decimal" value="${c.wholeSetPrice==null?'':c.wholeSetPrice}" placeholder="自动 ${fmtNum(wholeSetAutoPrice())}"></label>`;
       return `<label>均价 <input class="modeval" data-col="${c.id}" data-price-field="avgOverride" type="text" inputmode="decimal" value="${c.avgOverride==null?'':c.avgOverride}" placeholder="自动"></label>`;
@@ -3683,6 +3680,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             <option value="avg" ${c.mode==='avg'?'selected':''}>均价</option>
             <option value="adjust" ${c.mode==='adjust'?'selected':''}>调价</option>
             <option value="fixed" ${c.mode==='fixed'?'selected':''}>入均</option>
+            <option value="deduct" ${c.mode==='deduct'?'selected':''}>降均</option>
             <option value="single" ${c.mode==='single'?'selected':''}>原价换算</option>
             <option value="wholeset" ${c.mode==='wholeset'?'selected':''}>整套</option>
           </select>
@@ -3698,6 +3696,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       let price='跟随均价';
       if(c.mode==='single') price=`${fmtNum(c.sourceJpyPrice)} 日元 → ${money(Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value)))}`;
       else if(c.mode==='fixed') price=`入均 ${money(c.fixedPrice)}`;
+      else if(c.mode==='deduct') price=`降均 ${money(c.fixedPrice)}`;
       else if(c.mode==='wholeset') price=c.wholeSetPrice==null?'整套（自动）':`整套 ${money(c.wholeSetPrice)}`;
       else if(c.mode==='adjust') price=`调价 ${(num(c.priceAdj)>=0?'+':'')+fmtNum(c.priceAdj)}`;
       else if(c.avgOverride!==null&&c.avgOverride!=='') price=`独立均价 ${money(c.avgOverride)}`;
@@ -4435,6 +4434,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(c.isPricingCombo){ const adj=num(c.comboAdjustment), cls=adj>0?'adj-pos':(adj<0?'adj-neg':''), sign=adj>0?'+':''; return `<td class="${cls}"><input class="matrix-price-input" inputmode="decimal" data-price-kind="combo-adjust" data-combo-group="${c.comboGroupId}" data-col="${c.id}" value="${sign}${fmtNum(adj)}"${previewReadonly}></td>`; }
         if(c.mode==='avg') return `<td><input class="matrix-price-input" data-price-kind="pricing" data-price-mode="avg" data-col="${c.id}" value="均价"${previewReadonly}></td>`;
         if(c.mode==='fixed') return `<td class="adj-fix"><div class="matrix-price-editor"><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="fixed" data-col="${c.id}" value="${fmtNum(c.fixedPrice)}"${previewReadonly}><span class="matrix-price-suffix">/1</span></div></td>`;
+        if(c.mode==='deduct') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">降均</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="deduct" data-col="${c.id}" value="${fmtNum(c.fixedPrice)}"${previewReadonly}></div></td>`;
         if(c.mode==='single') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">原价</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="single" data-col="${c.id}" value="${fmtNum(c.sourceJpyPrice)}"${previewReadonly}><span class="matrix-price-suffix">日元</span></div></td>`;
         if(c.mode==='wholeset') return `<td class="adj-fix"><div class="matrix-price-editor"><span class="matrix-price-suffix">整套</span><input class="matrix-price-input" inputmode="decimal" data-price-kind="pricing" data-price-mode="wholeset" data-col="${c.id}" value="${c.wholeSetPrice==null?fmtNum(wholeSetAutoPrice()):fmtNum(c.wholeSetPrice)}" placeholder="自动"${previewReadonly}></div></td>`;
         const adj=num(c.priceAdj);
@@ -6088,7 +6088,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           }
         }
         let priceHtml='';
-        if(c.mode==='fixed'){
+        if(c.mode==='fixed'||c.mode==='deduct'){
           priceHtml=`<span class="cart-badge cart-price fixed">${fmtNum(c.fixedPrice)}/1</span>`;
         } else if(c.mode==='single'){
           priceHtml=`<span class="cart-badge cart-price fixed">${fmtNum(unitPrice(c))}/1</span>`;
@@ -6450,7 +6450,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
 
     // ---------- wire static controls ----------
-    ['priceType','count','jpyPrice','exchangeRate','manualAveragePrice','sharedFee','avgDeductFixed'].forEach(id=>{
+    ['priceType','count','jpyPrice','exchangeRate','manualAveragePrice','sharedFee'].forEach(id=>{
       $(id).addEventListener('focusin',rememberPaidGoodsSnapshotsBeforePriceChange);
       $(id).addEventListener('input',recalc);
       $(id).addEventListener('change',recalc);
@@ -8579,6 +8579,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(input.dataset.priceKind==='promotion-point') c.promotionPoints=Math.max(0,value);
       else if(input.dataset.priceKind==='unit'){ c.mode='fixed'; c.fixedPrice=Math.max(0,value); }
       else if(input.dataset.priceMode==='fixed') c.fixedPrice=Math.max(0,value);
+      else if(input.dataset.priceMode==='deduct') c.fixedPrice=Math.max(0,value);
       else if(input.dataset.priceMode==='single') c.sourceJpyPrice=Math.max(0,value);
       else if(input.dataset.priceMode==='wholeset') c.wholeSetPrice=Math.max(0,value);
       else if(input.dataset.priceMode==='adjust') c.priceAdj=value;
@@ -8639,6 +8640,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(Number.isFinite(value)&&value>=0){ c.mode='fixed'; c.fixedPrice=value; }
       }else if(td.dataset.priceMode==='fixed'){
         const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='fixed'; if(Number.isFinite(value)) c.fixedPrice=Math.max(0,value);
+      }else if(td.dataset.priceMode==='deduct'){
+        const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='deduct'; if(Number.isFinite(value)) c.fixedPrice=Math.max(0,value);
       }else if(td.dataset.priceMode==='single'){
         const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='single'; if(Number.isFinite(value)) c.sourceJpyPrice=Math.max(0,value);
       }else if(td.dataset.priceMode==='wholeset'){
@@ -8647,6 +8650,10 @@ body.export-rendering .cart-count{ font-size:28px; }
         const value=parseFloat(text.replace(/[^\d.+-]/g,'')); if(Number.isFinite(value)){ c.mode='adjust'; c.priceAdj=value; }
       }else if(/均价|^均$/.test(text)){
         c.mode='avg'; c.priceAdj=0;
+      }else if(/降均/.test(text)){
+        const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='deduct';
+        if(Number.isFinite(value)) c.fixedPrice=Math.max(0,value);
+        else if(!(Number(c.fixedPrice)>0)) c.fixedPrice=Math.max(0,previousUnit);
       }else if(/入均|固定|\/1/.test(text)){
         const value=parseFloat(text.replace(/[^\d.-]/g,'')); c.mode='fixed';
         if(Number.isFinite(value)) c.fixedPrice=Math.max(0,value);
@@ -9493,6 +9500,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(c.isPricingCombo){ const adj=num(c.comboAdjustment); return `${adj>0?'+':''}${fmtNum(adj)}`; }
       if(c.mode==='avg') return '均价';
       if(c.mode==='fixed') return `${fmtNum(c.fixedPrice)}/1`;
+      if(c.mode==='deduct') return `降均${fmtNum(c.fixedPrice)}`;
       if(c.mode==='single') return `原价${fmtNum(c.sourceJpyPrice)}日元`;
       return `${num(c.priceAdj)>0?'+':''}${fmtNum(c.priceAdj)}`;
     }
@@ -9500,12 +9508,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(c.isPricingCombo) return '拼盒调价';
       if(c.mode==='avg') return '均价';
       if(c.mode==='fixed') return '入均';
+      if(c.mode==='deduct') return '降均';
       if(c.mode==='single') return '原价换算';
       return '调价';
     }
     function excelPriceValue(c){
       if(c.isPricingCombo) return num(c.comboAdjustment);
-      if(c.mode==='fixed') return num(c.fixedPrice);
+      if(c.mode==='fixed'||c.mode==='deduct') return num(c.fixedPrice);
       if(c.mode==='single') return num(c.sourceJpyPrice);
       if(c.mode==='adjust') return num(c.priceAdj);
       return '';
@@ -9562,15 +9571,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       const jpyTotal=cost.priceType==='single'?raw*count:raw;
       const total=jpyTotal*rate;
       let fixedCount=0;
-      cols.forEach(c=>{ if(c.mode==='fixed'||c.mode==='single') fixedCount++; });
+      cols.forEach(c=>{ if(c.mode==='fixed'||c.mode==='deduct'||c.mode==='single') fixedCount++; });
       const denom=(cols.length||count)-fixedCount;
-      const fixedDeduction=cost.avgDeductFixed===true?cols.reduce((sum,c)=>{
-        if(c.mode!=='fixed') return sum;
+      const fixedDeduction=cols.reduce((sum,c)=>{
+        if(c.mode!=='deduct') return sum;
         const qty=((sheet.allocations||{})[c.id]||[]).filter(name=>String(name||'').trim()).length;
         return sum+Math.max(0,num(c.fixedPrice))*qty;
-      },0):0;
+      },0);
       const average=raw>0&&rate>0?(cost.priceType==='single'?raw*rate:(denom>0?Math.max(0,total-fixedDeduction)/denom:0)):Math.max(0,num(cost.manualAveragePrice));
-      const price=c=>c.mode==='fixed'?num(c.fixedPrice):c.mode==='single'?Math.max(0,num(c.sourceJpyPrice))*rate:c.mode==='adjust'?average+num(c.priceAdj):(c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))?Math.max(0,Number(c.avgOverride)):average);
+      const price=c=>(c.mode==='fixed'||c.mode==='deduct')?num(c.fixedPrice):c.mode==='single'?Math.max(0,num(c.sourceJpyPrice))*rate:c.mode==='adjust'?average+num(c.priceAdj):(c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))?Math.max(0,Number(c.avgOverride)):average);
       return {cols,price};
     }
     function sheetDisplayPriceInfo(sheet){
@@ -9725,6 +9734,7 @@ body.export-rendering .cart-count{ font-size:28px; }
               const promotionPoint=promotionPointIndex>=0?parseFloat((rows[promotionPointIndex]||[])[i+startCol]):NaN;
               let mode='avg',priceAdj=0,fixedPrice=0,sourceJpyPrice=0;
               if(/原价|日元/.test(pricing)){ mode='single'; sourceJpyPrice=Math.max(0,Number.isFinite(priceValue)?priceValue:(parseFloat(pricing.replace(/[^\d.-]/g,''))||0)); }
+              else if(/降均/.test(pricing)){ mode='deduct'; fixedPrice=Math.max(0,Number.isFinite(priceValue)?priceValue:(parseFloat(pricing.replace(/[^\d.-]/g,''))||0)); }
               else if(/固定|入均|\/1/.test(pricing)){ mode='fixed'; fixedPrice=Math.max(0,Number.isFinite(priceValue)?priceValue:(parseFloat(pricing.replace(/[^\d.-]/g,''))||0)); }
               else if(/调价|拼盒/.test(pricing)){ mode='adjust'; priceAdj=Number.isFinite(priceValue)?priceValue:(parseFloat(pricing.replace(/[^\d.+-]/g,''))||0); }
               else if(pricing&&!/^(?:均价|均)$/.test(pricing)){ const n=Number.isFinite(priceValue)?priceValue:parseFloat(pricing.replace(/[^\d.+-]/g,'')); if(Number.isFinite(n)){ mode='adjust'; priceAdj=n; } }
@@ -9840,4 +9850,5 @@ body.export-rendering .cart-count{ font-size:28px; }
 </script>
 </body>
 </html>
+
 
