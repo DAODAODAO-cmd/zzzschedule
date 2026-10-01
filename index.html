@@ -1852,7 +1852,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let highlightedPerson='';
     let coldPromotionHighlights={completeRows:[],pendingRows:[]};
     let matrixPreviewAllocations=null, matrixPreviewColumns=null, matrixPreviewLabel='', matrixPreviewHighlights={completeRows:[],pendingRows:[],addedCells:[],transferCells:[],cancelRows:[],blindSubCells:null};
-    let totalCost=0, avgPrice=0, adjSum=0, avgDeductFixedTotal=0;
+    let totalCost=0, avgPrice=0, adjSum=0, avgDeductFixedTotal=0, avgDeductPerUnit=0;
     let sheets=[], activeSheetId=null, sheetIdSeed=1, isLoadingSheet=false;
     let undoHistoryBySheet={};
     let itemCatalog=[], catalogIdSeed=1;
@@ -1866,7 +1866,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     const APP_SECTION_KEY='ggzAppSection_v1';
     const SHEET_STATUS_FILTER_KEY='ggzSheetStatusFilter_v1';
     const COLLAB_POLL_MS=120000, COLLAB_POLL_FAST_MS=30000, COLLAB_PRESENCE_MS=180000, COLLAB_PRESENCE_FAST_MS=60000;
-    const COLLAB_SEND_DELAY_MS=15000, COLLAB_SEND_DELAY_FAST_MS=5000, COLLAB_RETRY_DELAY_MS=30000, COLLAB_RETRY_DELAY_FAST_MS=10000;
+    const COLLAB_SEND_DELAY_MS=1200, COLLAB_SEND_DELAY_FAST_MS=350, COLLAB_RETRY_DELAY_MS=5000, COLLAB_RETRY_DELAY_FAST_MS=1800;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
     const WORKSPACE_STORAGE_KEY='ggzActiveWorkspace_v1';
@@ -3206,7 +3206,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     async function pollCollabState(){
       if(!collabEnabled||collabPolling||collabSending) return;
-      if(collabNeedsSend||collabSendTimer) return;
+      if(collabNeedsSend||collabSendTimer){ await flushCollabChanges(); return; }
       collabPolling=true;
       try{
         const client=getCloudClient(syncCode), activity=await lockRequest(client.rpc('ggz_collab_activity',{p_group_id:syncCode,p_limit:1}),20000,'实时协作轻量检查');
@@ -3460,6 +3460,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const hasAutoCost=Math.max(0,num($('jpyPrice').value))>0&&Math.max(0,num($('exchangeRate').value))>0;
       const type=$('priceType').value, raw=Math.max(0,num($('jpyPrice').value)), rate=Math.max(0,num($('exchangeRate').value));
       const adjustedTotal=Math.max(0,totalCost-avgDeductFixedTotal);
+      avgDeductPerUnit=denom>0?avgDeductFixedTotal/denom:0;
       const calculatedAverage=denom>0&&avgDeductFixedTotal>0?adjustedTotal/denom:(type==='single'?raw*rate:(denom>0?adjustedTotal/denom:0));
       const manualAverage=Math.max(0,num($('manualAveragePrice').value));
       const manualAdjustedAverage=denom>0&&avgDeductFixedTotal>0?Math.max(0,manualAverage*denom-avgDeductFixedTotal)/denom:manualAverage;
@@ -3487,7 +3488,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(c.mode==='fixed'||c.mode==='deduct') return num(c.fixedPrice);
       if(c.mode==='adjust') return avgPrice+num(c.priceAdj);
       if(c.mode==='single') return Math.max(0,num(c.sourceJpyPrice))*Math.max(0,num($('exchangeRate').value));
-      if(c.mode==='avg'&&c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))) return Math.max(0,Number(c.avgOverride));
+      if(c.mode==='avg'&&c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))) return Math.max(0,Number(c.avgOverride)-avgDeductPerUnit);
       return avgPrice;
     }
     function averageOriginalJpy(){
@@ -9581,10 +9582,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         return sum+Math.max(0,num(c.fixedPrice))*qty;
       },0);
       const adjustedTotal=Math.max(0,total-fixedDeduction);
+      const deductionPerUnit=denom>0?fixedDeduction/denom:0;
       const manualAverage=Math.max(0,num(cost.manualAveragePrice));
       const manualAdjustedAverage=denom>0&&fixedDeduction>0?Math.max(0,manualAverage*denom-fixedDeduction)/denom:manualAverage;
       const average=raw>0&&rate>0?(denom>0&&fixedDeduction>0?adjustedTotal/denom:(cost.priceType==='single'?raw*rate:(denom>0?adjustedTotal/denom:0))):manualAdjustedAverage;
-      const price=c=>(c.mode==='fixed'||c.mode==='deduct')?num(c.fixedPrice):c.mode==='single'?Math.max(0,num(c.sourceJpyPrice))*rate:c.mode==='adjust'?average+num(c.priceAdj):(c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))?Math.max(0,Number(c.avgOverride)):average);
+      const price=c=>(c.mode==='fixed'||c.mode==='deduct')?num(c.fixedPrice):c.mode==='single'?Math.max(0,num(c.sourceJpyPrice))*rate:c.mode==='adjust'?average+num(c.priceAdj):(c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))?Math.max(0,Number(c.avgOverride)-deductionPerUnit):average);
       return {cols,price};
     }
     function sheetDisplayPriceInfo(sheet){
