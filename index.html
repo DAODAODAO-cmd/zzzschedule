@@ -301,7 +301,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 
   <main class="app-main">
   <section class="cloud-hub" id="cloudHub">
-  <div id="collabCompactStatus" class="collab-compact-status">○ 打开自动读取最新；修改后自动上传</div>
+  <div id="collabCompactStatus" class="collab-compact-status">○ 打开后自动实时同步</div>
 
   <div class="workspacebar">
     <label class="workspace-select-label"><span>当前协作组</span><select id="workspaceSelect" disabled><option value="">正在读取…</option></select></label>
@@ -335,7 +335,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button id="cloudDownloadBtn" class="btn-ghost">读取云端</button>
     <span id="localStatus">本机已保存</span>
     <span id="cloudStatus">尚未选择协作组</span>
-    <span id="collabStatus">打开自动读取最新；修改后自动上传</span>
+    <span id="collabStatus">打开后自动实时同步</span>
     <button id="acquireEditLockBtn" type="button" class="btn-primary" style="display:none;">开始编辑</button>
     <button id="releaseEditLockBtn" type="button" class="btn-ghost" style="display:none;">保存并结束编辑</button>
     <span id="editLockStatus" style="display:none;"></span>
@@ -814,7 +814,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 
   <div class="panel" id="settingsPanel">
     <h2>设置与数据</h2>
-    <div class="settings-cloud-tip"><strong>云端同步</strong><span>打开会自动读取最新版本；修改后空闲 5 分钟自动上传。不做多人实时同时编辑。</span></div>
+    <div class="settings-cloud-tip"><strong>云端同步</strong><span>进入协作组后会自动实时同步：你修改后马上上传，对方打开或等待几秒就能看到最新版本。</span></div>
     <div class="settings-tool-grid">
     <details class="data-actions settings-data-actions" id="dataActions"><summary>排单数据导入导出</summary><div class="data-actions-pop">
       <button class="btn-ghost" id="exportJsonBtn">备份全部排单</button>
@@ -1866,7 +1866,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     const DATA_SAVER_KEY='ggzDataSaver_v1';
     const APP_SECTION_KEY='ggzAppSection_v1';
     const SHEET_STATUS_FILTER_KEY='ggzSheetStatusFilter_v1';
-    const COLLAB_POLL_MS=120000, COLLAB_POLL_FAST_MS=30000, COLLAB_PRESENCE_MS=180000, COLLAB_PRESENCE_FAST_MS=60000;
+    const COLLAB_POLL_MS=120000, COLLAB_POLL_FAST_MS=8000, COLLAB_PRESENCE_MS=180000, COLLAB_PRESENCE_FAST_MS=30000;
     const COLLAB_SEND_DELAY_MS=1200, COLLAB_SEND_DELAY_FAST_MS=350, COLLAB_RETRY_DELAY_MS=5000, COLLAB_RETRY_DELAY_FAST_MS=1800;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
@@ -1878,7 +1878,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let workspaces=[],workspaceInvites=[],archivedWorkspaces=[],activeWorkspaceId=localStorage.getItem(WORKSPACE_STORAGE_KEY)||syncCode,workspaceLoading=false,archiveAccess=false;
     const workspaceStateCache=new Map();
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
-    let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false, pendingCollabInstallState=null, dataSaverMode=true;
+    let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false, pendingCollabInstallState=null, dataSaverMode=false;
     const APP_SECTIONS=['goods','order','stats','payment','dispatch','logistics','settings'];
     function storedAppSection(){
       const section=localStorage.getItem(APP_SECTION_KEY);
@@ -2009,8 +2009,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       lastCloudUpdatedAt=localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+next)||''; cloudConflictPaused=false; cloudDirty=rememberedCloudDirty(next,lastCloudUpdatedAt);
       $('syncCodeInput').value=next; renderWorkspaceUI(); setWorkspaceStatus(`已进入「${currentWorkspace()?.name||'协作组'}」`,'ok');
       setCloudStatus(cloudDirty?'云端完整备份未更新':'云端完整备份已同步',cloudDirty?'warn':'');
-      if(!autoConnect) setTimeout(()=>autoReadLatestCloudOnOpen(next,switchingWorkspace),0);
-      if(autoConnect&&!collabEnabled) await startCollab(true);
+      if(autoConnect&&!collabEnabled){
+        const connected=await startCollab(true);
+        if(!connected) setTimeout(()=>autoReadLatestCloudOnOpen(next,switchingWorkspace),0);
+      }else{
+        setTimeout(()=>autoReadLatestCloudOnOpen(next,switchingWorkspace),0);
+      }
       return true;
     }
     async function loadWorkspaceOverview(autoConnect=false){
@@ -2042,7 +2046,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       try{
         const {data,error}=await getAuthClient().rpc('ggz_create_group',{p_name:name,p_legacy_sync_code:legacy,p_initial_state:blankCollabProjectSnapshot()}); if(error) throw error;
         const row=Array.isArray(data)?data[0]:data; activeWorkspaceId=row?.group_id||''; legacySyncCode='';
-        await loadWorkspaceOverview(false);
+        await loadWorkspaceOverview(true);
       }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); }
       finally{ button.disabled=false; }
     }
@@ -2062,7 +2066,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const button=$('renameWorkspaceBtn'); button.disabled=true; setWorkspaceStatus('正在修改组名…');
       try{
         const {error}=await getAuthClient().rpc('ggz_rename_group',{p_group_id:group.id,p_name:name}); if(error) throw error;
-        await loadWorkspaceOverview(false); setWorkspaceStatus('组名已修改','ok');
+        await loadWorkspaceOverview(true); setWorkspaceStatus('组名已修改','ok');
       }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); }
       finally{ button.disabled=false; }
     }
@@ -2070,7 +2074,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       setWorkspaceStatus(accept?'正在加入协作组…':'正在拒绝邀请…');
       try{
         const {error}=await getAuthClient().rpc('ggz_respond_group_invite',{p_invite_id:inviteId,p_accept:!!accept}); if(error) throw error;
-        $('workspaceInvitesPanel').hidden=true; await loadWorkspaceOverview(false);
+        $('workspaceInvitesPanel').hidden=true; await loadWorkspaceOverview(true);
       }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); }
     }
     async function showWorkspaceMembers(){
@@ -2095,7 +2099,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         [WORKSPACE_STORAGE_KEY,'ggzSyncCode',COLLAB_ENABLED_KEY_PREFIX+group.id,CLOUD_VERSION_KEY_PREFIX+group.id,CLOUD_DIRTY_KEY_PREFIX+group.id,COLLAB_CONFLICT_KEY_PREFIX+group.id].forEach(key=>localStorage.removeItem(key));
         activeWorkspaceId=''; syncCode=''; lastCloudUpdatedAt=''; cloudDirty=false; cloudConflictPaused=false;
         installCollabState(blankCollabProjectSnapshot());
-        await loadWorkspaceOverview(false);
+        await loadWorkspaceOverview(true);
       }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); button.disabled=false; }
     }
     async function restoreWorkspace(requestedCode=''){
@@ -2108,7 +2112,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const row=Array.isArray(data)?data[0]:data;
         activeWorkspaceId=row?.group_id||''; localStorage.setItem(WORKSPACE_STORAGE_KEY,activeWorkspaceId);
         $('archiveMaintenance').open=false;
-        await loadWorkspaceOverview(false);
+        await loadWorkspaceOverview(true);
       }catch(error){ setWorkspaceStatus(readableWorkspaceError(error),'bad'); button.disabled=false; }
     }
     function applyAuthSession(session){
@@ -2121,7 +2125,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const name=authAccountName(authCurrentUser)||'已登录用户';
       editorName=name; localStorage.setItem('ggzEditorName',name); $('editorNameInput').value=name; $('authAccountBadge').textContent=name;
       $('authGate').hidden=true; document.documentElement.classList.remove('auth-pending','auth-locked');
-      setTimeout(()=>loadWorkspaceOverview(false),0);
+      setTimeout(()=>loadWorkspaceOverview(true),0);
     }
     async function initAuthGate(){
       try{
@@ -3056,7 +3060,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function syncCompactCollabStatus(){
       const compact=$('collabCompactStatus'); if(!compact) return;
       const hasGroup=!!currentWorkspace();
-      compact.textContent=collabEnabled?`● ${currentWorkspace()?.name||'协作组'} · 临时实时协作中`:(hasGroup?'○ 打开自动读取最新；修改后自动上传':'○ 尚未加入协作组');
+      compact.textContent=collabEnabled?`● ${currentWorkspace()?.name||'协作组'} · 实时同步中`:(hasGroup?'○ 打开后自动实时同步':'○ 尚未加入协作组');
       compact.style.color=collabEnabled?'var(--ok)':'var(--warn)';
       compact.style.borderColor=collabEnabled?'#b9dfc5':'#ecd3aa';
       compact.style.background=collabEnabled?'#f0faf3':'#fff9ef';
@@ -6566,13 +6570,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('workspaceSelect').addEventListener('change',async event=>{
       const previous=activeWorkspaceId,next=String(event.target.value||'');
       if(!next||next===previous) return;
-      if(!(await activateWorkspace(next,false))){ activeWorkspaceId=previous; renderWorkspaceUI(); }
+      if(!(await activateWorkspace(next,true))){ activeWorkspaceId=previous; renderWorkspaceUI(); }
     });
     $('createWorkspaceBtn').addEventListener('click',createWorkspace);
     $('renameWorkspaceBtn').addEventListener('click',renameWorkspace);
     $('inviteWorkspaceMemberBtn').addEventListener('click',inviteWorkspaceMember);
     $('showWorkspaceInvitesBtn').addEventListener('click',async()=>{
-      await loadWorkspaceOverview(false);
+      await loadWorkspaceOverview(true);
       $('workspaceInvitesPanel').hidden=!$('workspaceInvitesPanel').hidden; $('workspaceMembersPanel').hidden=true;
     });
     $('showWorkspaceMembersBtn').addEventListener('click',showWorkspaceMembers);
