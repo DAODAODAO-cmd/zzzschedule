@@ -4805,7 +4805,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(isMatrixCellBought(c.id,index,name)){ data.bought+=price; data.boughtItems.set(c.name,(data.boughtItems.get(c.name)||0)+1); data.boughtItemAmounts.set(c.name,(data.boughtItemAmounts.get(c.name)||0)+price); }
       }));
       return [...people.values()].map(data=>{
-        const expected=paymentVisibleAmount('paymentSummary','data-payment-key',paymentEdits,'alipay',data.name,data.key,data.planned);
+        const expected=paymentEditAmount(paymentEdits,'alipay',data.name,data.key,data.planned);
         const received=paidAmountValue(paymentPaid,data.key,expected),actual=showBoughtSettlement?Math.max(0,num(data.bought)):expected;
         return {...data,expected,received,actual,refund:Math.max(0,received-actual),due:Math.max(0,actual-received)};
       });
@@ -4838,7 +4838,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
       const perItem=totalQty?Math.max(0,sharedTotal-fixedDeduction)/totalQty:0;
-      return [...people.values()].map(data=>{ const autoExpected=ceilMoneyValue(data.qty*perItem), expected=paymentVisibleAmount('sharePaymentSummary','data-share-payment-key',sharePaymentEdits,'alipay',data.name,data.key,autoExpected),received=paidAmountValue(sharePaymentPaid,data.key,expected); return {...data,expected,received,refund:refundAmountValue(sharePaymentRefund,data.key,expected),supplement:refundAmountValue(sharePaymentSupplement,data.key,expected)}; });
+      return [...people.values()].map(data=>{ const autoExpected=ceilMoneyValue(data.qty*perItem), expected=paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,autoExpected),received=paidAmountValue(sharePaymentPaid,data.key,expected); return {...data,expected,received,refund:refundAmountValue(sharePaymentRefund,data.key,expected),supplement:refundAmountValue(sharePaymentSupplement,data.key,expected)}; });
     }
     function shareRecordMapForAutoPaid(){
       return new Map(buildShareSettlementRecords().map(row=>[row.key,row]));
