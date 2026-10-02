@@ -1867,7 +1867,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     const APP_SECTION_KEY='ggzAppSection_v1';
     const SHEET_STATUS_FILTER_KEY='ggzSheetStatusFilter_v1';
     const COLLAB_POLL_MS=120000, COLLAB_POLL_FAST_MS=8000, COLLAB_PRESENCE_MS=180000, COLLAB_PRESENCE_FAST_MS=30000;
-    const COLLAB_SEND_DELAY_MS=1200, COLLAB_SEND_DELAY_FAST_MS=350, COLLAB_RETRY_DELAY_MS=5000, COLLAB_RETRY_DELAY_FAST_MS=1800;
+    const COLLAB_SEND_DELAY_MS=1200, COLLAB_SEND_DELAY_FAST_MS=350, COLLAB_RETRY_DELAY_MS=5000, COLLAB_RETRY_DELAY_FAST_MS=1800, COLLAB_TIMEOUT_RETRY_DELAY_MS=15000;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
     const WORKSPACE_STORAGE_KEY='ggzActiveWorkspace_v1';
@@ -2931,14 +2931,19 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     async function collabCloudProjectSnapshot(localState){
       const cloud=deepClone(localState||collabProjectSnapshot());
-      for(const sheet of cloud.sheets||[]) for(const column of sheet.columns||[]) column.img=await compressedCloudDataUrl(column.img,`c${column.id}`);
-      for(const item of cloud.itemCatalog||[]) item.img=await compressedCloudDataUrl(item.img,`library${item.catalogId||item.id||0}`);
+      stripGoodsImagesFromCollabState(cloud);
       cloud.sharedCartQrImg=await compressedCloudDataUrl(cloud.sharedCartQrImg,'shared-qr');
       cloud.sharedPaymentQrImg=await compressedCloudDataUrl(cloud.sharedPaymentQrImg,'shared-payment');
       cloud.sharedPaymentQrImgs=await Promise.all((cloud.sharedPaymentQrImgs||normalizePaymentQrSlots(cloud)).map((img,index)=>compressedCloudDataUrl(img,`shared-payment-${index+1}`)));
       cloud.extraPaymentQrImg=await compressedCloudDataUrl(cloud.extraPaymentQrImg,'extra-payment');
       return cloud;
     }
+    function stripGoodsImagesFromCollabState(state){
+      for(const sheet of state?.sheets||[]) for(const column of sheet.columns||[]) column.img='';
+      for(const item of state?.itemCatalog||[]) item.img='';
+      return state;
+    }
+    function normalizedCollabCloudState(state){ return stripGoodsImagesFromCollabState(deepClone(state||{})); }
     function preserveMatchingLocalImages(cloudState,localState,compressedLocalState){
       const result=deepClone(cloudState),localSheets=new Map((localState?.sheets||[]).map(sheet=>[String(sheet.id),sheet])),compressedSheets=new Map((compressedLocalState?.sheets||[]).map(sheet=>[String(sheet.id),sheet]));
       for(const sheet of result.sheets||[]){
@@ -3162,6 +3167,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!raw||raw==='[object Object]') return '未知错误';
       return raw.length>140?raw.slice(0,140)+'…':raw;
     }
+    function isStatementTimeout(error){
+      const raw=String(error?.message||error?.details||error?.hint||error||'').toLowerCase();
+      return raw.includes('statement timeout')||raw.includes('canceling statement due to statement timeout');
+    }
     function isCollabPermissionError(error){
       const raw=String(error?.message||error?.details||error?.hint||error||'').toLowerCase();
       return raw.includes('permission denied')&&raw.includes('ggz_collab_projects');
@@ -3172,6 +3181,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       syncCollabUI();
       setCollabStatus('实时协作权限未开放：'+readableSyncError(error),'bad');
       setCloudStatus('本机已保存；实时协作权限缺失，请用“上传云端”保存完整备份','warn');
+    }
+    async function fetchCollabProjectState(client,code){
+      const {data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:{},p_author_name:editorName||'未命名'}),45000,'实时协作读取更新');
+      if(error) throw error;
+      const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
+      return row;
     }
     async function flushCollabChanges(){
       clearTimeout(collabSendTimer); collabSendTimer=null;
@@ -3187,11 +3202,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       if(!ops.length){ collabNeedsSend=false; setCollabStatus(`实时协作已同步 · 版本 ${collabRevision}`,'ok'); return true; }
       collabSending=true; collabNeedsSend=false;
+      let syncError=null;
       try{
         const client=getCloudClient(syncCode), {data,error}=await lockRequest(client.rpc('ggz_apply_collab_patch',{p_sync_code:syncCode,p_patch:ops,p_author_name:editorName||'未命名'}),45000,'实时协作同步');
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
-        const localAfterState=collabProjectSnapshot(),afterState=await collabCloudProjectSnapshot(localAfterState),laterOps=collabDiff(sentState,afterState),serverState=deepClone(row.out_state),displayCloudState=applyCollabOps(deepClone(serverState),laterOps),displayState=preserveMatchingLocalImages(displayCloudState,localAfterState,afterState);
+        const localAfterState=collabProjectSnapshot(),afterState=await collabCloudProjectSnapshot(localAfterState),laterOps=collabDiff(sentState,afterState),serverState=normalizedCollabCloudState(row.out_state),displayCloudState=applyCollabOps(deepClone(serverState),laterOps),displayState=preserveMatchingLocalImages(displayCloudState,localAfterState,afterState);
         collabBaseline=serverState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState);
         const conflicts=Array.isArray(row.out_conflicts)?row.out_conflicts:[];
         if(conflicts.length){
@@ -3204,10 +3220,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(laterOps.length){ collabNeedsSend=true; scheduleCollabSync(); }
         return conflicts.length===0;
       }catch(error){
+        syncError=error;
         if(isCollabPermissionError(error)){ disableCollabForPermissionError(error); return false; }
         collabNeedsSend=true; setCollabStatus('同步失败：'+readableSyncError(error)+'，已保留本机修改并重试','bad'); return false;
       }
-      finally{ collabSending=false; if(collabNeedsSend&&!collabSendTimer) collabSendTimer=setTimeout(flushCollabChanges,dataSaverMode?COLLAB_RETRY_DELAY_MS:COLLAB_RETRY_DELAY_FAST_MS); }
+      finally{ collabSending=false; if(collabNeedsSend&&!collabSendTimer) collabSendTimer=setTimeout(flushCollabChanges,isStatementTimeout(syncError)?COLLAB_TIMEOUT_RETRY_DELAY_MS:(dataSaverMode?COLLAB_RETRY_DELAY_MS:COLLAB_RETRY_DELAY_FAST_MS)); }
     }
     async function pollCollabState(){
       if(!collabEnabled||collabPolling||collabSending) return;
@@ -3218,14 +3235,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(activity.error) throw activity.error;
         const latest=Array.isArray(activity.data)?activity.data[0]:null;
         if(!latest||Number(latest.revision)<=collabRevision) return;
-        const localState=collabProjectSnapshot(),compressedLocalState=await collabCloudProjectSnapshot(localState),initialState=collabBaseline||compressedLocalState,{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:syncCode,p_initial_state:initialState,p_author_name:editorName||'未命名'}),45000,'实时协作读取更新');
-        if(error) throw error;
-        const row=collabResultRow(data);
+        const localState=collabProjectSnapshot(),compressedLocalState=await collabCloudProjectSnapshot(localState),row=await fetchCollabProjectState(client,syncCode);
         if(row?.out_state&&Number(row.out_revision)>collabRevision){
-          const displayState=preserveMatchingLocalImages(row.out_state,localState,compressedLocalState);
-          collabBaseline=deepClone(row.out_state); collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState); setCollabStatus(`${latest.author_name||'其他人'}刚刚更新 · 版本 ${collabRevision}`,'ok');
+          const serverState=normalizedCollabCloudState(row.out_state),displayState=preserveMatchingLocalImages(serverState,localState,compressedLocalState);
+          collabBaseline=serverState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState); setCollabStatus(`${latest.author_name||'其他人'}刚刚更新 · 版本 ${collabRevision}`,'ok');
         }else if(row?.out_state){
-          collabBaseline=deepClone(row.out_state); collabRevision=Number(row.out_revision)||collabRevision;
+          collabBaseline=normalizedCollabCloudState(row.out_state); collabRevision=Number(row.out_revision)||collabRevision;
         }
       }catch(error){
         if(isCollabPermissionError(error)){ disableCollabForPermissionError(error); return; }
@@ -3241,12 +3256,13 @@ body.export-rendering .cart-count{ font-size:28px; }
         const localInitialState=collabProjectSnapshot(),initialState=await collabCloudProjectSnapshot(localInitialState),client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),60000,'实时协作连接');
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作状态为空');
-        if(!autoStart&&!collabStatesEqual(row.out_state,initialState)){
+        const serverState=normalizedCollabCloudState(row.out_state);
+        if(!autoStart&&!collabStatesEqual(serverState,initialState)){
           const accepted=await appConfirm('协作云端已经有其他人的版本。开启后会先以协作云端为准，确定继续吗？','发现协作版本','继续开启');
           if(!accepted){ syncCollabUI(); return false; }
         }
-        const displayState=preserveMatchingLocalImages(row.out_state,localInitialState,initialState);
-        collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=deepClone(row.out_state); installCollabState(displayState);
+        const displayState=preserveMatchingLocalImages(serverState,localInitialState,initialState);
+        collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=serverState; installCollabState(displayState);
         localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1'); clearIdleCloudUpload(); startCollabPolling(); syncCollabUI(); setCollabStatus(`实时协作已连接 · 版本 ${collabRevision}`,'ok'); setCloudStatus('完整云端备份可手动上传'); return true;
       }catch(error){
         collabEnabled=false; syncCollabUI();
@@ -3318,7 +3334,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           return client.storage.from('zzzschedule').getPublicUrl(path).data.publicUrl;
         }
         for(const sheet of cloudSheets){
-          for(const c of sheet.columns||[]) c.img=await uploadImage(c.img,`c${c.id}`);
+          for(const c of sheet.columns||[]) c.img='';
           delete sheet.cartQrImg; delete sheet.paymentQrImg; delete sheet.alipayQrImg; delete sheet.wechatQrImg;
         }
         const cloudCartQrImg=await uploadImage(sharedCartQrImg,'shared-qr');
@@ -3326,7 +3342,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const cloudPaymentQrImgs=await Promise.all((sharedPaymentQrImgs||['','']).map((img,index)=>uploadImage(img,`shared-payment-${index+1}`)));
         const cloudPaymentQrImg=cloudPaymentQrImgs[activePaymentQrSlot]||cloudPaymentQrImgs[0]||'';
         const cloudExtraPaymentQrImg=await uploadImage(extraPaymentQrImg,'extra-payment');
-        for(const item of cloudCatalog) item.img=await uploadImage(item.img,`library${item.catalogId||item.id||0}`);
+        for(const item of cloudCatalog) item.img='';
         const remoteNow=await fetchRemoteVersion();
         const changedDuringUpload=remoteNow&&remoteNow!==remoteBefore&&cloudVersionIsNewer(remoteNow,knownVersion);
         if(changedDuringUpload){
