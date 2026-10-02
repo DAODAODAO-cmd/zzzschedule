@@ -4868,16 +4868,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       const shareMap=shareRecordMapForAutoPaid(), goodsMap=new Map(buildGoodsSettlementRecords().map(row=>[row.key,row]));
       Object.keys(paymentPaid||{}).forEach(key=>{
         const row=shareMap.get(key), goods=goodsMap.get(key);
-        if(!row||!goods||paidState(paymentPaid,key,Math.max(0,num(goods.expected)))!=='full') return;
-        const total=Math.max(0,num(goods.expected))+Math.max(0,num(row.expected));
+        if(!row||!goods) return;
+        const goodsActual=Math.max(0,num(goods.actual)), shareExpected=Math.max(0,num(row.expected)), total=goodsActual+shareExpected;
         syncSharePaidFromGoodsKey(key,true,shareMap,total,paidAmountValue(paymentPaid,key,total));
       });
     }
     function splitCombinedPaymentIntoSettlement(key,g,sh,paidMap=paymentPaid,includeShare=paymentIncludeShare){
       if(!includeShare||!paidMap||!Object.prototype.hasOwnProperty.call(paidMap,key)) return {g,sh};
-      const goodsExpected=Math.max(0,num(g&&g.expected)), shareExpected=Math.max(0,num(sh&&sh.expected));
-      const combinedReceived=paidAmountValue(paidMap,key,goodsExpected+shareExpected);
-      const goodsReceived=Math.min(goodsExpected,combinedReceived), shareReceived=Math.max(0,combinedReceived-goodsReceived);
+      const goodsActual=Math.max(0,num(g&&g.actual)), shareExpected=Math.max(0,num(sh&&sh.expected));
+      const combinedReceived=paidAmountValue(paidMap,key,goodsActual+shareExpected);
+      const goodsReceived=Math.min(goodsActual,combinedReceived), shareReceived=Math.max(0,combinedReceived-goodsReceived);
       return {
         g:{...g,received:goodsReceived,combinedPaidReceived:combinedReceived},
         sh:{...sh,received:shareReceived,combinedPaidViaGoods:true,combinedPaidReceived:combinedReceived}
@@ -6869,8 +6869,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       requestAnimationFrame(()=>document.querySelector(`.sheet-tab[data-sheet="${id}"]`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}));
     }
     function outstandingPaymentCounts(){
-      const count=selector=>[...document.querySelectorAll(selector)].filter(button=>button.getAttribute('aria-pressed')!=='true').length;
-      return {goods:count('#paymentSummary [data-payment-paid]'),share:count('#sharePaymentSummary [data-share-payment-paid]')};
+      if(paymentIncludeShare) syncSharePaidFromExistingGoods();
+      const shareMap=new Map(buildShareSettlementRecords().map(row=>[row.key,row]));
+      const goods=buildGoodsSettlementRecords().filter(row=>{
+        const shareExpected=paymentIncludeShare?Math.max(0,num(shareMap.get(row.key)?.expected)):0;
+        const required=Math.max(0,num(row.actual))+shareExpected;
+        return paidState(paymentPaid,row.key,required)!=='full';
+      }).length;
+      const shares=paymentIncludeShare?0:buildShareSettlementRecords().filter(row=>paidState(sharePaymentPaid,row.key,Math.max(0,num(row.expected)))!=='full').length;
+      return {goods,share:paymentIncludeShare?0:shares};
     }
     async function toggleActiveSheetCompleted(){
       captureActiveSheet();
@@ -6879,7 +6886,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         sheet.completed=false; sheet.completedAt=''; sheetStatusFilter='ongoing';
       }else{
         const outstanding=outstandingPaymentCounts(),parts=[];
-        if(outstanding.goods) parts.push(`谷子收款还有 ${outstanding.goods} 人未收齐`);
+        if(outstanding.goods) parts.push(`${paymentIncludeShare?'合并收款':'谷子收款'}还有 ${outstanding.goods} 人未收齐`);
         if(outstanding.share) parts.push(`均摊收款还有 ${outstanding.share} 人未收齐`);
         const message=parts.length?`${parts.join('，')}。\n仍要把「${sheet.name}」标记为已完成吗？`:`确认把「${sheet.name}」归入已完成吗？`;
         if(!await appConfirm(message,'标记排单完成','确认完成')) return;
