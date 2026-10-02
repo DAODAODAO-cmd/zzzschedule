@@ -3136,7 +3136,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(touchError) throw touchError;
         const [{data:people,error:peopleError},{data:changes,error:changesError}]=await Promise.all([
           lockRequest(client.from('ggz_collab_presence').select('editor_name,last_seen').eq('sync_code',syncCode).gte('last_seen',cutoff).order('last_seen',{ascending:false}),12000,'在线名单读取'),
-          dataSaverMode?Promise.resolve({data:[],error:null}):lockRequest(client.from('ggz_collab_changes').select('revision,author_name,author_username,created_at').eq('sync_code',syncCode).order('revision',{ascending:false}).limit(10),12000,'协作记录读取')
+          dataSaverMode?Promise.resolve({data:[],error:null}):lockRequest(client.rpc('ggz_collab_activity',{p_group_id:syncCode,p_limit:10}),12000,'协作记录读取')
         ]);
         if(peopleError) throw peopleError;
         const unique=new Map(); (people||[]).forEach(row=>{ const name=row.editor_name||'未命名'; if(!unique.has(name)) unique.set(name,row); });
@@ -3144,7 +3144,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(dataSaverMode){
           $('collabRecentChanges').innerHTML='<div class="collab-recent-item"><span>省流量模式下暂停读取最近修改记录</span><time>省流量</time></div>';
         }else if(!changesError){
-          $('collabRecentChanges').innerHTML=(changes||[]).length?(changes||[]).map(row=>`<div class="collab-recent-item"><span><b>${escapeHtml(row.author_username||row.author_name||'未命名')}</b> 修改了排单内容 · 版本 ${Number(row.revision)||0}</span><time>${escapeHtml(collabRelativeTime(row.created_at))}</time></div>`).join(''):'暂无修改记录';
+          $('collabRecentChanges').innerHTML=(changes||[]).length?(changes||[]).map(row=>`<div class="collab-recent-item"><span><b>${escapeHtml(row.author_name||'未命名')}</b> 修改了${escapeHtml(row.is_detailed?describeCollabPatch(row.patch):'排单内容')} · 版本 ${Number(row.revision)||0}</span><time>${escapeHtml(collabRelativeTime(row.created_at))}</time></div>`).join(''):'暂无修改记录';
         }
       }catch(error){
         $('collabOnlinePeople').textContent='名单尚未启用，请执行更新后的 SQL';
@@ -3207,7 +3207,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const client=getCloudClient(syncCode), {data,error}=await lockRequest(client.rpc('ggz_apply_collab_patch',{p_sync_code:syncCode,p_patch:ops,p_author_name:editorName||'未命名'}),45000,'实时协作同步');
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
-        const localAfterState=collabProjectSnapshot(),afterState=await collabCloudProjectSnapshot(localAfterState),laterOps=collabDiff(sentState,afterState),serverState=normalizedCollabCloudState(row.out_state),displayCloudState=applyCollabOps(deepClone(serverState),laterOps),displayState=preserveMatchingLocalImages(displayCloudState,localAfterState,afterState);
+        const localAfterState=collabProjectSnapshot(),afterState=await collabCloudProjectSnapshot(localAfterState),laterOps=collabDiff(sentState,afterState),serverState=deepClone(row.out_state),displayCloudState=applyCollabOps(deepClone(serverState),laterOps),displayState=preserveMatchingLocalImages(displayCloudState,localAfterState,afterState);
         collabBaseline=serverState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState);
         const conflicts=Array.isArray(row.out_conflicts)?row.out_conflicts:[];
         if(conflicts.length){
@@ -3231,16 +3231,18 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(collabNeedsSend||collabSendTimer){ await flushCollabChanges(); return; }
       collabPolling=true;
       try{
-        const client=getCloudClient(syncCode), activity=await lockRequest(client.from('ggz_collab_changes').select('revision,author_name,author_username,created_at').eq('sync_code',syncCode).order('revision',{ascending:false}).limit(1),20000,'实时协作轻量检查');
+        const client=getCloudClient(syncCode), activity=await lockRequest(client.rpc('ggz_collab_activity',{p_group_id:syncCode,p_limit:1}),20000,'实时协作轻量检查');
         if(activity.error) throw activity.error;
         const latest=Array.isArray(activity.data)?activity.data[0]:null;
         if(!latest||Number(latest.revision)<=collabRevision) return;
-        const localState=collabProjectSnapshot(),compressedLocalState=await collabCloudProjectSnapshot(localState),row=await fetchCollabProjectState(client,syncCode);
+        const localState=collabProjectSnapshot(),compressedLocalState=await collabCloudProjectSnapshot(localState),initialState=collabBaseline||compressedLocalState,{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:syncCode,p_initial_state:initialState,p_author_name:editorName||'未命名'}),45000,'实时协作读取更新');
+        if(error) throw error;
+        const row=collabResultRow(data);
         if(row?.out_state&&Number(row.out_revision)>collabRevision){
-          const serverState=normalizedCollabCloudState(row.out_state),displayState=preserveMatchingLocalImages(serverState,localState,compressedLocalState);
-          collabBaseline=serverState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState); setCollabStatus(`${latest.author_name||'其他人'}刚刚更新 · 版本 ${collabRevision}`,'ok');
+          const displayState=preserveMatchingLocalImages(row.out_state,localState,compressedLocalState);
+          collabBaseline=deepClone(row.out_state); collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState); setCollabStatus(`${latest.author_name||'其他人'}刚刚更新 · 版本 ${collabRevision}`,'ok');
         }else if(row?.out_state){
-          collabBaseline=normalizedCollabCloudState(row.out_state); collabRevision=Number(row.out_revision)||collabRevision;
+          collabBaseline=deepClone(row.out_state); collabRevision=Number(row.out_revision)||collabRevision;
         }
       }catch(error){
         if(isCollabPermissionError(error)){ disableCollabForPermissionError(error); return; }
@@ -3256,13 +3258,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         const localInitialState=collabProjectSnapshot(),initialState=await collabCloudProjectSnapshot(localInitialState),client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),60000,'实时协作连接');
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作状态为空');
-        const serverState=normalizedCollabCloudState(row.out_state);
-        if(!autoStart&&!collabStatesEqual(serverState,initialState)){
+        if(!autoStart&&!collabStatesEqual(row.out_state,initialState)){
           const accepted=await appConfirm('协作云端已经有其他人的版本。开启后会先以协作云端为准，确定继续吗？','发现协作版本','继续开启');
           if(!accepted){ syncCollabUI(); return false; }
         }
-        const displayState=preserveMatchingLocalImages(serverState,localInitialState,initialState);
-        collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=serverState; installCollabState(displayState);
+        const displayState=preserveMatchingLocalImages(row.out_state,localInitialState,initialState);
+        collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=deepClone(row.out_state); installCollabState(displayState);
         localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1'); clearIdleCloudUpload(); startCollabPolling(); syncCollabUI(); setCollabStatus(`实时协作已连接 · 版本 ${collabRevision}`,'ok'); setCloudStatus('完整云端备份可手动上传'); return true;
       }catch(error){
         collabEnabled=false; syncCollabUI();
