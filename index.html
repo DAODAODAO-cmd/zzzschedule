@@ -3159,8 +3159,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     function scheduleCollabSync(){
       if(!collabEnabled||applyingCollab) return;
       collabNeedsSend=true; clearTimeout(collabSendTimer);
-      collabSendTimer=setTimeout(flushCollabChanges,dataSaverMode?COLLAB_SEND_DELAY_MS:COLLAB_SEND_DELAY_FAST_MS);
-      setCollabStatus(`本机有新修改 · 停止操作约 ${Math.round((dataSaverMode?COLLAB_SEND_DELAY_MS:COLLAB_SEND_DELAY_FAST_MS)/1000)} 秒后同步`,'warn');
+      const delay=dataSaverMode?COLLAB_SEND_DELAY_MS:COLLAB_SEND_DELAY_FAST_MS;
+      collabSendTimer=setTimeout(flushCollabChanges,delay);
+      setCollabStatus('本机有新修改 · 正在同步','warn');
     }
     function readableSyncError(error){
       const raw=String(error?.message||error?.details||error?.hint||error||'未知错误');
@@ -4838,6 +4839,39 @@ body.export-rendering .cart-count{ font-size:28px; }
       }));
       const perItem=totalQty?Math.max(0,sharedTotal-fixedDeduction)/totalQty:0;
       return [...people.values()].map(data=>{ const autoExpected=ceilMoneyValue(data.qty*perItem), expected=paymentVisibleAmount('sharePaymentSummary','data-share-payment-key',sharePaymentEdits,'alipay',data.name,data.key,autoExpected),received=paidAmountValue(sharePaymentPaid,data.key,expected); return {...data,expected,received,refund:refundAmountValue(sharePaymentRefund,data.key,expected),supplement:refundAmountValue(sharePaymentSupplement,data.key,expected)}; });
+    }
+    function shareRecordMapForAutoPaid(){
+      return new Map(buildShareSettlementRecords().map(row=>[row.key,row]));
+    }
+    function syncSharePaidFromGoodsKey(key,paid=true,shareMap=null,combinedAmount=null,combinedReceived=null){
+      if(!paymentIncludeShare||!key) return;
+      if(!paid){ delete sharePaymentPaid[key]; return; }
+      const row=(shareMap||shareRecordMapForAutoPaid()).get(key);
+      if(!row||Math.max(0,num(row.expected))<=0) return;
+      const shareExpected=Math.max(0,num(row.expected));
+      if(combinedAmount!==null||combinedReceived!==null){
+        const total=Math.max(0,num(combinedAmount)), received=Math.max(0,num(combinedReceived));
+        const goodsActual=goodsActualForShareAutoPaid(key,total,shareExpected), shareReceived=Math.max(0,Math.min(shareExpected,received-goodsActual));
+        if(shareReceived>0.005) sharePaymentPaid[key]=shareReceived>=shareExpected-0.005?shareExpected:ceilMoneyValue(shareReceived);
+        else delete sharePaymentPaid[key];
+        return;
+      }
+      sharePaymentPaid[key]=shareExpected||true;
+    }
+    function goodsActualForShareAutoPaid(key,combinedTotal=0,shareExpected=0){
+      const goods=buildGoodsSettlementRecords().find(row=>row.key===key);
+      if(goods) return Math.max(0,num(goods.actual));
+      return Math.max(0,num(combinedTotal)-num(shareExpected));
+    }
+    function syncSharePaidFromExistingGoods(){
+      if(!paymentIncludeShare) return;
+      const shareMap=shareRecordMapForAutoPaid(), goodsMap=new Map(buildGoodsSettlementRecords().map(row=>[row.key,row]));
+      Object.keys(paymentPaid||{}).forEach(key=>{
+        const row=shareMap.get(key), goods=goodsMap.get(key);
+        if(!row||!goods||paidState(paymentPaid,key,Math.max(0,num(goods.expected)))!=='full') return;
+        const total=Math.max(0,num(goods.expected))+Math.max(0,num(row.expected));
+        syncSharePaidFromGoodsKey(key,true,shareMap,total,paidAmountValue(paymentPaid,key,total));
+      });
     }
     function splitCombinedPaymentIntoSettlement(key,g,sh,paidMap=paymentPaid,includeShare=paymentIncludeShare){
       if(!includeShare||!paidMap||!Object.prototype.hasOwnProperty.call(paidMap,key)) return {g,sh};
@@ -8888,7 +8922,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('paymentColorInput').addEventListener('input',e=>{ paymentColor=e.target.value; saveState(); renderPaymentSummary(); });
     $('paymentViewMode').addEventListener('change',e=>{ paymentViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderPaymentSummary(); });
     $('showPaymentTotalBtn').addEventListener('click',()=>{ showPaymentTotal=!showPaymentTotal; saveState(); syncPaymentControls(); renderPaymentSummary(); });
-    $('includeShareInPaymentBtn').addEventListener('click',()=>{ paymentIncludeShare=!paymentIncludeShare; saveState(); syncPaymentControls(); renderPaymentSummary(); });
+    $('includeShareInPaymentBtn').addEventListener('click',()=>{ paymentIncludeShare=!paymentIncludeShare; if(paymentIncludeShare) syncSharePaidFromExistingGoods(); saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); });
     let paymentSearchTimer=null;
     function clearPaymentSearchHighlight(){ clearTimeout(paymentSearchTimer); $('paymentSummary').querySelectorAll('.payment-search-hit').forEach(row=>row.classList.remove('payment-search-hit')); }
     function findPaymentPerson(){
@@ -9131,8 +9165,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(allButton){
         e.preventDefault(); e.stopPropagation();
         const buttons=[...$('paymentSummary').querySelectorAll('[data-payment-paid]')], allFull=buttons.length>0&&buttons.every(button=>button.getAttribute('aria-pressed')==='true');
-        buttons.forEach(button=>{ const key=decodeURIComponent(button.dataset.paymentPaid||''); if(!key) return; if(allFull) delete paymentPaid[key]; else { rememberGoodsPaidSnapshot(key); const amount=Math.max(0,num(button.dataset.paymentAmount)); paymentPaid[key]=amount>0?amount:true; } });
-        saveState(); rerenderPaymentInPlace('paymentSummary',renderPaymentSummary); return;
+        const shareMap=paymentIncludeShare?shareRecordMapForAutoPaid():null;
+        buttons.forEach(button=>{ const key=decodeURIComponent(button.dataset.paymentPaid||''); if(!key) return; if(allFull){ delete paymentPaid[key]; syncSharePaidFromGoodsKey(key,false,shareMap); } else { rememberGoodsPaidSnapshot(key); const amount=Math.max(0,num(button.dataset.paymentAmount)); paymentPaid[key]=amount>0?amount:true; syncSharePaidFromGoodsKey(key,true,shareMap,amount,amount); } });
+        saveState(); rerenderPaymentInPlace('paymentSummary',renderPaymentSummary); renderSharePaymentSummary(); return;
       }
       const refundButton=e.target.closest('[data-payment-refund]');
       if(refundButton){
@@ -9154,7 +9189,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       e.preventDefault(); e.stopPropagation();
       const key=decodeURIComponent(checkbox.dataset.paymentPaid||''); if(!key) return;
       if(checkbox.getAttribute('aria-pressed')!=='true') rememberGoodsPaidSnapshot(key);
-      if(await updateReceivedAmount(paymentPaid,key,checkbox)){ saveState(); rerenderPaymentInPlace('paymentSummary',renderPaymentSummary); }
+      if(await updateReceivedAmount(paymentPaid,key,checkbox)){
+        const fullAmount=Math.max(0,num(checkbox.dataset.paymentAmount)), state=paidState(paymentPaid,key,fullAmount);
+        syncSharePaidFromGoodsKey(key,state!=='unpaid',null,fullAmount,paidAmountValue(paymentPaid,key,fullAmount));
+        saveState(); rerenderPaymentInPlace('paymentSummary',renderPaymentSummary); renderSharePaymentSummary();
+      }
     });
     $('paymentSummary').addEventListener('blur',e=>{
       const cell=e.target.closest('[data-payment-key]'); if(!cell) return;
@@ -9340,6 +9379,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('toggleBoughtSettlementBtn').addEventListener('click',()=>{
       showBoughtSettlement=!showBoughtSettlement;
       settlementDashboardOpen=showBoughtSettlement;
+      if(paymentIncludeShare) syncSharePaidFromExistingGoods();
       saveState();
       syncPaymentControls();
       renderMatrix();
