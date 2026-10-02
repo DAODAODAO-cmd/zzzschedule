@@ -3136,7 +3136,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(touchError) throw touchError;
         const [{data:people,error:peopleError},{data:changes,error:changesError}]=await Promise.all([
           lockRequest(client.from('ggz_collab_presence').select('editor_name,last_seen').eq('sync_code',syncCode).gte('last_seen',cutoff).order('last_seen',{ascending:false}),12000,'在线名单读取'),
-          dataSaverMode?Promise.resolve({data:[],error:null}):lockRequest(client.rpc('ggz_collab_activity',{p_group_id:syncCode,p_limit:10}),12000,'协作记录读取')
+          dataSaverMode?Promise.resolve({data:[],error:null}):lockRequest(client.from('ggz_collab_changes').select('revision,author_name,author_username,created_at').eq('sync_code',syncCode).order('revision',{ascending:false}).limit(10),12000,'协作记录读取')
         ]);
         if(peopleError) throw peopleError;
         const unique=new Map(); (people||[]).forEach(row=>{ const name=row.editor_name||'未命名'; if(!unique.has(name)) unique.set(name,row); });
@@ -3144,7 +3144,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(dataSaverMode){
           $('collabRecentChanges').innerHTML='<div class="collab-recent-item"><span>省流量模式下暂停读取最近修改记录</span><time>省流量</time></div>';
         }else if(!changesError){
-          $('collabRecentChanges').innerHTML=(changes||[]).length?(changes||[]).map(row=>`<div class="collab-recent-item"><span><b>${escapeHtml(row.author_name||'未命名')}</b> 修改了${escapeHtml(row.is_detailed?describeCollabPatch(row.patch):'排单内容')} · 版本 ${Number(row.revision)||0}</span><time>${escapeHtml(collabRelativeTime(row.created_at))}</time></div>`).join(''):'暂无修改记录';
+          $('collabRecentChanges').innerHTML=(changes||[]).length?(changes||[]).map(row=>`<div class="collab-recent-item"><span><b>${escapeHtml(row.author_username||row.author_name||'未命名')}</b> 修改了排单内容 · 版本 ${Number(row.revision)||0}</span><time>${escapeHtml(collabRelativeTime(row.created_at))}</time></div>`).join(''):'暂无修改记录';
         }
       }catch(error){
         $('collabOnlinePeople').textContent='名单尚未启用，请执行更新后的 SQL';
@@ -3231,7 +3231,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(collabNeedsSend||collabSendTimer){ await flushCollabChanges(); return; }
       collabPolling=true;
       try{
-        const client=getCloudClient(syncCode), activity=await lockRequest(client.rpc('ggz_collab_activity',{p_group_id:syncCode,p_limit:1}),20000,'实时协作轻量检查');
+        const client=getCloudClient(syncCode), activity=await lockRequest(client.from('ggz_collab_changes').select('revision,author_name,author_username,created_at').eq('sync_code',syncCode).order('revision',{ascending:false}).limit(1),20000,'实时协作轻量检查');
         if(activity.error) throw activity.error;
         const latest=Array.isArray(activity.data)?activity.data[0]:null;
         if(!latest||Number(latest.revision)<=collabRevision) return;
