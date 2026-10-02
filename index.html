@@ -2939,8 +2939,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       return cloud;
     }
     function stripGoodsImagesFromCollabState(state){
-      for(const sheet of state?.sheets||[]) for(const column of sheet.columns||[]) column.img='';
-      for(const item of state?.itemCatalog||[]) item.img='';
+      for(const sheet of state?.sheets||[]) for(const column of sheet.columns||[]) delete column.img;
+      for(const item of state?.itemCatalog||[]) delete item.img;
       return state;
     }
     function normalizedCollabCloudState(state){ return stripGoodsImagesFromCollabState(deepClone(state||{})); }
@@ -3329,7 +3329,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           return client.storage.from('zzzschedule').getPublicUrl(path).data.publicUrl;
         }
         for(const sheet of cloudSheets){
-          for(const c of sheet.columns||[]) c.img='';
+          for(const c of sheet.columns||[]) delete c.img;
           delete sheet.cartQrImg; delete sheet.paymentQrImg; delete sheet.alipayQrImg; delete sheet.wechatQrImg;
         }
         const cloudCartQrImg=await uploadImage(sharedCartQrImg,'shared-qr');
@@ -3337,7 +3337,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const cloudPaymentQrImgs=await Promise.all((sharedPaymentQrImgs||['','']).map((img,index)=>uploadImage(img,`shared-payment-${index+1}`)));
         const cloudPaymentQrImg=cloudPaymentQrImgs[activePaymentQrSlot]||cloudPaymentQrImgs[0]||'';
         const cloudExtraPaymentQrImg=await uploadImage(extraPaymentQrImg,'extra-payment');
-        for(const item of cloudCatalog) item.img='';
+        for(const item of cloudCatalog) delete item.img;
         const remoteNow=await fetchRemoteVersion();
         const changedDuringUpload=remoteNow&&remoteNow!==remoteBefore&&cloudVersionIsNewer(remoteNow,knownVersion);
         if(changedDuringUpload){
