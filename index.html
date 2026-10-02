@@ -3188,6 +3188,28 @@ body.export-rendering .cart-count{ font-size:28px; }
       const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
       return row;
     }
+    async function replaceCollabStateAfterTimeout(sentState,localSentState){
+      try{
+        const client=getCloudClient(syncCode), {data,error}=await lockRequest(client.rpc('ggz_replace_collab_state',{p_sync_code:syncCode,p_state:sentState,p_base_revision:collabRevision,p_author_name:editorName||'未命名'}),45000,'实时协作轻量整包同步');
+        if(error) throw error;
+        const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
+        const conflicts=Array.isArray(row.out_conflicts)?row.out_conflicts:[];
+        if(conflicts.length){
+          const latestState=deepClone(row.out_state),displayState=preserveMatchingLocalImages(latestState,localSentState,sentState);
+          collabBaseline=latestState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState);
+          setCollabStatus('云端刚刚已有新版本，已先读取最新内容，请重新操作','warn');
+          return true;
+        }
+        const serverState=deepClone(row.out_state),displayState=preserveMatchingLocalImages(serverState,localSentState,sentState);
+        collabBaseline=serverState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState);
+        collabNeedsSend=false; clearTimeout(collabSendTimer); collabSendTimer=null;
+        setCollabStatus(`实时协作已用轻量整包同步 · 版本 ${collabRevision}`,'ok');
+        return true;
+      }catch(fallbackError){
+        if(lockFeatureMissing(fallbackError)){ setCollabStatus('同步超时：需要先在 Supabase 执行轻量整包同步 SQL','bad'); }
+        return false;
+      }
+    }
     async function flushCollabChanges(){
       clearTimeout(collabSendTimer); collabSendTimer=null;
       if(!collabEnabled||applyingCollab) return true;
@@ -3222,6 +3244,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }catch(error){
         syncError=error;
         if(isCollabPermissionError(error)){ disableCollabForPermissionError(error); return false; }
+        if(isStatementTimeout(error)&&await replaceCollabStateAfterTimeout(sentState,localSentState)) return true;
         collabNeedsSend=true; setCollabStatus('同步失败：'+readableSyncError(error)+'，已保留本机修改并重试','bad'); return false;
       }
       finally{ collabSending=false; if(collabNeedsSend&&!collabSendTimer) collabSendTimer=setTimeout(flushCollabChanges,isStatementTimeout(syncError)?COLLAB_TIMEOUT_RETRY_DELAY_MS:(dataSaverMode?COLLAB_RETRY_DELAY_MS:COLLAB_RETRY_DELAY_FAST_MS)); }
