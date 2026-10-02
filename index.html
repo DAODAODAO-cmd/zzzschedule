@@ -6868,14 +6868,24 @@ body.export-rendering .cart-count{ font-size:28px; }
       captureActiveSheet(); [sheets[index],sheets[target]]=[sheets[target],sheets[index]]; saveState(); renderSheetTabs();
       requestAnimationFrame(()=>document.querySelector(`.sheet-tab[data-sheet="${id}"]`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}));
     }
+    function paymentSummaryOutstandingCount(){
+      const people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow), displayColumns=orderDisplayColumns();
+      displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
+        if(index<startIndex||index>=endIndex) return;
+        const name=String(person||'').trim(); if(!name) return;
+        const key=normalizeDispatchKey(name);
+        if(!people.has(key)) people.set(key,{key,name,total:0});
+        people.get(key).total+=unitPrice(c);
+      }));
+      const shareByKey=paymentIncludeShare?new Map(buildShareSettlementRecords().map(row=>[row.key,Math.max(0,num(row.expected))])):new Map();
+      return [...people.values()].filter(data=>{
+        const amount=paymentEditAmount(paymentEdits,'alipay',data.name,data.key,data.total+(paymentIncludeShare?(shareByKey.get(data.key)||0):0));
+        return paidState(paymentPaid,data.key,amount)!=='full';
+      }).length;
+    }
     function outstandingPaymentCounts(){
       if(paymentIncludeShare) syncSharePaidFromExistingGoods();
-      const shareMap=new Map(buildShareSettlementRecords().map(row=>[row.key,row]));
-      const goods=buildGoodsSettlementRecords().filter(row=>{
-        const shareExpected=paymentIncludeShare?Math.max(0,num(shareMap.get(row.key)?.expected)):0;
-        const required=Math.max(0,num(row.actual))+shareExpected;
-        return paidState(paymentPaid,row.key,required)!=='full';
-      }).length;
+      const goods=paymentSummaryOutstandingCount();
       const shares=paymentIncludeShare?0:buildShareSettlementRecords().filter(row=>paidState(sharePaymentPaid,row.key,Math.max(0,num(row.expected)))!=='full').length;
       return {goods,share:paymentIncludeShare?0:shares};
     }
