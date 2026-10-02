@@ -9040,7 +9040,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       extraFees=extraFees.filter(row=>!ids.has(row.id));
       saveState(); renderExtraFeesKeepScroll(); renderDispatch();
     });
-    document.querySelector('.extra-fee-filter').addEventListener('click',e=>{ const btn=e.target.closest('[data-extra-filter]'); if(!btn) return; extraFeeFilter=btn.dataset.extraFilter; renderExtraFeesKeepScroll(); });
+    document.querySelector('#extraPaymentView .extra-fee-filter').addEventListener('click',e=>{ const btn=e.target.closest('[data-extra-filter]'); if(!btn) return; extraFeeFilter=btn.dataset.extraFilter; renderExtraFeesKeepScroll(); });
     $('extraFeeList').addEventListener('keydown',e=>{ if(e.target.matches('[data-extra-field]')&&e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
     function extraRowsFromElement(el){
       const ids=String(el?.closest('[data-extra-ids]')?.dataset.extraIds||el?.closest('[data-extra-id]')?.dataset.extraId||'').split(',').map(x=>Number(x)).filter(Boolean);
