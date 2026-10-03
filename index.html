@@ -4858,7 +4858,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       displayColumns.forEach(c=>(allocations[c.id]||[]).forEach((person,index)=>{
         if(index<startIndex||index>=endIndex) return; const name=String(person||'').trim(); if(!name) return;
         const key=normalizeDispatchKey(name); if(!people.has(key)) people.set(key,{key,name,qty:0});
-        if(showBoughtSettlement&&!isMatrixCellBought(c.id,index,name)) return;
+        if((showBoughtSettlement||paymentBoughtOnly)&&!isMatrixCellBought(c.id,index,name)) return;
         const pointValue=Number(c.promotionPoints), shareWeight=Number.isFinite(pointValue)?Math.max(0,pointValue):1;
         people.get(key).qty+=shareWeight; totalQty+=shareWeight;
         if(shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
@@ -5323,7 +5323,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         data.paymentTotal=data.collectTotal+data.shareAmount;
       });
       const amountFor=data=>paymentEditAmount(paymentEdits,'alipay',data.name,data.key,Number.isFinite(data.paymentTotal)?data.paymentTotal:data.collectTotal);
-      const visibleData=[...people.values()].filter(data=>(!paymentBoughtOnly||data.collectTotal>0.005||data.shareAmount>0.005)&&paymentPassesStatusFilter(data,paymentFilter,paymentPaid,paymentRefund,paymentSupplement,amountFor(data)));
+      const visibleData=[...people.values()].filter(data=>(!paymentBoughtOnly||data.collectTotal>0.005)&&paymentPassesStatusFilter(data,paymentFilter,paymentPaid,paymentRefund,paymentSupplement,amountFor(data)));
       let rows='';
       visibleData.forEach(data=>{
         const name=data.name, calcTotal=ceilMoneyValue(Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total), alipayAmount=amountFor(data), receivedAmount=paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount,paymentReceivedReasonForGoods(data,alipayAmount,receivedAmount)), shareNote=paymentIncludeShare&&data.shareAmount>0?`<span class="payment-received-note payment-share-note" data-html2canvas-ignore="true">含均摊 ${money(data.shareAmount)}</span>`:'', adjustmentNote='', paidClass=paymentRowClassFor(data.key,paidStatus), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
