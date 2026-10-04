@@ -2386,14 +2386,17 @@ body.export-rendering .cart-count{ font-size:28px; }
         }
       }
     }
-    function saveState(){
+    function saveState(options={}){
       if(isLoadingSheet) return true;
       captureActiveSheet();
       const localSaved=persistLocalState();
       if($('localStatus')){ $('localStatus').textContent=localSaved==='full'?'本机已保存':(localSaved==='light'?'本机已轻量保存':'本机保存失败'); $('localStatus').style.color=localSaved==='failed'?'var(--bad)':(localSaved==='light'?'var(--warn)':'var(--ok)'); }
       if(!applyingCloud&&!applyingCollab){
         localRevision++; cloudDirty=true; rememberCloudDirty(syncCode,true);
-        if(collabEnabled){ scheduleCollabSync(); setCloudStatus('实时协作中 · 完整备份未更新','warn'); }
+        if(collabEnabled){
+          scheduleCollabSync(); setCloudStatus('实时协作中 · 完整备份未更新','warn');
+          if(options.flushCollabNow){ clearTimeout(collabSendTimer); collabSendTimer=setTimeout(flushCollabChanges,0); }
+        }
         else if(syncCode&&cloudIdleEnabled) scheduleIdleCloudUpload();
         else setCloudStatus(syncCode?'云端完整备份未更新':'尚未加入协作组',syncCode?'warn':false);
       }
@@ -2790,6 +2793,29 @@ body.export-rendering .cart-count{ font-size:28px; }
       captureActiveSheet();
       const sheet=sheets.find(s=>s.id===id); if(!sheet) return;
       applySheet(sheet); saveState();
+    }
+    async function renameSheetById(id){
+      const sheet=sheets.find(s=>s.id===id); if(!sheet) return;
+      const name=await appPrompt('给当前排单改个名字',sheet.name);
+      const nextName=String(name||'').trim();
+      if(!nextName) return;
+      if(id===activeSheetId) captureActiveSheet();
+      const fresh=sheets.find(s=>s.id===id); if(!fresh) return;
+      const matrixFollows=!sheetUsesCustomTitle(fresh,'matrixTitle'), quantityFollows=!sheetUsesCustomTitle(fresh,'quantityTitle'), paymentFollows=!sheetUsesCustomTitle(fresh,'paymentTitle'), shareFollows=!sheetUsesCustomShareTitle(fresh);
+      fresh.name=nextName;
+      if(matrixFollows){ fresh.matrixTitle=nextName; fresh.matrixTitleCustom=false; }
+      if(quantityFollows){ fresh.quantityTitle=nextName; fresh.quantityTitleCustom=false; }
+      if(paymentFollows){ fresh.paymentTitle=nextName; fresh.paymentTitleCustom=false; }
+      if(shareFollows){ fresh.sharePaymentTitle=`${nextName} 均摊`; fresh.sharePaymentTitleCustom=false; }
+      if(id===activeSheetId){
+        if(matrixFollows){ matrixTitle=nextName; $('matrixTitleInput').value=nextName; renderMatrixHeading(); }
+        if(quantityFollows){ quantityTitle=nextName; $('quantityTitleInput').value=nextName; renderQuantitySummary(); }
+        if(paymentFollows){ paymentTitle=nextName; $('paymentTitleInput').value=nextName; renderPaymentSummary(); }
+        if(shareFollows){ sharePaymentTitle=`${nextName} 均摊`; $('sharePaymentTitleInput').value=sharePaymentTitle; renderSharePaymentSummary(); }
+      }
+      saveState({flushCollabNow:true});
+      if(collabEnabled) setCollabStatus('排单名已修改 · 正在同步','warn');
+      renderSheetTabs();
     }
     function setCloudStatus(text,tone){ const el=$('cloudStatus'); el.textContent=text; el.style.color=tone==='warn'?'var(--warn)':(tone?'var(--bad)':'var(--muted)'); }
     function normalizedSyncCode(){ return UUID_RE.test(String(activeWorkspaceId||syncCode))?String(activeWorkspaceId||syncCode):''; }
@@ -6196,9 +6222,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       const pos=captureExtraFeeScroll(), previousFilter=extraFeeFilter, previousSearch=$('extraFeeSearchInput').value;
       extraFeeFilter=filter; $('extraFeeSearchInput').value=''; renderExtraFees();
       const wrap=$('extraFeeExportWrap'); wrap.classList.add('extra-exporting');
-      const width=Math.max(760,wrap.scrollWidth), name=(extraFeeTitle||'追加费用收款').replace(/[\\/:*?"<>|]/g,' ').trim()||'追加费用收款';
+      const scroller=wrap.querySelector('.payment-table-wrap')||wrap;
+      const width=Math.max(760,scroller.scrollWidth), name=(extraFeeTitle||'追加费用收款').replace(/[\\/:*?"<>|]/g,' ').trim()||'追加费用收款';
       const suffix=filter==='unpaid'?'_未收':(filter==='adjustment'?'_退补':(filter==='supplement'?'_补充':''));
-      requestAnimationFrame(()=>renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+suffix+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      requestAnimationFrame(()=>renderExportCanvas(scroller,{backgroundColor:'#ffffff',scale:2,width,height:scroller.scrollHeight,windowWidth:width,windowHeight:scroller.scrollHeight,cloneForExport:true,tightExport:true}).then(canvas=>saveCanvasImage(canvas,name+suffix+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         wrap.classList.remove('extra-exporting'); extraFeeFilter=previousFilter; $('extraFeeSearchInput').value=previousSearch; renderExtraFees(); restoreExtraFeeScroll(pos); requestAnimationFrame(()=>restoreExtraFeeScroll(pos)); setTimeout(()=>restoreExtraFeeScroll(pos),80);
       }));
     }
@@ -6972,21 +6999,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('sheetTabs').addEventListener('dblclick',async e=>{
       const tab=e.target.closest('[data-sheet]'); if(!tab||e.target.closest('.sheet-close,.sheet-drag-handle')) return;
-      const sheet=sheets.find(s=>s.id===parseInt(tab.dataset.sheet,10)); if(!sheet) return;
-      const name=await appPrompt('给这张表改个名字',sheet.name);
-      if(name&&name.trim()){
-        const nextName=name.trim(), matrixFollows=!sheetUsesCustomTitle(sheet,'matrixTitle'), quantityFollows=!sheetUsesCustomTitle(sheet,'quantityTitle'), paymentFollows=!sheetUsesCustomTitle(sheet,'paymentTitle');
-        sheet.name=nextName;
-        if(matrixFollows){ sheet.matrixTitle=nextName; sheet.matrixTitleCustom=false; }
-        if(quantityFollows){ sheet.quantityTitle=nextName; sheet.quantityTitleCustom=false; }
-        if(paymentFollows){ sheet.paymentTitle=nextName; sheet.paymentTitleCustom=false; }
-        if(sheet.id===activeSheetId){
-          if(matrixFollows){ matrixTitle=nextName; $('matrixTitleInput').value=nextName; renderMatrixHeading(); }
-          if(quantityFollows){ quantityTitle=nextName; $('quantityTitleInput').value=nextName; renderQuantitySummary(); }
-          if(paymentFollows){ paymentTitle=nextName; $('paymentTitleInput').value=nextName; renderPaymentSummary(); }
-        }
-        saveState(); renderSheetTabs();
-      }
+      await renameSheetById(parseInt(tab.dataset.sheet,10));
     });
     let draggedSheetId=null;
     $('sheetTabs').addEventListener('dragstart',e=>{
@@ -7317,16 +7330,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('mobileAddSheetBtn').addEventListener('click',()=>$('addSheetBtn').click());
     $('mobileCopySheetBtn').addEventListener('click',copyActiveSheet);
     $('mobileRenameSheetBtn').addEventListener('click',async ()=>{
-      const sheet=sheets.find(item=>item.id===activeSheetId); if(!sheet) return;
-      const name=await appPrompt('给当前排单改个名字',sheet.name);
-      if(name&&name.trim()){
-        const nextName=name.trim(), matrixFollows=!sheetUsesCustomTitle(sheet,'matrixTitle'), quantityFollows=!sheetUsesCustomTitle(sheet,'quantityTitle'), paymentFollows=!sheetUsesCustomTitle(sheet,'paymentTitle');
-        sheet.name=nextName;
-        if(matrixFollows){ sheet.matrixTitle=nextName; sheet.matrixTitleCustom=false; matrixTitle=nextName; $('matrixTitleInput').value=nextName; renderMatrixHeading(); }
-        if(quantityFollows){ sheet.quantityTitle=nextName; sheet.quantityTitleCustom=false; quantityTitle=nextName; $('quantityTitleInput').value=nextName; renderQuantitySummary(); }
-        if(paymentFollows){ sheet.paymentTitle=nextName; sheet.paymentTitleCustom=false; paymentTitle=nextName; $('paymentTitleInput').value=nextName; renderPaymentSummary(); }
-        saveState(); renderSheetTabs();
-      }
+      await renameSheetById(activeSheetId);
     });
     $('mobileDeleteSheetBtn').addEventListener('click',()=>{
       if(sheets.length<=1){ alert('至少要保留一张排单'); return; }
@@ -9389,7 +9393,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const width=Math.max(680,table.scrollWidth+4,exportContentWidth(wrap));
       scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; wrap.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
       const name=(paymentTitle||'收款统计').replace(/[\\/:*?"<>|]/g,' ').trim()||'收款统计';
-      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(scroller,{backgroundColor:'#ffffff',scale:2,width,height:scroller.scrollHeight,windowWidth:width,windowHeight:scroller.scrollHeight,cloneForExport:true,tightExport:true}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; sticky.forEach(el=>{ el.style.position=''; });
       });
     });
@@ -9513,7 +9517,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const old={maxHeight:scroller.style.maxHeight,overflow:scroller.style.overflow,width:scroller.style.width,wrapWidth:wrap.style.width};
       const width=Math.max(680,table.scrollWidth+4,exportContentWidth(wrap)); scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; wrap.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
       const name=(sharePaymentTitle||'均摊统计').replace(/[\\/:*?"<>|]/g,' ').trim()||'均摊统计';
-      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(scroller,{backgroundColor:'#ffffff',scale:2,width,height:scroller.scrollHeight,windowWidth:width,windowHeight:scroller.scrollHeight,cloneForExport:true,tightExport:true}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; if(calculationNote) calculationNote.style.display=oldNoteDisplay; sticky.forEach(el=>{ el.style.position=''; });
       });
     });
@@ -9563,6 +9567,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(dynamicHeight) measured.height=root.scrollHeight;
         if(dynamicWindowWidth) measured.windowWidth=measured.width+40;
         if(dynamicWindowHeight) measured.windowHeight=measured.height+40;
+        const tightExport=measured.tightExport===true;
+        delete measured.tightExport;
         const rect=root.getBoundingClientRect();
         const needsClone=measured.cloneForExport||measured.width>(rect.width+2)||root.scrollWidth>(root.clientWidth+2);
         if(needsClone){
@@ -9572,6 +9578,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const targetWidth=Math.ceil(Math.max(sourceTable?sourceTable.scrollWidth:0,exportContentWidth(root,0)||0,measured.width&&measured.width<window.innerWidth*1.5?measured.width:0));
           cloneHost.style.width=targetWidth+'px';
           clone.style.width=targetWidth+'px'; clone.style.minWidth=targetWidth+'px'; clone.style.maxWidth='none'; clone.style.overflow='visible';
+          if(tightExport){ clone.style.border='0'; clone.style.borderRadius='0'; clone.style.margin='0'; clone.style.padding='0'; }
           clone.querySelectorAll('.table-scroll,.payment-table-wrap,.quantity-table-wrap').forEach(el=>{ el.style.maxHeight='none'; el.style.overflow='visible'; el.style.width=targetWidth+'px'; el.style.maxWidth='none'; });
           clone.querySelectorAll('thead,th,td,.seq-col,thead td:first-child,thead th:first-child').forEach(el=>{ el.style.position='static'; el.style.left='auto'; el.style.right='auto'; });
           clone.querySelectorAll('.matrix-project-title,.payment-project-title').forEach(el=>{ el.style.width=targetWidth+'px'; el.style.minWidth=targetWidth+'px'; el.style.boxSizing='border-box'; });
@@ -9583,8 +9590,8 @@ body.export-rendering .cart-count{ font-size:28px; }
             const fullWidth=Math.ceil(Math.max(targetWidth,cloneTable?cloneTable.scrollWidth:0,exportContentWidth(clone,0)||0));
             measured.width=fullWidth;
             measured.height=Math.ceil(Math.max(measured.height||0,clone.scrollHeight||0));
-            measured.windowWidth=fullWidth+40;
-            measured.windowHeight=measured.height+40;
+            measured.windowWidth=tightExport?fullWidth:fullWidth+40;
+            measured.windowHeight=tightExport?measured.height:measured.height+40;
             delete measured.cloneForExport;
             return await html2canvas(clone,{useCORS:true,allowTaint:false,imageTimeout:20000,logging:false,...measured});
           }finally{
@@ -9592,6 +9599,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           }
         }
         delete measured.cloneForExport;
+        if(tightExport){ measured.windowWidth=measured.width; measured.windowHeight=measured.height; }
         return await html2canvas(root,{useCORS:true,allowTaint:false,imageTimeout:20000,logging:false,...measured});
       }finally{
         document.body.classList.remove('export-rendering');
