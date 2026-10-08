@@ -819,6 +819,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <details class="data-actions settings-data-actions" id="dataActions"><summary>排单数据导入导出</summary><div class="data-actions-pop">
       <button class="btn-ghost" id="exportJsonBtn">备份全部排单</button>
       <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前排单</button>
+      <button class="btn-ghost" id="localSnapshotsBtn">恢复本机快照</button>
       <button class="btn-ghost" id="exportAllExcelBtn">导出全部排单表</button>
       <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单表</button>
       <label class="btn-ghost filelabel import-backup">导入排单备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
@@ -1814,6 +1815,7 @@ body.export-rendering .cart-count{ font-size:28px; }
   initApp(){
     const STORAGE_KEY='ggzCombinedTool_v1';
     const UNDO_STORAGE_KEY='ggzOrderUndoHistory_v1';
+    const LOCAL_SNAPSHOT_KEY='ggzLocalProjectSnapshots_v1';
     const INTL_DRAFT_STORAGE_KEY='ggzIntlSplitDrafts_v1';
     const $=id=>document.getElementById(id);
     const ceilMoneyValue=v=>{
@@ -1870,6 +1872,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     const COLLAB_SEND_DELAY_MS=1200, COLLAB_SEND_DELAY_FAST_MS=350, COLLAB_RETRY_DELAY_MS=5000, COLLAB_RETRY_DELAY_FAST_MS=1800, COLLAB_TIMEOUT_RETRY_DELAY_MS=15000;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
+    let lastLocalSnapshotAt=0, lastLocalSnapshotSignature='';
     const WORKSPACE_STORAGE_KEY='ggzActiveWorkspace_v1';
     const storedSyncCode=localStorage.getItem('ggzSyncCode')||'';
     const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -2362,6 +2365,58 @@ body.export-rendering .cart-count{ font-size:28px; }
       payload.extraPaymentQrImg=slimImage(payload.extraPaymentQrImg);
       return payload;
     }
+    function loadLocalSnapshots(){
+      try{ const list=JSON.parse(localStorage.getItem(LOCAL_SNAPSHOT_KEY)||'[]'); return Array.isArray(list)?list.filter(x=>x&&x.payload&&Array.isArray(x.payload.sheets)):[]; }catch(_){ return []; }
+    }
+    function saveLocalSnapshots(list){
+      let next=Array.isArray(list)?list.slice(0,20):[];
+      while(next.length){
+        try{ localStorage.setItem(LOCAL_SNAPSHOT_KEY,JSON.stringify(next)); return true; }
+        catch(_){ next=next.slice(0,Math.max(1,next.length-1)); }
+      }
+      try{ localStorage.removeItem(LOCAL_SNAPSHOT_KEY); }catch(_){}
+      return false;
+    }
+    function snapshotSummary(payload){
+      const list=Array.isArray(payload?.sheets)?payload.sheets:[], names=list.slice(0,5).map(s=>String(s.name||'未命名')).join('、');
+      const completed=list.filter(s=>s?.completed===true).length;
+      return `${list.length} 张排单${completed?`，${completed} 张已完成`:''}${names?`：${names}${list.length>5?'…':''}`:''}`;
+    }
+    function recordLocalSnapshot(reason='自动保存',force=false){
+      if(isLoadingSheet) return false;
+      try{
+        captureActiveSheet();
+        const payload=lightLocalStatePayload();
+        if(isProbablyBlankProject(payload)) return false;
+        const signature=JSON.stringify(payload);
+        const now=Date.now();
+        if(!force&&signature===lastLocalSnapshotSignature) return false;
+        if(!force&&now-lastLocalSnapshotAt<30000) return false;
+        const list=loadLocalSnapshots().filter(item=>item.signature!==signature);
+        list.unshift({id:`snap_${now}_${Math.random().toString(36).slice(2,7)}`,createdAt:new Date(now).toISOString(),reason,summary:snapshotSummary(payload),signature,payload});
+        const ok=saveLocalSnapshots(list);
+        if(ok){ lastLocalSnapshotAt=now; lastLocalSnapshotSignature=signature; }
+        return ok;
+      }catch(error){ console.warn('本机快照保存失败',error); return false; }
+    }
+    async function restoreLocalSnapshotDialog(){
+      const list=loadLocalSnapshots();
+      if(!list.length){ await appAlert('这个浏览器里还没有可恢复的本机快照。以后每次保存会自动留下最近版本。','本机快照'); return; }
+      const lines=list.slice(0,15).map((item,index)=>`${index+1}. ${new Date(item.createdAt).toLocaleString('zh-CN')} · ${item.reason||'自动保存'} · ${item.summary||snapshotSummary(item.payload)}`).join('\n');
+      const answer=await appPrompt(`输入要恢复的编号：\n\n${lines}\n\n恢复前会先给当前状态再留一份快照。`,'1','恢复本机快照','恢复');
+      if(answer===null) return;
+      const index=Math.max(0,(parseInt(answer,10)||0)-1), item=list[index];
+      if(!item){ await appAlert('没有这个编号，请重新打开再选。','本机快照'); return; }
+      if(!await appConfirm(`确定恢复这份本机快照吗？\n${new Date(item.createdAt).toLocaleString('zh-CN')} · ${item.summary||snapshotSummary(item.payload)}\n\n恢复后不会自动上传云端。`,'恢复本机快照','确认恢复')) return;
+      recordLocalSnapshot('恢复快照前',true);
+      try{
+        applyProjectPayload(deepClone(item.payload),syncCode,lastCloudUpdatedAt);
+        cloudDirty=true; rememberCloudDirty(syncCode,true); cloudConflictPaused=true; clearIdleCloudUpload();
+        setCloudStatus('已恢复本机快照 · 未上传云端','warn');
+        renderSheetTabs();
+        await appAlert('已恢复到这份本机快照。确认没问题以后，再决定要不要上传云端。','恢复完成');
+      }catch(error){ await appAlert('恢复失败：'+(error.message||error),'本机快照'); }
+    }
     function stripInlineImagesForCloud(value){
       if(typeof value==='string') return value.startsWith('data:image/')?'':value;
       if(Array.isArray(value)) return value.map(stripInlineImagesForCloud);
@@ -2390,6 +2445,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(isLoadingSheet) return true;
       captureActiveSheet();
       const localSaved=persistLocalState();
+      if(localSaved!=='failed'&&!options.skipSnapshot) recordLocalSnapshot(options.snapshotReason||'自动保存',options.forceSnapshot===true);
       if($('localStatus')){ $('localStatus').textContent=localSaved==='full'?'本机已保存':(localSaved==='light'?'本机已轻量保存':'本机保存失败'); $('localStatus').style.color=localSaved==='failed'?'var(--bad)':(localSaved==='light'?'var(--warn)':'var(--ok)'); }
       if(!applyingCloud&&!applyingCollab){
         localRevision++; cloudDirty=true; rememberCloudDirty(syncCode,true);
@@ -3343,6 +3399,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const hadEditLockBeforeUpload=editLockOwned;
       if(!(await confirmEditLockForUpload(code))) return;
       const automatic=silent===true;
+      if(!automatic) recordLocalSnapshot('上传云端前',true);
       clearIdleCloudUpload();
       cloudBusy=true; setCloudStatus('正在同步云端…');
       try{
@@ -3437,6 +3494,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(silent&&!force&&lastCloudUpdatedAt&&new Date(data.updated_at)<=new Date(lastCloudUpdatedAt)) return true;
         const d=data.payload||{}; if(!Array.isArray(d.sheets)||!d.sheets.length) throw new Error('云端数据为空');
         if(silent&&isProbablyBlankProject(d)){ setCloudStatus('云端像是空表，已停止自动读取以免覆盖本机','warn'); return false; }
+        recordLocalSnapshot('读取云端前',true);
         applyProjectPayload(d,code,data.updated_at);
         setCloudStatus('云端已读取 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})); return true;
       }catch(err){ setCloudStatus('读取失败：'+(err.message||err),true); return false; }
@@ -6965,6 +7023,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     async function toggleActiveSheetCompleted(){
       captureActiveSheet();
       const sheet=sheets.find(item=>item.id===activeSheetId); if(!sheet) return;
+      recordLocalSnapshot(isSheetCompleted(sheet)?'恢复进行中前':'标记完成前',true);
       if(isSheetCompleted(sheet)){
         sheet.completed=false; sheet.completedAt=''; sheetStatusFilter='ongoing';
       }else{
@@ -6989,6 +7048,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const id=parseInt(tab.dataset.sheet,10);
       if(e.target.closest('.sheet-close')){
         if(sheets.length<=1||!await appConfirm('确定删除这张表吗？','删除排单表','确认删除')) return;
+        recordLocalSnapshot('删除排单前',true);
         const wasActive=id===activeSheetId;
         sheets=sheets.filter(s=>s.id!==id);
         delete undoHistoryBySheet[String(id)]; saveUndoHistory();
@@ -9898,6 +9958,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       syncActivePaymentQr();
       downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,sharedPaymentQrLabels,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter},'全部排单备份.json');
     });
+    $('localSnapshotsBtn').addEventListener('click',restoreLocalSnapshotDialog);
     $('exportImportTemplateBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       const templateColumns=columns.length?columns:Array.from({length:8},(_,i)=>({name:`谷子${i+1}`,mode:'avg',priceAdj:0,fixedPrice:0,sourceJpyPrice:0,promotionPoints:1}));
@@ -9981,6 +10042,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const reader=new FileReader();
       reader.onload=()=>{
         try{
+          recordLocalSnapshot('导入备份前',true);
           const d=JSON.parse(reader.result);
           if(Array.isArray(d.sheets)&&d.sheets.length){
             sheets=d.sheets; itemCatalog=migrateCatalogItems(d.itemCatalog); catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
@@ -10051,6 +10113,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     setCloudStatus('登录后自动读取协作组');
     loadUndoHistory();
     loadState();
+    recordLocalSnapshot('打开页面时',true);
     renderWatermarkArchive();
     migrateLegacyColdPromotionDraft();
     rowIdSeed=Math.max(rowIdSeed,...coldPromotionDraftRows.map(row=>(Number(row.id)||0)+1));
