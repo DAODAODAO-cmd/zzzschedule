@@ -632,7 +632,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收齐：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div class="extra-fee-filter payment-status-filter" data-payment-status-filter="goods"><button type="button" class="active" data-payment-filter="all">全部</button><button type="button" data-payment-filter="refund">退款</button><button type="button" data-payment-filter="unpaid">未收</button><button type="button" data-payment-filter="paid">已收</button></div>
       <div id="paymentSummary" class="payment-summary"></div>
-      <div class="toolbar"><button type="button" class="btn-ghost settlement-mode-toggle" id="toggleBoughtSettlementBtn" data-mobile-label="结算中心" aria-pressed="false" title="仅在缺货、砍单或需要退补款时开启；开启后同时显示差额与结算中心">开启结算中心</button><button type="button" class="btn-ghost payment-calc-toggle" id="collectBoughtOnlyBtn" data-mobile-label="买到" aria-pressed="false" title="收款表只显示并计算已标记买到的谷子，没买到的自动隐藏">只收买到：未开启</button><button type="button" class="btn-ghost payment-calc-toggle" id="includeShareInPaymentBtn" data-mobile-label="均摊" aria-pressed="false" title="打开后，谷子收款金额会自动加上均摊">加入均摊：未开启</button><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportUnpaidPaymentBtn" data-mobile-label="未肾">导出未肾图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div><div id="settlementDashboard" class="settlement-dashboard" hidden></div>
+      <div class="toolbar"><button type="button" class="btn-ghost settlement-mode-toggle" id="toggleBoughtSettlementBtn" data-mobile-label="结算中心" aria-pressed="false" title="仅在缺货、砍单或需要退补款时开启；开启后同时显示差额与结算中心">开启结算中心</button><button type="button" class="btn-ghost payment-calc-toggle" id="collectBoughtOnlyBtn" data-mobile-label="买到" aria-pressed="false" title="收款表只显示并计算已标记买到的谷子，没买到的自动隐藏">只收买到：未开启</button><button type="button" class="btn-ghost payment-calc-toggle" id="includeShareInPaymentBtn" data-mobile-label="均摊" aria-pressed="false" title="打开后，谷子收款金额会自动加上均摊">加入均摊：未开启</button><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportRefundPaymentBtn" data-mobile-label="退款图">导出退款图</button><button class="btn-ghost" id="exportUnpaidPaymentBtn" data-mobile-label="未肾">导出未肾图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div><div id="settlementDashboard" class="settlement-dashboard" hidden></div>
     </div>
     <div id="extraPaymentView" style="display:none;">
       <div class="payment-heading-tools extra-payment-heading-tools">
@@ -9459,6 +9459,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('exportPaymentBtn').addEventListener('click',()=>{
       clearPaymentSearchHighlight();
+      if(paymentFilter==='refund'){ exportSettlementImage('refund'); return; }
       if(typeof html2canvas==='undefined'||!$('paymentSummary').querySelector('table')){ alert('还没有收款数据'); return; }
       const wrap=$('paymentSummary'), scroller=wrap.querySelector('.payment-table-wrap'), table=scroller.querySelector('table'), sticky=[...table.querySelectorAll('th')];
       const old={maxHeight:scroller.style.maxHeight,overflow:scroller.style.overflow,width:scroller.style.width,wrapWidth:wrap.style.width};
@@ -9469,6 +9470,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; sticky.forEach(el=>{ el.style.position=''; });
       });
     });
+    $('exportRefundPaymentBtn').addEventListener('click',()=>exportSettlementImage('refund'));
     $('exportUnpaidPaymentBtn').addEventListener('click',async()=>{
       clearPaymentSearchHighlight();
       const source=$('paymentSummary'), sourceTable=source.querySelector('table');
