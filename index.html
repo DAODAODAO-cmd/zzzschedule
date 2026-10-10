@@ -879,7 +879,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="app-confirm-card multi-settlement-card" role="dialog" aria-modal="true" aria-labelledby="multiSettlementTitle">
       <strong id="multiSettlementTitle">选择要合并的表</strong>
       <p>勾选需要一起合并退补的排单表。默认选择进行中的表。</p>
-      <label class="multi-settlement-title-field">导出标题<input id="multiSettlementExportTitleInput" type="text" value="多表合并退补总账"></label>
+      <div class="multi-settlement-title-field"><span>导出标题</span><input id="multiSettlementExportTitleInput" type="text" value="多表合并退补总账" autocomplete="off"></div>
       <div class="multi-settlement-mode">
         <label><input type="checkbox" id="multiSettlementModeRefund" checked>退款</label>
         <label><input type="checkbox" id="multiSettlementModeDue" checked>补款</label>
@@ -1412,6 +1412,7 @@ body.export-rendering .payment-partial-row .payment-export-due-amount{ display:b
 .multi-settlement-mode label.active{ border-color:#d1466a; background:#fff3f6; color:var(--accent); box-shadow:inset 0 0 0 1px #efb8c6; }
 .multi-settlement-mode input{ position:absolute; opacity:0; pointer-events:none; }
 .multi-settlement-title-field{ display:grid; gap:4px; margin:4px 0 8px; color:var(--muted); font-size:11px; font-weight:900; }
+.multi-settlement-title-field span{ display:block; }
 .multi-settlement-title-field input,.multi-settlement-search{ width:100%; min-height:34px; padding:7px 9px; border:1px solid var(--line); border-radius:9px; background:#faf8fb; color:var(--text); font-size:13px; font-weight:850; box-sizing:border-box; outline:none; }
 .multi-settlement-title-field input:focus,.multi-settlement-search:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(209,70,106,.12); }
 .multi-settlement-search{ margin:0 0 8px; }
@@ -5268,6 +5269,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('multiSettlementExportBtn').textContent=multiSettlementAction==='copy'?'复制总账':'导出总账';
       $('multiSettlementSearchInput').value='';
       $('multiSettlementExportTitleInput').value='多表合并退补总账';
+      delete $('multiSettlementExportTitleInput').dataset.touched;
       list.innerHTML=sheets.map(sheet=>`<label><input type="checkbox" value="${escapeAttr(sheet.id)}" ${sheet.completed===true?'':'checked'}><span>${escapeHtml(sheet.name||'未命名表')}</span><small>${sheet.completed===true?'已完成':'进行中'}</small></label>`).join('');
       $('multiSettlementModeRefund').checked=true; $('multiSettlementModeDue').checked=true; $('multiSettlementShowTotal').checked=false; syncMultiSettlementModes();
       syncMultiSettlementSheetSelection();
@@ -5281,6 +5283,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       refund.closest('label').classList.toggle('active',refund.checked);
       due.closest('label').classList.toggle('active',due.checked);
       total.closest('label').classList.toggle('active',total.checked);
+      const titleInput=$('multiSettlementExportTitleInput');
+      if(titleInput&&(!titleInput.dataset.touched||!String(titleInput.value||'').trim())){
+        titleInput.value=refund.checked&&due.checked?'多表合并退补总账':(refund.checked?'多表合并退款总账':(due.checked?'多表合并补款总账':'多表合并总账'));
+      }
     }
     async function confirmMultiSettlementExport(){
       const ids=new Set([...$('multiSettlementSheetList').querySelectorAll('input[type="checkbox"]:checked')].map(input=>String(input.value)));
@@ -6771,6 +6777,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('multiSettlementSelectNoneBtn').addEventListener('click',()=>setMultiSettlementSelection('none'));
     $('multiSettlementSelectOngoingBtn').addEventListener('click',()=>setMultiSettlementSelection('ongoing'));
     $('multiSettlementSearchInput').addEventListener('input',syncMultiSettlementSheetSelection);
+    $('multiSettlementExportTitleInput').addEventListener('input',e=>{ e.target.dataset.touched='1'; });
     $('multiSettlementExportBtn').addEventListener('click',confirmMultiSettlementExport);
     $('multiSettlementOverlay').addEventListener('pointerdown',e=>{ if(e.target===$('multiSettlementOverlay')) closeMultiSettlementChooser(); });
     $('selectColdBundleBtn').addEventListener('click',()=>openColdBundleChooser(false));
