@@ -972,8 +972,10 @@ html{ scrollbar-gutter:stable; }
 .app-confirm-overlay[hidden]{ display:none; }
 .app-confirm-card{ width:min(400px,100%); padding:18px; border:1px solid #eadde5; border-radius:15px; background:#fff; box-shadow:0 18px 55px rgba(43,28,50,.22); }
 .app-confirm-card.wide{ width:min(720px,calc(100vw - 24px)); max-height:min(86vh,720px); display:flex; flex-direction:column; }
+.app-confirm-card.scroll-prompt{ max-height:min(86vh,720px); display:flex; flex-direction:column; }
 .app-confirm-card strong{ display:block; color:var(--text); font-size:16px; }
 .app-confirm-card p{ margin:9px 0 16px; color:var(--muted); font-size:13px; line-height:1.65; white-space:pre-wrap; }
+.app-confirm-card.scroll-prompt p{ flex:1 1 auto; min-height:0; max-height:min(48vh,360px); overflow:auto; padding-right:5px; }
 .app-confirm-card>div{ display:flex; justify-content:flex-end; gap:8px; }
 .app-prompt-input{ width:100%; min-height:40px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:#faf8fb; color:var(--text); font-size:16px; font-weight:800; box-sizing:border-box; outline:none; }
 .app-prompt-input:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(209,70,106,.12); }
@@ -2405,7 +2407,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     async function restoreLocalSnapshotDialog(){
       const list=loadLocalSnapshots();
       if(!list.length){ await appAlert('这个浏览器里还没有可恢复的本机快照。以后每次保存会自动留下最近版本。','本机快照'); return; }
-      const lines=list.slice(0,15).map((item,index)=>`${index+1}. ${new Date(item.createdAt).toLocaleString('zh-CN')} · ${item.reason||'自动保存'} · ${item.summary||snapshotSummary(item.payload)}`).join('\n');
+      const lines=list.slice(0,15).map((item,index)=>`${index+1}. ${new Date(item.createdAt).toLocaleString('zh-CN')} · ${item.reason||'自动保存'}\n   ${item.summary||snapshotSummary(item.payload)}`).join('\n\n');
       const answer=await appPrompt(`输入要恢复的编号：\n\n${lines}\n\n恢复前会先给当前状态再留一份快照。`,'1','恢复本机快照','恢复');
       if(answer===null) return;
       const index=Math.max(0,(parseInt(answer,10)||0)-1), item=list[index];
@@ -2703,15 +2705,16 @@ body.export-rendering .cart-count{ font-size:28px; }
     function appDialog({message,title='提示',okText='确定',cancelText='取消',input=false,value='',placeholder=''}){
       return new Promise(resolve=>{
         const overlay=$('appConfirmOverlay'), card=overlay.querySelector('.app-confirm-card'), ok=$('appConfirmOk'), cancel=$('appConfirmCancel');
-        overlay.querySelectorAll('.app-prompt-input,.app-dialog-body').forEach(el=>el.remove()); card.classList.remove('wide');
+        overlay.querySelectorAll('.app-prompt-input,.app-dialog-body').forEach(el=>el.remove()); card.classList.remove('wide','scroll-prompt');
         $('appConfirmTitle').textContent=title; $('appConfirmMessage').textContent=message; ok.textContent=okText; cancel.textContent=cancelText||'取消'; cancel.style.display=cancelText===null?'none':'';
         let inputEl=null;
         if(input){
+          card.classList.add('scroll-prompt');
           inputEl=document.createElement('input'); inputEl.className='app-prompt-input'; inputEl.type='text'; inputEl.value=value||''; inputEl.placeholder=placeholder||'';
           $('appConfirmMessage').insertAdjacentElement('afterend',inputEl);
         }
         overlay.hidden=false; overlay.style.display='grid';
-        const finish=result=>{ overlay.hidden=true; overlay.style.display='none'; ok.removeEventListener('click',accept); cancel.removeEventListener('click',reject); overlay.removeEventListener('click',backdrop); document.removeEventListener('keydown',keyboard); if(inputEl) inputEl.remove(); overlay.querySelectorAll('.app-dialog-body').forEach(el=>el.remove()); card.classList.remove('wide'); cancel.style.display=''; resolve(result); };
+        const finish=result=>{ overlay.hidden=true; overlay.style.display='none'; ok.removeEventListener('click',accept); cancel.removeEventListener('click',reject); overlay.removeEventListener('click',backdrop); document.removeEventListener('keydown',keyboard); if(inputEl) inputEl.remove(); overlay.querySelectorAll('.app-dialog-body').forEach(el=>el.remove()); card.classList.remove('wide','scroll-prompt'); cancel.style.display=''; resolve(result); };
         const accept=()=>finish(inputEl?inputEl.value:true), reject=()=>finish(inputEl?null:false), backdrop=e=>{ if(e.target===overlay) finish(inputEl?null:false); }, keyboard=e=>{ if(e.key==='Escape') finish(inputEl?null:false); if(inputEl&&e.key==='Enter'){ e.preventDefault(); finish(inputEl.value); } };
         ok.addEventListener('click',accept); cancel.addEventListener('click',reject); overlay.addEventListener('click',backdrop); document.addEventListener('keydown',keyboard); setTimeout(()=>inputEl?inputEl.focus():ok.focus(),0);
       });
