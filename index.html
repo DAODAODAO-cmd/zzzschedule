@@ -879,12 +879,14 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="app-confirm-card multi-settlement-card" role="dialog" aria-modal="true" aria-labelledby="multiSettlementTitle">
       <strong id="multiSettlementTitle">选择要合并的表</strong>
       <p>勾选需要一起合并退补的排单表。默认选择进行中的表。</p>
+      <label class="multi-settlement-title-field">导出标题<input id="multiSettlementExportTitleInput" type="text" value="多表合并退补总账"></label>
       <div class="multi-settlement-mode">
         <label><input type="checkbox" id="multiSettlementModeRefund" checked>退款</label>
         <label><input type="checkbox" id="multiSettlementModeDue" checked>补款</label>
         <label><input type="checkbox" id="multiSettlementShowTotal">显示总价</label>
       </div>
-      <div class="multi-settlement-actions"><button type="button" class="btn-ghost" id="multiSettlementSelectAllBtn">全选</button><button type="button" class="btn-ghost" id="multiSettlementSelectOngoingBtn">只选进行中</button></div>
+      <input id="multiSettlementSearchInput" class="multi-settlement-search" type="text" placeholder="搜索排单名">
+      <div class="multi-settlement-actions"><button type="button" class="btn-ghost" id="multiSettlementSelectAllBtn">全选</button><button type="button" class="btn-ghost" id="multiSettlementSelectNoneBtn">全不选</button><button type="button" class="btn-ghost" id="multiSettlementSelectOngoingBtn">只选进行中</button></div>
       <div id="multiSettlementSheetList" class="multi-settlement-sheet-list"></div>
       <div><button type="button" class="btn-ghost" id="multiSettlementCancelBtn">取消</button><button type="button" class="btn-primary" id="multiSettlementExportBtn">导出总账</button></div>
     </div>
@@ -1409,6 +1411,10 @@ body.export-rendering .payment-partial-row .payment-export-due-amount{ display:b
 .multi-settlement-mode label{ position:relative; display:flex; align-items:center; justify-content:center; gap:6px; min-height:32px; border:1px solid var(--line); border-radius:9px; background:#fff; color:#817686; font-size:12px; font-weight:900; cursor:pointer; user-select:none; touch-action:manipulation; }
 .multi-settlement-mode label.active{ border-color:#d1466a; background:#fff3f6; color:var(--accent); box-shadow:inset 0 0 0 1px #efb8c6; }
 .multi-settlement-mode input{ position:absolute; opacity:0; pointer-events:none; }
+.multi-settlement-title-field{ display:grid; gap:4px; margin:4px 0 8px; color:var(--muted); font-size:11px; font-weight:900; }
+.multi-settlement-title-field input,.multi-settlement-search{ width:100%; min-height:34px; padding:7px 9px; border:1px solid var(--line); border-radius:9px; background:#faf8fb; color:var(--text); font-size:13px; font-weight:850; box-sizing:border-box; outline:none; }
+.multi-settlement-title-field input:focus,.multi-settlement-search:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(209,70,106,.12); }
+.multi-settlement-search{ margin:0 0 8px; }
 .multi-settlement-actions{ justify-content:flex-end; gap:6px; margin-bottom:8px; }
 .multi-settlement-actions button{ min-height:30px; padding:5px 10px; font-size:11px; }
 .multi-settlement-sheet-list{ width:100%; display:grid; gap:6px; max-height:min(48vh,360px); overflow:auto; margin:8px 0 12px; padding:3px; box-sizing:border-box; }
@@ -5181,7 +5187,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       return [...people.values()].filter(item=>Math.abs(item.total)>0.005&&(item.total<0?includeRefund:includeDue)).sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN'));
     }
-    async function exportMultiSheetSettlementImage(selectedSheets=sheets,modes={refund:true,due:true,showTotal:false}){
+    async function exportMultiSheetSettlementImage(selectedSheets=sheets,modes={refund:true,due:true,showTotal:false,title:''}){
       const targetSheets=(Array.isArray(selectedSheets)?selectedSheets:[]).filter(Boolean);
       if(!targetSheets.length){ alert('请至少选择一个排单表'); return; }
       const includeRefund=modes?.refund!==false, includeDue=modes?.due!==false;
@@ -5191,40 +5197,45 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(typeof html2canvas==='undefined'){ alert('导出图片功能还没加载完成，请稍后再试'); return; }
       const refundCount=rows.filter(r=>r.total<0).length, dueCount=rows.filter(r=>r.total>0).length;
       const refundTotal=rows.filter(r=>r.total<0).reduce((sum,r)=>sum+Math.abs(r.total),0), dueTotal=rows.filter(r=>r.total>0).reduce((sum,r)=>sum+r.total,0);
+      const hasDue=rows.some(r=>r.total>0);
       const body=rows.map(r=>{
         const result=r.total<0?`<span class="settlement-export-result refund">退 ${money(Math.abs(r.total))}</span>`:`<span class="settlement-export-result due">补 ${money(r.total)}</span>`;
+        const wx=r.total>0?`<td>${money(wechatFeeAmount(r.total))}</td>`:(hasDue?'<td>—</td>':'');
         const detail=r.details.map(d=>`<div><b>${escapeHtml(d.sheet)}</b>：${escapeHtml(d.bought)}</div>`).join('');
-        return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${detail}</td><td>${result}</td></tr>`;
+        return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${detail}</td><td>${result}</td>${wx}</tr>`;
       }).join('');
-      const title=includeRefund&&includeDue?'多表合并退补总账':(includeRefund?'多表合并退款总账':'多表合并补款总账');
+      const defaultTitle=includeRefund&&includeDue?'多表合并退补总账':(includeRefund?'多表合并退款总账':'多表合并补款总账');
+      const title=String(modes?.title||'').trim()||defaultTitle;
       const card=document.createElement('div');
       card.className='settlement-export-card';
       card.style.width='760px';
       const countSummary=includeRefund&&includeDue?`最终退款 ${refundCount} 人 / 最终补款 ${dueCount} 人`:(includeRefund?`最终退款 ${refundCount} 人`:`最终补款 ${dueCount} 人`);
       const totalSummary=includeRefund&&includeDue?`退款总价 ${money(refundTotal)} / 补款总价 ${money(dueTotal)}`:(includeRefund?`退款总价 ${money(refundTotal)}`:`补款总价 ${money(dueTotal)}`);
       const summary=modes?.showTotal?`${countSummary} · ${totalSummary}`:countSummary;
-      card.innerHTML=`<div class="settlement-export-title" style="background:#d1466a">${title}</div><div class="settlement-export-summary" style="background:#fff4f7;color:#d1466a">${summary}</div><table><thead><tr><th>CN</th><th>买到明细</th><th>最后金额</th></tr></thead><tbody>${body}</tbody></table>${settlementExportQrHtml()}`;
+      card.innerHTML=`<div class="settlement-export-title" style="background:#d1466a">${escapeHtml(title)}</div><div class="settlement-export-summary" style="background:#fff4f7;color:#d1466a">${summary}</div><table><thead><tr><th>CN</th><th>买到明细</th><th>最后金额</th>${hasDue?'<th>微信补款</th>':''}</tr></thead><tbody>${body}</tbody></table>${settlementExportQrHtml()}`;
       document.body.appendChild(card);
       try{
         const canvas=await renderExportCanvas(card,{backgroundColor:'#fff',scale:2,width:card.scrollWidth,height:card.scrollHeight,windowWidth:card.scrollWidth+40,windowHeight:card.scrollHeight+40});
-        await saveCanvasImage(canvas,`${title}.png`);
+        await saveCanvasImage(canvas,`${title.replace(/[\\/:*?"<>|]/g,' ').trim()||defaultTitle}.png`);
       }catch(err){ alert('导出失败，请重试'); }
       finally{ card.remove(); }
     }
     function multiSheetSettlementText(selectedSheets=sheets,modes={refund:true,due:true,showTotal:false}){
       const rows=buildMultiSheetSettlementRows(selectedSheets,modes);
-      if(!rows.length) return 'CN\t类型\t金额\t买到明细\n暂无\t\t\t';
+      const hasDue=rows.some(r=>r.total>0);
+      if(!rows.length) return hasDue?'CN\t类型\t金额\t微信补款\t买到明细\n暂无\t\t\t':'CN\t类型\t金额\t买到明细\n暂无\t\t\t';
       const lines=rows.map(r=>{
         const type=r.total<0?'退':'补', amount=moneyText(Math.abs(r.total));
+        const wx=r.total>0?moneyText(wechatFeeAmount(r.total)):(hasDue?'—':'');
         const detail=r.details.map(d=>`${d.sheet}：${d.bought}`).join('；');
-        return [r.name,type,amount,detail].join('\t');
+        return hasDue?[r.name,type,amount,wx,detail].join('\t'):[r.name,type,amount,detail].join('\t');
       });
       if(modes?.showTotal){
         const refundTotal=rows.filter(r=>r.total<0).reduce((sum,r)=>sum+Math.abs(r.total),0), dueTotal=rows.filter(r=>r.total>0).reduce((sum,r)=>sum+r.total,0);
         lines.push(['总计','退',moneyText(refundTotal),''].join('\t'));
         lines.push(['总计','补',moneyText(dueTotal),''].join('\t'));
       }
-      return ['CN\t类型\t金额\t买到明细',...lines].join('\n');
+      return [hasDue?'CN\t类型\t金额\t微信补款\t买到明细':'CN\t类型\t金额\t买到明细',...lines].join('\n');
     }
     function copyMultiSheetSettlement(selectedSheets,modes,button){
       const text=multiSheetSettlementText(selectedSheets,modes);
@@ -5235,13 +5246,17 @@ body.export-rendering .cart-count{ font-size:28px; }
       boxes.forEach(box=>{
         const sheet=sheets.find(item=>String(item.id)===String(box.value));
         box.checked=mode==='all'||(mode==='ongoing'&&sheet&&sheet.completed!==true);
+        if(mode==='none') box.checked=false;
       });
       syncMultiSettlementSheetSelection();
     }
     function syncMultiSettlementSheetSelection(){
+      const query=normalizeDispatchKey($('multiSettlementSearchInput')?.value||'');
       $('multiSettlementSheetList').querySelectorAll('label').forEach(label=>{
         const input=label.querySelector('input[type="checkbox"]');
         label.classList.toggle('active',!!input?.checked);
+        const name=normalizeDispatchKey(label.querySelector('span')?.textContent||'');
+        label.hidden=!!query&&!name.includes(query);
       });
     }
     let multiSettlementAction='export', multiSettlementSourceButton=null;
@@ -5251,6 +5266,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const overlay=$('multiSettlementOverlay'), list=$('multiSettlementSheetList');
       $('multiSettlementTitle').textContent=multiSettlementAction==='copy'?'选择要复制的表':'选择要合并的表';
       $('multiSettlementExportBtn').textContent=multiSettlementAction==='copy'?'复制总账':'导出总账';
+      $('multiSettlementSearchInput').value='';
+      $('multiSettlementExportTitleInput').value='多表合并退补总账';
       list.innerHTML=sheets.map(sheet=>`<label><input type="checkbox" value="${escapeAttr(sheet.id)}" ${sheet.completed===true?'':'checked'}><span>${escapeHtml(sheet.name||'未命名表')}</span><small>${sheet.completed===true?'已完成':'进行中'}</small></label>`).join('');
       $('multiSettlementModeRefund').checked=true; $('multiSettlementModeDue').checked=true; $('multiSettlementShowTotal').checked=false; syncMultiSettlementModes();
       syncMultiSettlementSheetSelection();
@@ -5270,6 +5287,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const selected=sheets.filter(sheet=>ids.has(String(sheet.id)));
       if(!selected.length){ alert('请至少选择一个排单表'); return; }
       const modes={refund:$('multiSettlementModeRefund').checked,due:$('multiSettlementModeDue').checked,showTotal:$('multiSettlementShowTotal').checked};
+      modes.title=String($('multiSettlementExportTitleInput').value||'').trim();
       if(!modes.refund&&!modes.due){ alert('请至少选择退款或补款其中一种'); return; }
       closeMultiSettlementChooser();
       if(multiSettlementAction==='copy') copyMultiSheetSettlement(selected,modes,multiSettlementSourceButton);
@@ -6750,7 +6768,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       e.preventDefault(); input.checked=!input.checked; syncMultiSettlementSheetSelection();
     });
     $('multiSettlementSelectAllBtn').addEventListener('click',()=>setMultiSettlementSelection('all'));
+    $('multiSettlementSelectNoneBtn').addEventListener('click',()=>setMultiSettlementSelection('none'));
     $('multiSettlementSelectOngoingBtn').addEventListener('click',()=>setMultiSettlementSelection('ongoing'));
+    $('multiSettlementSearchInput').addEventListener('input',syncMultiSettlementSheetSelection);
     $('multiSettlementExportBtn').addEventListener('click',confirmMultiSettlementExport);
     $('multiSettlementOverlay').addEventListener('pointerdown',e=>{ if(e.target===$('multiSettlementOverlay')) closeMultiSettlementChooser(); });
     $('selectColdBundleBtn').addEventListener('click',()=>openColdBundleChooser(false));
