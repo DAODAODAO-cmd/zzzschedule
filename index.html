@@ -3671,12 +3671,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(inAverageCount) separateLabels.push(`入均${inAverageCount}项`);
       if(sourcePriceCount) separateLabels.push(`原价${sourcePriceCount}项`);
       $('effCount').textContent=denom+' 项'+(separateLabels.length?`（${separateLabels.join('、')}另算）`:'');
-      $('adjSumText').textContent=(adjSum>0?'+':'')+money(adjSum);
+      const adjSumDisplay=Math.abs(adjSum)>0.005?`${adjSum>0?'+':'-'}${money(Math.abs(adjSum))}`:money(0);
+      $('adjSumText').textContent=adjSumDisplay;
       const w=$('avgWarn');
       let msg='';
       const separateName=inAverageCount&&sourcePriceCount?'入均及原价':(sourcePriceCount?'原价':'入均');
       if(denom<=0) msg=`${separateName}项占满了所有列，没有可摊均的谷子，无法计算均价。`;
-      else if(Math.abs(adjSum)>0.005) msg=`调价合计为 ${(adjSum>0?'+':'')+money(adjSum)}，不为0 —— 收回的钱与成本相差 ${(adjSum>0?'+':'')+money(adjSum)}（正=多收，负=少收）。`;
+      else if(Math.abs(adjSum)>0.005) msg=`调价合计为 ${adjSumDisplay}，不为0 —— 收回的钱与成本相差 ${adjSumDisplay}（正=多收，负=少收）。`;
       if(msg){ w.style.display='block'; w.textContent=msg; } else { w.style.display='none'; }
     }
     function wholeSetAutoPrice(){ return columns.reduce((s,x)=>x.mode==='wholeset'?s:s+unitPrice(x),0); }
