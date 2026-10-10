@@ -971,6 +971,8 @@ html{ scrollbar-gutter:stable; }
 .settings-data-actions>summary{ min-height:34px; padding:7px 10px; cursor:pointer; font-size:11.5px; }
 .settings-data-actions>.data-actions-pop{ position:static; width:100%; max-width:none; margin-top:6px; padding:7px; box-shadow:none; grid-template-columns:repeat(2,minmax(0,1fr)); }
 .app-confirm-overlay{ position:fixed; z-index:320; inset:0; display:grid; place-items:center; padding:18px; background:rgba(35,27,40,.38); backdrop-filter:blur(3px); }
+#appConfirmOverlay{ z-index:430; }
+#multiSettlementOverlay{ z-index:320; }
 .app-confirm-overlay[hidden]{ display:none; }
 .app-confirm-card{ width:min(400px,100%); padding:18px; border:1px solid #eadde5; border-radius:15px; background:#fff; box-shadow:0 18px 55px rgba(43,28,50,.22); }
 .app-confirm-card.wide{ width:min(720px,calc(100vw - 24px)); max-height:min(86vh,720px); display:flex; flex-direction:column; }
