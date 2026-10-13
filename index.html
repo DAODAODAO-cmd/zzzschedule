@@ -4924,7 +4924,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!showBoughtSettlement||!itemName) return '';
       const planned=Math.max(0,num(data.items.get(itemName))), bought=Math.max(0,num(data.boughtItems.get(itemName)));
       const missing=Math.max(0,planned-bought);
-      return `<span class="payment-bought-inline ${missing>0?'is-missing':'is-complete'}" data-html2canvas-ignore="true">买到 ${bought}/${planned} · ${missing>0?`差${missing}`:'已齐'}</span>`;
+      return `<span class="payment-bought-inline ${missing>0?'is-missing':'is-complete'}">买到 ${bought}/${planned} · ${missing>0?`差${missing}`:'已齐'}</span>`;
     }
     function paymentItemSettlementNote(data,itemName=''){
       if(!showBoughtSettlement||!itemName) return '';
@@ -4941,7 +4941,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         else if(priceDiff<-0.005) notes.push({type:'refund',text:`改价退${money(Math.abs(priceDiff))}`});
       }
       const seen=new Set();
-      return notes.filter(n=>{ const key=n.type+n.text; if(seen.has(key)) return false; seen.add(key); return true; }).map(n=>`<span class="payment-bought-inline ${n.type==='refund'?'is-settlement-refund':'is-settlement-due'}" data-html2canvas-ignore="true">${escapeHtml(n.text)}</span>`).join('');
+      return notes.filter(n=>{ const key=n.type+n.text; if(seen.has(key)) return false; seen.add(key); return true; }).map(n=>`<span class="payment-bought-inline ${n.type==='refund'?'is-settlement-refund':'is-settlement-due'}">${escapeHtml(n.text)}</span>`).join('');
     }
     function paymentMergedItemsDisplay(data,items,fallback){
       if(!showBoughtSettlement) return escapeHtml(fallback);
@@ -5105,17 +5105,23 @@ body.export-rendering .cart-count{ font-size:28px; }
       return '—';
     }
     function settlementGoodsDetail(row){
-      const parts=[];
+      const parts=[], missing=[];
       const items=row&&row.g&&row.g.items;
       const boughtItems=row&&row.g&&row.g.boughtItems;
       if(items&&typeof items.forEach==='function'){
         items.forEach((planned,itemName)=>{
           const bought=boughtItems&&typeof boughtItems.get==='function'?Math.max(0,num(boughtItems.get(itemName))):0;
           const missing=Math.max(0,num(planned)-bought);
-          if(missing>0) parts.push(`${itemName}差${fmtNum(missing)}`);
+          if(bought>0) parts.push(`${itemName}×${fmtNum(bought)}`);
+          if(missing>0) missing.push(`${itemName}×${fmtNum(missing)}`);
         });
       }
-      return parts.length?parts.join('、'):'已齐';
+      return {bought:parts.join('、'),missing:missing.join('、')};
+    }
+    function settlementGoodsDetailHtml(row){
+      const detail=settlementGoodsDetail(row), bought=String(detail.bought||'').trim(), missing=String(detail.missing||'').trim();
+      if(!bought&&!missing) return '—';
+      return `${bought?escapeHtml(bought):''}${missing?`<span class="settlement-export-missing">（${escapeHtml(missing)}）</span>`:''}`;
     }
     function settlementShareDetail(row){
       const expected=Math.max(0,num(row&&row.sh&&row.sh.expected));
@@ -5417,7 +5423,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           : `<span class="settlement-export-result due">补 ${money(r.due)}</span>`;
         const manual=r.manual?'<span class="settlement-export-note">手动调整</span>':'';
         const note=String(paymentNotes[r.key]||'').trim()?`<span class="settlement-export-note">备注：${escapeHtml(paymentNotes[r.key])}</span>`:'';
-        return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${escapeHtml(settlementGoodsDetail(r))}</td><td class="settlement-export-detail">${escapeHtml(settlementShareDetail(r))}</td><td>${result}${manual}${note}</td></tr>`;
+        return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${settlementGoodsDetailHtml(r)}</td><td class="settlement-export-detail">${escapeHtml(settlementShareDetail(r))}</td><td>${result}${manual}${note}</td></tr>`;
       }).join('');
       const card=document.createElement('div');
       card.className='settlement-export-card';
@@ -5442,11 +5448,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       const theme=data.isRefund?{main:'#2f6f9f',soft:'#eaf3fc'}:{main:'#b4364c',soft:'#fff0f2'};
       const noteRows=data.rows.some(r=>String(r.note||'').trim());
       const summary=data.isRefund?`共 ${data.rows.length} 人`:`共 ${data.rows.length} 人 / 合计 ${money(data.total)}`;
-      const head=data.isRefund?`<tr><th>CN</th><th>买到内容</th><th>应退</th></tr>`:`<tr><th>CN</th><th>金额</th>${noteRows?'<th>备注</th>':''}</tr>`;
+      const head=data.isRefund?`<tr><th>CN</th><th>谷子明细</th><th>应退</th></tr>`:`<tr><th>CN</th><th>金额</th>${noteRows?'<th>备注</th>':''}</tr>`;
       const body=data.isRefund
         ? data.rows.map(r=>{
           const note=String(r.note||'').trim()?`<span class="settlement-export-note">备注：${escapeHtml(r.note)}</span>`:'';
-          return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${escapeHtml(settlementRefundDetail(r))}${note}</td><td>${money(r.amount)}</td></tr>`;
+          return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${settlementGoodsDetailHtml(r)}${note}</td><td>${money(r.amount)}</td></tr>`;
         }).join('')
         : data.rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${money(r.amount)}</td>${noteRows?`<td>${escapeHtml(r.note||'')}</td>`:''}</tr>`).join('');
       const card=document.createElement('div');
@@ -9618,6 +9624,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       clearPaymentSearchHighlight();
       const source=$('paymentSummary'), sourceTable=source.querySelector('table');
       if(typeof html2canvas==='undefined'||!sourceTable){ alert('还没有收款数据'); return; }
+      const detailByPerson=new Map(combinedSettlementRecords().map(row=>[row.key,settlementGoodsDetailHtml(row)]));
       const receivedByPerson=new Map([...source.querySelectorAll('[data-payment-paid]')].map(button=>[
         decodeURIComponent(button.dataset.paymentPaid||''),
         {total:Math.max(0,num(button.dataset.paymentAmount)),received:Math.max(0,num(button.dataset.paymentReceived))}
@@ -9634,6 +9641,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         const amounts=receivedByPerson.get(key)||{total:0,received:0}, due=Math.max(0,amounts.total-amounts.received);
         if(due<=0.005){ rows.forEach(row=>row.remove()); return; }
         unpaidPeople++; unpaidTotal+=due;
+        const detailHtml=detailByPerson.get(key);
+        if(detailHtml){
+          const firstItemCell=rows[0]?.querySelector('td.payment-item-name');
+          if(firstItemCell) firstItemCell.innerHTML=detailHtml;
+          rows.slice(1).forEach(row=>row.remove());
+        }
         if(amounts.received>0){
           const firstRow=rows[0], editable=[...firstRow.querySelectorAll('[data-payment-key]')], moneyCells=[...firstRow.querySelectorAll('td.payment-money')];
           const alipay=editable.find(el=>decodeURIComponent(el.dataset.paymentKey||'').startsWith('alipay:'));
