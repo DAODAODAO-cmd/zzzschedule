@@ -4924,7 +4924,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!showBoughtSettlement||!itemName) return '';
       const planned=Math.max(0,num(data.items.get(itemName))), bought=Math.max(0,num(data.boughtItems.get(itemName)));
       const missing=Math.max(0,planned-bought);
-      return `<span class="payment-bought-inline ${missing>0?'is-missing':'is-complete'}">买到 ${bought}/${planned} · ${missing>0?`差${missing}`:'已齐'}</span>`;
+      return `<span class="payment-bought-inline ${missing>0?'is-missing':'is-complete'}" data-html2canvas-ignore="true">买到 ${bought}/${planned} · ${missing>0?`差${missing}`:'已齐'}</span>`;
     }
     function paymentItemSettlementNote(data,itemName=''){
       if(!showBoughtSettlement||!itemName) return '';
@@ -4941,7 +4941,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         else if(priceDiff<-0.005) notes.push({type:'refund',text:`改价退${money(Math.abs(priceDiff))}`});
       }
       const seen=new Set();
-      return notes.filter(n=>{ const key=n.type+n.text; if(seen.has(key)) return false; seen.add(key); return true; }).map(n=>`<span class="payment-bought-inline ${n.type==='refund'?'is-settlement-refund':'is-settlement-due'}">${escapeHtml(n.text)}</span>`).join('');
+      return notes.filter(n=>{ const key=n.type+n.text; if(seen.has(key)) return false; seen.add(key); return true; }).map(n=>`<span class="payment-bought-inline ${n.type==='refund'?'is-settlement-refund':'is-settlement-due'}" data-html2canvas-ignore="true">${escapeHtml(n.text)}</span>`).join('');
     }
     function paymentMergedItemsDisplay(data,items,fallback){
       if(!showBoughtSettlement) return escapeHtml(fallback);
@@ -5111,9 +5111,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(items&&typeof items.forEach==='function'){
         items.forEach((planned,itemName)=>{
           const bought=boughtItems&&typeof boughtItems.get==='function'?Math.max(0,num(boughtItems.get(itemName))):0;
-          const missing=Math.max(0,num(planned)-bought);
+          const missingQty=Math.max(0,num(planned)-bought);
           if(bought>0) parts.push(`${itemName}×${fmtNum(bought)}`);
-          if(missing>0) missing.push(`${itemName}×${fmtNum(missing)}`);
+          if(missingQty>0) missing.push(`${itemName}×${fmtNum(missingQty)}`);
         });
       }
       return {bought:parts.join('、'),missing:missing.join('、')};
@@ -9642,10 +9642,13 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(due<=0.005){ rows.forEach(row=>row.remove()); return; }
         unpaidPeople++; unpaidTotal+=due;
         const detailHtml=detailByPerson.get(key);
+        let keptRows=rows;
         if(detailHtml){
           const firstItemCell=rows[0]?.querySelector('td.payment-item-name');
           if(firstItemCell) firstItemCell.innerHTML=detailHtml;
           rows.slice(1).forEach(row=>row.remove());
+          rows[0]?.querySelectorAll('[rowspan]').forEach(cell=>{ cell.rowSpan=1; });
+          keptRows=rows[0]?[rows[0]]:[];
         }
         if(amounts.received>0){
           const firstRow=rows[0], editable=[...firstRow.querySelectorAll('[data-payment-key]')], moneyCells=[...firstRow.querySelectorAll('td.payment-money')];
@@ -9654,7 +9657,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(alipay) alipay.textContent=moneyText(due);
           if(wechat) wechat.textContent=moneyText(wechatFeeAmount(due));
         }
-        rows.forEach(row=>row.querySelectorAll('.payment-adjustment-note,.payment-received-note').forEach(note=>note.remove()));
+        keptRows.forEach(row=>row.querySelectorAll('.payment-adjustment-note,.payment-received-note').forEach(note=>note.remove()));
       });
       if(!unpaidPeople){ alert('当前范围已经全部收齐'); return; }
       const title=clone.querySelector('.payment-project-title');
@@ -9671,7 +9674,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       try{
         const canvas=await renderExportCanvas(clone,{backgroundColor:'#ffffff',scale:2,width:clone.scrollWidth,height:clone.scrollHeight,windowWidth:clone.scrollWidth+40,windowHeight:clone.scrollHeight+40,cloneForExport:true});
         await saveCanvasImage(canvas,fileName+'.png');
-      }catch(err){ alert('导出失败，请重试'); }
+      }catch(err){ console.error(err); alert('导出失败：'+(err&&err.message?err.message:'请重试')); }
       finally{ clone.remove(); }
     });
     $('toggleBoughtSettlementBtn').addEventListener('click',()=>{
