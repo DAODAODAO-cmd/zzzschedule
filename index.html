@@ -1405,6 +1405,7 @@ body.export-rendering .payment-partial-row .payment-export-due-amount{ display:b
 .settlement-export-result.even{ background:#eaf5ed; color:#2b7547; }
 .settlement-export-muted{ color:#c0b7c3; font-weight:800; }
 .settlement-export-missing{ display:inline-block; margin-left:6px; color:#2f6f9f; font-size:12px; font-weight:850; }
+.settlement-export-refund-detail{ color:#2f6f9f; font-weight:900; }
 .settlement-export-detail small{ display:block; margin-top:2px; color:#9a8fa0; font-size:11px; font-weight:700; }
 .multi-settlement-card{ width:min(440px,calc(100vw - 28px)); }
 .multi-settlement-card p{ margin:6px 0 10px; color:var(--muted); font-size:12px; line-height:1.5; }
@@ -4986,7 +4987,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       }));
       return [...people.values()].map(data=>{
         const expected=paymentEditAmount(paymentEdits,'alipay',data.name,data.key,data.planned);
-        const received=paidAmountValue(paymentPaid,data.key,expected),actual=showBoughtSettlement?Math.max(0,num(data.bought)):expected;
+        const allBought=goodsAllBought(data);
+        const received=paidAmountValue(paymentPaid,data.key,expected),actual=showBoughtSettlement?(allBought?expected:Math.max(0,num(data.bought))):expected;
         return {...data,expected,received,actual,refund:Math.max(0,received-actual),due:Math.max(0,actual-received)};
       });
     }
@@ -5207,7 +5209,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return [...keys].map(key=>{
         const gRaw=goodsPeople.get(key)||{key,name:shareMap.get(key)?.name||key,planned:0,bought:0,items:new Map(),boughtItems:new Map(),itemAmounts:new Map(),boughtItemAmounts:new Map()};
         const expected=paymentEditAmount(ctx.settings.paymentEdits,'alipay',gRaw.name,key,gRaw.planned);
-        const received=paidAmountValue(ctx.settings.paymentPaid,key,expected), actual=ctx.settings.showBought?Math.max(0,num(gRaw.bought)):expected;
+        const received=paidAmountValue(ctx.settings.paymentPaid,key,expected), actual=ctx.settings.showBought?(goodsAllBought(gRaw)?expected:Math.max(0,num(gRaw.bought))):expected;
         let g={...gRaw,expected,received,actual};
         let sh=shareMap.get(key)||{key,name:g.name,qty:0,expected:0,received:0,boughtItems:new Map(),missingItems:new Map()};
         ({g,sh}=splitCombinedPaymentIntoSettlement(key,g,sh,ctx.settings.paymentPaid,ctx.settings.includeShare));
@@ -5227,6 +5229,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(missing>0) list.push(`${name}×${fmtNum(missing)}`);
       });
       return list.join('、');
+    }
+    function goodsAllBought(goods){
+      const planned=goods&&goods.items&&typeof goods.items.forEach==='function'?goods.items:new Map(), bought=goods&&goods.boughtItems&&typeof goods.boughtItems.forEach==='function'?goods.boughtItems:new Map();
+      let plannedQty=0,boughtQty=0;
+      planned.forEach((count,name)=>{ plannedQty+=Math.max(0,num(count)); boughtQty+=Math.min(Math.max(0,num(count)),Math.max(0,num(bought.get(name)))); });
+      return plannedQty>0&&boughtQty>=plannedQty;
     }
     function settlementReasonLinesForRecord(record){
       const lines=[], g=record&&record.g?record.g:{}, sh=record&&record.sh?record.sh:{};
@@ -5620,6 +5628,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('paymentColorInput').value=/^#[0-9a-f]{6}$/i.test(paymentColor)?paymentColor:'#d1466a';
       $('paymentViewMode').value=paymentViewMode;
       $('showPaymentTotalBtn').textContent=showPaymentTotal?'隐藏总价':'显示总价';
+      if($('exportPaymentBtn')){
+        $('exportPaymentBtn').textContent=showBoughtSettlement?'导出退补图':'导出收款图';
+        $('exportPaymentBtn').dataset.mobileLabel=showBoughtSettlement?'退补图':'导出图片';
+      }
       const settlementModeBtn=$('toggleBoughtSettlementBtn');
       if(settlementModeBtn){
         settlementModeBtn.textContent=showBoughtSettlement?'关闭结算中心':'开启结算中心';
@@ -9589,6 +9601,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('exportPaymentBtn').addEventListener('click',()=>{
       clearPaymentSearchHighlight();
+      if(showBoughtSettlement){ exportSettlementAllImage(); return; }
       if(paymentFilter==='refund'){ exportSettlementImage('refund'); return; }
       if(typeof html2canvas==='undefined'||!$('paymentSummary').querySelector('table')){ alert('还没有收款数据'); return; }
       const wrap=$('paymentSummary'), scroller=wrap.querySelector('.payment-table-wrap'), table=scroller.querySelector('table'), sticky=[...table.querySelectorAll('th')];
