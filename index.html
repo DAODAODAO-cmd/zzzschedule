@@ -1890,7 +1890,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     const COLLAB_POLL_MS=120000, COLLAB_POLL_FAST_MS=8000, COLLAB_PRESENCE_MS=180000, COLLAB_PRESENCE_FAST_MS=30000;
     const COLLAB_SEND_DELAY_MS=1200, COLLAB_SEND_DELAY_FAST_MS=350, COLLAB_RETRY_DELAY_MS=5000, COLLAB_RETRY_DELAY_FAST_MS=1800, COLLAB_TIMEOUT_RETRY_DELAY_MS=15000;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
-    let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false;
+    let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false, restoredSnapshotPendingUpload=false;
     let lastLocalSnapshotAt=0, lastLocalSnapshotSignature='';
     const WORKSPACE_STORAGE_KEY='ggzActiveWorkspace_v1';
     const storedSyncCode=localStorage.getItem('ggzSyncCode')||'';
@@ -2418,22 +2418,49 @@ body.export-rendering .cart-count{ font-size:28px; }
         return ok;
       }catch(error){ console.warn('本机快照保存失败',error); return false; }
     }
+    function sheetSnapshotMatchScore(snapshotSheet,currentSheet){
+      if(!snapshotSheet||!currentSheet) return -1;
+      let score=0;
+      if(String(snapshotSheet.id)===String(currentSheet.id)) score+=100;
+      if(String(snapshotSheet.name||'').trim()&&String(snapshotSheet.name||'').trim()===String(currentSheet.name||'').trim()) score+=60;
+      const snapshotCols=Array.isArray(snapshotSheet.columns)?snapshotSheet.columns:[], currentCols=Array.isArray(currentSheet.columns)?currentSheet.columns:[];
+      const currentNames=new Set(currentCols.map(c=>String(c.name||'').trim()).filter(Boolean));
+      snapshotCols.forEach(c=>{ if(currentNames.has(String(c.name||'').trim())) score+=2; });
+      return score;
+    }
+    function findMatchingSheetInSnapshot(payload,currentSheet){
+      const list=Array.isArray(payload?.sheets)?payload.sheets:[];
+      let best=null,bestScore=-1;
+      list.forEach(sheet=>{ const score=sheetSnapshotMatchScore(sheet,currentSheet); if(score>bestScore){ best=sheet; bestScore=score; } });
+      return bestScore>0?best:null;
+    }
     async function restoreLocalSnapshotDialog(){
       const list=loadLocalSnapshots();
       if(!list.length){ await appAlert('这个浏览器里还没有可恢复的本机快照。以后每次保存会自动留下最近版本。','本机快照'); return; }
       const lines=list.slice(0,15).map((item,index)=>`${index+1}. ${new Date(item.createdAt).toLocaleString('zh-CN')} · ${item.reason||'自动保存'}\n   ${item.summary||snapshotSummary(item.payload)}`).join('\n\n');
-      const answer=await appPrompt(`输入要恢复的编号：\n\n${lines}\n\n恢复前会先给当前状态再留一份快照。`,'1','恢复本机快照','恢复');
+      const currentSheet=sheets.find(s=>s.id===activeSheetId), currentName=String(currentSheet?.name||'当前排单').trim()||'当前排单';
+      const answer=await appPrompt(`只恢复当前排单「${currentName}」，其他排单不会动。\n输入要恢复的编号：\n\n${lines}\n\n恢复前会先给当前状态再留一份快照。`,'1','恢复当前排单','恢复');
       if(answer===null) return;
       const index=Math.max(0,(parseInt(answer,10)||0)-1), item=list[index];
       if(!item){ await appAlert('没有这个编号，请重新打开再选。','本机快照'); return; }
-      if(!await appConfirm(`确定恢复这份本机快照吗？\n${new Date(item.createdAt).toLocaleString('zh-CN')} · ${item.summary||snapshotSummary(item.payload)}\n\n恢复后不会自动上传云端。`,'恢复本机快照','确认恢复')) return;
+      const snapSheet=findMatchingSheetInSnapshot(item.payload,currentSheet);
+      if(!snapSheet){ await appAlert(`这份快照里没有找到能对应「${currentName}」的排单。请选择另一份快照，或先切到要恢复的排单。`,'恢复当前排单'); return; }
+      if(!await appConfirm(`确定只恢复当前排单吗？\n当前排单：${currentName}\n快照排单：${snapSheet.name||'未命名'}\n快照时间：${new Date(item.createdAt).toLocaleString('zh-CN')}\n\n其他排单、收款码和追加费用不会被恢复。恢复后不会自动上传云端。`,'恢复当前排单','确认恢复')) return;
       recordLocalSnapshot('恢复快照前',true);
       try{
-        applyProjectPayload(deepClone(item.payload),syncCode,lastCloudUpdatedAt);
-        cloudDirty=true; rememberCloudDirty(syncCode,true); cloudConflictPaused=true; clearIdleCloudUpload();
-        setCloudStatus('已恢复本机快照 · 未上传云端','warn');
+        captureActiveSheet();
+        const target=sheets.find(s=>s.id===activeSheetId);
+        if(!target) throw new Error('当前排单不存在');
+        const restored=deepClone(snapSheet);
+        restored.id=target.id; restored.name=target.name; restored.completed=target.completed; restored.completedAt=target.completedAt;
+        const position=sheets.findIndex(s=>s.id===target.id);
+        sheets[position]=restored;
+        applySheet(restored);
+        saveState({snapshotReason:'恢复当前排单后',forceSnapshot:true});
+        cloudConflictPaused=true; clearIdleCloudUpload();
+        setCloudStatus('已恢复当前排单 · 未上传云端','warn');
         renderSheetTabs();
-        await appAlert('已恢复到这份本机快照。确认没问题以后，再决定要不要上传云端。','恢复完成');
+        await appAlert('已只恢复当前排单。其他排单没有被改动。确认没问题以后，再决定要不要上传云端。','恢复完成');
       }catch(error){ await appAlert('恢复失败：'+(error.message||error),'本机快照'); }
     }
     function stripInlineImagesForCloud(value){
@@ -3419,6 +3446,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       const hadEditLockBeforeUpload=editLockOwned;
       if(!(await confirmEditLockForUpload(code))) return;
       const automatic=silent===true;
+      if(restoredSnapshotPendingUpload){
+        if(automatic){ pauseForCloudConflict(); return; }
+        if(!await appConfirm('你刚刚恢复过本机快照。上传会用这份旧快照覆盖云端，并影响协作组里的所有排单，不只是当前排单。\n\n只有确认这份快照就是要恢复的最终版本时，才继续上传。','确认覆盖整个协作组','继续上传')) return;
+        restoredSnapshotPendingUpload=false;
+      }
       if(!automatic) recordLocalSnapshot('上传云端前',true);
       clearIdleCloudUpload();
       cloudBusy=true; setCloudStatus('正在同步云端…');
@@ -3491,7 +3523,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const {error}=await client.from('ggz_sync_data').upsert({sync_code:code,payload,updated_at:now},{onConflict:'sync_code'});
           if(error) throw error;
         }
-        syncCode=code; rememberCloudVersion(code,now); cacheWorkspaceState(code,now); cloudConflictPaused=false; localStorage.setItem('ggzSyncCode',code);
+        syncCode=code; rememberCloudVersion(code,now); cacheWorkspaceState(code,now); cloudConflictPaused=false; restoredSnapshotPendingUpload=false; localStorage.setItem('ggzSyncCode',code);
         if(localRevision===uploadRevision){ cloudDirty=false; rememberCloudDirty(code,false); setCloudStatus('云端已同步 '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})); if(automatic&&editLockOwned&&!hadEditLockBeforeUpload) setTimeout(()=>releaseEditLock(false,true),0); }
         else{ cloudDirty=true; rememberCloudDirty(code,true); setCloudStatus('本机有新修改 · 云端未同步','warn'); }
       }catch(err){
