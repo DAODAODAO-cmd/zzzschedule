@@ -5316,7 +5316,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const countSummary=includeRefund&&includeDue?`最终退款 ${refundCount} 人 / 最终补款 ${dueCount} 人`:(includeRefund?`最终退款 ${refundCount} 人`:`最终补款 ${dueCount} 人`);
       const totalSummary=includeRefund&&includeDue?`退款总价 ${money(refundTotal)} / 补款总价 ${money(dueTotal)}`:(includeRefund?`退款总价 ${money(refundTotal)}`:`补款总价 ${money(dueTotal)}`);
       const summary=modes?.showTotal?`${countSummary} · ${totalSummary}`:countSummary;
-      card.innerHTML=`<div class="settlement-export-title" style="background:#d1466a">${escapeHtml(title)}</div><div class="settlement-export-summary" style="background:#fff4f7;color:#d1466a">${summary}</div><table><thead><tr><th>CN</th><th>买到明细</th><th>退/补金额</th>${hasDue?'<th>微信补款</th>':''}</tr></thead><tbody>${body}</tbody></table>${settlementExportQrHtml()}`;
+      card.innerHTML=`<div class="settlement-export-title" style="background:#d1466a">${escapeHtml(title)}</div><div class="settlement-export-summary" style="background:#fff4f7;color:#d1466a">${summary}</div><table><thead><tr><th>CN</th><th>买到明细</th><th>支付宝肾额</th>${hasDue?'<th>微信肾额</th>':''}</tr></thead><tbody>${body}</tbody></table>${settlementExportQrHtml()}`;
       document.body.appendChild(card);
       try{
         const canvas=await renderExportCanvas(card,{backgroundColor:'#fff',scale:2,width:card.scrollWidth,height:card.scrollHeight,windowWidth:card.scrollWidth+40,windowHeight:card.scrollHeight+40});
@@ -5327,7 +5327,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function multiSheetSettlementText(selectedSheets=sheets,modes={refund:true,due:true,showTotal:false}){
       const rows=buildMultiSheetSettlementRows(selectedSheets,modes);
       const hasDue=rows.some(r=>r.total>0);
-      if(!rows.length) return hasDue?'CN\t类型\t金额\t微信补款\t买到明细\n暂无\t\t\t':'CN\t类型\t金额\t买到明细\n暂无\t\t\t';
+      if(!rows.length) return hasDue?'CN\t类型\t支付宝肾额\t微信肾额\t买到明细\n暂无\t\t\t':'CN\t类型\t支付宝肾额\t买到明细\n暂无\t\t\t';
       const lines=rows.map(r=>{
         const type=r.total<0?'退':'补', amount=moneyText(Math.abs(r.total));
         const wx=r.total>0?moneyText(wechatFeeAmount(r.total)):(hasDue?'—':'');
@@ -5339,7 +5339,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         lines.push(['总计','退',moneyText(refundTotal),''].join('\t'));
         lines.push(['总计','补',moneyText(dueTotal),''].join('\t'));
       }
-      return [hasDue?'CN\t类型\t金额\t微信补款\t买到明细':'CN\t类型\t金额\t买到明细',...lines].join('\n');
+      return [hasDue?'CN\t类型\t支付宝肾额\t微信肾额\t买到明细':'CN\t类型\t支付宝肾额\t买到明细',...lines].join('\n');
     }
     function copyMultiSheetSettlement(selectedSheets,modes,button){
       const text=multiSheetSettlementText(selectedSheets,modes);
@@ -5417,18 +5417,20 @@ body.export-rendering .cart-count{ font-size:28px; }
       const title=`${paymentTitle||'结算中心'}｜退补明细`;
       const refundCount=records.filter(r=>r.refund>0.005).length;
       const dueCount=records.filter(r=>r.due>0.005).length;
+      const hasDue=records.some(r=>r.due>0.005);
       const body=records.map(r=>{
         const result=r.refund>0.005
           ? `<span class="settlement-export-result refund">退 ${money(r.refund)}</span>`
           : `<span class="settlement-export-result due">补 ${money(r.due)}</span>`;
+        const wx=r.due>0.005?`<td><span class="settlement-export-result due">${money(wechatFeeAmount(r.due))}</span></td>`:(hasDue?'<td><span class="settlement-export-muted">—</span></td>':'');
         const manual=r.manual?'<span class="settlement-export-note">手动调整</span>':'';
         const note=String(paymentNotes[r.key]||'').trim()?`<span class="settlement-export-note">备注：${escapeHtml(paymentNotes[r.key])}</span>`:'';
-        return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${settlementGoodsDetailHtml(r)}</td><td class="settlement-export-detail">${escapeHtml(settlementShareDetail(r))}</td><td>${result}${manual}${note}</td></tr>`;
+        return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${settlementGoodsDetailHtml(r)}</td><td>${result}${manual}${note}</td>${wx}</tr>`;
       }).join('');
       const card=document.createElement('div');
       card.className='settlement-export-card';
       card.style.width='760px';
-      card.innerHTML=`<div class="settlement-export-title" style="background:#d1466a">${escapeHtml(title)}</div><div class="settlement-export-summary" style="background:#fff4f7;color:#d1466a">退款 ${refundCount} 人 / 补款 ${dueCount} 人</div><table><thead><tr><th>CN</th><th>谷子明细</th><th>均摊明细</th><th>最终退补</th></tr></thead><tbody>${body}</tbody></table>${settlementExportQrHtml()}`;
+      card.innerHTML=`<div class="settlement-export-title" style="background:#d1466a">${escapeHtml(title)}</div><div class="settlement-export-summary" style="background:#fff4f7;color:#d1466a">退款 ${refundCount} 人 / 补款 ${dueCount} 人</div><table><thead><tr><th>CN</th><th>谷子明细</th><th>支付宝肾额</th>${hasDue?'<th>微信肾额</th>':''}</tr></thead><tbody>${body}</tbody></table>${settlementExportQrHtml()}`;
       document.body.appendChild(card);
       try{
         const safeName=title.replace(/[\\/:*?"<>|]/g,' ').trim()||'退补明细';
@@ -5448,13 +5450,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       const theme=data.isRefund?{main:'#2f6f9f',soft:'#eaf3fc'}:{main:'#b4364c',soft:'#fff0f2'};
       const noteRows=data.rows.some(r=>String(r.note||'').trim());
       const summary=data.isRefund?`共 ${data.rows.length} 人`:`共 ${data.rows.length} 人 / 合计 ${money(data.total)}`;
-      const head=data.isRefund?`<tr><th>CN</th><th>谷子明细</th><th>应退</th></tr>`:`<tr><th>CN</th><th>金额</th>${noteRows?'<th>备注</th>':''}</tr>`;
+      const head=data.isRefund?`<tr><th>CN</th><th>谷子明细</th><th>支付宝肾额</th></tr>`:`<tr><th>CN</th><th>支付宝肾额</th><th>微信肾额</th>${noteRows?'<th>备注</th>':''}</tr>`;
       const body=data.isRefund
         ? data.rows.map(r=>{
           const note=String(r.note||'').trim()?`<span class="settlement-export-note">备注：${escapeHtml(r.note)}</span>`:'';
           return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${settlementGoodsDetailHtml(r)}${note}</td><td>${money(r.amount)}</td></tr>`;
         }).join('')
-        : data.rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${money(r.amount)}</td>${noteRows?`<td>${escapeHtml(r.note||'')}</td>`:''}</tr>`).join('');
+        : data.rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${money(r.amount)}</td><td>${money(wechatFeeAmount(r.amount))}</td>${noteRows?`<td>${escapeHtml(r.note||'')}</td>`:''}</tr>`).join('');
       const card=document.createElement('div');
       card.className='settlement-export-card';
       card.innerHTML=`<div class="settlement-export-title" style="background:${theme.main}">${escapeHtml(title)}</div><div class="settlement-export-summary" style="background:${theme.soft};color:${theme.main}">${summary}</div><table><thead>${head}</thead><tbody>${body}</tbody></table>${settlementExportQrHtml()}`;
