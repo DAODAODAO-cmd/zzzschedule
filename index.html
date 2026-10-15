@@ -1347,6 +1347,7 @@ html{ scrollbar-gutter:stable; }
 .payment-table tr.payment-partial-row td{ background:#fff8e3; }
 .payment-table tr.payment-partial-row td.payment-cn,.payment-table tr.payment-partial-row td.payment-money{ background:#fff1c8; color:#835a12; }
 .payment-received-note{ display:block; max-width:360px; margin-top:3px; color:#a46d18; font-size:11px; font-weight:800; line-height:1.45; white-space:normal; overflow-wrap:anywhere; }
+.payment-table td.payment-money > .payment-received-note{ margin:3px auto 0; text-align:center; box-sizing:border-box; }
 .payment-received-note b{ display:block; margin-bottom:2px; color:#89590f; }
 .payment-received-note small{ display:block; margin-top:2px; color:#7c6a43; font-size:10px; font-weight:800; line-height:1.45; }
 .payment-export-due-amount{ display:none; color:#a93645; font-weight:950; }
@@ -5479,66 +5480,38 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(multiSettlementAction==='copy') copyMultiSheetSettlement(selected,modes,multiSettlementSourceButton);
       else await exportMultiSheetSettlementImage(selected,modes);
     }
-    async function exportSettlementAllImage(){
-      const records=combinedSettlementRecords().filter(r=>r.refund>0.005||r.due>0.005);
+    async function exportPaymentSettlementTable(records,title){
       if(!records.length){ alert('当前没有需要退补的记录'); return; }
       if(typeof html2canvas==='undefined'){ alert('导出图片功能还没加载完成，请稍后再试'); return; }
-      const title=`${paymentTitle||'结算中心'}｜退补明细`;
-      const refundCount=records.filter(r=>r.refund>0.005).length;
-      const dueCount=records.filter(r=>r.due>0.005).length;
-      const hasDue=records.some(r=>r.due>0.005);
+      const source=$('paymentSummary'), sourceTable=source.querySelector('table');
+      const width=Math.max(680,sourceTable?sourceTable.scrollWidth+4:0,exportContentWidth(source));
+      const headings=sourceTable?[...sourceTable.querySelectorAll('thead th')].map(th=>(th.textContent||'').replace(/[✓−]/g,'').trim()):['CN','谷类','数量','支付宝肾额','微信肾额'];
+      const sourceWidths=sourceTable?[...sourceTable.querySelectorAll('thead th')].map(th=>th.getBoundingClientRect().width):[];
+      const totalWidth=sourceWidths.reduce((sum,n)=>sum+n,0);
+      const cols=sourceWidths.length===5&&totalWidth>0?'<colgroup>'+sourceWidths.map(w=>'<col style="width:'+w/totalWidth*100+'%">').join('')+'</colgroup>':'';
       const body=records.map(r=>{
-        const result=r.refund>0.005
-          ? `<span class="settlement-export-result refund">退 ${money(r.refund)}</span>`
-          : `<span class="settlement-export-result due">补 ${money(r.due)}</span>`;
-        const wx=r.due>0.005?`<td><span class="settlement-export-result due">${money(wechatFeeAmount(r.due))}</span></td>`:(hasDue?'<td><span class="settlement-export-muted">—</span></td>':'');
-        const manual=r.manual?'<span class="settlement-export-note">手动调整</span>':'';
-        const note=String(paymentNotes[r.key]||'').trim()?`<span class="settlement-export-note">备注：${escapeHtml(paymentNotes[r.key])}</span>`:'';
-        return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${settlementGoodsDetailHtml(r)}</td><td>${result}${manual}${note}</td>${wx}</tr>`;
+        const refund=r.refund>0.005, amount=refund?r.refund:r.due;
+        const count=r.g?.items&&typeof r.g.items.values==='function'?[...r.g.items.values()].reduce((sum,n)=>sum+num(n),0):0;
+        const note=String(r.note||paymentNotes[r.key]||'').trim();
+        return '<tr class="'+(refund?'payment-refund-row':'payment-supplement-row')+'"><td class="payment-cn">'+escapeHtml(r.name)+'</td><td class="payment-item-name">'+settlementGoodsDetailHtml(r)+(note?'<span class="settlement-export-note">'+escapeHtml(note)+'</span>':'')+'</td><td>'+fmtNum(count)+'</td><td class="payment-money">'+(refund?'退 ':'补 ')+moneyText(amount)+'</td><td class="payment-money">'+(refund?'—':moneyText(wechatFeeAmount(amount)))+'</td></tr>';
       }).join('');
       const card=document.createElement('div');
-      card.className='settlement-export-card';
-      card.style.width='760px';
-      card.innerHTML=`<div class="settlement-export-title" style="background:#d1466a">${escapeHtml(title)}</div><div class="settlement-export-summary" style="background:#fff4f7;color:#d1466a">退款 ${refundCount} 人 / 补款 ${dueCount} 人</div><table><thead><tr><th>CN</th><th>谷子明细</th><th>支付宝肾额</th>${hasDue?'<th>微信肾额</th>':''}</tr></thead><tbody>${body}</tbody></table>${settlementExportQrHtml()}`;
+      card.className='payment-table-wrap';
+      card.style.cssText='position:fixed;left:-10000px;top:0;max-height:none;overflow:visible;border:0;border-radius:0;width:'+width+'px';
+      card.innerHTML='<div class="payment-project-title" style="background:'+escapeAttr(paymentColor||'#d1466a')+'">'+escapeHtml(title)+'</div><table class="payment-table">'+cols+'<thead><tr>'+headings.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+body+'</tbody></table>'+(paymentQrImg?'<div class="payment-code-export"><img crossorigin="anonymous" src="'+escapeAttr(paymentQrImg)+'" alt="收款码"></div>':'');
       document.body.appendChild(card);
       try{
-        const safeName=title.replace(/[\\/:*?"<>|]/g,' ').trim()||'退补明细';
-        const canvas=await renderExportCanvas(card,{backgroundColor:'#fff',scale:2,width:card.scrollWidth,height:card.scrollHeight,windowWidth:card.scrollWidth+40,windowHeight:card.scrollHeight+40});
-        await saveCanvasImage(canvas,`${safeName}.png`,true);
-      }catch(err){
-        alert('导出失败，请重试');
-      }finally{
-        card.remove();
-      }
+        const canvas=await renderExportCanvas(card,{backgroundColor:'#fff',scale:2,width,height:card.scrollHeight,windowWidth:width,windowHeight:card.scrollHeight,cloneForExport:true,tightExport:true});
+        await saveCanvasImage(canvas,(title.replace(/[\\/:*?"<>|]/g,' ').trim()||'退补明细')+'.png',true);
+      }catch(err){console.error(err);alert('导出失败，请重试');}
+      finally{card.remove();}
+    }
+    async function exportSettlementAllImage(){
+      await exportPaymentSettlementTable(combinedSettlementRecords().filter(r=>r.refund>0.005||r.due>0.005),(paymentTitle||'结算中心')+'｜退补明细');
     }
     async function exportSettlementImage(type){
       const data=settlementExportRows(type);
-      if(!data.rows.length){ alert(`当前没有${data.label}`); return; }
-      if(typeof html2canvas==='undefined'){ alert('导出图片功能还没加载完成，请稍后再试'); return; }
-      const title=`${paymentTitle||'结算中心'}｜${data.label}`;
-      const theme=data.isRefund?{main:'#2f6f9f',soft:'#eaf3fc'}:{main:'#b4364c',soft:'#fff0f2'};
-      const noteRows=data.rows.some(r=>String(r.note||'').trim());
-      const summary=data.isRefund?`共 ${data.rows.length} 人`:`共 ${data.rows.length} 人 / 合计 ${money(data.total)}`;
-      const head=data.isRefund?`<tr><th>CN</th><th>谷子明细</th><th>支付宝肾额</th></tr>`:`<tr><th>CN</th><th>谷子明细</th><th>支付宝肾额</th><th>微信肾额</th>${noteRows?'<th>备注</th>':''}</tr>`;
-      const body=data.isRefund
-        ? data.rows.map(r=>{
-          const note=String(r.note||'').trim()?`<span class="settlement-export-note">备注：${escapeHtml(r.note)}</span>`:'';
-          return `<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${settlementGoodsDetailHtml(r)}${note}</td><td>${money(r.amount)}</td></tr>`;
-        }).join('')
-        : data.rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td class="settlement-export-detail">${settlementGoodsDetailHtml(r)}</td><td>${money(r.amount)}</td><td>${money(wechatFeeAmount(r.amount))}</td>${noteRows?`<td>${escapeHtml(r.note||'')}</td>`:''}</tr>`).join('');
-      const card=document.createElement('div');
-      card.className='settlement-export-card';
-      card.innerHTML=`<div class="settlement-export-title" style="background:${theme.main}">${escapeHtml(title)}</div><div class="settlement-export-summary" style="background:${theme.soft};color:${theme.main}">${summary}</div><table><thead>${head}</thead><tbody>${body}</tbody></table>${settlementExportQrHtml()}`;
-      document.body.appendChild(card);
-      try{
-        const safeName=title.replace(/[\\/:*?"<>|]/g,' ').trim()||data.label;
-        const canvas=await renderExportCanvas(card,{backgroundColor:'#fff',scale:2,width:card.scrollWidth,height:card.scrollHeight,windowWidth:card.scrollWidth+40,windowHeight:card.scrollHeight+40});
-        await saveCanvasImage(canvas,`${safeName}.png`,true);
-      }catch(err){
-        alert('导出失败，请重试');
-      }finally{
-        card.remove();
-      }
+      await exportPaymentSettlementTable(data.rows,(paymentTitle||'结算中心')+'｜'+data.label);
     }
     function renderSettlementDashboard(){
       const root=$('settlementDashboard'); if(!root) return;
@@ -6523,7 +6496,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const scroller=wrap.querySelector('.payment-table-wrap')||wrap;
       const width=Math.max(760,scroller.scrollWidth), name=(extraFeeTitle||'追加费用收款').replace(/[\\/:*?"<>|]/g,' ').trim()||'追加费用收款';
       const suffix=filter==='unpaid'?'_未收':(filter==='adjustment'?'_退补':(filter==='supplement'?'_补充':''));
-      requestAnimationFrame(()=>renderExportCanvas(scroller,{backgroundColor:'#ffffff',scale:2,width,height:scroller.scrollHeight,windowWidth:width,windowHeight:scroller.scrollHeight,cloneForExport:true,tightExport:true}).then(canvas=>saveCanvasImage(canvas,name+suffix+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      requestAnimationFrame(()=>renderExportCanvas(scroller,{backgroundColor:'#ffffff',scale:2,width,height:scroller.scrollHeight,windowWidth:width,windowHeight:scroller.scrollHeight,cloneForExport:true,tightExport:true}).then(canvas=>saveCanvasImage(canvas,name+suffix+'.png',true)).catch(()=>alert('导出失败，请重试')).finally(()=>{
         wrap.classList.remove('extra-exporting'); extraFeeFilter=previousFilter; $('extraFeeSearchInput').value=previousSearch; renderExtraFees(); restoreExtraFeeScroll(pos); requestAnimationFrame(()=>restoreExtraFeeScroll(pos)); setTimeout(()=>restoreExtraFeeScroll(pos),80);
       }));
     }
@@ -9769,7 +9742,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       clone.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
       clone.style.position='fixed'; clone.style.left='-10000px'; clone.style.top='0'; clone.style.zIndex='-1'; clone.style.pointerEvents='none'; clone.style.background='#fff';
       document.body.appendChild(clone);
-      const scroller=clone.querySelector('.payment-table-wrap'), table=clone.querySelector('table'), sticky=[...table.querySelectorAll('th')], width=Math.max(680,table.scrollWidth+4);
+      const scroller=clone.querySelector('.payment-table-wrap'), table=clone.querySelector('table'), sticky=[...table.querySelectorAll('th')], width=Math.max(680,sourceTable.scrollWidth+4,exportContentWidth(source));
       scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; clone.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
       const fileName=((paymentTitle||'收款统计')+' 未肾').replace(/[\\/:*?"<>|]/g,' ').trim()||'未肾';
       try{
@@ -9868,7 +9841,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const old={maxHeight:scroller.style.maxHeight,overflow:scroller.style.overflow,width:scroller.style.width,wrapWidth:wrap.style.width};
       const width=Math.max(680,table.scrollWidth+4,exportContentWidth(wrap)); scroller.style.maxHeight='none'; scroller.style.overflow='visible'; scroller.style.width=width+'px'; wrap.style.width=width+'px'; sticky.forEach(el=>{ el.style.position='static'; });
       const name=(sharePaymentTitle||'均摊统计').replace(/[\\/:*?"<>|]/g,' ').trim()||'均摊统计';
-      renderExportCanvas(scroller,{backgroundColor:'#ffffff',scale:2,width,height:scroller.scrollHeight,windowWidth:width,windowHeight:scroller.scrollHeight,cloneForExport:true,tightExport:true}).then(canvas=>saveCanvasImage(canvas,name+'.png')).catch(()=>alert('导出失败，请重试')).finally(()=>{
+      renderExportCanvas(scroller,{backgroundColor:'#ffffff',scale:2,width,height:scroller.scrollHeight,windowWidth:width,windowHeight:scroller.scrollHeight,cloneForExport:true,tightExport:true}).then(canvas=>saveCanvasImage(canvas,name+'.png',true)).catch(()=>alert('导出失败，请重试')).finally(()=>{
         scroller.style.maxHeight=old.maxHeight; scroller.style.overflow=old.overflow; scroller.style.width=old.width; wrap.style.width=old.wrapWidth; if(calculationNote) calculationNote.style.display=oldNoteDisplay; sticky.forEach(el=>{ el.style.position=''; });
       });
     });
