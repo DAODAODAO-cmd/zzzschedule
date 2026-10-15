@@ -789,7 +789,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-ghost" id="dispatchRefreshBtn" data-mobile-label="刷新">刷新清单</button>
-      <button class="btn-ghost" id="undoRenameCnBtn" data-mobile-label="撤销改名" disabled>撤销上次改名</button>
+      <button class="btn-ghost" id="undoRenameCnBtn" data-mobile-label="撤销改名" disabled>撤销上次改名/合并</button>
       <button class="btn-ghost" id="dispatchExportPngBtn" data-mobile-label="导出图片">导出清单图</button>
       <button class="btn-ghost" id="dispatchCopyBtn" data-mobile-label="复制">复制文字清单</button>
     </div>
@@ -7482,24 +7482,25 @@ body.export-rendering .cart-count{ font-size:28px; }
     async function renameCnAcrossProject(from,target){
       if(collabEnabled){await flushCollabChanges();if(collabNeedsSend){alert('请等当前修改同步成功后再统一 CN');return;}await pollCollabState();}
       captureActiveSheet();const before=deepClone(localStatePayload()), names=cnMergeNames(before);
-      if(cnRenameTargetExists(before,from,target)){await appAlert('新名字已经有其他记录。为避免把两个人的账混在一起，本次没有改名。','名字已存在');return;}
+      const merging=cnRenameTargetExists(before,from,target);
       let plan;
       try{plan=buildCnMergePlan(before,from,target);}catch(error){await appAlert(String(error.message).replace(/合并/g,'改名'),'暂未改名');return;}
       const s=plan.summary;
       const lines=[from+' → '+target,'涉及 '+s.sheets.length+' 张排单 / '+s.cells+' 个排单格子','谷款已收 '+money(s.goodsReceived)+'；均摊已收 '+money(s.shareReceived),'已退款 '+money(s.refunded)+'；已补款 '+money(s.supplemented),'追加费用 '+s.fees+' 笔；追加存档 '+s.archives+' 笔','',...s.sheets.map(row=>row.name+'：'+row.cells+' 格，已收 '+money(row.goodsReceived+row.shareReceived)),'',...s.warnings,'','会统一原排单名字并迁移关联收款记录；各笔国际费用和付款状态保留。'];
-      const confirmation=appConfirm(lines.join('\n'),'确认全部改名','确认改名');
+      if(merging)lines.splice(1,0,'新名字已存在：这次会把这两个名字视为同一个人，合并下列记录。');
+      const confirmation=appConfirm(lines.join('\n'),merging?'确认合并为同一人':'确认全部改名',merging?'确认合并':'确认改名');
       $('appConfirmOverlay').querySelector('.app-confirm-card').classList.add('scroll-prompt');
       if(!await confirmation)return;
       captureActiveSheet();const current=deepClone(localStatePayload());
       if(JSON.stringify(current)!==JSON.stringify(before)){await appAlert('预览期间数据有新修改，请重新预览后再合并','尚未修改');return;}
-      const patches=cnMergePatches(before,plan.project), backup={workspace:syncCode||'local',time:new Date().toISOString(),from,target,patches};
+      const patches=cnMergePatches(before,plan.project), backup={workspace:syncCode||'local',time:new Date().toISOString(),from,target,merging,patches};
       try{localStorage.setItem(cnMergeStorageKey(),JSON.stringify(backup));if(!localStorage.getItem(cnMergeStorageKey()))throw new Error('备份失败');}
       catch(error){await appAlert('无法保存合并撤销备份，本次没有修改。请先导出备份并检查浏览器存储空间。','尚未修改');return;}
       recordLocalSnapshot('CN 改名前：'+from+' → '+target,true);
       cnMergeInstall(plan.project);
       if(!saveState({snapshotReason:'统一 CN 后',forceSnapshot:true})){cnMergeInstall(before);saveState();await appAlert('保存失败，已恢复合并前数据');return;}
       renderSheetTabs();renderColumnList();renderMatrix();renderSharePaymentSummary();renderExtraFees();renderDispatch();
-      syncUndoButton();await appAlert('已改名为「'+target+'」，收款、均摊、国际费用和排发已跟随更新。','改名完成');
+      syncUndoButton();await appAlert((merging?'已合并到「':'已改名为「')+target+'」，排单、收款、均摊、国际费用和排发已跟随更新。',merging?'合并完成':'改名完成');
     }
     async function undoCnMerge(){
       let backup;try{backup=JSON.parse(localStorage.getItem(cnMergeStorageKey())||'null');}catch(_){}
@@ -7507,11 +7508,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(collabEnabled){await flushCollabChanges();if(collabNeedsSend){alert('请先等当前修改同步成功');return;}await pollCollabState();}
       captureActiveSheet();const before=deepClone(localStatePayload()), project=deepClone(before);
       for(const patch of backup.patches){const owner=patch.sheetId===undefined?project:project.sheets.find(s=>s.id===patch.sheetId);if(!owner||JSON.stringify(owner[patch.field]??null)!==JSON.stringify(patch.after)){await appAlert('合并涉及的记录后来又有修改，不能自动撤销，以免覆盖新记录。合并前备份仍保留。','暂不能撤销');return;}owner[patch.field]=deepClone(patch.before);}
-      if(!await appConfirm('撤销「'+backup.from+' → '+backup.target+'」？只恢复这次改名涉及的字段。','撤销 CN 改名','确认撤销'))return;
+      if(!await appConfirm('撤销「'+backup.from+' → '+backup.target+'」？只恢复这次'+(backup.merging?'合并':'改名')+'涉及的字段。',backup.merging?'撤销 CN 合并':'撤销 CN 改名','确认撤销'))return;
       captureActiveSheet();if(JSON.stringify(localStatePayload())!==JSON.stringify(before)){alert('确认期间数据有变化，请重新尝试');return;}
       cnMergeInstall(project);if(!saveState()){cnMergeInstall(before);saveState();alert('撤销保存失败，已恢复');return;}
       localStorage.removeItem(cnMergeStorageKey());renderSheetTabs();renderColumnList();renderMatrix();renderExtraFees();renderDispatch();
-      syncUndoButton();await appAlert('已撤销这次改名');
+      syncUndoButton();await appAlert(backup.merging?'已撤销这次合并':'已撤销这次改名');
     }
     function matrixItemDisplayName(c,row,subStore=matrixBlindSubCells){
       const base=String(c?.name||'未命名').trim()||'未命名';
@@ -7702,7 +7703,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('dispatchList').addEventListener('click',async e=>{
       const button=e.target.closest('[data-dispatch-rename]');if(!button)return;
       const from=decodeURIComponent(button.dataset.dispatchRename||'');
-      const answer=await appPrompt('新的 CN 名字：\n改名会同步到关联的排单、收款、均摊、国际费用和排发，下一步先预览。',from,'修改 CN','预览改名');
+      const answer=await appPrompt('新的 CN 名字：\n会同步更新排单、收款、均摊、国际费用和排发。新名字已存在时，可合并为同一人；下一步先预览。',from,'修改 CN','下一步预览');
       if(answer===null||!String(answer).trim()||String(answer).trim()===from)return;
       button.disabled=true;
       try{await renameCnAcrossProject(from,String(answer).trim());}
