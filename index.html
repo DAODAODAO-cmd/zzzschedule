@@ -789,8 +789,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-ghost" id="dispatchRefreshBtn" data-mobile-label="刷新">刷新清单</button>
-      <button class="btn-ghost" id="mergeCnBtn" data-mobile-label="统一CN">统一 CN</button>
-      <button class="btn-ghost" id="undoMergeCnBtn" data-mobile-label="撤销统一">撤销上次统一</button>
+      <button class="btn-ghost" id="undoRenameCnBtn" data-mobile-label="撤销改名" disabled>撤销上次改名</button>
       <button class="btn-ghost" id="dispatchExportPngBtn" data-mobile-label="导出图片">导出清单图</button>
       <button class="btn-ghost" id="dispatchCopyBtn" data-mobile-label="复制">复制文字清单</button>
     </div>
@@ -1246,6 +1245,7 @@ html{ scrollbar-gutter:stable; }
 .dispatch-person{ border:1px solid var(--line); border-radius:11px; padding:10px 11px; background:#fff; }
 .dispatch-name{ font-weight:900; font-size:13px; color:var(--text); margin-bottom:8px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
 .dispatch-count{ font-size:10.5px; font-weight:800; color:#fff; background:var(--accent,#d1466a); border-radius:10px; padding:2px 7px; }
+.dispatch-rename-btn{padding:2px 7px!important;min-height:24px;font-size:10.5px!important;line-height:1.4;border:1px solid var(--line);border-radius:6px;background:#faf8fb;color:var(--muted);cursor:pointer;}
 .dispatch-person-summary{ margin-left:auto; color:var(--muted); font-size:10.5px; font-weight:800; }
 .dispatch-items{ display:grid; gap:6px; }
 .dispatch-sheet-group{ padding:7px 8px; border:1px solid #eee7f0; border-radius:8px; background:#fcfafc; color:var(--text); font-size:11.5px; }
@@ -2532,6 +2532,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return undoHistoryBySheet[key];
     }
     function syncUndoButton(){
+      try{$('undoRenameCnBtn').disabled=!localStorage.getItem(cnMergeStorageKey());}catch(_) {$('undoRenameCnBtn').disabled=true;}
       const button=$('undoLastApplyBtn'); if(!button) return;
       const count=activeSheetId==null?0:currentUndoHistory().length;
       button.disabled=count===0;
@@ -5100,29 +5101,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       const keys=Object.keys(before.values.paymentPaid), after=paymentActionState(keys);
       if(JSON.stringify(before)===JSON.stringify(after)) return;
       paymentUndoStack.push({before,after,label}); if(paymentUndoStack.length>20) paymentUndoStack.shift();
-      showPaymentUndo();
-    }
-    function showPaymentUndo(){
-      let bar=document.getElementById('paymentUndoNotice');
-      if(!bar){ bar=document.createElement('div'); bar.id='paymentUndoNotice'; bar.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:99990;background:#fff;border:1px solid #ddd;padding:12px 18px;border-radius:12px;box-shadow:0 4px 20px #0002'; document.body.appendChild(bar); }
-      const entry=paymentUndoStack.at(-1); bar.hidden=!entry; if(!entry) return;
-      bar.replaceChildren(document.createTextNode(entry.label+' '));
-      const button=document.createElement('button'); button.type='button'; button.textContent='撤销'; button.className='btn-ghost';
-      button.onclick=()=>{
-        if(activeSheetId!==entry.before.sheetId){ alert('请切回刚才操作的排单再撤销'); return; }
-        const keys=Object.keys(entry.before.values.paymentPaid), current=paymentActionState(keys);
-        const maps={paymentPaid,sharePaymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,sharePaymentRefund,sharePaymentSupplement,paymentEdits};
-        const changes=[];
-        for(const [name,values] of Object.entries(entry.before.values)) for(const [key,value] of Object.entries(values)){
-          if(JSON.stringify(value)===JSON.stringify(entry.after.values[name][key])) continue;
-          if(JSON.stringify(current.values[name][key])!==JSON.stringify(entry.after.values[name][key])){ alert('这条记录后来又有修改，暂不撤销，以免覆盖新记录'); return; }
-          changes.push({name,key,value});
-        }
-        changes.forEach(({name,key,value})=>{ if(value===null) delete maps[name][key]; else maps[name][key]=deepClone(value); });
-        paymentUndoStack.pop(); saveState(); renderPaymentSummary(); renderSharePaymentSummary(); showPaymentUndo();
-      };
-      bar.appendChild(button);
-      const close=document.createElement('button'); close.type='button'; close.textContent='×'; close.className='btn-ghost'; close.onclick=()=>{bar.hidden=true;}; bar.appendChild(close);
     }
     function settlementTransferAmount(entry){
       return entry&&typeof entry==='object'?Math.max(0,num(entry.amount)):0;
@@ -5536,7 +5514,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           else{ pendingDue+=r.due; pendingDuePeople++; action=`<button type="button" class="settlement-status-btn settlement-status-supplement" data-settlement-status="supplement" data-settlement-key="${encodeURIComponent(r.key)}">待补款</button>`; }
         }else{
           completedPeople++;
-          action=`<span class="settlement-status-label settlement-status-complete">✓ ${r.refundDone?'已退款':(r.supplementDone?'已补款':'已完成')}</span>`;
+          const label=r.refundDone?'已退款':(r.supplementDone?'已补款':'已完成');
+          action=r.refunded>0||r.supplemented>0?`<button type="button" class="settlement-status-btn settlement-status-complete" data-settlement-undo="${encodeURIComponent(r.key)}" title="点击撤回最近一笔退补">✓ ${label}</button>`:`<span class="settlement-status-label settlement-status-complete">✓ ${label}</span>`;
         }
         return {...r,type,done,action};
       });
@@ -5554,8 +5533,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const manualHint=r.manual?'<small class="settlement-source manual">手动调整</small>':'';
         const adjust=`<div class="settlement-result-box"><strong class="${cls}">${result}</strong>${manualHint}<div class="settlement-adjust-actions"><button type="button" class="settlement-mini-btn" data-settlement-adjust="refund" data-settlement-key="${encodeURIComponent(r.key)}" data-settlement-amount="${r.refund}" title="手动调整退款金额">退</button><button type="button" class="settlement-mini-btn" data-settlement-adjust="supplement" data-settlement-key="${encodeURIComponent(r.key)}" data-settlement-amount="${r.due}" title="手动调整补款金额">补</button></div>${settlementCalcDetailHtml(r)}</div>`;
         const check=`<small style="display:block;margin-top:6px">应收 ${money(r.g.actual+r.sh.expected)} · 原实收 ${money(r.g.received+r.sh.received)}<br>已退 ${money(r.refunded)} · 已补 ${money(r.supplemented)} · 剩余 ${money(r.remaining)}${r.legacy?'<br>旧完成记录按接入时金额记账':''}</small>`;
-        const undo=r.refunded>0||r.supplemented>0?`<button type="button" class="settlement-mini-btn" data-settlement-undo="${encodeURIComponent(r.key)}">撤销最近退补</button>`:'';
-        return `<tr><td>${escapeHtml(r.name)}</td><td>${money(r.g.received)}</td><td>${money(r.g.actual)}</td><td>${money(r.sh.expected)}</td><td>${money(r.sh.received)}</td><td>${adjust}${check}</td><td>${r.action}${undo}</td><td><span class="payment-admin-note" contenteditable="true" spellcheck="false" data-payment-note="${encodeURIComponent(r.key)}" data-placeholder="填写备注">${escapeHtml(paymentNotes[r.key]||'')}</span></td></tr>`;
+        return `<tr><td>${escapeHtml(r.name)}</td><td>${money(r.g.received)}</td><td>${money(r.g.actual)}</td><td>${money(r.sh.expected)}</td><td>${money(r.sh.received)}</td><td>${adjust}${check}</td><td>${r.action}</td><td><span class="payment-admin-note" contenteditable="true" spellcheck="false" data-payment-note="${encodeURIComponent(r.key)}" data-placeholder="填写备注">${escapeHtml(paymentNotes[r.key]||'')}</span></td></tr>`;
       }).join('');
       const filters=[['pending','待处理'],['refund','待退款'],['supplement','待补款'],['complete','已完成'],['all','全部']].map(([key,label])=>`<button type="button" class="settlement-filter-btn ${settlementFilter===key?'active':''}" data-settlement-filter="${key}">${label}</button>`).join('');
       const empty=`<tr><td colspan="8"><div class="settlement-empty">当前筛选下没有记录</div></td></tr>`;
@@ -7324,7 +7302,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(keys.some(key=>['__proto__','constructor','prototype'].includes(key))) throw new Error('这个名字不能作为收款记录键');
       const matches=name=>keys.includes(normalizeDispatchKey(name));
       const round=n=>Math.round((Number(n)||0)*100)/100;
-      const summary={sheets:[],cells:0,fees:0,archives:0,goodsReceived:0,shareReceived:0,refunded:0,supplemented:0};
+      const summary={sheets:[],cells:0,fees:0,archives:0,goodsReceived:0,shareReceived:0,refunded:0,supplemented:0,warnings:[]};
       const renameTree=value=>{
         if(!value||typeof value!=='object') return;
         if(Array.isArray(value)){value.forEach(renameTree);return;}
@@ -7349,7 +7327,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(sheet.paymentIncludeShare) records.forEach(r=>{
           if(Object.prototype.hasOwnProperty.call(sheet.paymentPaid||{},r.key)&&Object.prototype.hasOwnProperty.call(sheet.sharePaymentPaid||{},r.key)){
             const separate=paidAmountValue(sheet.sharePaymentPaid,r.key,r.sh.expected);
-            if(separate>0.005&&Math.abs(separate-num(r.sh.received))>0.005) throw new Error('「'+sheet.name+'」的合并收款与单独均摊已收记录不一致，请先核对，避免重复或少算');
+            if(separate>0.005&&Math.abs(separate-num(r.sh.received))>0.005) summary.warnings.push('「'+sheet.name+'」有重叠的均摊收款标记：按当前结算表已计入的金额合并，原始标记留档，不重复加钱。');
           }
         });
         for(const key of keys){
@@ -7364,11 +7342,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         });
         Object.keys(totals).forEach(k=>totals[k]=round(totals[k]));
         const oldEdits=deepClone(sheet.paymentEdits||{}), oldShareEdits=deepClone(sheet.sharePaymentEdits||{});
-        if(records.length>1){
+        const rebuildDetails=records.length>1||new Set(Object.values(sheet.allocations||{}).flat().filter(name=>name&&matches(name)).map(String)).size>1;
+        if(rebuildDetails){
           const detailEdit=edits=>Object.keys(edits).some(key=>
             ['merged-items:','merged-qty:'].some(prefix=>key.startsWith(prefix)&&matches(key.slice(prefix.length)))||
             [...variants].some(name=>['item:','qty:'].some(prefix=>key.startsWith(prefix+name+':'))));
-          if(detailEdit(oldEdits)||detailEdit(oldShareEdits))throw new Error('「'+sheet.name+'」有手动谷子明细或数量，合并可能冲突，请先核对并恢复自动明细');
+          if(detailEdit(oldEdits)||detailEdit(oldShareEdits))summary.warnings.push('「'+sheet.name+'」的手动明细/显示数量会按原排单格子重新生成；原手动内容留档，收款金额不因此改变。');
         }
         const migrateEdits=(source)=>{
           const result={...source}, staged={};
@@ -7391,20 +7370,26 @@ body.export-rendering .cart-count{ font-size:28px; }
             for(const prefix of ['cn:','alipay:','wechat:','merged-items:','merged-qty:']){
               if(key.startsWith(prefix)&&matches(key.slice(prefix.length))){
                 delete result[key];found=true;
-                if(prefix==='merged-items:') put(prefix+target,value);
-                if(prefix==='merged-qty:') put(prefix+target,value,true);
+                if(prefix==='merged-items:'&&!rebuildDetails) put(prefix+target,value);
+                if(prefix==='merged-qty:'&&!rebuildDetails) put(prefix+target,value,true);
                 break;
               }
             }
             if(found) return;
             for(const name of [...variants].sort((a,b)=>b.length-a.length)) for(const prefix of ['item:','qty:']){
               const start=prefix+name+':';
-              if(key.startsWith(start)){delete result[key];put(prefix+target+':'+key.slice(start.length),value,prefix==='qty:');return;}
+              if(key.startsWith(start)){delete result[key];if(!rebuildDetails)put(prefix+target+':'+key.slice(start.length),value,prefix==='qty:');return;}
             }
           });
           return Object.assign(result,staged);
         };
         sheet.paymentEdits=migrateEdits(oldEdits);sheet.sharePaymentEdits=migrateEdits(oldShareEdits);
+        const selectedEdits=edits=>Object.fromEntries(Object.entries(edits).filter(([key])=>
+          ['cn:','alipay:','wechat:','merged-items:','merged-qty:','__goods_snapshot__:','__settlement_base__:'].some(prefix=>key.startsWith(prefix)&&matches(key.slice(prefix.length)))||
+          [...variants].some(name=>['item:','qty:','__auto_base__:alipay:'].some(prefix=>key===prefix+name||key.startsWith(prefix+name+':')))));
+        const previousHistory=keys.flatMap(key=>Array.isArray(oldEdits['__cn_merge_history__:'+key])?oldEdits['__cn_merge_history__:'+key]:[]);
+        keys.forEach(key=>delete sheet.paymentEdits['__cn_merge_history__:'+key]);
+        sheet.paymentEdits['__cn_merge_history__:'+targetKey]=[...previousHistory,{from,target,at:new Date().toISOString(),paymentEdits:selectedEdits(oldEdits),sharePaymentEdits:selectedEdits(oldShareEdits),financial:Object.fromEntries(financialFields.map(field=>[field,Object.fromEntries(Object.entries(sheet[field]||{}).filter(([key])=>matches(key)))]))}];
         const receiptMap=(field,amount)=>{
           const map=sheet[field]||{}, existed=keys.some(k=>Object.prototype.hasOwnProperty.call(map,k));
           keys.forEach(k=>delete map[k]);
@@ -7479,33 +7464,30 @@ body.export-rendering .cart-count{ font-size:28px; }
       for(const field of ['extraFees','extraFeeArchives']) if(JSON.stringify(before[field])!==JSON.stringify(after[field]))patches.push({field,before:deepClone(before[field]||[]),after:deepClone(after[field]||[])});
       return patches;
     }
-    function cnMergeStorageKey(){return 'ggzCnMergeUndo_'+(syncCode||'local');}
+    function cnMergeStorageKey(){return 'ggzCnRenameUndo_'+(syncCode||'local');}
     function cnMergeInstall(project){
       sheets=project.sheets;extraFees=project.extraFees||[];extraFeeArchives=project.extraFeeArchives||[];
       applySheet(sheets.find(s=>s.id===activeSheetId)||sheets[0]);
     }
-    async function openCnMerge(){
+    function cnRenameTargetExists(project,from,target){
+      const key=normalizeDispatchKey(target);if(key===normalizeDispatchKey(from))return false;
+      if(cnMergeNames(project).some(name=>normalizeDispatchKey(name)===key))return true;
+      return (project.sheets||[]).some(sheet=>{
+        if(['paymentPaid','sharePaymentPaid','paymentRefund','paymentSupplement','sharePaymentRefund','sharePaymentSupplement','paymentRefundDone','paymentSupplementDone','paymentNotes'].some(field=>Object.keys(sheet[field]||{}).some(name=>normalizeDispatchKey(name)===key)))return true;
+        return [sheet.paymentEdits||{},sheet.sharePaymentEdits||{}].some(edits=>Object.entries(edits).some(([field,value])=>
+          (field.startsWith('alipay:')&&normalizeDispatchKey(field.slice(7))===key)||
+          (field.startsWith('cn:')&&normalizeDispatchKey(value)===key&&normalizeDispatchKey(field.slice(3))!==normalizeDispatchKey(from))));
+      });
+    }
+    async function renameCnAcrossProject(from,target){
       if(collabEnabled){await flushCollabChanges();if(collabNeedsSend){alert('请等当前修改同步成功后再统一 CN');return;}await pollCollabState();}
       captureActiveSheet();const before=deepClone(localStatePayload()), names=cnMergeNames(before);
-      if(names.length<2){alert('至少需要两个 CN 名字');return;}
-      const answer=appDialog({title:'统一 CN',message:'选择少写或写错的名字，以及要统一成的名字。下一步先预览，不会立即修改。',okText:'预览合并',cancelText:'取消'});
-      $('appConfirmOverlay').querySelector('.app-confirm-card').classList.add('scroll-prompt');
-      const body=document.createElement('div');body.className='app-dialog-body';body.style.cssText='display:grid;gap:8px;margin:12px 0';
-      const inputs=[];
-      for(const label of ['旧名字','统一为（保留的名字）']){
-        const wrap=document.createElement('label');wrap.textContent=label;
-        const select=document.createElement('select');select.style.cssText='display:block;width:100%;margin-top:5px;padding:10px;border:1px solid #ddd;border-radius:8px';
-        const blank=document.createElement('option');blank.value='';blank.textContent='请选择 CN';select.appendChild(blank);
-        names.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;select.appendChild(option);});wrap.appendChild(select);body.appendChild(wrap);inputs.push(select);
-      }
-      $('appConfirmMessage').insertAdjacentElement('afterend',body);
-      if(!await answer)return;
-      const from=inputs[0].value,target=inputs[1].value;
+      if(cnRenameTargetExists(before,from,target)){await appAlert('新名字已经有其他记录。为避免把两个人的账混在一起，本次没有改名。','名字已存在');return;}
       let plan;
-      try{plan=buildCnMergePlan(before,from,target);}catch(error){await appAlert(error.message,'暂未合并');return;}
+      try{plan=buildCnMergePlan(before,from,target);}catch(error){await appAlert(String(error.message).replace(/合并/g,'改名'),'暂未改名');return;}
       const s=plan.summary;
-      const lines=[from+' → '+target,'涉及 '+s.sheets.length+' 张排单 / '+s.cells+' 个排单格子','谷款已收 '+money(s.goodsReceived)+'；均摊已收 '+money(s.shareReceived),'已退款 '+money(s.refunded)+'；已补款 '+money(s.supplemented),'追加费用 '+s.fees+' 笔；追加存档 '+s.archives+' 笔','',...s.sheets.map(row=>row.name+'：'+row.cells+' 格，已收 '+money(row.goodsReceived+row.shareReceived)),'','会统一原排单名字并迁移关联收款记录；各笔国际费用和付款状态保留。'];
-      const confirmation=appConfirm(lines.join('\n'),'确认统一 CN','确认合并');
+      const lines=[from+' → '+target,'涉及 '+s.sheets.length+' 张排单 / '+s.cells+' 个排单格子','谷款已收 '+money(s.goodsReceived)+'；均摊已收 '+money(s.shareReceived),'已退款 '+money(s.refunded)+'；已补款 '+money(s.supplemented),'追加费用 '+s.fees+' 笔；追加存档 '+s.archives+' 笔','',...s.sheets.map(row=>row.name+'：'+row.cells+' 格，已收 '+money(row.goodsReceived+row.shareReceived)),'',...s.warnings,'','会统一原排单名字并迁移关联收款记录；各笔国际费用和付款状态保留。'];
+      const confirmation=appConfirm(lines.join('\n'),'确认全部改名','确认改名');
       $('appConfirmOverlay').querySelector('.app-confirm-card').classList.add('scroll-prompt');
       if(!await confirmation)return;
       captureActiveSheet();const current=deepClone(localStatePayload());
@@ -7513,23 +7495,23 @@ body.export-rendering .cart-count{ font-size:28px; }
       const patches=cnMergePatches(before,plan.project), backup={workspace:syncCode||'local',time:new Date().toISOString(),from,target,patches};
       try{localStorage.setItem(cnMergeStorageKey(),JSON.stringify(backup));if(!localStorage.getItem(cnMergeStorageKey()))throw new Error('备份失败');}
       catch(error){await appAlert('无法保存合并撤销备份，本次没有修改。请先导出备份并检查浏览器存储空间。','尚未修改');return;}
-      recordLocalSnapshot('统一 CN 前：'+from+' → '+target,true);
+      recordLocalSnapshot('CN 改名前：'+from+' → '+target,true);
       cnMergeInstall(plan.project);
       if(!saveState({snapshotReason:'统一 CN 后',forceSnapshot:true})){cnMergeInstall(before);saveState();await appAlert('保存失败，已恢复合并前数据');return;}
       renderSheetTabs();renderColumnList();renderMatrix();renderSharePaymentSummary();renderExtraFees();renderDispatch();
-      await appAlert('已统一为「'+target+'」。可在排发页点“撤销上次统一”。','统一完成');
+      syncUndoButton();await appAlert('已改名为「'+target+'」，收款、均摊、国际费用和排发已跟随更新。','改名完成');
     }
     async function undoCnMerge(){
       let backup;try{backup=JSON.parse(localStorage.getItem(cnMergeStorageKey())||'null');}catch(_){}
-      if(!backup||backup.workspace!==(syncCode||'local')){alert('当前协作组没有可撤销的统一记录');return;}
+      if(!backup||backup.workspace!==(syncCode||'local')){alert('当前协作组没有可撤销的改名记录');return;}
       if(collabEnabled){await flushCollabChanges();if(collabNeedsSend){alert('请先等当前修改同步成功');return;}await pollCollabState();}
       captureActiveSheet();const before=deepClone(localStatePayload()), project=deepClone(before);
       for(const patch of backup.patches){const owner=patch.sheetId===undefined?project:project.sheets.find(s=>s.id===patch.sheetId);if(!owner||JSON.stringify(owner[patch.field]??null)!==JSON.stringify(patch.after)){await appAlert('合并涉及的记录后来又有修改，不能自动撤销，以免覆盖新记录。合并前备份仍保留。','暂不能撤销');return;}owner[patch.field]=deepClone(patch.before);}
-      if(!await appConfirm('撤销「'+backup.from+' → '+backup.target+'」？只恢复这次统一涉及的字段。','撤销统一 CN','确认撤销'))return;
+      if(!await appConfirm('撤销「'+backup.from+' → '+backup.target+'」？只恢复这次改名涉及的字段。','撤销 CN 改名','确认撤销'))return;
       captureActiveSheet();if(JSON.stringify(localStatePayload())!==JSON.stringify(before)){alert('确认期间数据有变化，请重新尝试');return;}
       cnMergeInstall(project);if(!saveState()){cnMergeInstall(before);saveState();alert('撤销保存失败，已恢复');return;}
       localStorage.removeItem(cnMergeStorageKey());renderSheetTabs();renderColumnList();renderMatrix();renderExtraFees();renderDispatch();
-      await appAlert('已撤销这次统一 CN');
+      syncUndoButton();await appAlert('已撤销这次改名');
     }
     function matrixItemDisplayName(c,row,subStore=matrixBlindSubCells){
       const base=String(c?.name||'未命名').trim()||'未命名';
@@ -7663,7 +7645,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function renderDispatch(){
       const list=$('dispatchList'); if(!list) return;
-      try{$('undoMergeCnBtn').disabled=!localStorage.getItem(cnMergeStorageKey());}catch(_) {$('undoMergeCnBtn').disabled=true;}
+      syncUndoButton();
       const all=buildDispatchRecords();
       const records=all.map(person=>({...person,visibleItems:dispatchVisibleItems(person)})).filter(person=>person.visibleItems.length);
       const totalItems=records.reduce((sum,p)=>sum+p.visibleItems.length,0);
@@ -7688,7 +7670,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const payOk=group.goodsPaidQty===group.qty&&(!group.intlNeededQty||group.intlPaidQty===group.intlNeededQty);
           return `<div class="dispatch-sheet-group"><div class="dispatch-sheet-head"><b>${escapeHtml(group.sheet)}</b><small>${group.items.length}款 · ${group.qty}件 · <span class="dispatch-pay-main ${payOk?'is-ok':''}">${escapeHtml(status)}</span></small></div><div class="dispatch-chip-list">${shown}</div></div>`;
         }).join('');
-        return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount}</span></div><div class="dispatch-items">${items}</div></div>`;
+        return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><button type="button" class="dispatch-rename-btn" data-dispatch-rename="${encodeURIComponent(person.name)}" aria-label="修改 CN ${escapeAttr(person.name)}">改名</button><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount}</span></div><div class="dispatch-items">${items}</div></div>`;
       }).join('');
     }
     function dispatchTextManifest(){
@@ -7717,8 +7699,17 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.addEventListener('click',()=>{ dispatchStateFilter=button.dataset.dispatchState||'all'; renderDispatch(); }));
     $('dispatchRefreshBtn').addEventListener('click',renderDispatch);
-    $('mergeCnBtn').addEventListener('click',()=>openCnMerge().catch(error=>{console.error(error);appAlert(error.message||'统一 CN 失败，请检查备份后再试');}));
-    $('undoMergeCnBtn').addEventListener('click',()=>undoCnMerge().catch(error=>{console.error(error);appAlert(error.message||'撤销失败，备份仍保留');}));
+    $('dispatchList').addEventListener('click',async e=>{
+      const button=e.target.closest('[data-dispatch-rename]');if(!button)return;
+      const from=decodeURIComponent(button.dataset.dispatchRename||'');
+      const answer=await appPrompt('新的 CN 名字：\n改名会同步到关联的排单、收款、均摊、国际费用和排发，下一步先预览。',from,'修改 CN','预览改名');
+      if(answer===null||!String(answer).trim()||String(answer).trim()===from)return;
+      button.disabled=true;
+      try{await renameCnAcrossProject(from,String(answer).trim());}
+      catch(error){console.error(error);await appAlert(error.message||'改名未完成，请核对原记录');}
+      finally{if(button.isConnected)button.disabled=false;}
+    });
+    $('undoRenameCnBtn').addEventListener('click',()=>undoCnMerge().catch(error=>{console.error(error);appAlert(error.message||'撤销失败，备份仍保留');}));
     $('dispatchSearchBtn').addEventListener('click',dispatchSearch);
     $('dispatchSearchInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); dispatchSearch(); } });
     $('dispatchCopyBtn').addEventListener('click',async()=>{
