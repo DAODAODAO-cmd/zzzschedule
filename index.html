@@ -1390,19 +1390,20 @@ body.export-rendering .payment-partial-row .payment-export-due-amount{ display:b
 .payment-table tfoot td.payment-total-value{ background:#fff4f7; color:var(--accent); font-size:16px; font-weight:900; }
 .payment-code-export{ width:100%; padding:0; border-top:1px solid var(--line); background:#fff; }
 .payment-code-export img{ display:block; width:100%; height:auto; object-fit:contain; image-rendering:auto; background:#fff; }
-.settlement-export-card{ position:fixed; left:-10000px; top:0; width:520px; padding:14px; border:1px solid #e4dce8; border-radius:14px; background:#fff; color:#2a2731; font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif; box-sizing:border-box; }
-.settlement-export-title{ padding:10px 12px; border-radius:10px; color:#fff; font-size:18px; font-weight:900; text-align:center; }
-.settlement-export-summary{ margin:8px 0; padding:8px 10px; border-radius:9px; font-size:14px; font-weight:900; text-align:center; }
-.settlement-export-card table{ width:100%; border-collapse:collapse; font-size:14px; }
-.settlement-export-card th,.settlement-export-card td{ padding:8px 10px; border:1px solid #eadfe7; text-align:center; }
-.settlement-export-card td:first-child{ text-align:left; font-weight:900; }
-.settlement-export-card td.settlement-export-detail{ text-align:left; color:#5f5764; font-weight:800; line-height:1.45; }
-.settlement-export-qr{ margin-top:10px; border:1px solid #eadfe7; border-radius:10px; overflow:hidden; }
+.settlement-export-card{ position:fixed; left:-10000px; top:0; width:760px; padding:0; border:1px solid #d8d1db; border-radius:9px 9px 0 0; overflow:hidden; background:#fff; color:#2a2731; font-family:"Zen Maru Gothic","Hiragino Sans","Microsoft YaHei",sans-serif; box-sizing:border-box; }
+.settlement-export-title{ padding:11px 14px; border-radius:9px 9px 0 0; color:#fff; font-size:19px; font-weight:900; text-align:center; }
+.settlement-export-summary{ margin:0; padding:5px 8px; border-radius:0; font-size:12px; font-weight:800; text-align:center; }
+.settlement-export-card table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+.settlement-export-card th,.settlement-export-card td{ padding:7px 8px; border:1px solid #d8d1db; text-align:center; vertical-align:middle; line-height:1.35; }
+.settlement-export-card th{background:#f5f2f6;font-size:14px;font-weight:900;}
+.settlement-export-card td:first-child{ text-align:left; font-weight:900; background:#faf8fb; }
+.settlement-export-card td.settlement-export-detail{ text-align:center; color:#5f5764; font-weight:500; line-height:1.35; }
+.settlement-export-qr{ margin-top:0; border:0; border-top:1px solid #d8d1db; border-radius:0; overflow:hidden; }
 .settlement-export-note{ display:block; margin-top:3px; color:#9a8fa0; font-size:11px; font-weight:700; }
-.settlement-export-result{ display:inline-flex; align-items:center; justify-content:center; min-width:72px; padding:5px 9px; border-radius:9px; font-weight:950; white-space:nowrap; }
-.settlement-export-result.refund{ background:#eaf3fc; color:#2f6f9f; }
-.settlement-export-result.due{ background:#fff0f2; color:#b4364c; }
-.settlement-export-result.even{ background:#eaf5ed; color:#2b7547; }
+.settlement-export-result{ display:inline; padding:0; border-radius:0; font-weight:900; white-space:nowrap; }
+.settlement-export-result.refund{ background:transparent; color:#2f6f9f; }
+.settlement-export-result.due{ background:transparent; color:#b4364c; }
+.settlement-export-result.even{ background:transparent; color:#2b7547; }
 .settlement-export-muted{ color:#c0b7c3; font-weight:800; }
 .settlement-export-missing{ display:inline-block; margin-left:6px; color:#2f6f9f; font-size:12px; font-weight:850; }
 .settlement-export-refund-detail{ color:#2f6f9f; font-weight:900; }
@@ -9965,13 +9966,13 @@ body.export-rendering .cart-count{ font-size:28px; }
         const overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;z-index:100000;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px';
         const card=document.createElement('div'); card.style.cssText='background:white;border-radius:14px;max-height:94vh;width:min(960px,96vw);display:flex;flex-direction:column;overflow:hidden';
-        const heading=document.createElement('strong'); heading.textContent='导出预览 · '+filename; heading.style.cssText='padding:16px;overflow-wrap:anywhere';
+        const heading=document.createElement('strong'); heading.textContent='导出预览 · '+filename; heading.style.cssText='padding:16px;font:700 15px/1.5 "Microsoft YaHei",sans-serif;color:#403747;overflow-wrap:anywhere';
         const scroll=document.createElement('div'); scroll.style.cssText='overflow:auto;min-height:0;padding:0 12px';
         const image=document.createElement('img'); image.alt='收款与退补导出预览'; image.src=canvas.toDataURL('image/png'); image.style.cssText='display:block;width:100%;height:auto'; scroll.appendChild(image);
-        const actions=document.createElement('div'); actions.style.cssText='padding:12px;display:flex;justify-content:flex-end;gap:8px';
+        const actions=document.createElement('div'); actions.style.cssText='padding:14px 16px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #eee6ed;background:#fff;flex-shrink:0';
         const finish=value=>{overlay.remove();document.removeEventListener('keydown',key);resolve(value);};
         const key=e=>{if(e.key==='Escape') finish(false);}; document.addEventListener('keydown',key);
-        for(const [text,value] of [['返回',false],['保存图片',true]]){ const button=document.createElement('button');button.type='button';button.className=value?'btn':'btn-ghost';button.textContent=text;button.onclick=()=>finish(value);actions.appendChild(button); }
+        for(const [text,value] of [['返回',false],['保存图片',true]]){ const button=document.createElement('button');button.type='button';button.textContent=text;button.style.cssText='appearance:none;min-height:38px;min-width:84px;padding:8px 18px;border-radius:9px;font:700 13px/1.4 "Microsoft YaHei",sans-serif;cursor:pointer;border:1px solid '+(value?'#d1466a;background:#d1466a;color:white':'#e4dce8;background:#f8f5fa;color:#5f5764');button.onclick=()=>finish(value);actions.appendChild(button); }
         card.append(heading,scroll,actions);overlay.appendChild(card);document.body.appendChild(overlay);
       });
     }
