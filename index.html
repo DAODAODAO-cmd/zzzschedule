@@ -789,6 +789,8 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-ghost" id="dispatchRefreshBtn" data-mobile-label="刷新">刷新清单</button>
+      <button class="btn-ghost" id="mergeCnBtn" data-mobile-label="统一CN">统一 CN</button>
+      <button class="btn-ghost" id="undoMergeCnBtn" data-mobile-label="撤销统一">撤销上次统一</button>
       <button class="btn-ghost" id="dispatchExportPngBtn" data-mobile-label="导出图片">导出清单图</button>
       <button class="btn-ghost" id="dispatchCopyBtn" data-mobile-label="复制">复制文字清单</button>
     </div>
@@ -7308,6 +7310,227 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('sheetTabs').addEventListener('dragend',()=>{ draggedSheetId=null; document.querySelectorAll('.sheet-tab.dragging,.sheet-tab.drag-over').forEach(item=>item.classList.remove('dragging','drag-over')); });
     let dispatchStateFilter='all';
     function normalizeDispatchKey(name){ return String(name||'').normalize('NFKC').replace(/\s+/g,'').toLowerCase(); }
+    function cnMergeNames(project){
+      const names=new Set();
+      (project.sheets||[]).forEach(sheet=>Object.values(sheet.allocations||{}).forEach(rows=>(rows||[]).forEach(name=>{if(String(name||'').trim()) names.add(String(name).trim());})));
+      const addFees=fees=>(fees||[]).forEach(row=>{if(String(row.person||'').trim()) names.add(String(row.person).trim());});
+      addFees(project.extraFees);(project.extraFeeArchives||[]).forEach(a=>addFees(a.extraFees));
+      return [...names].sort((a,b)=>a.localeCompare(b,'zh-Hans-CN'));
+    }
+    function buildCnMergePlan(original,fromName,toName){
+      const project=deepClone(original), from=String(fromName||'').trim(), target=String(toName||'').trim();
+      if(!from||!target||from===target) throw new Error('请选择两个不同的名字');
+      const fromKey=normalizeDispatchKey(from), targetKey=normalizeDispatchKey(target), keys=[...new Set([fromKey,targetKey])];
+      if(keys.some(key=>['__proto__','constructor','prototype'].includes(key))) throw new Error('这个名字不能作为收款记录键');
+      const matches=name=>keys.includes(normalizeDispatchKey(name));
+      const round=n=>Math.round((Number(n)||0)*100)/100;
+      const summary={sheets:[],cells:0,fees:0,archives:0,goodsReceived:0,shareReceived:0,refunded:0,supplemented:0};
+      const renameTree=value=>{
+        if(!value||typeof value!=='object') return;
+        if(Array.isArray(value)){value.forEach(renameTree);return;}
+        Object.entries(value).forEach(([key,child])=>{
+          if(['person','personName','cn'].includes(key)&&typeof child==='string'&&matches(child)) value[key]=target;
+          else if(/allocations$/i.test(key)&&child&&typeof child==='object') renameAlloc(child);
+          else renameTree(child);
+        });
+      };
+      const renameAlloc=alloc=>Object.values(alloc||{}).forEach(rows=>{if(Array.isArray(rows)) rows.forEach((name,i)=>{if(name&&matches(name)) rows[i]=target;});});
+      project.sheets.forEach(sheet=>{
+        const variants=new Set([from,target,...Object.values(sheet.allocations||{}).flat().filter(name=>name&&matches(name)).map(String)]);
+        const financialFields=['paymentPaid','sharePaymentPaid','paymentRefund','paymentSupplement','sharePaymentRefund','sharePaymentSupplement','paymentRefundDone','paymentSupplementDone'];
+        const relevant=Object.values(sheet.allocations||{}).some(rows=>(rows||[]).some(name=>name&&matches(name)))||[...financialFields,'paymentNotes'].some(field=>Object.keys(sheet[field]||{}).some(matches));
+        if(!relevant) return;
+        if(financialFields.some(field=>Object.keys(sheet[field]||{}).some(key=>matches(key)&&!keys.includes(key)&&sheet[field][key])))throw new Error('「'+sheet.name+'」有旧格式的人名收款键，请先核对，暂不自动合并');
+        const evaluated=deepClone(sheet), records=recordsForSheet(evaluated).filter(r=>keys.includes(r.key));
+        for(const field of ['paymentRefundDone','paymentSupplementDone']){
+          sheet[field]=sheet[field]||{};
+          keys.forEach(key=>{if(evaluated[field]?.[key]!==undefined)sheet[field][key]=deepClone(evaluated[field][key]);});
+        }
+        if(sheet.paymentIncludeShare) records.forEach(r=>{
+          if(Object.prototype.hasOwnProperty.call(sheet.paymentPaid||{},r.key)&&Object.prototype.hasOwnProperty.call(sheet.sharePaymentPaid||{},r.key)){
+            const separate=paidAmountValue(sheet.sharePaymentPaid,r.key,r.sh.expected);
+            if(separate>0.005&&Math.abs(separate-num(r.sh.received))>0.005) throw new Error('「'+sheet.name+'」的合并收款与单独均摊已收记录不一致，请先核对，避免重复或少算');
+          }
+        });
+        for(const key of keys){
+          if(!records.some(r=>r.key===key)&&financialFields.some(field=>sheet[field]?.[key])) throw new Error('「'+sheet.name+'」有不在当前统计范围内的收款记录，请先把收款统计范围设为全部行');
+        }
+        const totals={expected:0,shareExpected:0,received:0,shareReceived:0,remaining:0,refunded:0,supplemented:0,base:0};
+        records.forEach(r=>{
+          totals.expected+=num(r.g.expected);totals.shareExpected+=num(r.sh.expected);
+          totals.received+=num(r.g.received);totals.shareReceived+=num(r.sh.received);
+          totals.remaining+=num(r.remaining);totals.refunded+=num(r.refunded);totals.supplemented+=num(r.supplemented);
+          totals.base+=num(r.remaining)-num(r.refunded)+num(r.supplemented);
+        });
+        Object.keys(totals).forEach(k=>totals[k]=round(totals[k]));
+        const oldEdits=deepClone(sheet.paymentEdits||{}), oldShareEdits=deepClone(sheet.sharePaymentEdits||{});
+        if(records.length>1){
+          const detailEdit=edits=>Object.keys(edits).some(key=>
+            ['merged-items:','merged-qty:'].some(prefix=>key.startsWith(prefix)&&matches(key.slice(prefix.length)))||
+            [...variants].some(name=>['item:','qty:'].some(prefix=>key.startsWith(prefix+name+':'))));
+          if(detailEdit(oldEdits)||detailEdit(oldShareEdits))throw new Error('「'+sheet.name+'」有手动谷子明细或数量，合并可能冲突，请先核对并恢复自动明细');
+        }
+        const migrateEdits=(source)=>{
+          const result={...source}, staged={};
+          const put=(key,value,sum=false)=>{
+            if(Object.prototype.hasOwnProperty.call(staged,key)){
+              if(sum){staged[key]=round(num(staged[key])+num(value));return;}
+              if(JSON.stringify(staged[key])!==JSON.stringify(value)) throw new Error('「'+sheet.name+'」两个人有冲突的手动明细，请先核对：'+key);
+            }else staged[key]=value;
+          };
+          Object.entries(source).forEach(([key,value])=>{
+            let found=false;
+            for(const prefix of ['__goods_snapshot__:','__settlement_base__:']){
+              if(key.startsWith(prefix)&&matches(key.slice(prefix.length))){delete result[key];return;}
+            }
+            const basePrefix='__auto_base__:';
+            if(key.startsWith(basePrefix)){
+              const inner=key.slice(basePrefix.length);
+              if(['alipay:','wechat:'].some(p=>inner.startsWith(p)&&matches(inner.slice(p.length)))){delete result[key];return;}
+            }
+            for(const prefix of ['cn:','alipay:','wechat:','merged-items:','merged-qty:']){
+              if(key.startsWith(prefix)&&matches(key.slice(prefix.length))){
+                delete result[key];found=true;
+                if(prefix==='merged-items:') put(prefix+target,value);
+                if(prefix==='merged-qty:') put(prefix+target,value,true);
+                break;
+              }
+            }
+            if(found) return;
+            for(const name of [...variants].sort((a,b)=>b.length-a.length)) for(const prefix of ['item:','qty:']){
+              const start=prefix+name+':';
+              if(key.startsWith(start)){delete result[key];put(prefix+target+':'+key.slice(start.length),value,prefix==='qty:');return;}
+            }
+          });
+          return Object.assign(result,staged);
+        };
+        sheet.paymentEdits=migrateEdits(oldEdits);sheet.sharePaymentEdits=migrateEdits(oldShareEdits);
+        const receiptMap=(field,amount)=>{
+          const map=sheet[field]||{}, existed=keys.some(k=>Object.prototype.hasOwnProperty.call(map,k));
+          keys.forEach(k=>delete map[k]);
+          if(existed||amount>0) map[targetKey]=round(amount);
+          sheet[field]=map;
+        };
+        receiptMap('paymentPaid',sheet.paymentIncludeShare?totals.received+totals.shareReceived:totals.received);
+        receiptMap('sharePaymentPaid',sheet.paymentIncludeShare?0:totals.shareReceived);
+        for(const field of ['paymentRefundDone','paymentSupplementDone']){
+          const map=sheet[field]||{}, events=[];let amount=0,legacy=false;
+          keys.forEach(key=>{
+            const entry=map[key];
+            if(entry&&typeof entry==='object'){
+              amount+=settlementTransferAmount(entry);legacy=legacy||entry.legacy===true;
+              events.push(...(entry.events||[{amount:entry.amount}]).map(event=>({...event,sourceCN:event.sourceCN||key})));
+            }else if(entry===true) throw new Error('「'+sheet.name+'」有无法识别金额的旧完成记录，请先核对');
+            delete map[key];
+          });
+          events.sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
+          if(events.length||amount>0) map[targetKey]={amount:round(amount),events,legacy};
+          sheet[field]=map;
+        }
+        for(const field of ['paymentRefund','paymentSupplement','sharePaymentRefund','sharePaymentSupplement']){
+          sheet[field]=sheet[field]||{};keys.forEach(k=>delete sheet[field][k]);
+        }
+        if(records.some(r=>r.manual)) sheet.paymentEdits['__settlement_base__:'+targetKey]=totals.base;
+        const noteKeys=Object.keys(sheet.paymentNotes||{}).filter(matches),notes=noteKeys.map(k=>sheet.paymentNotes[k]).filter(Boolean);
+        sheet.paymentNotes=sheet.paymentNotes||{};noteKeys.forEach(k=>delete sheet.paymentNotes[k]);
+        if(notes.length) sheet.paymentNotes[targetKey]=[...new Set(notes.map(String))].join(' / ');
+        const snapshots=keys.map(key=>{
+          const candidates=[key,...variants].filter(name=>normalizeDispatchKey(name)===key);
+          return candidates.map(name=>oldEdits['__goods_snapshot__:'+name]).find(Boolean);
+        }).filter(Boolean);
+        if(snapshots.length){
+          const snapshot={total:0,items:{}};
+          snapshots.forEach(s=>{snapshot.total+=num(s.total);Object.entries(s.items||{}).forEach(([item,n])=>snapshot.items[item]=round(num(snapshot.items[item])+num(n)));});
+          snapshot.total=round(snapshot.total);sheet.paymentEdits['__goods_snapshot__:'+targetKey]=snapshot;
+        }
+        let cells=0;Object.values(sheet.allocations||{}).forEach(rows=>(rows||[]).forEach(name=>{if(name&&matches(name))cells++;}));
+        renameAlloc(sheet.allocations);
+        for(const field of ['coldPromotionDraftBaseAllocations','coldPromotionSeriesBaseAllocations']) renameAlloc(sheet[field]);
+        Object.keys(sheet.matrixBoughtCells||{}).forEach(key=>{if(matches(sheet.matrixBoughtCells[key]))sheet.matrixBoughtCells[key]=target;});
+        for(const field of ['coldPromotionDraftRows','coldPromotionBatches','coldPromotionHighlights','coldPromotionSeriesBaseHighlights']) renameTree(sheet[field]);
+        if(sheet.coldPromotionSeriesFormalSignature) sheet.coldPromotionSeriesFormalSignature='';
+        // Rebase the same sum onto the renamed allocation, so old true flags and rounding cannot change money.
+        let after=recordsForSheet(deepClone(sheet)).find(r=>r.key===targetKey);
+        if(records.length&&after){
+          const rawGoods=Math.max(0,num(after.g.planned));
+          sheet.paymentEdits['alipay:'+target]=totals.expected;
+          sheet.paymentEdits['__auto_base__:alipay:'+target]=rawGoods;
+          sheet.sharePaymentEdits['alipay:'+target]=totals.shareExpected;
+          sheet.sharePaymentEdits['__auto_base__:alipay:'+target]=num(after.sh.expected);
+          after=recordsForSheet(deepClone(sheet)).find(r=>r.key===targetKey);
+          if(!after||Math.abs(num(after.remaining)-totals.remaining)>0.005||Math.abs(num(after.g.received)+num(after.sh.received)-totals.received-totals.shareReceived)>0.005) throw new Error('「'+sheet.name+'」合并后金额核对不一致，已停止；请先核对手动价格、买到状态与均摊');
+        }
+        summary.sheets.push({name:sheet.name,cells,goodsReceived:totals.received,shareReceived:totals.shareReceived});
+        summary.cells+=cells;summary.goodsReceived+=totals.received;summary.shareReceived+=totals.shareReceived;summary.refunded+=totals.refunded;summary.supplemented+=totals.supplemented;
+      });
+      const fees=(rows,archived=false)=>(rows||[]).forEach(row=>{if(matches(row.person)){row.person=target;archived?summary.archives++:summary.fees++;}renameTree(row.rawDetails);});
+      fees(project.extraFees);(project.extraFeeArchives||[]).forEach(archive=>fees(archive.extraFees,true));
+      if(!summary.cells&&!summary.fees&&!summary.archives) throw new Error('没有找到对应的记录');
+      return {project,summary,from,target};
+    }
+    function cnMergePatches(before,after){
+      const patches=[];
+      before.sheets.forEach(sheet=>{
+        const next=after.sheets.find(s=>s.id===sheet.id);if(!next)throw new Error('排单结构已改变');
+        new Set([...Object.keys(sheet),...Object.keys(next)]).forEach(field=>{
+          if(JSON.stringify(sheet[field])!==JSON.stringify(next[field])) patches.push({sheetId:sheet.id,field,before:deepClone(sheet[field]===undefined?null:sheet[field]),after:deepClone(next[field]===undefined?null:next[field])});
+        });
+      });
+      for(const field of ['extraFees','extraFeeArchives']) if(JSON.stringify(before[field])!==JSON.stringify(after[field]))patches.push({field,before:deepClone(before[field]||[]),after:deepClone(after[field]||[])});
+      return patches;
+    }
+    function cnMergeStorageKey(){return 'ggzCnMergeUndo_'+(syncCode||'local');}
+    function cnMergeInstall(project){
+      sheets=project.sheets;extraFees=project.extraFees||[];extraFeeArchives=project.extraFeeArchives||[];
+      applySheet(sheets.find(s=>s.id===activeSheetId)||sheets[0]);
+    }
+    async function openCnMerge(){
+      if(collabEnabled){await flushCollabChanges();if(collabNeedsSend){alert('请等当前修改同步成功后再统一 CN');return;}await pollCollabState();}
+      captureActiveSheet();const before=deepClone(localStatePayload()), names=cnMergeNames(before);
+      if(names.length<2){alert('至少需要两个 CN 名字');return;}
+      const answer=appDialog({title:'统一 CN',message:'选择少写或写错的名字，以及要统一成的名字。下一步先预览，不会立即修改。',okText:'预览合并',cancelText:'取消'});
+      $('appConfirmOverlay').querySelector('.app-confirm-card').classList.add('scroll-prompt');
+      const body=document.createElement('div');body.className='app-dialog-body';body.style.cssText='display:grid;gap:8px;margin:12px 0';
+      const inputs=[];
+      for(const label of ['旧名字','统一为（保留的名字）']){
+        const wrap=document.createElement('label');wrap.textContent=label;
+        const select=document.createElement('select');select.style.cssText='display:block;width:100%;margin-top:5px;padding:10px;border:1px solid #ddd;border-radius:8px';
+        const blank=document.createElement('option');blank.value='';blank.textContent='请选择 CN';select.appendChild(blank);
+        names.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;select.appendChild(option);});wrap.appendChild(select);body.appendChild(wrap);inputs.push(select);
+      }
+      $('appConfirmMessage').insertAdjacentElement('afterend',body);
+      if(!await answer)return;
+      const from=inputs[0].value,target=inputs[1].value;
+      let plan;
+      try{plan=buildCnMergePlan(before,from,target);}catch(error){await appAlert(error.message,'暂未合并');return;}
+      const s=plan.summary;
+      const lines=[from+' → '+target,'涉及 '+s.sheets.length+' 张排单 / '+s.cells+' 个排单格子','谷款已收 '+money(s.goodsReceived)+'；均摊已收 '+money(s.shareReceived),'已退款 '+money(s.refunded)+'；已补款 '+money(s.supplemented),'追加费用 '+s.fees+' 笔；追加存档 '+s.archives+' 笔','',...s.sheets.map(row=>row.name+'：'+row.cells+' 格，已收 '+money(row.goodsReceived+row.shareReceived)),'','会统一原排单名字并迁移关联收款记录；各笔国际费用和付款状态保留。'];
+      const confirmation=appConfirm(lines.join('\n'),'确认统一 CN','确认合并');
+      $('appConfirmOverlay').querySelector('.app-confirm-card').classList.add('scroll-prompt');
+      if(!await confirmation)return;
+      captureActiveSheet();const current=deepClone(localStatePayload());
+      if(JSON.stringify(current)!==JSON.stringify(before)){await appAlert('预览期间数据有新修改，请重新预览后再合并','尚未修改');return;}
+      const patches=cnMergePatches(before,plan.project), backup={workspace:syncCode||'local',time:new Date().toISOString(),from,target,patches};
+      try{localStorage.setItem(cnMergeStorageKey(),JSON.stringify(backup));if(!localStorage.getItem(cnMergeStorageKey()))throw new Error('备份失败');}
+      catch(error){await appAlert('无法保存合并撤销备份，本次没有修改。请先导出备份并检查浏览器存储空间。','尚未修改');return;}
+      recordLocalSnapshot('统一 CN 前：'+from+' → '+target,true);
+      cnMergeInstall(plan.project);
+      if(!saveState({snapshotReason:'统一 CN 后',forceSnapshot:true})){cnMergeInstall(before);saveState();await appAlert('保存失败，已恢复合并前数据');return;}
+      renderSheetTabs();renderColumnList();renderMatrix();renderSharePaymentSummary();renderExtraFees();renderDispatch();
+      await appAlert('已统一为「'+target+'」。可在排发页点“撤销上次统一”。','统一完成');
+    }
+    async function undoCnMerge(){
+      let backup;try{backup=JSON.parse(localStorage.getItem(cnMergeStorageKey())||'null');}catch(_){}
+      if(!backup||backup.workspace!==(syncCode||'local')){alert('当前协作组没有可撤销的统一记录');return;}
+      if(collabEnabled){await flushCollabChanges();if(collabNeedsSend){alert('请先等当前修改同步成功');return;}await pollCollabState();}
+      captureActiveSheet();const before=deepClone(localStatePayload()), project=deepClone(before);
+      for(const patch of backup.patches){const owner=patch.sheetId===undefined?project:project.sheets.find(s=>s.id===patch.sheetId);if(!owner||JSON.stringify(owner[patch.field]??null)!==JSON.stringify(patch.after)){await appAlert('合并涉及的记录后来又有修改，不能自动撤销，以免覆盖新记录。合并前备份仍保留。','暂不能撤销');return;}owner[patch.field]=deepClone(patch.before);}
+      if(!await appConfirm('撤销「'+backup.from+' → '+backup.target+'」？只恢复这次统一涉及的字段。','撤销统一 CN','确认撤销'))return;
+      captureActiveSheet();if(JSON.stringify(localStatePayload())!==JSON.stringify(before)){alert('确认期间数据有变化，请重新尝试');return;}
+      cnMergeInstall(project);if(!saveState()){cnMergeInstall(before);saveState();alert('撤销保存失败，已恢复');return;}
+      localStorage.removeItem(cnMergeStorageKey());renderSheetTabs();renderColumnList();renderMatrix();renderExtraFees();renderDispatch();
+      await appAlert('已撤销这次统一 CN');
+    }
     function matrixItemDisplayName(c,row,subStore=matrixBlindSubCells){
       const base=String(c?.name||'未命名').trim()||'未命名';
       const sub=String((subStore||{})[matrixBoughtKey(c?.id,row)]||'').trim();
@@ -7315,7 +7538,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function settledGoodsPaymentState(sheet,key,baseState){
       if(sheet?.paymentRefundDone?.[key]||sheet?.paymentSupplementDone?.[key]){
-        const record=recordsForSheet(sheet).find(r=>r.key===key);
+        const record=recordsForSheet(deepClone(sheet)).find(r=>r.key===key);
         if(record&&(record.refundDone||record.supplementDone)) return 'full';
       }
       return baseState;
@@ -7440,6 +7663,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function renderDispatch(){
       const list=$('dispatchList'); if(!list) return;
+      try{$('undoMergeCnBtn').disabled=!localStorage.getItem(cnMergeStorageKey());}catch(_) {$('undoMergeCnBtn').disabled=true;}
       const all=buildDispatchRecords();
       const records=all.map(person=>({...person,visibleItems:dispatchVisibleItems(person)})).filter(person=>person.visibleItems.length);
       const totalItems=records.reduce((sum,p)=>sum+p.visibleItems.length,0);
@@ -7493,6 +7717,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.addEventListener('click',()=>{ dispatchStateFilter=button.dataset.dispatchState||'all'; renderDispatch(); }));
     $('dispatchRefreshBtn').addEventListener('click',renderDispatch);
+    $('mergeCnBtn').addEventListener('click',()=>openCnMerge().catch(error=>{console.error(error);appAlert(error.message||'统一 CN 失败，请检查备份后再试');}));
+    $('undoMergeCnBtn').addEventListener('click',()=>undoCnMerge().catch(error=>{console.error(error);appAlert(error.message||'撤销失败，备份仍保留');}));
     $('dispatchSearchBtn').addEventListener('click',dispatchSearch);
     $('dispatchSearchInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); dispatchSearch(); } });
     $('dispatchCopyBtn').addEventListener('click',async()=>{
