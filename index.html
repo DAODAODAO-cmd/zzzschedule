@@ -7374,7 +7374,12 @@ body.export-rendering .cart-count{ font-size:28px; }
           }
         });
         for(const key of keys){
-          if(!records.some(r=>r.key===key)&&financialFields.some(field=>sheet[field]?.[key])) throw new Error('「'+sheet.name+'」有不在当前统计范围内的收款记录，请先把收款统计范围设为全部行');
+          if(!records.some(r=>r.key===key)&&financialFields.some(field=>sheet[field]?.[key])){
+            const fullSheet=deepClone(sheet);fullSheet.paymentStartRow=1;fullSheet.paymentEndRow=null;
+            const inFullRange=recordsForSheet(fullSheet).some(r=>r.key===key);
+            const error=new Error(inFullRange?'「'+sheet.name+'」的当前收款统计范围未包含「'+key+'」。请在该表收款页设为第 1 行到最后，再重新预览。':'「'+sheet.name+'」留有「'+key+'」的旧收款或退补记录，但整张排单已经找不到对应名字。不是统计范围的问题，改成全部行也不能解决；旧金额已保留，本次暂不移动这笔账。');
+            error.cnIssue=inFullRange?'range':'orphan';error.sheetId=sheet.id;error.personKey=key;throw error;
+          }
         }
         const totals={expected:0,shareExpected:0,received:0,shareReceived:0,remaining:0,refunded:0,supplemented:0,base:0};
         records.forEach(r=>{
@@ -7527,7 +7532,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       captureActiveSheet();const before=deepClone(localStatePayload()), names=cnMergeNames(before);
       const merging=cnRenameTargetExists(before,from,target);
       let plan;
-      try{plan=buildCnMergePlan(before,from,target);}catch(error){await appAlert(String(error.message).replace(/合并/g,'改名'),'暂未改名');return;}
+      try{plan=buildCnMergePlan(before,from,target);}catch(error){
+        if(error.cnIssue){
+          if(await appConfirm(error.message,'这笔记录需要核对','去该表收款页')){switchSheet(error.sheetId);setAppSection('payment',false);$('paymentStartRow').scrollIntoView({block:'center'});}
+        }else await appAlert(String(error.message).replace(/合并/g,'改名'),'暂未改名');
+        return;
+      }
       const s=plan.summary;
       const lines=[from+' → '+target,'涉及 '+s.sheets.length+' 张排单 / '+s.cells+' 个排单格子','谷款已收 '+money(s.goodsReceived)+'；均摊已收 '+money(s.shareReceived),'已退款 '+money(s.refunded)+'；已补款 '+money(s.supplemented),'追加费用 '+s.fees+' 笔；追加存档 '+s.archives+' 笔','',...s.sheets.map(row=>row.name+'：'+row.cells+' 格，已收 '+money(row.goodsReceived+row.shareReceived)),'',...s.warnings,'','会统一原排单名字并迁移关联收款记录；各笔国际费用和付款状态保留。'];
       if(merging)lines.splice(1,0,'新名字已存在：这次会把这两个名字视为同一个人，合并下列记录。');
@@ -10431,11 +10441,22 @@ body.export-rendering .cart-count{ font-size:28px; }
       const rowPrices=createRowPriceInfo(display,sheet.allocations||{},c=>c.isPricingCombo?num(c.fixedPrice):info.price(c));
       return {cols:display,price:rowPrices.price,rowInfo:rowPrices.rowInfo};
     }
+    function excelOrderPersonCell(sheet,c,row){
+      const name=String((sheet.allocations?.[c.id]||[])[row]||'').trim();
+      if(!name)return '';
+      const bought=sheetCellBought(c,row,name,sheet.matrixBoughtCells||{},sheet.allocations||{},sheet.pricingGroups||[],sheet.columns||[]);
+      return name+(bought?'\n【已买到】':'');
+    }
+    function parseExcelOrderPerson(value,hasBoughtMarkers){
+      const text=String(value||'').trim(), marker='\n【已买到】';
+      if(hasBoughtMarkers&&text.endsWith(marker))return {name:text.slice(0,-marker.length).trim(),bought:true};
+      return {name:text,bought:false};
+    }
     function sheetToAoa(sheet){
       const {cols,price}=sheetDisplayPriceInfo(sheet), data=sheet.allocations||{}, maxRows=Math.max(0,...cols.map(c=>(data[c.id]||[]).length));
       const rows=[['顺位',...cols.map(c=>c.name)],['价格类型',...cols.map(excelPriceType)],['价格数值',...cols.map(excelPriceValue)],['参考单价RMB',...cols.map(c=>Number(price(c).toFixed(2)))],['提配点数',...cols.map(c=>Number.isFinite(Number(c.promotionPoints))?Math.max(0,Number(c.promotionPoints)):1)]];
       const step=sheet.quantityConfigured===true&&Number.isFinite(parseInt(sheet.boxSize,10))&&Number.isFinite(parseInt(sheet.groupSize,10))?Math.max(1,parseInt(sheet.groupSize,10)):1;
-      for(let r=0;r<maxRows;r++) rows.push([(r+1)*step,...cols.map(c=>(data[c.id]||[])[r]||'')]);
+      for(let r=0;r<maxRows;r++) rows.push([(r+1)*step,...cols.map(c=>excelOrderPersonCell(sheet,c,r))]);
       return rows;
     }
     function safeExcelSheetName(name,used){
@@ -10445,10 +10466,51 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function appendOrderSheet(wb,sheet,name){
       const rows=sheetToAoa(sheet), ws=XLSX.utils.aoa_to_sheet(rows);
+      wb.Custprops={...(wb.Custprops||{}),ggzBoughtMarkerVersion:'1'};
+      rows.slice(5).forEach((row,i)=>{if(row.some(value=>String(value||'').includes('\n【已买到】'))){ws['!rows']=ws['!rows']||[];ws['!rows'][i+5]={hpt:30};}});
       ws['!cols']=[{wch:8},...Array(Math.max(0,(rows[0]||[]).length-1)).fill(0).map(()=>({wch:16}))];
       ws['!freeze']={xSplit:1,ySplit:5};
       if(ws.A1) ws.A1.c=[{a:'Codex',t:'从第 6 行开始填写排单。第 2 行选价格类型；第 3 行只填数字：入均=人民币单价，原价换算=日元原价，调价/拼盒调价=加减人民币。'}];
       XLSX.utils.book_append_sheet(wb,ws,name);
+    }
+    function excelArchiveTables(selectedSheets,fees,archives){
+      const money=value=>Math.round(num(value)*100)/100;
+      const goods=[['排单','排单ID','行号','CN','谷子','数量','购买标记','原单价（元）','本排降均（元）','实际单价（元）','已买到金额（元）','岛内到货日期','国内到货日期']];
+      const ledger=[['排单','排单ID','统计起始行','统计结束行','CN','谷子明细','未买到明细','谷子原应收（元）','谷子实际应收（元）','谷子已收（元）','均摊应收（元）','均摊已收（元）','已退款（元）','已补款（元）','待退款（元）','支付宝待补（元）','微信待补（元）','退补状态','备注']];
+      selectedSheets.forEach(original=>{
+        const sheet=deepClone(original), info=sheetDisplayPriceInfo(sheet), alloc=sheet.allocations||{};
+        info.cols.forEach(c=>(alloc[c.id]||[]).forEach((person,row)=>{
+          const name=String(person||'').trim();if(!name)return;
+          const bought=sheetCellBought(c,row,name,sheet.matrixBoughtCells||{},alloc,sheet.pricingGroups||[],sheet.columns||[]), base=money(info.price(c)), actual=money(info.price(c,row));
+          goods.push([sheet.name,sheet.id,row+1,name,matrixItemDisplayName(c,row,sheet.matrixBlindSubCells||{}),1,bought?'已买到':'未标记买到',base,money(base-actual),actual,bought?actual:0,logisticsCellMark(c,row,name,sheet.matrixIslandCells||{},alloc)||'',logisticsCellMark(c,row,name,sheet.matrixChinaCells||{},alloc)||'']);
+        }));
+        recordsForSheet(sheet).forEach(r=>ledger.push([sheet.name,sheet.id,Math.max(1,num(sheet.paymentStartRow)||1),sheet.paymentEndRow||'最后',r.name,formatCountMap(r.g.items),formatMissingCountMap(r.g),money(r.g.expected),money(r.g.actual),money(r.g.received),money(r.sh.expected),money(r.sh.received),money(r.refunded),money(r.supplemented),money(r.refund),money(r.due),r.due>0.005?money(wechatFeeAmount(r.due)):0,r.refund>0.005?'待退款':r.due>0.005?'待补款':'已结清',String(sheet.paymentNotes?.[r.key]||'')]));
+      });
+      const feeRows=[['记录范围','存档名称','存档日期','费用ID','CN','费用名称','费用类型','来源排单ID','来源说明','批次ID','批次日期','谷子明细','支付宝金额（元，退款为负）','微信金额（元，退款为负）','支付状态','已完成支付宝金额（元）','未完成支付宝金额（元）','创建日期','完成日期','计费方式','个人计费重量','个人商品重量','批次商品总重','批次计费总重','批次总金额（元）','备注']];
+      const detailRows=[['记录范围','存档名称','费用ID','CN','费用名称','批次ID','谷子','数量','点数','重量','单位计费依据','本行计费依据']];
+      const appendFee=(f,archive)=>{
+        const amount=money(extraFeeSignedAmount(f)), wx=amount<0?amount:money(extraFeeWechatAmount(amount)), scope=archive?'历史存档':'当前费用';
+        feeRows.push([scope,archive?.name||'',archive?.createdAt||'',f.id,f.person,f.name,f.feeType||'manual',f.sheetId||'',f.source||'',f.batchId||'',f.batchDate||'',extraFeeGoodsText(f),amount,wx,f.paid?'已完成':'未完成',f.paid?amount:0,f.paid?0:amount,f.createdAt||'',f.paidAt||'',f.splitMode||'',num(f.chargeWeight),num(f.goodsWeight),num(f.batchGoodsWeight),num(f.batchTotalWeight),money(f.totalAmount),f.note||'']);
+        (f.rawDetails||[]).forEach(d=>detailRows.push([scope,archive?.name||'',f.id,f.person,f.name,f.batchId||'',d.item,num(d.qty),num(d.point),num(d.weight),num(d.unitValue),num(d.lineBasis)]));
+      };
+      (fees||[]).forEach(f=>appendFee(f,null));
+      (archives||[]).forEach(a=>(a.extraFees||[]).forEach(f=>appendFee(f,a)));
+      return [
+        ['存档说明',[['项目','说明'],['导出时间',new Date().toISOString()],['排单范围',selectedSheets.map(s=>s.name).join('、')],['谷子明细','包含所选排单全部行；未标记买到不等于明确未购买。'],['收款与退补','按各排单当前收款统计范围和结算设置存档，均摊与谷子分列。'],['国际与追加费用','为防止遗漏未关联排单的国际费，保留整个项目的当前费用和历史存档；按记录范围筛选，不要将历史与当前重复加总。'],['国际商品明细','按费用ID关联费用金额；原记录没有逐件分配金额时不虚构金额。'],['金额口径','金额单位为人民币元，数值可筛选和加总；费用退款为负数。'],['恢复提醒','Excel用于查账存档；完整恢复协作数据请另存全部排单JSON备份。']]],
+        ['谷子购买明细',goods],['收款与退补账',ledger],['国际与追加费用',feeRows],['国际商品明细',detailRows]
+      ];
+    }
+    function appendExcelArchive(wb,selectedSheets,used){
+      const names=[];
+      excelArchiveTables(selectedSheets,extraFees,extraFeeArchives).forEach(([title,rows])=>{
+        const name=safeExcelSheetName(title,used),ws=XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols']=rows[0].map(label=>({wch:/明细|说明|备注/.test(label)?48:/日期|时间/.test(label)?23:18}));
+        ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(0,rows.length-1),c:rows[0].length-1}})};
+        ws['!freeze']={xSplit:0,ySplit:1};
+        rows.slice(1).forEach((row,r)=>row.forEach((value,c)=>{if(typeof value==='number'&&/金额|单价|应收|已收|降均|退款|待补|已补/.test(rows[0][c])){const cell=ws[XLSX.utils.encode_cell({r:r+1,c})];if(cell)cell.z='0.00';}}));
+        XLSX.utils.book_append_sheet(wb,ws,name);names.push(name);
+      });
+      wb.Custprops={...(wb.Custprops||{}),ggzArchiveSheets:JSON.stringify(names)};
     }
     function currentQuantityExportRows(mode){
       const displayColumns=orderDisplayColumns();
@@ -10486,12 +10548,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('exportCurrentExcelBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       captureActiveSheet(); const sheet=sheets.find(s=>s.id===activeSheetId); if(!sheet||!sheet.columns.length){ alert('还没有排单数据'); return; }
-      const wb=XLSX.utils.book_new(), used=new Set(); appendOrderSheet(wb,sheet,safeExcelSheetName(sheet.name,used)); XLSX.writeFile(wb,`${sheet.name||'当前排单'}.xlsx`); $('dataActions').open=false;
+      const wb=XLSX.utils.book_new(), used=new Set(); appendOrderSheet(wb,sheet,safeExcelSheetName(sheet.name,used)); appendExcelArchive(wb,[sheet],used); XLSX.writeFile(wb,`${sheet.name||'当前排单'}-存档.xlsx`); $('dataActions').open=false;
     });
     $('exportAllExcelBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       captureActiveSheet(); const available=sheets.filter(s=>(s.columns||[]).length); if(!available.length){ alert('还没有排单数据'); return; }
-      const wb=XLSX.utils.book_new(), used=new Set(); available.forEach(sheet=>appendOrderSheet(wb,sheet,safeExcelSheetName(sheet.name,used))); XLSX.writeFile(wb,'全部排单.xlsx'); $('dataActions').open=false;
+      const wb=XLSX.utils.book_new(), used=new Set(); available.forEach(sheet=>appendOrderSheet(wb,sheet,safeExcelSheetName(sheet.name,used))); appendExcelArchive(wb,available,used); XLSX.writeFile(wb,'全部排单-存档.xlsx'); $('dataActions').open=false;
     });
     function downloadBackup(payload,name){
       const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
@@ -10544,8 +10606,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       const reader=new FileReader();
       reader.onload=()=>{
         try{
-          const book=XLSX.read(reader.result,{type:'array'}), imported=[];
+          const book=XLSX.read(reader.result,{type:'array'}), imported=[], hasBoughtMarkers=String(book.Custprops?.ggzBoughtMarkerVersion||'')==='1';
           book.SheetNames.forEach(sheetName=>{
+            let archiveNames=[];try{archiveNames=JSON.parse(book.Custprops?.ggzArchiveSheets||'[]');}catch(e){}if(Array.isArray(archiveNames)&&archiveNames.includes(sheetName))return;
             if(/填写说明|说明|help/i.test(String(sheetName||''))) return;
             const rows=XLSX.utils.sheet_to_json(book.Sheets[sheetName],{header:1,raw:false,defval:''});
             if(!rows.length) return;
@@ -10576,8 +10639,9 @@ body.export-rendering .cart-count{ font-size:28px; }
               return {id,name:name||`角色${i+1}`,aliases:[],mode,priceAdj,fixedPrice,sourceJpyPrice,promotionPoints:Number.isFinite(promotionPoint)?Math.max(0,promotionPoint):1,img:null};
             });
             sheet.allocations={};
+            sheet.matrixBoughtCells={};
             sheet.columns.forEach((c,i)=>{
-              const arr=rows.slice(dataStart).map(r=>String((r||[])[i+startCol]||'').trim());
+              const arr=rows.slice(dataStart).map((r,row)=>{const parsed=parseExcelOrderPerson((r||[])[i+startCol],hasBoughtMarkers);if(parsed.bought&&parsed.name)sheet.matrixBoughtCells[matrixBoughtKey(c.id,row)]=parsed.name;return parsed.name;});
               while(arr.length&&!arr[arr.length-1]) arr.pop(); sheet.allocations[c.id]=arr;
             });
             imported.push(sheet);
