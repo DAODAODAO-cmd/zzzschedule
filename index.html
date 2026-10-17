@@ -400,6 +400,19 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div id="avgDeductDetail" class="hint cost-human-tip" style="display:none;"></div>
     <div id="avgWarn" class="warn" style="display:none;"></div>
+    <details id="secondPricePanel" class="second-price-panel">
+      <summary>二调计算器 · 成本、卖出及满赠抵扣</summary>
+      <div class="hint">按一类谷子分组试算，保留原价差。原收款和已退补不改，确认应用后才更新所选已买到格子的应收。均摊费、国际费另算。</div>
+      <div class="toolbar"><select id="secondPriceSavedSelect"><option value="">新建试算</option></select><button type="button" class="btn-ghost" id="secondPriceRefreshBtn">读取当前排单</button></div>
+      <div class="second-price-fields"><label>本组名称<input id="secondPriceName" placeholder="例如：衣服挂／吧唧A"></label><label>实际购买总成本（元）<input id="secondPriceCost" inputmode="decimal" placeholder="包含买到但还没排出的库存成本"></label></div>
+      <details><summary class="hint">用日元单价快速计算成本</summary><div class="second-price-fields"><label>日元单价<input id="secondPriceJpy" inputmode="decimal"></label><label>汇率<input id="secondPriceRate" inputmode="decimal"></label><label>购买总量<input id="secondPriceQty" inputmode="numeric"></label><button type="button" class="btn-ghost" id="secondPriceJpyBtn">填入人民币总成本</button></div></details>
+      <div class="hint">选择本组包含的谷子列（不同种类请分别保存试算）：</div><div id="secondPriceColumns" class="second-price-columns"></div>
+      <div class="toolbar"><strong>卖出／满赠／其他抵扣</strong><button type="button" class="btn-ghost" id="secondPriceAddCreditBtn">＋ 添加抵扣</button></div><div id="secondPriceCredits"></div>
+      <div class="hint">只填实际卖回或你明确确认抵扣的净金额，不能重复记入。表外售出的谷子请先在排单里取消该人的买到标记，再读取；本计算器不替你删除名字。</div>
+      <label class="sheet-dispatch-option"><input type="checkbox" id="secondPriceBoughtOnly" checked>只分给已标记买到的谷子</label><span class="hint">没有使用买到标记的表，可以取消此项，按全部已排格子试算。</span>
+      <div class="toolbar"><button type="button" class="btn-primary" id="secondPriceCalculateBtn">计算并预览</button><button type="button" class="btn-ghost" id="secondPriceSaveBtn" disabled>保存本组试算</button><button type="button" class="btn-ghost" id="secondPriceApplyBtn" disabled>核对后应用到本表</button></div>
+      <div id="secondPriceResult" class="hint">先选择谷子、填写本组购买成本，再计算。试算不会修改原表。</div>
+    </details>
   </div>
 
   <div class="panel desktop-setup" id="columnPanel">
@@ -634,7 +647,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收齐：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div class="extra-fee-filter payment-status-filter" data-payment-status-filter="goods"><button type="button" class="active" data-payment-filter="all">全部</button><button type="button" data-payment-filter="refund">退款</button><button type="button" data-payment-filter="unpaid">未收</button><button type="button" data-payment-filter="paid">已收</button></div>
       <div id="paymentSummary" class="payment-summary"></div>
-      <div class="toolbar"><button type="button" class="btn-ghost" id="openCashLedgerBtn">收退补流水</button><span class="hint">查看当前表的历史收款、退补和转单；历史无金额标记须人工核对。</span></div>
+      <details id="cashLedgerAdminTools" class="cash-ledger-admin-tools" hidden><summary>账务管理 <small>仅管理员</small></summary><div><button type="button" class="btn-ghost" id="openCashLedgerBtn">查看收退补流水</button><span class="hint">当前表的收款、退款、补款和转单记录</span></div></details>
       <div class="toolbar"><button type="button" class="btn-ghost settlement-mode-toggle" id="toggleBoughtSettlementBtn" data-mobile-label="结算中心" aria-pressed="false" title="仅在缺货、砍单或需要退补款时开启；开启后同时显示差额与结算中心">开启结算中心</button><button type="button" class="btn-ghost payment-calc-toggle" id="collectBoughtOnlyBtn" data-mobile-label="买到" aria-pressed="false" title="收款表只显示并计算已标记买到的谷子，没买到的自动隐藏">只收买到：未开启</button><button type="button" class="btn-ghost payment-calc-toggle" id="includeShareInPaymentBtn" data-mobile-label="均摊" aria-pressed="false" title="打开后，谷子收款金额会自动加上均摊">加入均摊：未开启</button><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportRefundPaymentBtn" data-mobile-label="退款图">导出退款图</button><button class="btn-ghost" id="exportUnpaidPaymentBtn" data-mobile-label="未肾">导出未肾图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div><div id="settlementDashboard" class="settlement-dashboard" hidden></div>
     </div>
     <div id="extraPaymentView" style="display:none;">
@@ -1288,6 +1301,24 @@ html{ scrollbar-gutter:stable; }
 .cash-ledger-person{padding:12px 0;border-bottom:1px solid var(--line);}
 .cash-ledger-person p{margin:7px 0;font-size:12px;line-height:1.7;}
 .cash-ledger-person ol{margin:8px 0;padding-left:22px;font-size:12px;line-height:1.8;}
+.cash-ledger-admin-tools{margin:9px 0;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);}
+.cash-ledger-admin-tools[hidden]{display:none!important;}
+.cash-ledger-admin-tools summary{cursor:pointer;color:var(--muted);font-size:11px;font-weight:650;}
+.cash-ledger-admin-tools summary small{margin-left:6px;font-size:10px;font-weight:400;opacity:.75;}
+.cash-ledger-admin-tools>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px;}
+.second-price-panel{margin-top:15px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);}
+.second-price-panel>summary{font-weight:800;cursor:pointer;color:var(--accent);}
+.second-price-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:12px 0;align-items:end;}
+.second-price-fields label{font-size:12px;color:var(--muted);}
+.second-price-fields input{display:block;width:100%;box-sizing:border-box;margin-top:5px;}
+.second-price-columns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;}
+.second-price-columns label{display:flex;align-items:center;gap:5px;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:7px;font-size:12px;}
+.second-price-columns input{width:15px!important;min-width:15px!important;height:15px;accent-color:#d1466a;}
+.second-price-credit{display:grid;grid-template-columns:1fr 130px auto;gap:7px;margin:7px 0;}
+.second-price-table-wrap{max-height:370px;overflow:auto;margin-top:10px;}
+.second-price-table-wrap table{width:100%;border-collapse:collapse;background:#fff;font-size:12px;}
+.second-price-table-wrap th,.second-price-table-wrap td{padding:7px;border:1px solid var(--line);text-align:left;}
+@media(max-width:620px){.second-price-credit{grid-template-columns:1fr 95px auto;}.second-price-fields{grid-template-columns:1fr 1fr;}}
 .dispatch-action:hover{background:#fff;border-color:#cdbdcb;}
 .dispatch-action:focus-visible{outline:2px solid #d1466a;outline-offset:2px;}
 .dispatch-action.is-ship{background:#fceaf0;border-color:#f1ccda;color:#b6365b;}
@@ -2032,6 +2063,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function currentWorkspace(){ return workspaces.find(group=>group.id===activeWorkspaceId)||null; }
     function renderWorkspaceUI(){
+      syncCashLedgerAccess();
       const select=$('workspaceSelect'),group=currentWorkspace();
       select.innerHTML=workspaces.length?workspaces.map(item=>`<option value="${escapeAttr(item.id)}"${item.id===activeWorkspaceId?' selected':''}>${escapeHtml(item.name)}</option>`).join(''):'<option value="">还没有协作组</option>';
       select.disabled=workspaceLoading||!workspaces.length;
@@ -2380,6 +2412,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(viewportKeepSuspended()) scrollColdPromotionPreviewIntoView();
       }
       isLoadingSheet=false;
+      if($('secondPricePanel')?.open&&$('secondPricePanel').dataset.sheetId!==String(activeSheetId))renderSecondPriceSetup();
     }
     function applyCost(c){
       c=c||{};
@@ -3762,8 +3795,80 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {rowInfo,price:(c,row)=>Number.isInteger(row)?num(basePrice(c))-(rowInfo(row).deductions.get(String(c.id))||0):num(basePrice(c))};
     }
     let currentRowPriceInfo=null;
+    function secondPriceCellAmount(sheet,c,row,person){
+      if(!sheet||!Number.isInteger(row))return null;
+      const entry=sheet.secondPriceCellPrices?.[matrixBoughtKey(c.id,row)];
+      if(!entry||normalizeDispatchKey(entry.person)!==normalizeDispatchKey(person)||Number(entry.colId)!==Number(c.id)||!Number.isFinite(Number(entry.amount)))return null;
+      return Math.max(0,Number(entry.amount));
+    }
+    function calculateSecondPrices(lines,cost,credits){
+      const cents=value=>Math.round(Number(value)*100);
+      if(!Number.isFinite(Number(cost))||Number(cost)<0)throw new Error('请填写有效的本组实际购买总成本');
+      if(!lines.length)throw new Error('没有参与分配的谷子，请检查所选列和“只分给已标记买到”设置');
+      const deductions=(credits||[]).map(row=>{if(!Number.isFinite(Number(row.amount))||Number(row.amount)<0)throw new Error('抵扣金额必须是非负数字');if(Number(row.amount)>0&&!String(row.note||'').trim())throw new Error('请给每笔抵扣填写说明，避免重复记账');return cents(row.amount);});
+      const creditTotal=deductions.reduce((a,b)=>a+b,0),target=cents(cost)-creditTotal;if(target<0)throw new Error('抵扣超过购买成本，请核对；不能把负成本分给大家');
+      const original=lines.map(line=>Math.max(0,cents(line.oldPrice))),ideal=original.map(()=>0);let active=original.map((_,index)=>index);
+      while(active.length){const shift=(target-active.reduce((sum,index)=>sum+original[index],0))/active.length,negative=active.filter(index=>original[index]+shift<0);if(!negative.length){active.forEach(index=>ideal[index]=original[index]+shift);break;}const excluded=new Set(negative);active=active.filter(index=>!excluded.has(index));}
+      const result=ideal.map(value=>Math.floor(value+1e-8));let remainder=target-result.reduce((a,b)=>a+b,0);
+      const order=active.slice().sort((a,b)=>(ideal[b]-result[b])-(ideal[a]-result[a])||a-b);
+      for(let i=0;i<remainder;i++)result[order[i%order.length]]++;
+      return {cost:cents(cost)/100,creditTotal:creditTotal/100,target:target/100,oldTotal:original.reduce((a,b)=>a+b,0)/100,lines:lines.map((line,index)=>({...line,newPrice:result[index]/100,difference:(result[index]-original[index])/100})),rounded:remainder>0};
+    }
+    function buildSecondPricePlan(source,config){
+      const sheet=deepClone(source),info=sheetDisplayPriceInfo(sheet),selected=new Set(config.columnIds.map(Number)),lines=[];
+      info.cols.filter(c=>selected.has(Number(c.id))).forEach(c=>{if(c.mode==='deduct'||c.mode==='wholeset')throw new Error('降均列和整配汇总列不能重复参与二调，请取消选择');(sheet.allocations?.[c.id]||[]).forEach((person,row)=>{const name=String(person||'').trim();if(!name)return;if(config.boughtOnly&&!sheetCellBought(c,row,name,sheet.matrixBoughtCells||{},sheet.allocations||{},sheet.pricingGroups||[],sheet.columns||[]))return;lines.push({colId:c.id,item:c.name,row,person:name,oldPrice:info.price(c,row)});});});
+      const result=calculateSecondPrices(lines,config.cost,config.credits),calculationId=config.id||'second_'+Date.now();
+      sheet.secondPriceCellPrices=sheet.secondPriceCellPrices||{};
+      result.lines.forEach(line=>sheet.secondPriceCellPrices[matrixBoughtKey(line.colId,line.row)]={person:line.person,colId:line.colId,amount:line.newPrice,calculationId});
+      const affected=new Set(lines.map(line=>normalizeDispatchKey(line.person))),before=new Map(recordsForSheet(deepClone(source)).map(r=>[r.key,r])),after=recordsForSheet(sheet).filter(r=>affected.has(r.key));
+      const blocked=after.filter(r=>r.historyUnknown||r.manual||['alipay:'+r.name,'alipay:'+r.key].some(key=>Object.prototype.hasOwnProperty.call(sheet.paymentEdits||{},key)));
+      return {...result,calculationId,config:{...config,id:calculationId},updates:sheet.secondPriceCellPrices,people:after.map(r=>({...r,previous:before.get(r.key)})),blocked,needsSettlement:config.boughtOnly&&source.showBoughtSettlement!==true};
+    }
+    let secondPricePreview=null;
+    function invalidateSecondPrice(){secondPricePreview=null;$('secondPriceSaveBtn').disabled=true;$('secondPriceApplyBtn').disabled=true;}
+    function addSecondPriceCredit(note='',amount=''){
+      const row=document.createElement('div');row.className='second-price-credit';row.innerHTML=`<input data-second-credit-note placeholder="抵扣说明：卖出／满赠…" value="${escapeAttr(note)}"><input data-second-credit-amount inputmode="decimal" placeholder="抵扣元" value="${escapeAttr(amount)}"><button type="button" class="btn-ghost" data-second-credit-remove>删除</button>`;$('secondPriceCredits').appendChild(row);
+    }
+    function renderSecondPriceSetup(config=null){
+      captureActiveSheet();invalidateSecondPrice();const sheet=sheets.find(s=>s.id===activeSheetId),info=sheetDisplayPriceInfo(sheet),saved=Array.isArray(sheet.secondPriceCalculations)?sheet.secondPriceCalculations:[];
+      $('secondPricePanel').dataset.sheetId=String(activeSheetId);
+      $('secondPriceSavedSelect').innerHTML='<option value="">新建试算</option>'+saved.map(c=>`<option value="${escapeAttr(c.id)}">${escapeHtml(c.name)}${c.appliedAt?' · 已应用':' · 已保存试算'}</option>`).join('');$('secondPriceSavedSelect').value=config?.id||'';
+      $('secondPriceName').value=config?.name||'';$('secondPriceCost').value=config?.cost??'';$('secondPriceRate').value=sheet.cost?.exchangeRate||'';$('secondPriceBoughtOnly').checked=config?.boughtOnly!==false;
+      const selected=config?new Set(config.columnIds.map(Number)):new Set(info.cols.filter(c=>c.mode!=='deduct'&&c.mode!=='wholeset').map(c=>Number(c.id)));
+      $('secondPriceColumns').innerHTML=info.cols.filter(c=>c.mode!=='deduct'&&c.mode!=='wholeset').map(c=>`<label><input type="checkbox" data-second-column="${c.id}" ${selected.has(Number(c.id))?'checked':''}>${escapeHtml(c.name)} <small>已排 ${(sheet.allocations?.[c.id]||[]).filter(n=>String(n||'').trim()).length}</small></label>`).join('');
+      $('secondPriceCredits').innerHTML='';(config?.credits||[]).forEach(row=>addSecondPriceCredit(row.note,row.amount));
+      $('secondPriceResult').textContent='试算不会修改原表。确认本组列、成本和抵扣后，点“计算并预览”。';
+    }
+    function readSecondPriceConfig(){
+      if(!$('secondPriceCost').value.trim())throw new Error('请填写本组实际购买总成本，不自动猜成本');
+      const name=$('secondPriceName').value.trim();if(!name)throw new Error('请填写本组名称，例如“衣服挂”');
+      return {id:$('secondPriceSavedSelect').value||'',name,cost:Number($('secondPriceCost').value),columnIds:[...$('secondPriceColumns').querySelectorAll('[data-second-column]:checked')].map(input=>Number(input.dataset.secondColumn)),boughtOnly:$('secondPriceBoughtOnly').checked,credits:[...$('secondPriceCredits').children].map(row=>({note:row.querySelector('[data-second-credit-note]').value.trim(),amount:Number(row.querySelector('[data-second-credit-amount]').value||0)}))};
+    }
+    function previewSecondPrice(){
+      try{if($('secondPricePanel').dataset.sheetId!==String(activeSheetId)){renderSecondPriceSetup();throw new Error('已切换排单，请重新填写当前表的试算');}captureActiveSheet();const sheet=sheets.find(s=>s.id===activeSheetId),plan=buildSecondPricePlan(sheet,readSecondPriceConfig());secondPricePreview={sheetId:activeSheetId,signature:JSON.stringify(sheet),plan};
+        const rows=plan.lines.map(line=>`<tr><td>${escapeHtml(line.person)}</td><td>${escapeHtml(line.item)} · 第${line.row+1}行</td><td>${money(line.oldPrice)}</td><td>${money(line.newPrice)}</td><td>${line.difference>=0?'+':''}${money(line.difference)}</td></tr>`).join('');
+        const people=plan.people.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${money(settlementCurrentCash(r))}</td><td>${money(num(r.g.actual)+num(r.sh.expected))}</td><td>${r.historyUnknown?'历史待核对':r.refund>0.005?'退 '+money(r.refund):r.due>0.005?'补 '+money(r.due):'已结清'}</td></tr>`).join('');
+        $('secondPriceResult').innerHTML=`<p><b>${escapeHtml(plan.config.name)}</b>：购买成本 ${money(plan.cost)} − 抵扣 ${money(plan.creditTotal)} ＝ 本组承担 ${money(plan.target)}<br>参与 ${plan.lines.length} 件 · 原合计 ${money(plan.oldTotal)} → 新合计 ${money(plan.lines.reduce((sum,line)=>sum+line.newPrice,0))} · 尾差已按分补平。原价差尽量保留，最低为 0。</p><div class="second-price-table-wrap"><table><thead><tr><th>CN</th><th>谷子</th><th>原单价</th><th>新单价</th><th>单价变化</th></tr></thead><tbody>${rows}</tbody></table></div><p>以下退补按当前表结算设置，并已计入历史退款、补款和转单。与单价变化不是同一回事。</p><div class="second-price-table-wrap"><table><thead><tr><th>CN</th><th>当前实收</th><th>新应收（含均摊）</th><th>剩余退补</th></tr></thead><tbody>${people}</tbody></table></div>${plan.blocked.length?'<p style="color:#b97820">可保存试算，但暂不能应用：'+escapeHtml(plan.blocked.map(r=>r.name).join('、'))+' 有历史金额待核对或手动应收／退补设置，请先在收退补流水、结算中心核对。</p>':''}`;
+        if(plan.needsSettlement)$('secondPriceResult').insertAdjacentHTML('afterbegin','<p style="color:#b97820"><b>当前未开启结算中心。</b>只分给买到的谷子时，请先在收款页开启结算中心，再重新试算并应用，避免未买到的仍按原排单计收。现在可先保存试算。</p>');
+        $('secondPriceSaveBtn').disabled=false;$('secondPriceApplyBtn').disabled=plan.blocked.length>0||plan.needsSettlement;
+      }catch(error){invalidateSecondPrice();$('secondPriceResult').textContent=error.message||'试算失败';}
+    }
+    function saveSecondPriceConfiguration(sheet,plan,applied=false){
+      const list=Array.isArray(sheet.secondPriceCalculations)?sheet.secondPriceCalculations:[],row={...deepClone(plan.config),savedAt:new Date().toISOString(),...(applied?{appliedAt:new Date().toISOString()}:{})},index=list.findIndex(c=>c.id===row.id);if(index>=0)list[index]={...list[index],...row};else list.push(row);sheet.secondPriceCalculations=list;
+    }
+    async function applySecondPrice(){
+      const preview=secondPricePreview;if(!preview||preview.plan.blocked.length||preview.plan.needsSettlement)return;
+      captureActiveSheet();let sheet=sheets.find(s=>s.id===activeSheetId);if(preview.sheetId!==activeSheetId||JSON.stringify(sheet)!==preview.signature){invalidateSecondPrice();await appAlert('排单、价格或账目已变化，请重新计算预览。','未应用');return;}
+      if(!await appConfirm(`应用「${preview.plan.config.name}」的二调价格？\n${preview.plan.lines.length} 件，总成本减抵扣后合计 ${money(preview.plan.target)}。\n只更新这些已选格子的应收，原收款、已退补、均摊、国际都不改。列头原单价保留，格子显示“二调实价”。`,'确认二调','应用新价'))return;
+      captureActiveSheet();sheet=sheets.find(s=>s.id===activeSheetId);if(preview.sheetId!==activeSheetId||JSON.stringify(sheet)!==preview.signature){invalidateSecondPrice();await appAlert('确认期间数据有变化，请重新试算。','未应用');return;}
+      if(!pushUndoSnapshot('second-price','应用二调前'))return;
+      const before=deepClone(sheet);rememberPaidGoodsSnapshotsBeforePriceChange();sheet.secondPriceCellPrices=deepClone(preview.plan.updates);saveSecondPriceConfiguration(sheet,preview.plan,true);sheet.secondPriceApplicationHistory=[...(sheet.secondPriceApplicationHistory||[]),{at:new Date().toISOString(),name:preview.plan.config.name,cost:preview.plan.cost,credits:deepClone(preview.plan.config.credits),target:preview.plan.target,lines:deepClone(preview.plan.lines)}];
+      if(!saveState()){sheets[sheets.findIndex(s=>s.id===before.id)]=before;applySheet(before);await appAlert('保存失败，已保留原表和原账，请先备份并处理存储空间。','未应用');return;}
+      invalidateSecondPrice();renderColumnList();renderMatrix();$('secondPriceResult').textContent='已应用二调。原收款和退补记录未改变；格子显示二调实价，收款表按新的应收继续算差额。可用“撤回上次应用”撤回。';
+    }
     function allocationUnitPrice(c,row){
       if(!currentRowPriceInfo)currentRowPriceInfo=createRowPriceInfo(orderDisplayColumns(),allocations,unitPrice);
+      const sheet=typeof sheets!=='undefined'?sheets.find(s=>s.id===activeSheetId):null,override=secondPriceCellAmount(sheet,c,row,(allocations[c.id]||[])[row]);if(override!==null)return override;
       return currentRowPriceInfo.price(c,row);
     }
     function computeAverage(){
@@ -4255,6 +4360,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!await appConfirm('确定删除这一列吗？该列已生成的配比数据也会一并清除。','删除谷子列','确认删除')) return;
       columns=columns.filter(c=>c.id!==id); delete allocations[id]; pricingGroups.forEach(g=>{ g.memberIds=g.memberIds.filter(memberId=>memberId!==id); if(g.originalPricing) delete g.originalPricing[id]; }); pricingGroups=pricingGroups.filter(g=>g.memberIds.length>=2);
       [matrixBoughtCells,matrixIslandCells,matrixChinaCells,matrixBlindSubCells].forEach(store=>deleteMatrixCellStoreColumn(store,id));
+      const pricedSheet=sheets.find(s=>s.id===activeSheetId);if(pricedSheet?.secondPriceCellPrices)deleteMatrixCellStoreColumn(pricedSheet.secondPriceCellPrices,id);
       coldCarryBundleColumnIds=coldCarryBundleColumnIds.filter(colId=>colId!==id);
       saveState(); renderColdBundleConfiguration(); renderColumnList(); renderPricingGroups(); recalc();
     };
@@ -4726,6 +4832,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       matrixIslandCells=shiftStore(matrixIslandCells);
       matrixChinaCells=shiftStore(matrixChinaCells);
       matrixBlindSubCells=shiftStore(matrixBlindSubCells);
+      const pricedSheet=sheets.find(s=>s.id===activeSheetId);if(pricedSheet?.secondPriceCellPrices)pricedSheet.secondPriceCellPrices=shiftStore(pricedSheet.secondPriceCellPrices);
       trimTail(arr);
     }
     function deleteMatrixCellStoreColumn(store,colId){
@@ -4822,8 +4929,9 @@ body.export-rendering .cart-count{ font-size:28px; }
           const pendingName=nm&&pendingPreviewRows.get(r)===String(nm)&&!completePreviewRows.has(r);
           const key=`${c.id}:${r}`, isAdded=isPreview&&addedPreviewCells.has(key), transferChange=isPreview?transferPreviewCells.get(key):null;
           const personContent=transferChange?`<span class="preview-transfer-name">${escapeHtml(transferChange.from)}</span><span class="preview-transfer-arrow">→</span><span class="preview-transfer-name">${escapeHtml(transferChange.to)}</span>`:(nm?escapeHtml(nm):'');
-          const actualPrice=nm?matrixRowPrices.price(c,r):unitPrice(c), rowDeduction=nm?Math.max(0,unitPrice(c)-actualPrice):0;
-          const rowPriceNote=rowDeduction>0.005?`<small class="matrix-row-price">${money(unitPrice(c))} − ${money(rowDeduction)} = ${money(actualPrice)}</small>`:'';
+          const secondPrice=!isPreview&&nm?secondPriceCellAmount(sheets.find(s=>s.id===activeSheetId),c,r,nm):null;
+          const actualPrice=secondPrice!==null?secondPrice:nm?matrixRowPrices.price(c,r):unitPrice(c), rowDeduction=nm?Math.max(0,unitPrice(c)-actualPrice):0;
+          const rowPriceNote=secondPrice!==null?`<small class="matrix-row-price">二调实价 ${money(actualPrice)}</small>`:rowDeduction>0.005?`<small class="matrix-row-price">${money(unitPrice(c))} − ${money(rowDeduction)} = ${money(actualPrice)}</small>`:'';
           const cellTabIndex=!isPreview?` tabindex="0"`:'';
           return `<td class="cell${nm?' has-name':''}${bought?' bought-cell':''}${chinaDate?' china-cell':''}${!chinaDate&&islandDate?' island-cell':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" data-bought="${bought?'true':'false'}" data-blind-sub="${blindSub?escapeAttr(blindSub):''}" contenteditable="false"${cellTabIndex} spellcheck="false" draggable="${!isPreview&&!matrixMarkMode&&nm?'true':'false'}">${personContent}${blindSubBadge}${arrivalBadge}${rowPriceNote}</td>`;
         }).join('')+'</tr>';
@@ -4897,7 +5005,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function paymentReceivedNote(received,total,reasonHtml='',record=null){
       if(record){
-        if(record.historyUnknown)return '<span class="payment-received-note" data-html2canvas-ignore="true"><b>历史收退补金额待核对，请点“流水”核对后继续。</b></span>';
+        if(record.historyUnknown)return '<span class="payment-received-note" data-html2canvas-ignore="true"><b>历史收退补金额待管理员核对，核对后继续计算。</b></span>';
         const current=settlementCurrentCash(record);
         const state=record.historyUnknown?'历史退补金额待核对':record.refund>0.005?`待退 ${money(record.refund)}`:record.due>0.005?`待补 ${money(record.due)}`:'已结清';
         const history=`原已收 ${money(num(record.g.received)+num(record.sh.received))} · 已退 ${money(record.refunded)} · 已补 ${money(record.supplemented)}${record.transferCredit?` · 转单净转入 ${money(record.transferCredit)}`:''}`;
@@ -5666,6 +5774,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       root.innerHTML=`<div class="settlement-dashboard-head"><strong>结算中心</strong><div class="settlement-head-actions"><button type="button" class="btn-ghost" id="exportMultiSettlementBtn">导出总账</button><button type="button" class="btn-ghost" id="copyMultiSettlementBtn">复制总账</button></div></div><div class="settlement-ledger"><div><span>待退款</span><b>${pendingRefundPeople} 人 / ${money(pendingRefund)}</b></div><div><span>待补款</span><b>${pendingDuePeople} 人 / ${money(pendingDue)}</b></div><div><span>已完成</span><b>${completedPeople} 人</b></div></div><div class="settlement-filter-bar">${filters}</div><div class="table-scroll"><table><thead><tr><th>CN</th><th>谷子已收</th><th>谷子实际</th><th>均摊应收</th><th>均摊已收</th><th>结算结果</th><th>状态</th><th>备注</th></tr></thead><tbody>${rows||empty}</tbody></table></div>`;
     }
 
+    function canViewCashLedger(){const group=currentWorkspace();return group?group.role==='owner':!syncCode;}
+    function syncCashLedgerAccess(){const allowed=canViewCashLedger();if($('cashLedgerAdminTools'))$('cashLedgerAdminTools').hidden=!allowed;if(!allowed&&$('cashLedgerDialog')?.open){$('cashLedgerDialog').close();$('cashLedgerContent').innerHTML='';}}
     function cashLedgerEvents(sheet,key){
       const events=(sheet.paymentCashHistory||[]).filter(e=>e.key===key||e.fromKey===key||e.toKey===key).map(e=>({...e}));
       [['paymentRefundDone','退款'],['paymentSupplementDone','补款']].forEach(([field,label])=>{
@@ -5675,6 +5785,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return events.sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
     }
     function renderCashLedger(){
+      if(!canViewCashLedger()){syncCashLedgerAccess();return;}
       const dialog=$('cashLedgerDialog'),sheet=sheets.find(s=>String(s.id)===dialog.dataset.sheetId);if(!sheet)return;
       const view=deepClone(sheet);view.paymentStartRow=1;view.paymentEndRow=null;
       const query=normalizeDispatchKey($('cashLedgerSearch').value),records=recordsForSheet(view).filter(r=>!query||normalizeDispatchKey(r.name).includes(query)||r.key.includes(query));
@@ -5692,9 +5803,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       }).join('')||'<p class="hint">没有匹配的记录。</p>';
     }
     function openCashLedger(key=''){
+      if(!canViewCashLedger()){appAlert('收退补流水仅协作组管理员（组主）可查看。','仅管理员');return;}
       captureActiveSheet();$('cashLedgerDialog').dataset.sheetId=String(activeSheetId);$('cashLedgerSearch').value=key;renderCashLedger();if(!$('cashLedgerDialog').open)$('cashLedgerDialog').showModal();
     }
     async function confirmLegacyCash(key){
+      if(!canViewCashLedger())return false;
       const id=activeSheetId,signature=JSON.stringify([paymentPaid,sharePaymentPaid,paymentRefundDone,paymentSupplementDone]),pending=[];
       const fields=[['paymentPaid',paymentPaid,'原累计收款（若当时包含均摊，请填合计）'],['sharePaymentPaid',sharePaymentPaid,'单独均摊累计收款'],['paymentRefundDone',paymentRefundDone,'历史累计已退款'],['paymentSupplementDone',paymentSupplementDone,'历史累计已补款']];
       for(const [field,map,label] of fields){if(map[key]!==true)continue;const answer=await appPrompt(`核对 ${key} 的${label}。\n请按实际转账记录填写，不要填今天的差额。填 0 表示确认没有发生。`,'','核对历史金额');if(answer===null)return false;const value=Number(String(answer).trim());if(!String(answer).trim()||!Number.isFinite(value)||value<0){await appAlert('请输入明确的非负金额，未修改记录。','金额无效');return false;}pending.push({field,map,amount:Math.round(value*100)/100});}
@@ -5712,6 +5825,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {actual:total.actual/100,refund:total.refund/100,due:total.due/100};
     }
     function renderPaymentSummary(){
+      syncCashLedgerAccess();
       computeAverage();
       const people=new Map();
       const startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow), displayColumns=orderDisplayColumns();
@@ -5766,7 +5880,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       let rows='';
       visibleData.forEach(data=>{
-        const name=data.name, calcTotal=ceilMoneyValue(Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total), items=[...(data.collectItems||new Map()).entries()], span=Math.max(1,items.length), payable=wechatFeeAmount(calcTotal), alipayAmount=amountFor(data), receivedAmount=showBoughtSettlement&&settlementByKey.has(data.key)?settlementCurrentCash(settlementByKey.get(data.key)):paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=showBoughtSettlement&&settlementByKey.has(data.key)?(settlementByKey.get(data.key).refund<=0.005&&settlementByKey.get(data.key).due<=0.005&&!settlementByKey.get(data.key).historyUnknown?'full':'partial'):paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount,paymentReceivedReasonForGoods(data,alipayAmount,receivedAmount),showBoughtSettlement?settlementByKey.get(data.key):null), alipayHtml=paymentExportableAmountHtml(showBoughtSettlement?moneyText(alipayAmount):`<span ${editAttr('alipay:'+name)} data-payment-auto="${moneyText(calcTotal)}">${edited('alipay:'+name,moneyText(calcTotal))}</span>`,paidStatus,receivedAmount,alipayAmount,false), payableHtml=paymentExportableAmountHtml(moneyText(showBoughtSettlement?wechatFeeAmount(alipayAmount):payable),paidStatus,receivedAmount,alipayAmount,true), shareNote=(showBoughtSettlement?num(settlementByKey.get(data.key)?.sh.expected)>0:paymentIncludeShare&&data.shareAmount>0)?`<span class="payment-received-note payment-share-note" data-html2canvas-ignore="true">含均摊 ${money(showBoughtSettlement?settlementByKey.get(data.key).sh.expected:data.shareAmount)}</span>`:'', adjustmentNote=paymentAdjustmentNote(refundAmountValue(paymentRefund,data.key,alipayAmount),refundAmountValue(paymentSupplement,data.key,alipayAmount)), paidClass=settlementClass(data.key,paymentRowClassFor(data.key,paidStatus,paymentRefund,paymentSupplement,refundDoneView,supplementDoneView,receivedAmount,alipayAmount)), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span><button type="button" class="dispatch-action" data-html2canvas-ignore="true" data-cash-ledger="${encodeURIComponent(data.key)}">流水</button>`;
+        const name=data.name, calcTotal=ceilMoneyValue(Number.isFinite(data.paymentTotal)?data.paymentTotal:data.total), items=[...(data.collectItems||new Map()).entries()], span=Math.max(1,items.length), payable=wechatFeeAmount(calcTotal), alipayAmount=amountFor(data), receivedAmount=showBoughtSettlement&&settlementByKey.has(data.key)?settlementCurrentCash(settlementByKey.get(data.key)):paidAmountValue(paymentPaid,data.key,alipayAmount), paidStatus=showBoughtSettlement&&settlementByKey.has(data.key)?(settlementByKey.get(data.key).refund<=0.005&&settlementByKey.get(data.key).due<=0.005&&!settlementByKey.get(data.key).historyUnknown?'full':'partial'):paidState(paymentPaid,data.key,alipayAmount), receivedNote=paymentReceivedNote(receivedAmount,alipayAmount,paymentReceivedReasonForGoods(data,alipayAmount,receivedAmount),showBoughtSettlement?settlementByKey.get(data.key):null), alipayHtml=paymentExportableAmountHtml(showBoughtSettlement?moneyText(alipayAmount):`<span ${editAttr('alipay:'+name)} data-payment-auto="${moneyText(calcTotal)}">${edited('alipay:'+name,moneyText(calcTotal))}</span>`,paidStatus,receivedAmount,alipayAmount,false), payableHtml=paymentExportableAmountHtml(moneyText(showBoughtSettlement?wechatFeeAmount(alipayAmount):payable),paidStatus,receivedAmount,alipayAmount,true), shareNote=(showBoughtSettlement?num(settlementByKey.get(data.key)?.sh.expected)>0:paymentIncludeShare&&data.shareAmount>0)?`<span class="payment-received-note payment-share-note" data-html2canvas-ignore="true">含均摊 ${money(showBoughtSettlement?settlementByKey.get(data.key).sh.expected:data.shareAmount)}</span>`:'', adjustmentNote=paymentAdjustmentNote(refundAmountValue(paymentRefund,data.key,alipayAmount),refundAmountValue(paymentSupplement,data.key,alipayAmount)), paidClass=settlementClass(data.key,paymentRowClassFor(data.key,paidStatus,paymentRefund,paymentSupplement,refundDoneView,supplementDoneView,receivedAmount,alipayAmount)), personAttr=` data-payment-person="${escapeAttr(data.key)}"`, paidControl=`<span class="payment-cn-controls"><button type="button" class="payment-paid-check" data-html2canvas-ignore="true" data-payment-paid="${encodeURIComponent(data.key)}" data-payment-amount="${alipayAmount}" data-payment-received="${receivedAmount}" aria-pressed="${paidStatus==='full'?'true':(paidStatus==='partial'?'mixed':'false')}" title="${paidStatus==='full'?'已收齐，点击取消':(paidStatus==='partial'?'部分已收，点击填写累计金额':'标记当前范围为已收')}">${paidStatus==='full'?'✓':(paidStatus==='partial'?'−':'')}</button></span><span class="payment-cn-name" ${editAttr('cn:'+name)}>${edited('cn:'+name,name)}</span>`;
         const settlementDoneNote=refundDoneView[data.key]===true?'<span class="payment-received-note" data-html2canvas-ignore="true">✓ 已退款</span>':(supplementDoneView[data.key]===true?'<span class="payment-received-note" data-html2canvas-ignore="true">✓ 已补款</span>':'');
         if(paymentViewMode==='merged'){
           const itemText=items.length?items.map(([item,count])=>`${item}×${count}`).join('、'):(paymentBoughtOnly?'— 无买到谷子 —':'—'), totalQty=items.reduce((sum,[,count])=>sum+count,0);
@@ -7624,6 +7738,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         for(const field of ['coldPromotionDraftBaseAllocations','coldPromotionSeriesBaseAllocations']) renameAlloc(sheet[field]);
         Object.keys(sheet.matrixBoughtCells||{}).forEach(key=>{if(matches(sheet.matrixBoughtCells[key]))sheet.matrixBoughtCells[key]=target;});
         Object.values(sheet.dispatchShippedCells||{}).forEach(entry=>{if(entry&&matches(entry.person))entry.person=target;});
+        Object.values(sheet.secondPriceCellPrices||{}).forEach(entry=>{if(entry&&matches(entry.person))entry.person=target;});
         Object.values(sheet.dispatchInternationalExemptCells||{}).forEach(entry=>{if(entry&&matches(entry.person))entry.person=target;});
         for(const field of ['coldPromotionDraftRows','coldPromotionBatches','coldPromotionHighlights','coldPromotionSeriesBaseHighlights']) renameTree(sheet[field]);
         if(sheet.coldPromotionSeriesFormalSignature) sheet.coldPromotionSeriesFormalSignature='';
@@ -7953,6 +8068,17 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!saveState()){if(previous===undefined)delete sheet.dispatchEnabled;else sheet.dispatchEnabled=previous;await appAlert('设置未能保存，请先备份数据并处理存储空间。','保存失败');}
       syncCurrentSheetDispatchControl();renderDispatch();
     }
+    $('secondPricePanel').addEventListener('toggle',()=>{if($('secondPricePanel').open&&$('secondPricePanel').dataset.sheetId!==String(activeSheetId))renderSecondPriceSetup();});
+    $('secondPricePanel').addEventListener('input',invalidateSecondPrice);
+    $('secondPricePanel').addEventListener('change',e=>{if(e.target.id!=='secondPriceSavedSelect')invalidateSecondPrice();});
+    $('secondPriceRefreshBtn').addEventListener('click',()=>renderSecondPriceSetup());
+    $('secondPriceAddCreditBtn').addEventListener('click',()=>{addSecondPriceCredit();invalidateSecondPrice();});
+    $('secondPriceCredits').addEventListener('click',e=>{const button=e.target.closest('[data-second-credit-remove]');if(button){button.closest('.second-price-credit').remove();invalidateSecondPrice();}});
+    $('secondPriceJpyBtn').addEventListener('click',()=>{const price=Number($('secondPriceJpy').value),rate=Number($('secondPriceRate').value),qty=Number($('secondPriceQty').value);if(!$('secondPriceJpy').value.trim()||!Number.isFinite(price)||price<0||!Number.isFinite(rate)||rate<=0||!Number.isInteger(qty)||qty<1){appAlert('请填写日元单价、正汇率和正整数购买总量。','参数未填写完整');return;}$('secondPriceCost').value=(Math.round(price*rate*qty*100)/100).toFixed(2);invalidateSecondPrice();});
+    $('secondPriceSavedSelect').addEventListener('change',e=>{const sheet=sheets.find(s=>s.id===activeSheetId),config=(sheet.secondPriceCalculations||[]).find(c=>c.id===e.target.value);renderSecondPriceSetup(config||null);});
+    $('secondPriceCalculateBtn').addEventListener('click',previewSecondPrice);
+    $('secondPriceApplyBtn').addEventListener('click',applySecondPrice);
+    $('secondPriceSaveBtn').addEventListener('click',async()=>{const preview=secondPricePreview;if(!preview)return;captureActiveSheet();const sheet=sheets.find(s=>s.id===activeSheetId);if(preview.sheetId!==activeSheetId||JSON.stringify(sheet)!==preview.signature){invalidateSecondPrice();await appAlert('当前表有变化，请重新试算。','未保存');return;}const old=deepClone(sheet.secondPriceCalculations||[]);saveSecondPriceConfiguration(sheet,preview.plan);if(!saveState()){sheet.secondPriceCalculations=old;await appAlert('试算未能保存，请先备份并处理存储空间。','保存失败');return;}preview.signature=JSON.stringify(sheet);const select=$('secondPriceSavedSelect');if(![...select.options].some(option=>option.value===preview.plan.calculationId)){const option=document.createElement('option');option.value=preview.plan.calculationId;option.textContent=preview.plan.config.name+' · 已保存试算';select.appendChild(option);}select.value=preview.plan.calculationId;await appAlert('已保存本组试算。还没有修改谷子价格；需要时再点“核对后应用到本表”。','试算已保存');});
     $('currentSheetDispatchEnabled').addEventListener('change',e=>setSheetDispatchEnabled(activeSheetId,e.target.checked));
     $('dispatchScopeList').addEventListener('change',e=>{
       const input=e.target.closest('[data-dispatch-scope]');if(input)setSheetDispatchEnabled(input.dataset.dispatchScope,input.checked);
@@ -8492,7 +8618,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         positions.forEach(index=>{
           arr[index]=to;
           const columns=[col,...(col.comboMembers||[])];
-          columns.forEach(member=>{const key=matrixBoughtKey(member.id,index);if(member.id!==col.id&&String(sheet.allocations[member.id]?.[index]||'').trim()===from)sheet.allocations[member.id][index]=to;if(normalizeDispatchKey(sheet.matrixBoughtCells?.[key])===fromKey)sheet.matrixBoughtCells[key]=to;});
+          columns.forEach(member=>{const key=matrixBoughtKey(member.id,index);if(member.id!==col.id&&String(sheet.allocations[member.id]?.[index]||'').trim()===from)sheet.allocations[member.id][index]=to;if(normalizeDispatchKey(sheet.matrixBoughtCells?.[key])===fromKey)sheet.matrixBoughtCells[key]=to;if(normalizeDispatchKey(sheet.secondPriceCellPrices?.[key]?.person)===fromKey)sheet.secondPriceCellPrices[key].person=to;});
           // Per-person international confirmations are not silently given to the new owner.
           if(sheet.dispatchInternationalExemptCells)delete sheet.dispatchInternationalExemptCells[matrixBoughtKey(col.id,index)];
         });
@@ -9207,6 +9333,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(valueB) store[keyA]=valueB; else delete store[keyA];
         if(valueA) store[keyB]=valueA; else delete store[keyB];
       });
+      const pricedSheet=sheets.find(s=>s.id===activeSheetId),prices=pricedSheet?.secondPriceCellPrices;if(prices){const left=prices[keyA],right=prices[keyB];if(right)prices[keyA]=right;else delete prices[keyA];if(left)prices[keyB]=left;else delete prices[keyB];}
       trimTail(A); trimTail(B);
       saveState(); renderMatrix();
     }
@@ -10738,7 +10865,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       rawCols.forEach(c=>{ const g=groupForId(c.id); if(g){ if(!emitted.has(g.id)){ display.push(comboColumn(g)); emitted.add(g.id); } } else display.push(c); });
       groups.forEach(g=>{ if(!emitted.has(g.id)){ display.push(comboColumn(g)); emitted.add(g.id); } });
       const rowPrices=createRowPriceInfo(display,sheet.allocations||{},c=>c.isPricingCombo?num(c.fixedPrice):info.price(c));
-      return {cols:display,price:rowPrices.price,rowInfo:rowPrices.rowInfo};
+      return {cols:display,price:(c,row)=>{const override=secondPriceCellAmount(sheet,c,row,(sheet.allocations?.[c.id]||[])[row]);return override===null?rowPrices.price(c,row):override;},rowInfo:rowPrices.rowInfo};
     }
     function excelOrderPersonCell(sheet,c,row){
       const name=String((sheet.allocations?.[c.id]||[])[row]||'').trim();
@@ -10807,6 +10934,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function appendExcelArchive(wb,selectedSheets,used){
       const names=[];
       excelArchiveTables(selectedSheets,extraFees,extraFeeArchives).forEach(([title,rows])=>{
+        if(title==='收退补流水'&&!canViewCashLedger())return;
         const name=safeExcelSheetName(title,used),ws=XLSX.utils.aoa_to_sheet(rows);
         ws['!cols']=rows[0].map(label=>({wch:/明细|说明|备注/.test(label)?48:/日期|时间/.test(label)?23:18}));
         ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(0,rows.length-1),c:rows[0].length-1}})};
