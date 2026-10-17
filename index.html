@@ -566,7 +566,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="payment-heading-tools matrix-heading-tools">
       <input id="matrixTitleInput" type="text" placeholder="填写项目名称">
       <label>标题颜色 <input id="matrixColorInput" type="color" value="#d1466a"></label>
-      <label class="sheet-dispatch-option"><input type="checkbox" id="currentSheetDispatchEnabled" checked>参与排发</label>
+      <button type="button" class="sheet-dispatch-option" id="currentSheetDispatchEnabled" aria-pressed="true">参与排发 · 点击停用</button>
     </div>
     <div class="hint" id="currentSheetDispatchHint">当前表参与排发；仅用于算账时可取消勾选。</div>
     <div class="matrix-options">
@@ -1292,13 +1292,19 @@ html{ scrollbar-gutter:stable; }
 .dispatch-scope{margin:10px 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);}
 .dispatch-scope summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);}
 .dispatch-scope .hint{margin:9px 0;}
-.dispatch-scope-list{display:grid;gap:5px;max-height:260px;overflow:auto;}
-.dispatch-scope-row{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:7px;background:#fff;cursor:pointer;min-width:0;}
+.dispatch-scope-list{display:grid;gap:8px;max-height:320px;overflow:auto;padding:2px;scrollbar-gutter:stable;}
+.dispatch-scope-row{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 12px;border:1px solid #e9e1ec;border-radius:10px;background:#fff;min-width:0;box-sizing:border-box;}
 .dispatch-scope-row input{width:16px!important;min-width:16px!important;height:16px;margin:0;accent-color:#d1466a;}
-.dispatch-scope-row span{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px;}
+.dispatch-scope-row>span{display:block;min-width:0;overflow-wrap:anywhere;white-space:normal;line-height:1.6;font-size:12px;color:var(--text);}
 .dispatch-scope-row small{font-size:10px;color:var(--muted);white-space:nowrap;}
 .sheet-dispatch-option{display:inline-flex!important;align-items:center;gap:6px;white-space:nowrap;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);font-size:12px;cursor:pointer;}
 .sheet-dispatch-option input{width:16px!important;min-width:16px!important;height:16px;margin:0;accent-color:#d1466a;}
+.sheet-dispatch-option[aria-pressed=true]{color:#248155;border-color:#bddcc9;background:#eff9f2;}
+.sheet-dispatch-option[aria-pressed=false]{color:#ac365b;border-color:#e5b6c6;background:#fff1f6;}
+.dispatch-scope-row>button{display:inline-flex!important;align-items:center;justify-content:center;min-width:100px;width:auto!important;min-height:34px;margin:0!important;padding:7px 10px!important;box-sizing:border-box;border:1px solid #bddcc9;border-radius:999px;cursor:pointer;font-family:inherit;font-size:11px!important;font-weight:650;line-height:1.4;white-space:nowrap;color:#248155;background:#eff9f2;}
+.dispatch-scope-row>button[aria-pressed=false]{color:#ac365b;background:#fff1f6;border-color:#e5b6c6;}
+.dispatch-scope-row>button:focus-visible{outline:2px solid #d1466a;outline-offset:2px;}
+@media(max-width:620px){.dispatch-scope-row{gap:8px;padding:9px;}.dispatch-scope-row>button{min-width:88px;font-size:10px!important;}}
 .cash-ledger-dialog{width:min(760px,94vw);max-height:85dvh;box-sizing:border-box;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fff;color:var(--text);box-shadow:0 20px 70px #23192826;}
 .cash-ledger-dialog[open]{display:flex;flex-direction:column;gap:14px;overflow:hidden;}
 .cash-ledger-dialog::backdrop{background:rgba(35,25,40,.35);}
@@ -8109,14 +8115,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     function sheetParticipatesInDispatch(sheet){ return sheet?.dispatchEnabled!==false; }
     function syncCurrentSheetDispatchControl(){
       const sheet=sheets.find(s=>s.id===activeSheetId),input=$('currentSheetDispatchEnabled');
-      if(!input)return;input.checked=sheetParticipatesInDispatch(sheet);
-      if($('currentSheetDispatchHint'))$('currentSheetDispatchHint').textContent=input.checked?'当前表参与排发；仅用于算账时可取消勾选。':'当前表仅算账，不进入排发清单；排单、账目和发货记录仍保留。';
+      if(!input)return;const enabled=sheetParticipatesInDispatch(sheet);input.setAttribute('aria-pressed',String(enabled));input.textContent=enabled?'参与排发 · 点击停用':'仅算账 · 点击参与排发';input.disabled=!sheet;
+      if($('currentSheetDispatchHint'))$('currentSheetDispatchHint').textContent=enabled?'当前表参与排发；仅用于算账时可点击停用。':'当前表仅算账。点击上方“参与排发”即可重新开启；排单、账目和发货记录仍保留。';
     }
     function renderDispatchScope(){
       const list=$('dispatchScopeList');if(!list)return;
       const included=sheets.filter(sheetParticipatesInDispatch).length;
       $('dispatchScopeSummary').textContent=`管理参与排发的表 · ${included}/${sheets.length} 张参与`;
-      list.innerHTML=sheets.map(sheet=>`<label class="dispatch-scope-row"><input type="checkbox" data-dispatch-scope="${escapeAttr(sheet.id)}" ${sheetParticipatesInDispatch(sheet)?'checked':''}><span>${escapeHtml(sheet.name||'未命名排单')}</span><small>${sheetParticipatesInDispatch(sheet)?'参与排发':'仅算账'}</small></label>`).join('');
+      list.innerHTML=sheets.map(sheet=>`<div class="dispatch-scope-row"><span>${escapeHtml(sheet.name||'未命名排单')}</span><button type="button" data-dispatch-scope="${escapeAttr(sheet.id)}" data-dispatch-next="${sheetParticipatesInDispatch(sheet)?'off':'on'}" aria-pressed="${sheetParticipatesInDispatch(sheet)}">${sheetParticipatesInDispatch(sheet)?'已参与 · 停用':'重新参与排发'}</button></div>`).join('');
     }
     function buildDispatchRecords(){
       captureActiveSheet();
@@ -8284,12 +8290,20 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(hit){ hit.classList.add('dispatch-hit'); hit.scrollIntoView({behavior:'smooth',block:'center'}); }
       else alert('当前筛选中没有找到这个 CN');
     }
+    let dispatchScopeSaving=false;
     async function setSheetDispatchEnabled(sheetId,enabled){
-      const sheet=sheets.find(s=>String(s.id)===String(sheetId));if(!sheet)return;
-      if(!enabled&&!await appConfirm(`将「${sheet.name||'未命名排单'}」设为仅算账？\n将不再出现在排发清单、排发统计和排发导出中。\n排单、收退款、国际费用、物流和原有发货记录都会保留，随时可以重新开启。`,'参与排发设置','设为仅算账')){syncCurrentSheetDispatchControl();renderDispatch();return;}
-      captureActiveSheet();const previous=sheet.dispatchEnabled;sheet.dispatchEnabled=enabled;
-      if(!saveState()){if(previous===undefined)delete sheet.dispatchEnabled;else sheet.dispatchEnabled=previous;await appAlert('设置未能保存，请先备份数据并处理存储空间。','保存失败');}
-      syncCurrentSheetDispatchControl();renderDispatch();
+      if(dispatchScopeSaving)return;
+      let sheet=sheets.find(s=>String(s.id)===String(sheetId));if(!sheet)return;
+      const code=String(syncCode||'');dispatchScopeSaving=true;
+      try{
+        if(!enabled&&!await appConfirm(`将「${sheet.name||'未命名排单'}」设为仅算账？\n将不再出现在排发清单、排发统计和排发导出中。\n排单、收退款、国际费用、物流和原有发货记录都会保留，随时可以重新开启。`,'参与排发设置','设为仅算账'))return;
+        if(code!==String(syncCode||'')){await appAlert('已切换协作组，本次设置未应用，请在当前组重新操作。');return;}
+        captureActiveSheet();sheet=sheets.find(s=>String(s.id)===String(sheetId));if(!sheet)return;
+        const previous=sheet.dispatchEnabled;sheet.dispatchEnabled=enabled===true;
+        let saved=false;try{saved=saveState();}catch(error){if(previous===undefined)delete sheet.dispatchEnabled;else sheet.dispatchEnabled=previous;throw error;}
+        if(!saved){if(previous===undefined)delete sheet.dispatchEnabled;else sheet.dispatchEnabled=previous;await appAlert('设置未能保存，已保留原状态。请先备份数据并处理存储空间。','保存失败');}
+      }catch(error){await appAlert('参与排发设置未完成：'+(error.message||error));}
+      finally{dispatchScopeSaving=false;syncCurrentSheetDispatchControl();renderDispatch();}
     }
     $('secondPricePanel').addEventListener('toggle',()=>{if($('secondPricePanel').open&&$('secondPricePanel').dataset.sheetId!==String(activeSheetId))renderSecondPriceSetup();});
     $('secondPricePanel').addEventListener('input',e=>{if(e.target.id!=='secondPriceColumnSearch')invalidateSecondPrice();});
@@ -8312,9 +8326,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('secondPriceAppendList').addEventListener('click',e=>{const button=e.target.closest('[data-second-append-remove]');if(button){secondPricePendingAdditions.splice(Number(button.dataset.secondAppendRemove),1);renderSecondPriceAppendList();invalidateSecondPrice();}});
     $('secondPriceApplyBtn').addEventListener('click',applySecondPrice);
     $('secondPriceSaveBtn').addEventListener('click',async()=>{const preview=secondPricePreview;if(!preview)return;captureActiveSheet();const sheet=sheets.find(s=>s.id===activeSheetId);if(preview.sheetId!==activeSheetId||JSON.stringify(sheet)!==preview.signature){invalidateSecondPrice();await appAlert('当前表有变化，请重新试算。','未保存');return;}const old=deepClone(sheet.secondPriceCalculations||[]);saveSecondPriceConfiguration(sheet,preview.plan);if(!saveState()){sheet.secondPriceCalculations=old;await appAlert('试算未能保存，请先备份并处理存储空间。','保存失败');return;}preview.signature=JSON.stringify(sheet);const select=$('secondPriceSavedSelect');if(![...select.options].some(option=>option.value===preview.plan.calculationId)){const option=document.createElement('option');option.value=preview.plan.calculationId;option.textContent=preview.plan.config.name+' · 已保存试算';select.appendChild(option);}select.value=preview.plan.calculationId;await appAlert('已保存本组试算。还没有修改谷子价格；需要时再点“核对后应用到本表”。','试算已保存');});
-    $('currentSheetDispatchEnabled').addEventListener('change',e=>setSheetDispatchEnabled(activeSheetId,e.target.checked));
-    $('dispatchScopeList').addEventListener('change',e=>{
-      const input=e.target.closest('[data-dispatch-scope]');if(input)setSheetDispatchEnabled(input.dataset.dispatchScope,input.checked);
+    $('currentSheetDispatchEnabled').addEventListener('click',()=>{const sheet=sheets.find(s=>s.id===activeSheetId);if(sheet)setSheetDispatchEnabled(sheet.id,!sheetParticipatesInDispatch(sheet));});
+    $('dispatchScopeList').addEventListener('click',e=>{
+      const input=e.target.closest('[data-dispatch-scope]');if(input)setSheetDispatchEnabled(input.dataset.dispatchScope,input.dataset.dispatchNext==='on');
     });
     document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.addEventListener('click',()=>{ dispatchStateFilter=button.dataset.dispatchState||'all'; renderDispatch(); }));
     $('dispatchRefreshBtn').addEventListener('click',renderDispatch);
