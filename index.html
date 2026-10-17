@@ -404,12 +404,13 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <summary>二调计算器 · 成本、卖出及满赠抵扣</summary>
       <div class="hint">按一类谷子分组试算，保留原价差。原收款和已退补不改，确认应用后才更新所选已买到格子的应收。均摊费、国际费另算。</div>
       <div class="toolbar"><select id="secondPriceSavedSelect"><option value="">新建试算</option></select><button type="button" class="btn-ghost" id="secondPriceRefreshBtn">读取当前排单</button></div>
-      <div class="second-price-fields"><label>本组名称<input id="secondPriceName" placeholder="例如：衣服挂／吧唧A"></label><label>实际购买总成本（元）<input id="secondPriceCost" inputmode="decimal" placeholder="包含买到但还没排出的库存成本"></label></div>
+      <div class="second-price-section-title">1 · 本组成本</div><div class="second-price-fields"><label>本组名称<input type="text" id="secondPriceName" placeholder="例如：衣服挂／吧唧A"></label><label>实际购买总成本（元）<input type="text" id="secondPriceCost" inputmode="decimal" placeholder="包含买到但还没排出的库存成本"></label></div>
       <details><summary class="hint">用日元单价快速计算成本</summary><div class="second-price-fields"><label>日元单价<input id="secondPriceJpy" inputmode="decimal"></label><label>汇率<input id="secondPriceRate" inputmode="decimal"></label><label>购买总量<input id="secondPriceQty" inputmode="numeric"></label><button type="button" class="btn-ghost" id="secondPriceJpyBtn">填入人民币总成本</button></div></details>
-      <div class="hint">选择本组包含的谷子列（不同种类请分别保存试算）：</div><div id="secondPriceColumns" class="second-price-columns"></div>
-      <div class="toolbar"><strong>卖出／满赠／其他抵扣</strong><button type="button" class="btn-ghost" id="secondPriceAddCreditBtn">＋ 添加抵扣</button></div><div id="secondPriceCredits"></div>
+      <div class="second-price-section-title">2 · 选择本组谷子</div><div class="hint">不同种类分别保存试算，搜索后可全选当前结果。</div><div class="toolbar"><input id="secondPriceColumnSearch" type="search" placeholder="搜索谷子名称"><button type="button" class="btn-ghost" id="secondPriceSelectAllBtn">全选</button><button type="button" class="btn-ghost" id="secondPriceSelectNoneBtn">全不选</button><span id="secondPriceSelectionCount" class="hint"></span></div><div id="secondPriceColumns" class="second-price-columns"></div>
+      <div class="toolbar"><strong class="second-price-section-title">3 · 已确认的卖出／满赠抵扣</strong><button type="button" class="btn-ghost" id="secondPriceAddCreditBtn">＋ 添加抵扣</button></div><div class="hint">每笔依次填：说明／实际抵扣金额／表外卖出本组谷子的件数（满赠或其他抵扣填 0）。</div><div id="secondPriceCredits"></div>
       <div class="hint">只填实际卖回或你明确确认抵扣的净金额，不能重复记入。表外售出的谷子请先在排单里取消该人的买到标记，再读取；本计算器不替你删除名字。</div>
-      <label class="sheet-dispatch-option"><input type="checkbox" id="secondPriceBoughtOnly" checked>只分给已标记买到的谷子</label><span class="hint">没有使用买到标记的表，可以取消此项，按全部已排格子试算。</span>
+      <div class="second-price-scope"><span>分配范围</span><button type="button" id="secondPriceOnlyBoughtBtn" aria-pressed="true">仅买到</button><button type="button" id="secondPriceAllOrderedBtn" aria-pressed="false">全部已排</button><input type="checkbox" id="secondPriceBoughtOnly" checked hidden></div><div class="hint">“仅买到”只分给已标记买到的格子；没有使用购买标记的表可选“全部已排”。</div>
+      <details class="second-price-inventory"><summary>余量／可售库存</summary><div class="hint">余量 = 实际购买件数 − 本次参与件数 − 已在表外卖出的谷子件数。没卖出的不是收入；满赠不占本组谷子件数，卖出数量填 0。</div><div class="second-price-fields"><label>本组实际购买件数<input id="secondPricePurchasedQty" type="text" inputmode="numeric" placeholder="例如 5；不填则不核算余量"></label><label>余量成本如何处理<select id="secondPriceStockMode"><option value="">请选择（有余量时必选）</option><option value="reserve">先留库存，不分给参与者</option><option value="share">暂由本组参与者承担</option></select></label><label>库存预留成本（元）<input id="secondPriceReserve" type="text" inputmode="decimal" placeholder="留空按购买平均成本计算"></label></div><div class="hint">留库存模式：购买成本扣掉已卖实收和剩余库存成本后，再分给参与者。以后卖出时更新卖出件数，系统会相应释放库存成本，不重复抵扣。</div></details>
       <div class="toolbar"><button type="button" class="btn-primary" id="secondPriceCalculateBtn">计算并预览</button><button type="button" class="btn-ghost" id="secondPriceSaveBtn" disabled>保存本组试算</button><button type="button" class="btn-ghost" id="secondPriceApplyBtn" disabled>核对后应用到本表</button></div>
       <div id="secondPriceResult" class="hint">先选择谷子、填写本组购买成本，再计算。试算不会修改原表。</div>
     </details>
@@ -837,11 +838,14 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   <div class="panel" id="settingsPanel">
     <h2>设置与数据</h2>
     <div class="settings-cloud-tip"><strong>云端同步</strong><span>进入协作组后会自动实时同步：你修改后马上上传，对方打开或等待几秒就能看到最新版本。</span></div>
+    <div class="settings-cloud-tip"><button type="button" class="btn-ghost" id="cleanCacheBtn">清理缓存</button><span>清理占空间的旧撤回记录和旧快照。先备份再确认，不删除排单、钱账、图片或登录信息。</span></div>
     <div class="settings-tool-grid">
     <details class="data-actions settings-data-actions" id="dataActions"><summary>排单数据导入导出</summary><div class="data-actions-pop">
       <button class="btn-ghost" id="exportJsonBtn">备份全部排单</button>
       <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前排单</button>
       <button class="btn-ghost" id="localSnapshotsBtn">恢复本机快照</button>
+      <button class="btn-ghost" id="groupSnapshotsBtn">恢复整个协作组快照</button>
+      <button class="btn-ghost" id="cleanLocalSnapshotsBtn">安全清理旧快照</button>
       <button class="btn-ghost" id="exportAllExcelBtn">导出全部排单表</button>
       <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单表</button>
       <label class="btn-ghost filelabel import-backup">导入排单备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
@@ -1306,19 +1310,41 @@ html{ scrollbar-gutter:stable; }
 .cash-ledger-admin-tools summary{cursor:pointer;color:var(--muted);font-size:11px;font-weight:650;}
 .cash-ledger-admin-tools summary small{margin-left:6px;font-size:10px;font-weight:400;opacity:.75;}
 .cash-ledger-admin-tools>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px;}
-.second-price-panel{margin-top:15px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);}
+.second-price-panel{margin-top:15px;padding:16px;border:1px solid var(--line);border-radius:12px;background:#faf8fb;}
 .second-price-panel>summary{font-weight:800;cursor:pointer;color:var(--accent);}
-.second-price-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:12px 0;align-items:end;}
+.second-price-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:14px 0;align-items:end;}
 .second-price-fields label{font-size:12px;color:var(--muted);}
 .second-price-fields input{display:block;width:100%;box-sizing:border-box;margin-top:5px;}
-.second-price-columns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;}
-.second-price-columns label{display:flex;align-items:center;gap:5px;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:7px;font-size:12px;}
+.second-price-columns{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:7px;margin:8px 0 16px;max-height:270px;overflow:auto;padding:3px;}
+.second-price-columns label{display:flex;align-items:center;gap:7px;padding:9px 10px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:12px;cursor:pointer;line-height:1.5;}
+.second-price-columns label:has(input:checked){background:#fff1f6;border-color:#e7b6c7;color:#ac365b;}
+.second-price-columns label small{margin-left:auto;white-space:nowrap;font-size:10px;color:var(--muted);}
 .second-price-columns input{width:15px!important;min-width:15px!important;height:15px;accent-color:#d1466a;}
-.second-price-credit{display:grid;grid-template-columns:1fr 130px auto;gap:7px;margin:7px 0;}
+#secondPricePanel input:not([type=checkbox]),#secondPricePanel select{min-height:38px!important;box-sizing:border-box;padding:9px 11px!important;border:1px solid #e2dbe6!important;border-radius:9px!important;background:#fff!important;color:var(--text);font-family:inherit;font-size:12px!important;line-height:1.4;outline:none;}
+#secondPricePanel input:not([type=checkbox]):focus,#secondPricePanel select:focus{border-color:#d97898!important;box-shadow:0 0 0 3px #d1466a12;}
+#secondPricePanel input:disabled{background:#f1eff3!important;color:#aaa;}
+#secondPriceColumnSearch{flex:1;min-width:150px;max-width:320px;}
+#secondPricePanel .second-price-credit input{width:100%;min-width:0;}
+#secondPricePanel .second-price-fields label{min-width:0;line-height:1.6;}
+#secondPricePanel .second-price-fields select{width:100%;}
+#secondPriceSavedSelect{width:min(100%,380px);max-width:100%;}
+.second-price-section-title{font-size:13px;font-weight:750;color:var(--text);margin:18px 0 8px;}
+#secondPricePanel button{min-height:36px;}
+#secondPricePanel>.toolbar{gap:8px;align-items:center;flex-wrap:wrap;}
+#secondPricePanel>details:not(.second-price-inventory){padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:9px;margin:12px 0;}
+#secondPricePanel>details>summary{cursor:pointer;font-size:12px;color:var(--muted);}
+.second-price-credit{display:grid;grid-template-columns:1fr 125px 125px auto;gap:7px;margin:7px 0;}
+.second-price-scope{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:12px 0 5px;}
+.second-price-scope>span{font-size:12px;color:var(--muted);margin-right:4px;}
+.second-price-scope button{min-height:36px;padding:7px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--muted);font-size:12px;cursor:pointer;}
+.second-price-scope button[aria-pressed=true]{background:#fceaf0;border-color:#e6a9bd;color:#b4365a;font-weight:700;}
+.second-price-inventory{margin:12px 0;padding:10px;border:1px solid var(--line);border-radius:9px;background:#fff;}
+.second-price-inventory>summary{font-size:12px;font-weight:700;cursor:pointer;}
+.second-price-columns label[hidden]{display:none!important;}
 .second-price-table-wrap{max-height:370px;overflow:auto;margin-top:10px;}
 .second-price-table-wrap table{width:100%;border-collapse:collapse;background:#fff;font-size:12px;}
 .second-price-table-wrap th,.second-price-table-wrap td{padding:7px;border:1px solid var(--line);text-align:left;}
-@media(max-width:620px){.second-price-credit{grid-template-columns:1fr 95px auto;}.second-price-fields{grid-template-columns:1fr 1fr;}}
+@media(max-width:620px){.second-price-credit{grid-template-columns:1fr 1fr auto;}.second-price-credit>[data-second-credit-note]{grid-column:1/-1;}.second-price-fields{grid-template-columns:1fr 1fr;}}
 .dispatch-action:hover{background:#fff;border-color:#cdbdcb;}
 .dispatch-action:focus-visible{outline:2px solid #d1466a;outline-offset:2px;}
 .dispatch-action.is-ship{background:#fceaf0;border-color:#f1ccda;color:#b6365b;}
@@ -2469,9 +2495,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       let next=Array.isArray(list)?list.slice(0,20):[];
       while(next.length){
         try{ localStorage.setItem(LOCAL_SNAPSHOT_KEY,JSON.stringify(next)); return true; }
-        catch(_){ next=next.slice(0,Math.max(1,next.length-1)); }
+        catch(_){ if(next.length===1)break;next=next.slice(0,next.length-1); }
       }
-      try{ localStorage.removeItem(LOCAL_SNAPSHOT_KEY); }catch(_){}
+      // A failed write must not erase the previous recoverable snapshot.
       return false;
     }
     function snapshotSummary(payload){
@@ -2490,7 +2516,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(!force&&signature===lastLocalSnapshotSignature) return false;
         if(!force&&now-lastLocalSnapshotAt<30000) return false;
         const list=loadLocalSnapshots().filter(item=>item.signature!==signature);
-        list.unshift({id:`snap_${now}_${Math.random().toString(36).slice(2,7)}`,createdAt:new Date(now).toISOString(),reason,summary:snapshotSummary(payload),signature,payload});
+        list.unshift({id:`snap_${now}_${Math.random().toString(36).slice(2,7)}`,workspaceCode:String(syncCode||''),workspaceName:currentWorkspace()?.name||'本机数据',createdAt:new Date(now).toISOString(),reason,summary:snapshotSummary(payload),signature,payload});
         const ok=saveLocalSnapshots(list);
         if(ok){ lastLocalSnapshotAt=now; lastLocalSnapshotSignature=signature; }
         return ok;
@@ -2512,9 +2538,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       list.forEach(sheet=>{ const score=sheetSnapshotMatchScore(sheet,currentSheet); if(score>bestScore){ best=sheet; bestScore=score; } });
       return bestScore>0?best:null;
     }
-    async function restoreLocalSnapshotDialog(){
-      const list=loadLocalSnapshots();
+    async function restoreLocalSnapshotDialog(wholeGroup=false){
+      const list=loadLocalSnapshots().filter(item=>item.workspaceCode===undefined||item.workspaceCode===String(syncCode||''));
       if(!list.length){ await appAlert('这个浏览器里还没有可恢复的本机快照。以后每次保存会自动留下最近版本。','本机快照'); return; }
+      if(wholeGroup){ await restoreWholeGroupSnapshotDialog(list); return; }
       const lines=list.slice(0,15).map((item,index)=>`${index+1}. ${new Date(item.createdAt).toLocaleString('zh-CN')} · ${item.reason||'自动保存'}\n   ${item.summary||snapshotSummary(item.payload)}`).join('\n\n');
       const currentSheet=sheets.find(s=>s.id===activeSheetId), currentName=String(currentSheet?.name||'当前排单').trim()||'当前排单';
       const answer=await appPrompt(`只恢复当前排单「${currentName}」，其他排单不会动。\n输入要恢复的编号：\n\n${lines}\n\n恢复前会先给当前状态再留一份快照。`,'1','恢复当前排单','恢复');
@@ -2541,6 +2568,47 @@ body.export-rendering .cart-count{ font-size:28px; }
         await appAlert('已只恢复当前排单。其他排单没有被改动。确认没问题以后，再决定要不要上传云端。','恢复完成');
       }catch(error){ await appAlert('恢复失败：'+(error.message||error),'本机快照'); }
     }
+    async function restoreWholeGroupSnapshotDialog(list){
+      if(currentWorkspace()&&currentWorkspace().role!=='owner'){await appAlert('整个协作组恢复请由管理员操作。');return;}
+      const code=String(syncCode||'');
+      const lines=list.slice(0,15).map((s,i)=>`${i+1}. ${new Date(s.createdAt).toLocaleString('zh-CN')}${s.workspaceCode===undefined?' · 旧版快照，所属组待核对':''} · ${s.summary||snapshotSummary(s.payload)}`).join('\n\n');
+      const answer=await appPrompt(`恢复整个协作组的数据：包括全部表、收退补记录、国际与追加费用。\n后来删除的表可找回，但快照之后的新表和修改也会回退。\n旧版快照无法识别所属组，请仔细核对表名，不确定请取消。\n\n${lines}`,'1','整个协作组快照','下一步');
+      if(answer===null)return;
+      const n=Number(answer),item=Number.isInteger(n)&&n>=1?list[n-1]:null;
+      if(!item){await appAlert('没有这个编号。');return;}
+      if(item.workspaceCode===undefined&&!await appConfirm(`这是旧版快照，无法确认属于当前组「${currentWorkspace()?.name||code||'本机数据'}」。\n${snapshotSummary(item.payload)}\n\n请确认这些表确实属于当前组；不确定请取消。`,'核对旧版快照归属','确认属于当前组'))return;
+      if(!await appConfirm(`确定回到 ${new Date(item.createdAt).toLocaleString('zh-CN')} 吗？\n${snapshotSummary(item.payload)}\n\n将先下载当前完整备份。恢复仅在本机进行，实时同步会关闭，不会立即覆盖其他成员。检查后需另行决定云端同步。快照不保证含有图片。`,'恢复整个协作组','下载备份并恢复'))return;
+      if(code!==String(syncCode||'')||collabSending||collabPolling){await appAlert('协作组已变化或正在同步，请等同步结束后重试。');return;}
+      captureActiveSheet();const before=deepClone(localStatePayload());
+      downloadBackup(before,'整个协作组-恢复前备份.json');
+      if(!await appConfirm('请确认恢复前备份已经下载成功。未下载成功请取消。','检查备份','已下载，继续恢复'))return;
+      captureActiveSheet();
+      if(code!==String(syncCode||'')||collabSending||collabPolling||JSON.stringify(localStatePayload())!==JSON.stringify(before)){await appAlert('等待期间数据发生变化或正在同步，请重新打开快照后恢复。');return;}
+      collabEnabled=false;collabNeedsSend=false;clearTimeout(collabSendTimer);collabSendTimer=null;stopCollabPolling();stopCollabPresence();pendingCollabInstallState=null;
+      clearIdleCloudUpload();cloudConflictPaused=true;
+      try{
+        localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'0');
+        applyProjectPayload(deepClone(item.payload),code);
+        if(persistLocalState()==='failed')throw new Error('本机空间不足，恢复没有保存');
+        cloudConflictPaused=true;clearIdleCloudUpload();syncCollabUI();renderSheetTabs();
+        setCloudStatus('整个协作组已在本机恢复 · 同步已暂停','warn');
+        await appAlert('已恢复快照里的全部表，包含当时尚未删除的表。实时同步已关闭，请先检查；其他成员的云端数据尚未改变。','恢复完成');
+      }catch(error){
+        try{applyProjectPayload(before,code);persistLocalState();}catch(_){}
+        cloudConflictPaused=true;clearIdleCloudUpload();syncCollabUI();
+        await appAlert('恢复未完成，已尝试保留恢复前数据，请保管刚下载的备份。\n'+(error.message||error));
+      }
+    }
+    async function cleanLocalSnapshots(){
+      captureActiveSheet();
+      const oldUndo=localStorage.getItem(UNDO_STORAGE_KEY),oldSnapshots=localStorage.getItem(LOCAL_SNAPSHOT_KEY);
+      downloadBackup({...deepClone(localStatePayload()),savedUndoHistory:oldUndo,savedProjectSnapshots:oldSnapshots},'全部数据与旧快照-清理前备份.json');
+      if(!await appConfirm('已发起下载完整备份。请先确认文件已保存，再清理。\n\n只清理本机的旧撤回记录和旧快照，不删除排单、收款退款账或云端数据。清理后不能再用旧撤回记录，旧快照已保存在下载文件里。','安全清理旧快照','已下载备份，清理'))return;
+      if(oldUndo!==localStorage.getItem(UNDO_STORAGE_KEY)||oldSnapshots!==localStorage.getItem(LOCAL_SNAPSHOT_KEY)){await appAlert('等待期间记录有更新，请重新清理，避免删除未备份的新记录。');return;}
+      localStorage.removeItem(UNDO_STORAGE_KEY);localStorage.removeItem(LOCAL_SNAPSHOT_KEY);
+      undoHistoryBySheet={};lastLocalSnapshotSignature='';lastLocalSnapshotAt=0;syncUndoButton();
+      await appAlert(persistLocalState()==='failed'?'旧记录已清理，但当前数据仍无法保存。请保管备份，暂不要继续修改。':'已安全清理旧记录。排单和钱账保留，可以重新点“买齐”了。');
+    }
     function stripInlineImagesForCloud(value){
       if(typeof value==='string') return value.startsWith('data:image/')?'':value;
       if(Array.isArray(value)) return value.map(stripInlineImagesForCloud);
@@ -2555,7 +2623,6 @@ body.export-rendering .cart-count{ font-size:28px; }
         return 'full';
       }catch(error){
         try{
-          localStorage.removeItem(STORAGE_KEY);
           localStorage.setItem(STORAGE_KEY,JSON.stringify(lightLocalStatePayload()));
           console.warn('本机空间不足，已改为轻量缓存',error);
           return 'light';
@@ -2614,14 +2681,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     function pushUndoSnapshot(actionType,label){
       captureActiveSheet();
       const sheet=sheets.find(s=>s.id===activeSheetId); if(!sheet) return false;
-      const history=currentUndoHistory();
+      const history=currentUndoHistory(),beforeHistory=history.slice();
       const snapshotSheet=deepClone(sheet);
       (snapshotSheet.columns||[]).forEach(c=>{ delete c.img; });
       history.push({id:`undo_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,projectId:activeSheetId,createdAt:Date.now(),actionType,label,sheet:snapshotSheet});
       while(history.length>10) history.shift();
       if(!saveUndoHistory()){
-        history.pop(); syncUndoButton();
-        alert('无法创建撤回快照，本次修改尚未应用。请先清理浏览器存储空间。');
+        history.splice(0,history.length,...beforeHistory); syncUndoButton();
+        alert('撤回快照没有存下，本次修改尚未应用。\n请打开「设置与数据 → 安全清理旧快照」，先下载备份并确认，再清理旧快照后重试。\n不要清除网站数据；清理不会删除排单和钱账。');
         return false;
       }
       syncUndoButton(); return true;
@@ -3801,23 +3868,35 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!entry||normalizeDispatchKey(entry.person)!==normalizeDispatchKey(person)||Number(entry.colId)!==Number(c.id)||!Number.isFinite(Number(entry.amount)))return null;
       return Math.max(0,Number(entry.amount));
     }
-    function calculateSecondPrices(lines,cost,credits){
+    function calculateSecondPrices(lines,cost,credits,inventory={}){
       const cents=value=>Math.round(Number(value)*100);
       if(!Number.isFinite(Number(cost))||Number(cost)<0)throw new Error('请填写有效的本组实际购买总成本');
       if(!lines.length)throw new Error('没有参与分配的谷子，请检查所选列和“只分给已标记买到”设置');
       const deductions=(credits||[]).map(row=>{if(!Number.isFinite(Number(row.amount))||Number(row.amount)<0)throw new Error('抵扣金额必须是非负数字');if(Number(row.amount)>0&&!String(row.note||'').trim())throw new Error('请给每笔抵扣填写说明，避免重复记账');return cents(row.amount);});
-      const creditTotal=deductions.reduce((a,b)=>a+b,0),target=cents(cost)-creditTotal;if(target<0)throw new Error('抵扣超过购买成本，请核对；不能把负成本分给大家');
+      const soldQty=(credits||[]).reduce((sum,row)=>{const qty=Number(row.qty||0);if(!Number.isInteger(qty)||qty<0)throw new Error('卖出谷子件数必须是非负整数，满赠或其他抵扣填 0');return sum+qty;},0);
+      const rawQty=inventory.purchasedQty,purchasedQty=rawQty===null||rawQty===undefined||rawQty===''?null:Number(rawQty);
+      if(purchasedQty!==null&&(!Number.isInteger(purchasedQty)||purchasedQty<0))throw new Error('实际购买件数必须是非负整数');
+      if(purchasedQty===null&&soldQty>0)throw new Error('填写了卖出谷子件数，请同时填写本组实际购买件数，以免重复算余量');
+      const stockQty=purchasedQty===null?null:purchasedQty-lines.length-soldQty;
+      if(stockQty!==null&&stockQty<0)throw new Error('参与件数＋已卖件数超过实际购买件数，请检查选了哪些谷子列或是否重复记了卖出');
+      if(stockQty>0&&!['reserve','share'].includes(inventory.stockMode))throw new Error(`还有 ${stockQty} 件余量，请选择“先留库存”还是“暂由本组承担”`);
+      let reserveCents=0;
+      if(stockQty>0&&inventory.stockMode==='reserve'){
+        const manual=inventory.reserveAmount;
+        if(manual!==null&&manual!==undefined&&manual!==''){if(!Number.isFinite(Number(manual))||Number(manual)<0)throw new Error('库存预留成本必须是非负金额');reserveCents=cents(manual);}else reserveCents=Math.round(cents(cost)*stockQty/purchasedQty);
+      }
+      const creditTotal=deductions.reduce((a,b)=>a+b,0),target=cents(cost)-creditTotal-reserveCents;if(target<0)throw new Error('抵扣或库存预留超过购买成本，请核对；不能把负成本分给大家');
       const original=lines.map(line=>Math.max(0,cents(line.oldPrice))),ideal=original.map(()=>0);let active=original.map((_,index)=>index);
       while(active.length){const shift=(target-active.reduce((sum,index)=>sum+original[index],0))/active.length,negative=active.filter(index=>original[index]+shift<0);if(!negative.length){active.forEach(index=>ideal[index]=original[index]+shift);break;}const excluded=new Set(negative);active=active.filter(index=>!excluded.has(index));}
       const result=ideal.map(value=>Math.floor(value+1e-8));let remainder=target-result.reduce((a,b)=>a+b,0);
       const order=active.slice().sort((a,b)=>(ideal[b]-result[b])-(ideal[a]-result[a])||a-b);
       for(let i=0;i<remainder;i++)result[order[i%order.length]]++;
-      return {cost:cents(cost)/100,creditTotal:creditTotal/100,target:target/100,oldTotal:original.reduce((a,b)=>a+b,0)/100,lines:lines.map((line,index)=>({...line,newPrice:result[index]/100,difference:(result[index]-original[index])/100})),rounded:remainder>0};
+      return {cost:cents(cost)/100,creditTotal:creditTotal/100,target:target/100,purchasedQty,soldQty,stockQty,inventoryReserve:reserveCents/100,oldTotal:original.reduce((a,b)=>a+b,0)/100,lines:lines.map((line,index)=>({...line,newPrice:result[index]/100,difference:(result[index]-original[index])/100})),rounded:remainder>0};
     }
     function buildSecondPricePlan(source,config){
       const sheet=deepClone(source),info=sheetDisplayPriceInfo(sheet),selected=new Set(config.columnIds.map(Number)),lines=[];
       info.cols.filter(c=>selected.has(Number(c.id))).forEach(c=>{if(c.mode==='deduct'||c.mode==='wholeset')throw new Error('降均列和整配汇总列不能重复参与二调，请取消选择');(sheet.allocations?.[c.id]||[]).forEach((person,row)=>{const name=String(person||'').trim();if(!name)return;if(config.boughtOnly&&!sheetCellBought(c,row,name,sheet.matrixBoughtCells||{},sheet.allocations||{},sheet.pricingGroups||[],sheet.columns||[]))return;lines.push({colId:c.id,item:c.name,row,person:name,oldPrice:info.price(c,row)});});});
-      const result=calculateSecondPrices(lines,config.cost,config.credits),calculationId=config.id||'second_'+Date.now();
+      const result=calculateSecondPrices(lines,config.cost,config.credits,config),calculationId=config.id||'second_'+Date.now();
       sheet.secondPriceCellPrices=sheet.secondPriceCellPrices||{};
       result.lines.forEach(line=>sheet.secondPriceCellPrices[matrixBoughtKey(line.colId,line.row)]={person:line.person,colId:line.colId,amount:line.newPrice,calculationId});
       const affected=new Set(lines.map(line=>normalizeDispatchKey(line.person))),before=new Map(recordsForSheet(deepClone(source)).map(r=>[r.key,r])),after=recordsForSheet(sheet).filter(r=>affected.has(r.key));
@@ -3826,29 +3905,37 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     let secondPricePreview=null;
     function invalidateSecondPrice(){secondPricePreview=null;$('secondPriceSaveBtn').disabled=true;$('secondPriceApplyBtn').disabled=true;}
-    function addSecondPriceCredit(note='',amount=''){
-      const row=document.createElement('div');row.className='second-price-credit';row.innerHTML=`<input data-second-credit-note placeholder="抵扣说明：卖出／满赠…" value="${escapeAttr(note)}"><input data-second-credit-amount inputmode="decimal" placeholder="抵扣元" value="${escapeAttr(amount)}"><button type="button" class="btn-ghost" data-second-credit-remove>删除</button>`;$('secondPriceCredits').appendChild(row);
+    function syncSecondPriceScope(){const only=$('secondPriceBoughtOnly').checked;$('secondPriceOnlyBoughtBtn').setAttribute('aria-pressed',String(only));$('secondPriceAllOrderedBtn').setAttribute('aria-pressed',String(!only));}
+    function filterSecondPriceColumns(){
+      const query=String($('secondPriceColumnSearch').value||'').trim().toLowerCase(),labels=[...$('secondPriceColumns').querySelectorAll('label')];labels.forEach(label=>label.hidden=!!query&&!label.textContent.toLowerCase().includes(query));
+      const selected=labels.filter(label=>label.querySelector('input').checked).length,visible=labels.filter(label=>!label.hidden).length;
+      $('secondPriceSelectionCount').textContent=`已选 ${selected}/${labels.length} 列${query?` · 匹配 ${visible} 列`:''}`;$('secondPriceSelectAllBtn').textContent=query?'全选结果':'全选';$('secondPriceSelectNoneBtn').textContent=query?'全不选结果':'全不选';
+    }
+    function setSecondPriceColumns(selected){[...$('secondPriceColumns').querySelectorAll('label')].filter(label=>!label.hidden).forEach(label=>label.querySelector('input').checked=selected);filterSecondPriceColumns();invalidateSecondPrice();}
+    function addSecondPriceCredit(note='',amount='',qty=0){
+      const row=document.createElement('div');row.className='second-price-credit';row.innerHTML=`<input type="text" data-second-credit-note placeholder="抵扣说明：卖出／满赠…" value="${escapeAttr(note)}"><input type="text" data-second-credit-amount inputmode="decimal" placeholder="实际抵扣元" aria-label="实际抵扣金额" value="${escapeAttr(amount)}"><input type="text" data-second-credit-qty inputmode="numeric" placeholder="卖谷子件数" aria-label="卖出谷子件数（满赠填0）" title="卖出本组谷子的件数；满赠或其他抵扣填 0" value="${escapeAttr(qty)}"><button type="button" class="btn-ghost" data-second-credit-remove>删除</button>`;$('secondPriceCredits').appendChild(row);
     }
     function renderSecondPriceSetup(config=null){
       captureActiveSheet();invalidateSecondPrice();const sheet=sheets.find(s=>s.id===activeSheetId),info=sheetDisplayPriceInfo(sheet),saved=Array.isArray(sheet.secondPriceCalculations)?sheet.secondPriceCalculations:[];
       $('secondPricePanel').dataset.sheetId=String(activeSheetId);
       $('secondPriceSavedSelect').innerHTML='<option value="">新建试算</option>'+saved.map(c=>`<option value="${escapeAttr(c.id)}">${escapeHtml(c.name)}${c.appliedAt?' · 已应用':' · 已保存试算'}</option>`).join('');$('secondPriceSavedSelect').value=config?.id||'';
       $('secondPriceName').value=config?.name||'';$('secondPriceCost').value=config?.cost??'';$('secondPriceRate').value=sheet.cost?.exchangeRate||'';$('secondPriceBoughtOnly').checked=config?.boughtOnly!==false;
+      syncSecondPriceScope();$('secondPriceColumnSearch').value='';$('secondPricePurchasedQty').value=config?.purchasedQty??'';$('secondPriceStockMode').value=config?.stockMode||'';$('secondPriceReserve').value=config?.reserveAmount??'';$('secondPriceReserve').disabled=$('secondPriceStockMode').value!=='reserve';
       const selected=config?new Set(config.columnIds.map(Number)):new Set(info.cols.filter(c=>c.mode!=='deduct'&&c.mode!=='wholeset').map(c=>Number(c.id)));
       $('secondPriceColumns').innerHTML=info.cols.filter(c=>c.mode!=='deduct'&&c.mode!=='wholeset').map(c=>`<label><input type="checkbox" data-second-column="${c.id}" ${selected.has(Number(c.id))?'checked':''}>${escapeHtml(c.name)} <small>已排 ${(sheet.allocations?.[c.id]||[]).filter(n=>String(n||'').trim()).length}</small></label>`).join('');
-      $('secondPriceCredits').innerHTML='';(config?.credits||[]).forEach(row=>addSecondPriceCredit(row.note,row.amount));
+      filterSecondPriceColumns();$('secondPriceCredits').innerHTML='';(config?.credits||[]).forEach(row=>addSecondPriceCredit(row.note,row.amount,row.qty||0));
       $('secondPriceResult').textContent='试算不会修改原表。确认本组列、成本和抵扣后，点“计算并预览”。';
     }
     function readSecondPriceConfig(){
       if(!$('secondPriceCost').value.trim())throw new Error('请填写本组实际购买总成本，不自动猜成本');
       const name=$('secondPriceName').value.trim();if(!name)throw new Error('请填写本组名称，例如“衣服挂”');
-      return {id:$('secondPriceSavedSelect').value||'',name,cost:Number($('secondPriceCost').value),columnIds:[...$('secondPriceColumns').querySelectorAll('[data-second-column]:checked')].map(input=>Number(input.dataset.secondColumn)),boughtOnly:$('secondPriceBoughtOnly').checked,credits:[...$('secondPriceCredits').children].map(row=>({note:row.querySelector('[data-second-credit-note]').value.trim(),amount:Number(row.querySelector('[data-second-credit-amount]').value||0)}))};
+      return {id:$('secondPriceSavedSelect').value||'',name,cost:Number($('secondPriceCost').value),columnIds:[...$('secondPriceColumns').querySelectorAll('[data-second-column]:checked')].map(input=>Number(input.dataset.secondColumn)),boughtOnly:$('secondPriceBoughtOnly').checked,purchasedQty:$('secondPricePurchasedQty').value.trim()===''?null:Number($('secondPricePurchasedQty').value),stockMode:$('secondPriceStockMode').value,reserveAmount:$('secondPriceReserve').value.trim()===''?null:Number($('secondPriceReserve').value),credits:[...$('secondPriceCredits').children].map(row=>({note:row.querySelector('[data-second-credit-note]').value.trim(),amount:Number(row.querySelector('[data-second-credit-amount]').value||0),qty:Number(row.querySelector('[data-second-credit-qty]').value||0)}))};
     }
     function previewSecondPrice(){
       try{if($('secondPricePanel').dataset.sheetId!==String(activeSheetId)){renderSecondPriceSetup();throw new Error('已切换排单，请重新填写当前表的试算');}captureActiveSheet();const sheet=sheets.find(s=>s.id===activeSheetId),plan=buildSecondPricePlan(sheet,readSecondPriceConfig());secondPricePreview={sheetId:activeSheetId,signature:JSON.stringify(sheet),plan};
         const rows=plan.lines.map(line=>`<tr><td>${escapeHtml(line.person)}</td><td>${escapeHtml(line.item)} · 第${line.row+1}行</td><td>${money(line.oldPrice)}</td><td>${money(line.newPrice)}</td><td>${line.difference>=0?'+':''}${money(line.difference)}</td></tr>`).join('');
         const people=plan.people.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${money(settlementCurrentCash(r))}</td><td>${money(num(r.g.actual)+num(r.sh.expected))}</td><td>${r.historyUnknown?'历史待核对':r.refund>0.005?'退 '+money(r.refund):r.due>0.005?'补 '+money(r.due):'已结清'}</td></tr>`).join('');
-        $('secondPriceResult').innerHTML=`<p><b>${escapeHtml(plan.config.name)}</b>：购买成本 ${money(plan.cost)} − 抵扣 ${money(plan.creditTotal)} ＝ 本组承担 ${money(plan.target)}<br>参与 ${plan.lines.length} 件 · 原合计 ${money(plan.oldTotal)} → 新合计 ${money(plan.lines.reduce((sum,line)=>sum+line.newPrice,0))} · 尾差已按分补平。原价差尽量保留，最低为 0。</p><div class="second-price-table-wrap"><table><thead><tr><th>CN</th><th>谷子</th><th>原单价</th><th>新单价</th><th>单价变化</th></tr></thead><tbody>${rows}</tbody></table></div><p>以下退补按当前表结算设置，并已计入历史退款、补款和转单。与单价变化不是同一回事。</p><div class="second-price-table-wrap"><table><thead><tr><th>CN</th><th>当前实收</th><th>新应收（含均摊）</th><th>剩余退补</th></tr></thead><tbody>${people}</tbody></table></div>${plan.blocked.length?'<p style="color:#b97820">可保存试算，但暂不能应用：'+escapeHtml(plan.blocked.map(r=>r.name).join('、'))+' 有历史金额待核对或手动应收／退补设置，请先在收退补流水、结算中心核对。</p>':''}`;
+        $('secondPriceResult').innerHTML=`<p><b>${escapeHtml(plan.config.name)}</b>：购买成本 ${money(plan.cost)} − 已确认抵扣 ${money(plan.creditTotal)} − 库存预留 ${money(plan.inventoryReserve)} ＝ 本组承担 ${money(plan.target)}<br>${plan.stockQty===null?'余量未核对（未填写购买件数）':`购买 ${plan.purchasedQty} 件 · 表外已卖 ${plan.soldQty} 件 · 余量 ${plan.stockQty} 件`}<br>参与 ${plan.lines.length} 件 · 原合计 ${money(plan.oldTotal)} → 新合计 ${money(plan.lines.reduce((sum,line)=>sum+line.newPrice,0))} · 尾差已按分补平。原价差尽量保留，最低为 0。</p><div class="second-price-table-wrap"><table><thead><tr><th>CN</th><th>谷子</th><th>原单价</th><th>新单价</th><th>单价变化</th></tr></thead><tbody>${rows}</tbody></table></div><p>以下退补按当前表结算设置，并已计入历史退款、补款和转单。与单价变化不是同一回事。</p><div class="second-price-table-wrap"><table><thead><tr><th>CN</th><th>当前实收</th><th>新应收（含均摊）</th><th>剩余退补</th></tr></thead><tbody>${people}</tbody></table></div>${plan.blocked.length?'<p style="color:#b97820">可保存试算，但暂不能应用：'+escapeHtml(plan.blocked.map(r=>r.name).join('、'))+' 有历史金额待核对或手动应收／退补设置，请先在收退补流水、结算中心核对。</p>':''}`;
         if(plan.needsSettlement)$('secondPriceResult').insertAdjacentHTML('afterbegin','<p style="color:#b97820"><b>当前未开启结算中心。</b>只分给买到的谷子时，请先在收款页开启结算中心，再重新试算并应用，避免未买到的仍按原排单计收。现在可先保存试算。</p>');
         $('secondPriceSaveBtn').disabled=false;$('secondPriceApplyBtn').disabled=plan.blocked.length>0||plan.needsSettlement;
       }catch(error){invalidateSecondPrice();$('secondPriceResult').textContent=error.message||'试算失败';}
@@ -3859,10 +3946,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     async function applySecondPrice(){
       const preview=secondPricePreview;if(!preview||preview.plan.blocked.length||preview.plan.needsSettlement)return;
       captureActiveSheet();let sheet=sheets.find(s=>s.id===activeSheetId);if(preview.sheetId!==activeSheetId||JSON.stringify(sheet)!==preview.signature){invalidateSecondPrice();await appAlert('排单、价格或账目已变化，请重新计算预览。','未应用');return;}
-      if(!await appConfirm(`应用「${preview.plan.config.name}」的二调价格？\n${preview.plan.lines.length} 件，总成本减抵扣后合计 ${money(preview.plan.target)}。\n只更新这些已选格子的应收，原收款、已退补、均摊、国际都不改。列头原单价保留，格子显示“二调实价”。`,'确认二调','应用新价'))return;
+      if(!await appConfirm(`应用「${preview.plan.config.name}」的二调价格？\n${preview.plan.lines.length} 件，扣除抵扣及库存预留后，本组承担 ${money(preview.plan.target)}。\n只更新这些已选格子的应收，原收款、已退补、均摊、国际都不改。列头原单价保留，格子显示“二调实价”。`,'确认二调','应用新价'))return;
       captureActiveSheet();sheet=sheets.find(s=>s.id===activeSheetId);if(preview.sheetId!==activeSheetId||JSON.stringify(sheet)!==preview.signature){invalidateSecondPrice();await appAlert('确认期间数据有变化，请重新试算。','未应用');return;}
       if(!pushUndoSnapshot('second-price','应用二调前'))return;
-      const before=deepClone(sheet);rememberPaidGoodsSnapshotsBeforePriceChange();sheet.secondPriceCellPrices=deepClone(preview.plan.updates);saveSecondPriceConfiguration(sheet,preview.plan,true);sheet.secondPriceApplicationHistory=[...(sheet.secondPriceApplicationHistory||[]),{at:new Date().toISOString(),name:preview.plan.config.name,cost:preview.plan.cost,credits:deepClone(preview.plan.config.credits),target:preview.plan.target,lines:deepClone(preview.plan.lines)}];
+      const before=deepClone(sheet);rememberPaidGoodsSnapshotsBeforePriceChange();sheet.secondPriceCellPrices=deepClone(preview.plan.updates);saveSecondPriceConfiguration(sheet,preview.plan,true);sheet.secondPriceApplicationHistory=[...(sheet.secondPriceApplicationHistory||[]),{at:new Date().toISOString(),name:preview.plan.config.name,cost:preview.plan.cost,credits:deepClone(preview.plan.config.credits),target:preview.plan.target,purchasedQty:preview.plan.purchasedQty,stockQty:preview.plan.stockQty,inventoryReserve:preview.plan.inventoryReserve,stockMode:preview.plan.config.stockMode||'',lines:deepClone(preview.plan.lines)}];
       if(!saveState()){sheets[sheets.findIndex(s=>s.id===before.id)]=before;applySheet(before);await appAlert('保存失败，已保留原表和原账，请先备份并处理存储空间。','未应用');return;}
       invalidateSecondPrice();renderColumnList();renderMatrix();$('secondPriceResult').textContent='已应用二调。原收款和退补记录未改变；格子显示二调实价，收款表按新的应收继续算差额。可用“撤回上次应用”撤回。';
     }
@@ -8069,12 +8156,19 @@ body.export-rendering .cart-count{ font-size:28px; }
       syncCurrentSheetDispatchControl();renderDispatch();
     }
     $('secondPricePanel').addEventListener('toggle',()=>{if($('secondPricePanel').open&&$('secondPricePanel').dataset.sheetId!==String(activeSheetId))renderSecondPriceSetup();});
-    $('secondPricePanel').addEventListener('input',invalidateSecondPrice);
+    $('secondPricePanel').addEventListener('input',e=>{if(e.target.id!=='secondPriceColumnSearch')invalidateSecondPrice();});
     $('secondPricePanel').addEventListener('change',e=>{if(e.target.id!=='secondPriceSavedSelect')invalidateSecondPrice();});
     $('secondPriceRefreshBtn').addEventListener('click',()=>renderSecondPriceSetup());
+    $('secondPriceColumnSearch').addEventListener('input',filterSecondPriceColumns);
+    $('secondPriceColumns').addEventListener('change',filterSecondPriceColumns);
+    $('secondPriceSelectAllBtn').addEventListener('click',()=>setSecondPriceColumns(true));
+    $('secondPriceSelectNoneBtn').addEventListener('click',()=>setSecondPriceColumns(false));
+    $('secondPriceOnlyBoughtBtn').addEventListener('click',()=>{$('secondPriceBoughtOnly').checked=true;syncSecondPriceScope();invalidateSecondPrice();});
+    $('secondPriceAllOrderedBtn').addEventListener('click',()=>{$('secondPriceBoughtOnly').checked=false;syncSecondPriceScope();invalidateSecondPrice();});
+    $('secondPriceStockMode').addEventListener('change',()=>{$('secondPriceReserve').disabled=$('secondPriceStockMode').value!=='reserve';invalidateSecondPrice();});
     $('secondPriceAddCreditBtn').addEventListener('click',()=>{addSecondPriceCredit();invalidateSecondPrice();});
     $('secondPriceCredits').addEventListener('click',e=>{const button=e.target.closest('[data-second-credit-remove]');if(button){button.closest('.second-price-credit').remove();invalidateSecondPrice();}});
-    $('secondPriceJpyBtn').addEventListener('click',()=>{const price=Number($('secondPriceJpy').value),rate=Number($('secondPriceRate').value),qty=Number($('secondPriceQty').value);if(!$('secondPriceJpy').value.trim()||!Number.isFinite(price)||price<0||!Number.isFinite(rate)||rate<=0||!Number.isInteger(qty)||qty<1){appAlert('请填写日元单价、正汇率和正整数购买总量。','参数未填写完整');return;}$('secondPriceCost').value=(Math.round(price*rate*qty*100)/100).toFixed(2);invalidateSecondPrice();});
+    $('secondPriceJpyBtn').addEventListener('click',()=>{const price=Number($('secondPriceJpy').value),rate=Number($('secondPriceRate').value),qty=Number($('secondPriceQty').value);if(!$('secondPriceJpy').value.trim()||!Number.isFinite(price)||price<0||!Number.isFinite(rate)||rate<=0||!Number.isInteger(qty)||qty<1){appAlert('请填写日元单价、正汇率和正整数购买总量。','参数未填写完整');return;}$('secondPriceCost').value=(Math.round(price*rate*qty*100)/100).toFixed(2);$('secondPricePurchasedQty').value=String(qty);invalidateSecondPrice();});
     $('secondPriceSavedSelect').addEventListener('change',e=>{const sheet=sheets.find(s=>s.id===activeSheetId),config=(sheet.secondPriceCalculations||[]).find(c=>c.id===e.target.value);renderSecondPriceSetup(config||null);});
     $('secondPriceCalculateBtn').addEventListener('click',previewSecondPrice);
     $('secondPriceApplyBtn').addEventListener('click',applySecondPrice);
@@ -11004,7 +11098,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       syncActivePaymentQr();
       downloadBackup({sheets,activeSheetId,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,sharedPaymentQrLabels,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives,extraFeeBatchFilter},'全部排单备份.json');
     });
-    $('localSnapshotsBtn').addEventListener('click',restoreLocalSnapshotDialog);
+    $('localSnapshotsBtn').textContent='恢复当前表快照';
+    $('localSnapshotsBtn').addEventListener('click',()=>restoreLocalSnapshotDialog(false));
+    $('groupSnapshotsBtn').addEventListener('click',()=>restoreLocalSnapshotDialog(true));
+    $('cleanLocalSnapshotsBtn').addEventListener('click',cleanLocalSnapshots);
+    $('cleanCacheBtn').addEventListener('click',cleanLocalSnapshots);
     $('exportImportTemplateBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       const templateColumns=columns.length?columns:Array.from({length:8},(_,i)=>({name:`谷子${i+1}`,mode:'avg',priceAdj:0,fixedPrice:0,sourceJpyPrice:0,promotionPoints:1}));
