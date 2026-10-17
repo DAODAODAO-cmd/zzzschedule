@@ -2504,13 +2504,31 @@ body.export-rendering .cart-count{ font-size:28px; }
       payload.extraPaymentQrImg=slimImage(payload.extraPaymentQrImg);
       return payload;
     }
+    function encodeHistoryStorage(value){
+      const raw=JSON.stringify(value),bytes=new TextEncoder().encode(raw),dict=new Map(),output=[];let next=256,word='';
+      for(const byte of bytes){const char=String.fromCharCode(byte),joined=word+char;if(word===''||dict.has(joined)){word=joined;continue;}output.push(String.fromCharCode(word.length===1?word.charCodeAt(0):dict.get(word)));if(next<65536)dict.set(joined,next++);word=char;}
+      if(word)output.push(String.fromCharCode(word.length===1?word.charCodeAt(0):dict.get(word)));
+      const packed='GGZLZW1:'+output.join('');return packed.length<raw.length?packed:raw;
+    }
+    function decodeHistoryStorage(raw,fallback){
+      if(!raw)return fallback;if(!raw.startsWith('GGZLZW1:'))return JSON.parse(raw);
+      const packed=raw.slice(8);if(!packed.length)throw new Error('快照压缩内容为空');
+      const dict=[],first=packed.charCodeAt(0);if(first>255)throw new Error('快照压缩头损坏');let previous=String.fromCharCode(first),next=256;const output=[previous];
+      for(let i=1;i<packed.length;i++){const code=packed.charCodeAt(i),entry=code<256?String.fromCharCode(code):dict[code]||(code===next?previous+previous[0]:null);if(entry===null||entry===undefined)throw new Error('快照压缩内容损坏');output.push(entry);if(next<65536)dict[next++]=previous+entry[0];previous=entry;}
+      const binary=output.join(''),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+      return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+    }
+    function compactStoredHistories(){
+      [UNDO_STORAGE_KEY,LOCAL_SNAPSHOT_KEY].forEach(key=>{try{const raw=localStorage.getItem(key);if(!raw)return;const value=decodeHistoryStorage(raw,null);if(key===LOCAL_SNAPSHOT_KEY&&Array.isArray(value))value.forEach(item=>{if(item?.signature)delete item.signature;});const packed=encodeHistoryStorage(value);if(packed.length<raw.length)localStorage.setItem(key,packed);}catch(error){console.warn('旧快照压缩未完成，保留原记录',error);}});
+    }
     function loadLocalSnapshots(){
-      try{ const list=JSON.parse(localStorage.getItem(LOCAL_SNAPSHOT_KEY)||'[]'); return Array.isArray(list)?list.filter(x=>x&&x.payload&&Array.isArray(x.payload.sheets)):[]; }catch(_){ return []; }
+      try{ const list=decodeHistoryStorage(localStorage.getItem(LOCAL_SNAPSHOT_KEY),[]); return Array.isArray(list)?list.filter(x=>x&&x.payload&&Array.isArray(x.payload.sheets)):[]; }catch(_){ return []; }
     }
     function saveLocalSnapshots(list){
       let next=Array.isArray(list)?list.slice(0,20):[];
+      let rawSize=0;next=next.filter((item,index)=>{const size=JSON.stringify(item).length;rawSize+=size;return index===0||rawSize<=3000000;});
       while(next.length){
-        try{ localStorage.setItem(LOCAL_SNAPSHOT_KEY,JSON.stringify(next)); return true; }
+        try{ const packed=encodeHistoryStorage(next);if(packed.length>600000&&next.length>1){next=next.slice(0,next.length-1);continue;}localStorage.setItem(LOCAL_SNAPSHOT_KEY,packed); return true; }
         catch(_){ if(next.length===1)break;next=next.slice(0,next.length-1); }
       }
       // A failed write must not erase the previous recoverable snapshot.
@@ -2531,8 +2549,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         const now=Date.now();
         if(!force&&signature===lastLocalSnapshotSignature) return false;
         if(!force&&now-lastLocalSnapshotAt<30000) return false;
-        const list=loadLocalSnapshots().filter(item=>item.signature!==signature);
-        list.unshift({id:`snap_${now}_${Math.random().toString(36).slice(2,7)}`,workspaceCode:String(syncCode||''),workspaceName:currentWorkspace()?.name||'本机数据',createdAt:new Date(now).toISOString(),reason,summary:snapshotSummary(payload),signature,payload});
+        const list=loadLocalSnapshots().filter(item=>item.workspaceCode!==String(syncCode||'')||JSON.stringify(item.payload)!==signature);
+        list.unshift({id:`snap_${now}_${Math.random().toString(36).slice(2,7)}`,workspaceCode:String(syncCode||''),workspaceName:currentWorkspace()?.name||'本机数据',createdAt:new Date(now).toISOString(),reason,summary:snapshotSummary(payload),payload});
         const ok=saveLocalSnapshots(list);
         if(ok){ lastLocalSnapshotAt=now; lastLocalSnapshotSignature=signature; }
         return ok;
@@ -2674,13 +2692,18 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function loadUndoHistory(){
       try{
-        const parsed=JSON.parse(localStorage.getItem(UNDO_STORAGE_KEY)||'{}');
+        const parsed=decodeHistoryStorage(localStorage.getItem(UNDO_STORAGE_KEY),{});
         undoHistoryBySheet=parsed&&typeof parsed==='object'?parsed:{};
       }catch(e){ undoHistoryBySheet={}; }
     }
     function saveUndoHistory(){
-      try{ localStorage.setItem(UNDO_STORAGE_KEY,JSON.stringify(undoHistoryBySheet)); return true; }
-      catch(e){ console.warn('撤回记录保存失败',e); return false; }
+      const candidate=deepClone(undoHistoryBySheet),key=String(activeSheetId),protectedId=candidate[key]?.at(-1)?.id;
+      const prune=()=>{let chosen=null;Object.entries(candidate).forEach(([sheetId,rows])=>{if(!Array.isArray(rows))return;rows.forEach((row,index)=>{if(sheetId===key&&row.id===protectedId)return;if(!chosen||Number(row.createdAt)<Number(chosen.row.createdAt))chosen={sheetId,index,row};});});if(!chosen)return false;candidate[chosen.sheetId].splice(chosen.index,1);return true;};
+      while(Object.values(candidate).reduce((sum,rows)=>sum+(Array.isArray(rows)?rows.length:0),0)>30){if(!prune())break;}
+      while(true){
+        try{const packed=encodeHistoryStorage(candidate);if(packed.length>400000&&prune())continue;localStorage.setItem(UNDO_STORAGE_KEY,packed);Object.keys(undoHistoryBySheet).forEach(id=>{if(Array.isArray(undoHistoryBySheet[id]))undoHistoryBySheet[id].splice(0,undoHistoryBySheet[id].length,...(candidate[id]||[]));});return true;}
+        catch(error){if(!prune()){console.warn('撤回记录保存失败',error);return false;}}
+      }
     }
     function currentUndoHistory(){
       const key=String(activeSheetId);
@@ -11373,6 +11396,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('editorNameInput').value=editorName;
     localStorage.removeItem('ggzCloudAuto');
     setCloudStatus('登录后自动读取协作组');
+    compactStoredHistories();
     loadUndoHistory();
     loadState();
     recordLocalSnapshot('打开页面时',true);
