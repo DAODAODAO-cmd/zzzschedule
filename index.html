@@ -6430,6 +6430,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function renderExtraFees(){
       const list=$('extraFeeList'); if(!list) return;
+      const preservePosition=list.querySelector('table')?captureExtraFeeScroll():null;
       renderExtraFeeArchives();
       renderExtraFeeBatchSelect();
       const visible=visibleExtraFees(), grouped=new Map();
@@ -6444,7 +6445,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if($('extraPaymentQrSharedHint')) $('extraPaymentQrSharedHint').textContent=effectiveExtraPaymentQr()?`当前共用「${paymentQrSlotName()}」，切换、上传及导出均同步。`:`「${paymentQrSlotName()}」尚未上传图片，请在上方上传收款码。`;
       if($('recalcIntlFeesBtn')) $('recalcIntlFeesBtn').style.display=visible.some(row=>row.feeType==='international')?'':'none';
       if($('intlDiffFeesBtn')) $('intlDiffFeesBtn').style.display=(extraFeeArchives||[]).length?'':'none';
-      if(!grouped.size){ list.innerHTML='<div class="extra-fee-empty">暂无符合条件的追加费用</div>'; return; }
+      if(!grouped.size){ list.innerHTML='<div class="extra-fee-empty">暂无符合条件的追加费用</div>'; restoreExtraFeeScroll(preservePosition); return; }
       const allVisibleRows=[...grouped.values()].flat(), allPaid=allVisibleRows.length&&allVisibleRows.every(r=>r.paid), partialPaid=!allPaid&&allVisibleRows.some(r=>r.paid);
       const paidAllControl=`<button type="button" class="payment-paid-all extra-fee-person-toggle" data-extra-paid-all-table="1" aria-pressed="${allPaid?'true':(partialPaid?'mixed':'false')}" title="全选或取消当前表格的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       let alipayTotal=0;
@@ -6467,6 +6468,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const color=/^#[0-9a-f]{6}$/i.test(extraFeeColor)?extraFeeColor:'#d1466a';
       const totalWechat=alipayTotal<0?alipayTotal:extraFeeWechatAmount(alipayTotal);
       list.innerHTML=`<div class="payment-table-wrap"><div id="extraFeeExportTitle" class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(extraFeeTitle||'追加费用收款')}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>${paidAllControl} CN</th><th>谷类</th><th>数量</th><th>g重</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody>${extraFeeShowTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">当前显示合计</td><td class="payment-total-value">${moneyText(alipayTotal)}</td><td class="payment-total-value">${moneyText(totalWechat)}</td></tr></tfoot>`:''}</table>${qrHtml}</div>`;
+      restoreExtraFeeScroll(preservePosition);
     }
     async function archiveCurrentExtraFees(){
       const rows=visibleExtraFees();
@@ -6505,6 +6507,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function captureExtraFeeScroll(){
       const scroller=$('extraFeeList')?.querySelector('.payment-table-wrap'), main=document.querySelector('.app-main');
+      const ancestors=[];for(let el=$('extraFeeList')?.parentElement;el;el=el.parentElement){if(el.scrollHeight>el.clientHeight||el.scrollWidth>el.clientWidth)ancestors.push({el,top:el.scrollTop,left:el.scrollLeft});}
       let anchorId='', anchorOffset=0;
       if(scroller){
         const rows=[...scroller.querySelectorAll('tbody tr[data-extra-ids]')];
@@ -6517,6 +6520,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         tableLeft:scroller?scroller.scrollLeft:0,
         anchorId,
         anchorOffset,
+        ancestors,
         windowX:window.scrollX||window.pageXOffset||0,
         windowY:window.scrollY||window.pageYOffset||document.documentElement.scrollTop||document.body.scrollTop||0,
         mainTop:main?main.scrollTop:0,
@@ -6535,16 +6539,18 @@ body.export-rendering .cart-count{ font-size:28px; }
         }
       }
       if(main){ main.scrollTop=pos.mainTop||0; main.scrollLeft=pos.mainLeft||0; }
-      window.scrollTo(pos.windowX||0,pos.windowY||0);
+      (pos.ancestors||[]).forEach(({el,top,left})=>{if(el.isConnected){el.scrollTop=top;el.scrollLeft=left;}});
+      window.scrollTo({left:pos.windowX||0,top:pos.windowY||0,behavior:'instant'});
     }
+    let extraFeeScrollRestoreEpoch=0;
     function renderExtraFeesKeepScroll(pos=null){
-      pos=pos||captureExtraFeeScroll();
+      if(!pos||typeof pos.tableTop!=='number')pos=captureExtraFeeScroll();
+      const epoch=++extraFeeScrollRestoreEpoch;
       renderExtraFees();
-      restoreExtraFeeScroll(pos);
-      requestAnimationFrame(()=>{ restoreExtraFeeScroll(pos); requestAnimationFrame(()=>restoreExtraFeeScroll(pos)); });
-      setTimeout(()=>restoreExtraFeeScroll(pos),0);
-      setTimeout(()=>restoreExtraFeeScroll(pos),80);
+      const restore=()=>{if(epoch===extraFeeScrollRestoreEpoch)restoreExtraFeeScroll(pos);};
+      restore();requestAnimationFrame(()=>{restore();requestAnimationFrame(restore);});setTimeout(restore,0);setTimeout(restore,80);
     }
+    function extraFeePersonPaymentRows(person){return visibleExtraFees().filter(row=>row.person===person);}
     function setExtraFeesPaid(rows,paid){
       const pos=captureExtraFeeScroll();
       if(document.activeElement&&$('extraFeeList')?.contains(document.activeElement)) document.activeElement.blur();
@@ -9824,7 +9830,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     },true);
     $('extraFeeList').addEventListener('click',async e=>{
       const allButton=e.target.closest('[data-extra-paid-all-table]'); if(allButton){ const rows=visibleExtraFees(); if(rows.length) setExtraFeesPaid(rows,!rows.every(x=>x.paid)); return; }
-      const personButton=e.target.closest('[data-extra-person-paid],[data-extra-person-status]'); if(personButton){ const rows=extraFees.filter(x=>x.person===personButton.dataset.extraPersonPaid||personButton.dataset.extraPersonStatus); if(rows.length) setExtraFeesPaid(rows,!rows.every(x=>x.paid)); return; }
+      const personButton=e.target.closest('[data-extra-person-paid],[data-extra-person-status]'); if(personButton){ const person=personButton.dataset.extraPersonPaid||personButton.dataset.extraPersonStatus;const rows=extraFeePersonPaymentRows(person); if(rows.length) setExtraFeesPaid(rows,!rows.every(x=>x.paid)); return; }
       const rowEl=e.target.closest('[data-extra-ids],[data-extra-id]'); if(!rowEl) return; const rows=extraRowsFromElement(rowEl), row=rows[0]; if(!row) return;
       if(e.target.closest('[data-extra-paid]')){
         const pos=captureExtraFeeScroll();
