@@ -551,7 +551,9 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="payment-heading-tools matrix-heading-tools">
       <input id="matrixTitleInput" type="text" placeholder="填写项目名称">
       <label>标题颜色 <input id="matrixColorInput" type="color" value="#d1466a"></label>
+      <label class="sheet-dispatch-option"><input type="checkbox" id="currentSheetDispatchEnabled" checked>参与排发</label>
     </div>
+    <div class="hint" id="currentSheetDispatchHint">当前表参与排发；仅用于算账时可取消勾选。</div>
     <div class="matrix-options">
       <button type="button" class="matrix-toggle" id="showPricingRow" data-mobile-label="调价">隐藏调价</button>
       <button type="button" class="matrix-toggle" id="showUnitPriceRow" data-mobile-label="单价">隐藏单价</button>
@@ -1275,6 +1277,8 @@ html{ scrollbar-gutter:stable; }
 .dispatch-scope-row input{width:16px!important;min-width:16px!important;height:16px;margin:0;accent-color:#d1466a;}
 .dispatch-scope-row span{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px;}
 .dispatch-scope-row small{font-size:10px;color:var(--muted);white-space:nowrap;}
+.sheet-dispatch-option{display:inline-flex!important;align-items:center;gap:6px;white-space:nowrap;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);font-size:12px;cursor:pointer;}
+.sheet-dispatch-option input{width:16px!important;min-width:16px!important;height:16px;margin:0;accent-color:#d1466a;}
 .dispatch-action:hover{background:#fff;border-color:#cdbdcb;}
 .dispatch-action:focus-visible{outline:2px solid #d1466a;outline-offset:2px;}
 .dispatch-action.is-ship{background:#fceaf0;border-color:#f1ccda;color:#b6365b;}
@@ -2752,6 +2756,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(open) renderMobileSheetSort();
     }
     function syncSheetCompletionButtons(){
+      syncCurrentSheetDispatchControl();
       const completed=isSheetCompleted(sheets.find(sheet=>sheet.id===activeSheetId));
       if($('toggleSheetCompletedBtn')){ $('toggleSheetCompletedBtn').textContent=completed?'恢复进行中':'标记完成'; $('toggleSheetCompletedBtn').classList.toggle('is-completed',completed); }
       if($('mobileToggleSheetCompletedBtn')) $('mobileToggleSheetCompletedBtn').textContent=completed?'恢复':'完成';
@@ -2921,6 +2926,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(pendingPreview) $('coldBundleSummary').textContent='可选择捆位用于判断成配；不选也可以直接预览普通提配。';
     }
     function renderMatrixHeading(){
+      syncCurrentSheetDispatchControl();
       const el=$('matrixProjectTitle'), color=/^#[0-9a-f]{6}$/i.test(matrixColor)?matrixColor:'#d1466a';
       el.textContent=matrixTitle||'未命名项目'; el.style.background=color;
     }
@@ -7660,6 +7666,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {generated,paid:paid||confirmed,confirmed,missing:!generated&&!confirmed,pending:generated&&!paid};
     }
     function sheetParticipatesInDispatch(sheet){ return sheet?.dispatchEnabled!==false; }
+    function syncCurrentSheetDispatchControl(){
+      const sheet=sheets.find(s=>s.id===activeSheetId),input=$('currentSheetDispatchEnabled');
+      if(!input)return;input.checked=sheetParticipatesInDispatch(sheet);
+      if($('currentSheetDispatchHint'))$('currentSheetDispatchHint').textContent=input.checked?'当前表参与排发；仅用于算账时可取消勾选。':'当前表仅算账，不进入排发清单；排单、账目和发货记录仍保留。';
+    }
     function renderDispatchScope(){
       const list=$('dispatchScopeList');if(!list)return;
       const included=sheets.filter(sheetParticipatesInDispatch).length;
@@ -7832,14 +7843,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(hit){ hit.classList.add('dispatch-hit'); hit.scrollIntoView({behavior:'smooth',block:'center'}); }
       else alert('当前筛选中没有找到这个 CN');
     }
-    $('dispatchScopeList').addEventListener('change',async e=>{
-      const input=e.target.closest('[data-dispatch-scope]');if(!input)return;
-      const sheet=sheets.find(s=>String(s.id)===input.dataset.dispatchScope);if(!sheet)return;
-      const enabled=input.checked;
-      if(!enabled&&!await appConfirm(`将「${sheet.name||'未命名排单'}」设为仅算账？\n将不再出现在排发清单、排发统计和排发导出中。\n排单、收退款、国际费用、物流和原有发货记录都会保留，随时可以重新开启。`,'参与排发设置','设为仅算账')){renderDispatch();return;}
+    async function setSheetDispatchEnabled(sheetId,enabled){
+      const sheet=sheets.find(s=>String(s.id)===String(sheetId));if(!sheet)return;
+      if(!enabled&&!await appConfirm(`将「${sheet.name||'未命名排单'}」设为仅算账？\n将不再出现在排发清单、排发统计和排发导出中。\n排单、收退款、国际费用、物流和原有发货记录都会保留，随时可以重新开启。`,'参与排发设置','设为仅算账')){syncCurrentSheetDispatchControl();renderDispatch();return;}
       captureActiveSheet();const previous=sheet.dispatchEnabled;sheet.dispatchEnabled=enabled;
       if(!saveState()){if(previous===undefined)delete sheet.dispatchEnabled;else sheet.dispatchEnabled=previous;await appAlert('设置未能保存，请先备份数据并处理存储空间。','保存失败');}
-      renderDispatch();
+      syncCurrentSheetDispatchControl();renderDispatch();
+    }
+    $('currentSheetDispatchEnabled').addEventListener('change',e=>setSheetDispatchEnabled(activeSheetId,e.target.checked));
+    $('dispatchScopeList').addEventListener('change',e=>{
+      const input=e.target.closest('[data-dispatch-scope]');if(input)setSheetDispatchEnabled(input.dataset.dispatchScope,input.checked);
     });
     document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.addEventListener('click',()=>{ dispatchStateFilter=button.dataset.dispatchState||'all'; renderDispatch(); }));
     $('dispatchRefreshBtn').addEventListener('click',renderDispatch);
