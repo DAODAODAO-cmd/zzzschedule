@@ -641,8 +641,10 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <label>标题颜色 <input id="extraFeeColorInput" type="color" value="#d1466a"></label>
       </div>
       <div class="payment-qr-tools extra-payment-qr-tools">
-        <label class="qr-upload">上传追加费用收款码<input type="file" id="extraPaymentQrInput" accept="image/*"></label>
-        <button class="btn-ghost" id="clearExtraPaymentQrBtn" style="display:none;">删除追加费用收款码</button>
+        <label>共用收款码 <select data-payment-qr-slot-select><option value="0">收款码1</option><option value="1">收款码2</option></select></label>
+        <span class="hint" id="extraPaymentQrSharedHint">与谷子收款使用同一个收款码，导出也同步。</span>
+        <input type="file" id="extraPaymentQrInput" accept="image/*" hidden>
+        <button class="btn-ghost" id="clearExtraPaymentQrBtn" style="display:none;" hidden>删除追加费用收款码</button>
       </div>
       <div class="extra-fee-head">
         <div><strong>追加费用收款</strong><span>按收款批次查看、导出和标记收齐。</span></div>
@@ -2244,6 +2246,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       sharedPaymentQrImg=sharedPaymentQrImgs[activePaymentQrSlot]||'';
       paymentQrImg=sharedPaymentQrImg;
     }
+    function effectiveExtraPaymentQr(){ return paymentQrImg||''; }
     function paymentQrSlotName(slot=activePaymentQrSlot){
       return sharedPaymentQrLabels[Number(slot)===1?1:0]||(Number(slot)===1?'收款码2':'收款码1');
     }
@@ -6431,7 +6434,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       if($('extraFeeTitleInput')) $('extraFeeTitleInput').value=extraFeeTitle;
       if($('extraFeeViewMode')) $('extraFeeViewMode').value=extraFeeViewMode;
       if($('extraFeeColorInput')) $('extraFeeColorInput').value=/^#[0-9a-f]{6}$/i.test(extraFeeColor)?extraFeeColor:'#d1466a';
-      if($('extraFeePaidAllBtn')) $('extraFeePaidAllBtn').textContent=visible.length&&visible.every(r=>r.paid)?'当前批次改为未收':'当前批次标记收齐'; if($('showExtraFeeTotalBtn')) $('showExtraFeeTotalBtn').textContent=extraFeeShowTotal?'隐藏总价':'显示总价'; if($('clearExtraPaymentQrBtn')) $('clearExtraPaymentQrBtn').style.display=extraPaymentQrImg?'':'none';
+      if($('extraFeePaidAllBtn')) $('extraFeePaidAllBtn').textContent=visible.length&&visible.every(r=>r.paid)?'当前批次改为未收':'当前批次标记收齐'; if($('showExtraFeeTotalBtn')) $('showExtraFeeTotalBtn').textContent=extraFeeShowTotal?'隐藏总价':'显示总价'; if($('clearExtraPaymentQrBtn')) $('clearExtraPaymentQrBtn').style.display='none';
+      if($('extraPaymentQrSharedHint')) $('extraPaymentQrSharedHint').textContent=effectiveExtraPaymentQr()?`当前共用「${paymentQrSlotName()}」，切换、上传及导出均同步。`:`「${paymentQrSlotName()}」尚未上传图片，请在上方上传收款码。`;
       if($('recalcIntlFeesBtn')) $('recalcIntlFeesBtn').style.display=visible.some(row=>row.feeType==='international')?'':'none';
       if($('intlDiffFeesBtn')) $('intlDiffFeesBtn').style.display=(extraFeeArchives||[]).length?'':'none';
       if(!grouped.size){ list.innerHTML='<div class="extra-fee-empty">暂无符合条件的追加费用</div>'; return; }
@@ -6452,7 +6456,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           return `<tr class="${g.isRefund?'payment-refund-row':(g.paid?'payment-paid-row':'')}" data-extra-ids="${escapeAttr(g.ids.join(','))}" data-extra-person-row="${escapeAttr(person)}">${personCell}<td class="payment-item-name extra-fee-detail-cell">${mainLine}<span class="extra-fee-sub-line extra-fee-editable" contenteditable="true" spellcheck="false" data-extra-field="note" data-placeholder="明细/备注">${intlParts?goodsText:escapeHtml(goodsText)}</span><span class="extra-fee-source-line extra-fee-editable" contenteditable="true" spellcheck="false" data-extra-field="source" data-extra-source-display="${escapeAttr(sourceDisplay)}" data-placeholder="批次/来源">${escapeHtml(sourceDisplay)}</span></td><td class="extra-fee-count">${goodsCount}</td><td class="extra-fee-count extra-fee-weight-cell">${intlParts?intlParts.weightHtml:''}</td><td class="payment-money extra-fee-money"><span class="extra-fee-editable" contenteditable="true" spellcheck="false" inputmode="decimal" data-extra-field="amount" data-placeholder="0.00">${g.isRefund?'退 ':''}${moneyText(amount)}</span></td><td class="payment-money extra-fee-money">${g.isRefund?'退 ':''}${moneyText(wechat)}</td></tr>`;
         }).join('');
       }).join('');
-      const qrHtml=extraPaymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(extraPaymentQrImg)}" alt="追加费用收款码"></div>`:'';
+      const sharedExtraQr=effectiveExtraPaymentQr();
+      const qrHtml=sharedExtraQr?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(sharedExtraQr)}" alt="追加费用共用收款码"></div>`:'';
       const color=/^#[0-9a-f]{6}$/i.test(extraFeeColor)?extraFeeColor:'#d1466a';
       const totalWechat=alipayTotal<0?alipayTotal:extraFeeWechatAmount(alipayTotal);
       list.innerHTML=`<div class="payment-table-wrap"><div id="extraFeeExportTitle" class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(extraFeeTitle||'追加费用收款')}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>${paidAllControl} CN</th><th>谷类</th><th>数量</th><th>g重</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody>${extraFeeShowTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">当前显示合计</td><td class="payment-total-value">${moneyText(alipayTotal)}</td><td class="payment-total-value">${moneyText(totalWechat)}</td></tr></tfoot>`:''}</table>${qrHtml}</div>`;
@@ -9728,7 +9733,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('extraFeeArchiveSelect').addEventListener('change',renderExtraFeesKeepScroll);
     $('restoreExtraFeeArchiveBtn').addEventListener('click',restoreExtraFeeArchive);
     $('deleteExtraFeeArchiveBtn').addEventListener('click',deleteExtraFeeArchive);
-    function handleExtraPaymentQr(file){ if(!file) return; compressQrPng(file,1600).then(data=>{ extraPaymentQrImg=data; saveState(); renderExtraFeesKeepScroll(); }).catch(()=>alert('追加费用收款码图片处理失败')); }
+    function handleExtraPaymentQr(file){ handlePaymentQr(file); }
     $('extraPaymentQrInput').addEventListener('change',e=>{ handleExtraPaymentQr(e.target.files[0]); e.target.value=''; });
     $('clearExtraPaymentQrBtn').addEventListener('click',()=>{ extraPaymentQrImg=''; saveState(); renderExtraFeesKeepScroll(); });
     $('extraFeePaidAllBtn').addEventListener('click',()=>{ const rows=visibleExtraFees(); if(!rows.length) return; const allPaid=rows.every(r=>r.paid); setExtraFeesPaid(rows,!allPaid); });
@@ -10029,27 +10034,27 @@ body.export-rendering .cart-count{ font-size:28px; }
         activePaymentQrSlot=activePaymentQrSlot===1?1:0;
         sharedPaymentQrImgs[activePaymentQrSlot]=data;
         syncActivePaymentQr();
-        saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
+        saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); renderExtraFeesKeepScroll();
       }).catch(()=>alert('收款码图片处理失败'));
     }
     $('paymentQrSlotSelect').addEventListener('change',e=>{
       setActivePaymentQrSlot(e.target.value);
-      saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
+      saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); renderExtraFeesKeepScroll();
     });
     $('renamePaymentQrSlotBtn').addEventListener('click',async()=>{
       const index=activePaymentQrSlot===1?1:0, fallback=index===1?'收款码2':'收款码1';
       const name=String(await appPrompt(`给${fallback}改个名字`,paymentQrSlotName(index))||'').trim();
       if(!name) return;
       sharedPaymentQrLabels[index]=name;
-      saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
+      saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); renderExtraFeesKeepScroll();
     });
     document.addEventListener('change',e=>{
       if(!e.target.matches('[data-payment-qr-slot-select]')) return;
       setActivePaymentQrSlot(e.target.value);
-      saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary();
+      saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); renderExtraFeesKeepScroll();
     });
     $('paymentQrInput').addEventListener('change',e=>{ handlePaymentQr(e.target.files[0]); e.target.value=''; });
-    $('clearPaymentQrBtn').addEventListener('click',()=>{ sharedPaymentQrImgs[activePaymentQrSlot]=''; syncActivePaymentQr(); saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); });
+    $('clearPaymentQrBtn').addEventListener('click',()=>{ sharedPaymentQrImgs[activePaymentQrSlot]=''; syncActivePaymentQr(); saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); renderExtraFeesKeepScroll(); });
     $('cartRefreshBtn').addEventListener('click',renderCart);
     $('cartExportPngBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
