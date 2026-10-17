@@ -405,7 +405,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="hint">按一类谷子分组试算，保留原价差。原收款和已退补不改，确认应用后才更新所选已买到格子的应收。均摊费、国际费另算。</div>
       <div class="toolbar"><select id="secondPriceSavedSelect"><option value="">新建试算</option></select><button type="button" class="btn-ghost" id="secondPriceRefreshBtn">读取当前排单</button></div>
       <div class="second-price-section-title">1 · 本组成本</div><div class="second-price-fields"><label>本组名称<input type="text" id="secondPriceName" placeholder="例如：衣服挂／吧唧A"></label><label>实际购买总成本（元）<input type="text" id="secondPriceCost" inputmode="decimal" placeholder="包含买到但还没排出的库存成本"></label></div>
-      <details><summary class="hint">用日元单价快速计算成本</summary><div class="second-price-fields"><label>日元单价<input id="secondPriceJpy" inputmode="decimal"></label><label>汇率<input id="secondPriceRate" inputmode="decimal"></label><label>购买总量<input id="secondPriceQty" inputmode="numeric"></label><button type="button" class="btn-ghost" id="secondPriceJpyBtn">填入人民币总成本</button></div></details>
+      <details><summary class="hint">用日元单价快速计算成本</summary><div class="second-price-fields second-price-quick-cost"><label>日元单价<input id="secondPriceJpy" inputmode="decimal"></label><label>汇率<input id="secondPriceRate" inputmode="decimal"></label><label>购买总量<input id="secondPriceQty" inputmode="numeric"></label><button type="button" class="btn-ghost" id="secondPriceJpyBtn">填入人民币总成本</button></div></details>
       <div class="second-price-section-title">2 · 选择本组谷子</div><div class="hint">不同种类分别保存试算，搜索后可全选当前结果。</div><div class="toolbar"><input id="secondPriceColumnSearch" type="search" placeholder="搜索谷子名称"><button type="button" class="btn-ghost" id="secondPriceSelectAllBtn">全选</button><button type="button" class="btn-ghost" id="secondPriceSelectNoneBtn">全不选</button><span id="secondPriceSelectionCount" class="hint"></span></div><div id="secondPriceColumns" class="second-price-columns"></div>
       <div class="toolbar"><strong class="second-price-section-title">3 · 已确认的卖出／满赠抵扣</strong><button type="button" class="btn-ghost" id="secondPriceAddCreditBtn">＋ 添加抵扣</button></div><div class="hint">每笔依次填：说明／实际抵扣金额／表外卖出本组谷子的件数（满赠或其他抵扣填 0）。</div><div id="secondPriceCredits"></div>
       <div class="hint">只填实际卖回或你明确确认抵扣的净金额，不能重复记入。表外售出的谷子请先在排单里取消该人的买到标记，再读取；本计算器不替你删除名字。</div>
@@ -1298,11 +1298,19 @@ html{ scrollbar-gutter:stable; }
 .dispatch-scope-row small{font-size:10px;color:var(--muted);white-space:nowrap;}
 .sheet-dispatch-option{display:inline-flex!important;align-items:center;gap:6px;white-space:nowrap;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);font-size:12px;cursor:pointer;}
 .sheet-dispatch-option input{width:16px!important;min-width:16px!important;height:16px;margin:0;accent-color:#d1466a;}
-.cash-ledger-dialog{width:min(720px,94vw);max-height:85dvh;box-sizing:border-box;border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--panel);color:var(--text);}
+.cash-ledger-dialog{width:min(760px,94vw);max-height:85dvh;box-sizing:border-box;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fff;color:var(--text);box-shadow:0 20px 70px #23192826;}
+.cash-ledger-dialog[open]{display:flex;flex-direction:column;gap:14px;overflow:hidden;}
 .cash-ledger-dialog::backdrop{background:rgba(35,25,40,.35);}
-.cash-ledger-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;}
-.cash-ledger-content{max-height:58dvh;overflow:auto;overscroll-behavior:contain;}
-.cash-ledger-person{padding:12px 0;border-bottom:1px solid var(--line);}
+.cash-ledger-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;flex-shrink:0;}
+.cash-ledger-head strong{font-size:17px;line-height:1.5;}
+#cashLedgerDialog .cash-ledger-head button{height:40px;min-height:40px;margin:0;padding:8px 16px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;}
+#cashLedgerDialog #cashLedgerSearch{display:block;flex-shrink:0;width:100%!important;max-width:none!important;height:42px!important;min-height:42px!important;box-sizing:border-box;margin:0!important;padding:10px 12px!important;border:1px solid #e2dbe6!important;border-radius:9px!important;background:#faf8fb!important;color:var(--text);font-family:inherit;font-size:13px!important;line-height:20px;outline:none;}
+#cashLedgerDialog #cashLedgerSearch:focus{border-color:#d97898!important;box-shadow:0 0 0 3px #d1466a12;}
+.cash-ledger-content{min-height:0;max-height:58dvh;overflow:auto;overscroll-behavior:contain;padding-right:5px;scrollbar-gutter:stable;}
+.cash-ledger-person{padding:14px;margin:0 0 10px;border:1px solid var(--line);border-radius:10px;background:#faf8fb;overflow-wrap:anywhere;}
+.cash-ledger-person>b{display:block;font-size:14px;line-height:1.5;}
+.cash-ledger-person:last-child{margin-bottom:0;}
+@media(max-width:620px){.cash-ledger-dialog{padding:14px;width:94vw;max-height:85dvh;}.cash-ledger-dialog[open]{gap:10px;}.cash-ledger-person{padding:11px;}}
 .cash-ledger-person p{margin:7px 0;font-size:12px;line-height:1.7;}
 .cash-ledger-person ol{margin:8px 0;padding-left:22px;font-size:12px;line-height:1.8;}
 .cash-ledger-admin-tools{margin:9px 0;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);}
@@ -1330,6 +1338,9 @@ html{ scrollbar-gutter:stable; }
 #secondPriceSavedSelect{width:min(100%,380px);max-width:100%;}
 .second-price-section-title{font-size:13px;font-weight:750;color:var(--text);margin:18px 0 8px;}
 #secondPricePanel button{min-height:36px;}
+#secondPricePanel .second-price-quick-cost>label{display:grid;gap:5px;margin:0;padding:0;align-self:end;}
+#secondPricePanel .second-price-quick-cost>label>input{height:42px!important;min-height:42px!important;margin:0!important;}
+#secondPricePanel .second-price-quick-cost>button{height:42px;min-height:42px;box-sizing:border-box;margin:0;padding:9px 11px;align-self:end;display:flex;align-items:center;justify-content:center;line-height:1.4;}
 #secondPricePanel>.toolbar{gap:8px;align-items:center;flex-wrap:wrap;}
 #secondPricePanel>details:not(.second-price-inventory){padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:9px;margin:12px 0;}
 #secondPricePanel>details>summary{cursor:pointer;font-size:12px;color:var(--muted);}
