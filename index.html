@@ -155,7 +155,7 @@ body.export-rendering .price-mark-tag .price-mark-remove,.price-mark-exporting .
   .logi-filters{display:grid!important;grid-template-columns:minmax(0,1.7fr) auto minmax(0,1fr);align-items:center;gap:5px!important;overflow:visible;}
   .logi-filters .mark-date-label{margin:0!important;min-width:0!important;display:flex!important;align-items:center!important;gap:4px!important;white-space:nowrap;font-size:9.5px!important;}
   .logi-filters .logi-date-filter-label{grid-column:1;grid-row:1;width:100%!important;}
-  .logi-filters .logi-date-filter-label input{flex:1 1 auto;width:0!important;min-width:92px!important;max-width:none!important;height:34px!important;padding:5px 26px 5px 7px!important;font-size:11px!important;}
+  .logi-filters .logi-date-filter-label input,.logi-filters .logi-date-filter-label select{flex:1 1 auto;width:0!important;min-width:92px!important;max-width:none!important;height:34px!important;padding:5px 26px 5px 7px!important;font-size:11px!important;}
   #logisticsDateClear{grid-column:2;grid-row:1;align-self:center;white-space:nowrap;min-width:42px!important;height:34px!important;padding:5px 9px!important;font-size:10px!important;}
   .logi-filters .logi-free-months-label{grid-column:3;grid-row:1;width:100%!important;}
   .logi-filters .logi-free-months-label input{flex:1 1 auto;width:0!important;min-width:58px!important;max-width:none!important;height:34px!important;padding:5px 6px!important;font-size:11px!important;text-align:center;}
@@ -776,11 +776,13 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 
   <div class="panel" id="dispatchPanel">
     <h2>CN 购买与排发</h2>
-    <div class="hint">按 CN 查看已买齐、已到国内和可排发状态。</div>
+    <div class="hint">按 CN 查看购买、到货、待发和已发货状态。每款谷子可单独标记发货，不影响收款记录。</div>
     <div class="dispatch-state-tabs" role="tablist" aria-label="排发状态筛选">
       <button type="button" class="active" data-dispatch-state="all">全部购买</button>
       <button type="button" data-dispatch-state="china">已到国内</button>
       <button type="button" data-dispatch-state="ready">可排发</button>
+      <button type="button" data-dispatch-state="unshipped">未发货</button>
+      <button type="button" data-dispatch-state="shipped">已发货</button>
     </div>
     <div class="payment-search-tools">
       <input id="dispatchSearchInput" type="text" placeholder="输入 CN 名字的一部分">
@@ -800,7 +802,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <h2>物流 · 到货与囤货</h2>
     <div class="hint">按排单查看每款谷子的到货与囤货状态。</div>
     <div class="logi-filters">
-      <label class="mark-date-label logi-date-filter-label">按批次日期<input type="date" id="logisticsDateFilter"></label>
+      <label class="mark-date-label logi-date-filter-label">已有到货批次<select id="logisticsDateFilter" style="max-width:560px;width:360px"><option value="">全部批次</option></select></label>
       <button type="button" class="logi-filter is-on" id="logisticsDateClear">全部</button>
       <label class="mark-date-label logi-free-months-label">免费囤货(月)<input type="text" inputmode="decimal" id="logisticsFreeMonths" placeholder="留空=1"></label>
       <label class="mark-date-label logi-hold-rate-label">囤货费/天<input type="text" inputmode="decimal" id="logisticsHoldRate" placeholder="留空"></label>
@@ -5583,6 +5585,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       root.innerHTML=`<div class="settlement-dashboard-head"><strong>结算中心</strong><div class="settlement-head-actions"><button type="button" class="btn-ghost" id="exportMultiSettlementBtn">导出总账</button><button type="button" class="btn-ghost" id="copyMultiSettlementBtn">复制总账</button></div></div><div class="settlement-ledger"><div><span>待退款</span><b>${pendingRefundPeople} 人 / ${money(pendingRefund)}</b></div><div><span>待补款</span><b>${pendingDuePeople} 人 / ${money(pendingDue)}</b></div><div><span>已完成</span><b>${completedPeople} 人</b></div></div><div class="settlement-filter-bar">${filters}</div><div class="table-scroll"><table><thead><tr><th>CN</th><th>谷子已收</th><th>谷子实际</th><th>均摊应收</th><th>均摊已收</th><th>结算结果</th><th>状态</th><th>备注</th></tr></thead><tbody>${rows||empty}</tbody></table></div>`;
     }
 
+    function settlementSummaryTotals(records){
+      const cents=value=>Math.round(num(value)*100);
+      const total={actual:0,refund:0,due:0};
+      (records||[]).forEach(r=>{total.actual+=cents(r.g?.actual)+cents(r.sh?.expected);total.refund+=cents(r.refund);total.due+=cents(r.due);});
+      return {actual:total.actual/100,refund:total.refund/100,due:total.due/100};
+    }
     function renderPaymentSummary(){
       computeAverage();
       const people=new Map();
@@ -7480,6 +7488,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         renameAlloc(sheet.allocations);
         for(const field of ['coldPromotionDraftBaseAllocations','coldPromotionSeriesBaseAllocations']) renameAlloc(sheet[field]);
         Object.keys(sheet.matrixBoughtCells||{}).forEach(key=>{if(matches(sheet.matrixBoughtCells[key]))sheet.matrixBoughtCells[key]=target;});
+        Object.values(sheet.dispatchShippedCells||{}).forEach(entry=>{if(entry&&matches(entry.person))entry.person=target;});
+        Object.values(sheet.dispatchInternationalExemptCells||{}).forEach(entry=>{if(entry&&matches(entry.person))entry.person=target;});
         for(const field of ['coldPromotionDraftRows','coldPromotionBatches','coldPromotionHighlights','coldPromotionSeriesBaseHighlights']) renameTree(sheet[field]);
         if(sheet.coldPromotionSeriesFormalSignature) sheet.coldPromotionSeriesFormalSignature='';
         // Rebase the same sum onto the renamed allocation, so old true flags and rounding cannot change money.
@@ -7596,6 +7606,33 @@ body.export-rendering .cart-count{ font-size:28px; }
       }).filter(value=>value!==null);
       return memberMatches.length>0&&memberMatches.every(Boolean);
     }
+    function dispatchShipmentFor(sheet,c,row,name,item){
+      const entry=sheet.dispatchShippedCells?.[`${c.id}:${row}`];
+      return entry&&normalizeDispatchKey(entry.person)===normalizeDispatchKey(name)&&entry.item===item?entry:null;
+    }
+    function dispatchFilterLabel(){
+      return {china:'已到国内',ready:'可排发',unshipped:'未发货',shipped:'已发货'}[dispatchStateFilter]||'全部购买';
+    }
+    function dispatchInternationalState(sheet,date,key,c,row,name,item,fees,archives){
+      if(!date)return {generated:false,paid:false,confirmed:false,missing:false};
+      const batch=normalizeArrivalBatchId('',date);
+      const matches=f=>['international','international_supplement','international_refund'].includes(f.feeType)&&normalizeDispatchKey(f.person)===key&&extraFeeArrivalBatchId(f)===batch;
+      const current=(fees||[]).filter(matches);
+      let rows=current;
+      // Current fees use arrival:DATE; older fees used SHEET|DATE. Compare normalized batches.
+      // If the base fee was archived, use the latest matching archive, not every historical copy.
+      if(!current.some(f=>f.feeType==='international')){
+        const history=[...(archives||[])].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+        const archived=history.map(a=>(a.extraFees||[]).filter(matches)).find(list=>list.some(f=>f.feeType==='international'))||[];
+        rows=[...archived,...current];
+      }
+      const generated=rows.some(f=>f.feeType==='international');
+      const charges=rows.filter(f=>f.feeType!=='international_refund');
+      const paid=generated&&charges.every(f=>f.paid===true);
+      const exemption=sheet.dispatchInternationalExemptCells?.[`${c.id}:${row}`];
+      const confirmed=!generated&&!!exemption&&normalizeDispatchKey(exemption.person)===normalizeDispatchKey(name)&&exemption.item===item&&exemption.date===date;
+      return {generated,paid:paid||confirmed,confirmed,missing:!generated&&!confirmed,pending:generated&&!paid};
+    }
     function buildDispatchRecords(){
       captureActiveSheet();
       const people=new Map();
@@ -7625,20 +7662,20 @@ body.export-rendering .cart-count{ font-size:28px; }
             const cellBought=sheetCellBought(c,r,name,bought,alloc,groups,cols);
             if(usesBoughtMark&&!cellBought) return;
             if(!people.has(key)) people.set(key,{name:name||key,key,items:[]});
-            const chinaDate=String(china[cellKey]||'');
+            const chinaDate=String(logisticsCellMark(c,r,name,china,alloc)||'');
             const goodsPaidState=settledGoodsPaymentState(sheet,key,paidState(paidGoods,key,expectedByKey.get(key)||0));
-            const batchId=chinaDate?`${sheet.id}|${chinaDate}`:'';
-            const intlRows=batchId?extraFees.filter(f=>f.feeType==='international'&&f.batchId===batchId&&normalizeDispatchKey(f.person)===key):[];
-            const internationalGenerated=intlRows.length>0, internationalPaid=internationalGenerated&&intlRows.every(f=>f.paid);
+            const itemName=matrixItemDisplayName(c,r,sub)||'未命名谷子', shipment=dispatchShipmentFor(sheet,c,r,name,itemName);
+            const intl=dispatchInternationalState(sheet,chinaDate,key,c,r,name,itemName,extraFees,extraFeeArchives);
+            const internationalGenerated=intl.generated||intl.confirmed,internationalPaid=intl.paid;
             people.get(key).items.push({
-              item:matrixItemDisplayName(c,r,sub)||'未命名谷子',
+              item:itemName,sheetId:sheet.id,colId:c.id,row:r,person:name,shipped:!!shipment,shippedAt:shipment?.at||'',internationalMissing:intl.missing,internationalConfirmed:intl.confirmed,
               sheet:String(sheet.name||'').trim(),
               boughtTracked:usesBoughtMark,
               chinaDate,
               goodsPaidState,
               internationalGenerated,
               internationalPaid,
-              ready:!!chinaDate&&goodsPaidState==='full'&&internationalPaid
+              ready:!shipment&&!!chinaDate&&goodsPaidState==='full'&&internationalPaid
             });
           });
         });
@@ -7646,6 +7683,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       return [...people.values()].sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN'));
     }
     function dispatchVisibleItems(person){
+      if(dispatchStateFilter==='shipped') return person.items.filter(item=>item.shipped);
+      if(dispatchStateFilter==='unshipped') return person.items.filter(item=>!item.shipped);
       if(dispatchStateFilter==='china') return person.items.filter(item=>item.chinaDate);
       if(dispatchStateFilter==='ready') return person.items.filter(item=>item.ready);
       return person.items;
@@ -7653,9 +7692,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     function dispatchItemGroups(items){
       const map=new Map();
       items.forEach(it=>{
-        const k=[it.item,it.sheet].join('\u0000');
-        if(!map.has(k)) map.set(k,{item:it.item,sheet:it.sheet,n:0,boughtTracked:false,chinaCount:0,chinaDates:[],goodsPaidCount:0,goodsPartialCount:0,internationalGeneratedCount:0,internationalPaidCount:0,readyCount:0});
+        const k=[it.item,it.sheetId,it.shipped?'shipped':'pending',it.internationalMissing?'missing':it.internationalConfirmed?'confirmed':'normal'].join('\u0000');
+        if(!map.has(k)) map.set(k,{item:it.item,sheet:it.sheet,n:0,shipped:!!it.shipped,internationalMissing:!!it.internationalMissing,internationalConfirmed:!!it.internationalConfirmed,shipmentRefs:[],boughtTracked:false,chinaCount:0,chinaDates:[],goodsPaidCount:0,goodsPartialCount:0,internationalGeneratedCount:0,internationalPaidCount:0,readyCount:0});
         const group=map.get(k);
+        group.shipmentRefs.push({sheetId:it.sheetId,colId:it.colId,row:it.row,person:it.person,item:it.item,ready:it.ready,chinaDate:it.chinaDate});
         group.n++;
         if(it.boughtTracked) group.boughtTracked=true;
         if(it.chinaDate){ group.chinaCount++; group.chinaDates.push(it.chinaDate); }
@@ -7689,13 +7729,19 @@ body.export-rendering .cart-count{ font-size:28px; }
       const dates=[...new Set(g.chinaDates||[])].sort();
       const holdDays=dates[0]?logiDaysSince(dates[0]):null;
       const bits=[];
+      if(g.shipped) bits.push('已发货');
+      if(!g.shipped&&!g.chinaCount) bits.push('未到国内');
+      if(!g.shipped&&g.internationalMissing) bits.push('未匹配国际费');
+      if(g.internationalConfirmed) bits.push('国际已另行确认');
       if(g.n>1) bits.push(`×${g.n}`);
       if(g.chinaCount&&g.chinaCount<g.n) bits.push(`国内${g.chinaCount}/${g.n}`);
       if(g.goodsPaidCount<g.n) bits.push(g.goodsPartialCount?`谷款部分${g.goodsPaidCount}/${g.n}`:(g.goodsPaidCount?`谷款${g.goodsPaidCount}/${g.n}`:'未谷款'));
       if(g.internationalGeneratedCount&&g.internationalPaidCount<g.internationalGeneratedCount) bits.push(g.internationalPaidCount?`国际${g.internationalPaidCount}/${g.internationalGeneratedCount}`:'未国际');
       if(holdDays!=null) bits.push(holdDays>30?`超${holdDays-30}天`:`屯${holdDays}天`);
       if(g.readyCount&&g.readyCount<g.n) bits.push(`可发${g.readyCount}/${g.n}`);
-      return `<span class="dispatch-chip ${g.readyCount?'is-ready':''} ${g.goodsPaidCount<g.n||(g.internationalGeneratedCount&&g.internationalPaidCount<g.internationalGeneratedCount)?'has-unpaid':''}">${escapeHtml(g.item)}${bits.length?` <small>${escapeHtml(bits.join(' · '))}</small>`:''}</span>`;
+      const shipmentAction=encodeURIComponent(JSON.stringify(g.shipmentRefs||[]));
+      const intlControl=!g.shipped&&(g.internationalMissing||g.internationalConfirmed)?` <button type="button" class="btn-ghost btn-mini" data-html2canvas-ignore="true" data-dispatch-intl="${escapeAttr(shipmentAction)}" data-intl-confirmed="${g.internationalConfirmed?'1':'0'}">${g.internationalConfirmed?'撤销国际确认':'国际已另收／无需'}</button>`:'';
+      return `<span class="dispatch-chip ${g.readyCount?'is-ready':''} ${g.goodsPaidCount<g.n||(g.internationalGeneratedCount&&g.internationalPaidCount<g.internationalGeneratedCount)?'has-unpaid':''}" ${g.shipped?'style="background:#eef3f6;color:#687b88"':''}>${escapeHtml(g.item)}${bits.length?` <small>${escapeHtml(bits.join(' · '))}</small>`:''}${intlControl} <button type="button" class="btn-ghost btn-mini" data-html2canvas-ignore="true" data-dispatch-ship="${escapeAttr(shipmentAction)}" data-shipped="${g.shipped?'1':'0'}">${g.shipped?'撤销发货':'标记发货'}</button></span>`;
     }
     function renderDispatch(){
       const list=$('dispatchList'); if(!list) return;
@@ -7703,13 +7749,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       const all=buildDispatchRecords();
       const records=all.map(person=>({...person,visibleItems:dispatchVisibleItems(person)})).filter(person=>person.visibleItems.length);
       const totalItems=records.reduce((sum,p)=>sum+p.visibleItems.length,0);
-      const label=dispatchStateFilter==='china'?'已到国内':(dispatchStateFilter==='ready'?'可排发':'全部购买');
+      const label=dispatchFilterLabel();
       $('dispatchSummary').textContent=`${records.length} 人 · ${totalItems} 件${label}`;
       document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.classList.toggle('active',button.dataset.dispatchState===dispatchStateFilter));
-      if(!records.length){ list.innerHTML=`<div class="dispatch-empty">当前没有“${label}”记录。</div>`; return; }
+      if(!records.length){ list.innerHTML=`<div class="dispatch-empty">当前没有“${label}”记录。${dispatchStateFilter==='ready'?'请切换“未发货”查看原因：未到国内、谷款未结清或国际费未匹配／未收齐。':''}</div>`; return; }
       list.innerHTML=records.map(person=>{
         const chinaCount=person.items.filter(item=>item.chinaDate).length;
-        const readyCount=person.items.filter(item=>item.ready).length;
+        const readyCount=person.items.filter(item=>item.ready).length, shippedCount=person.items.filter(item=>item.shipped).length;
         const items=dispatchSheetGroups(dispatchItemGroups(person.visibleItems)).map(group=>{
           const dates=[...new Set(group.dates)].sort();
           const holdDays=dates[0]?logiDaysSince(dates[0]):null;
@@ -7724,7 +7770,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const payOk=group.goodsPaidQty===group.qty&&(!group.intlNeededQty||group.intlPaidQty===group.intlNeededQty);
           return `<div class="dispatch-sheet-group"><div class="dispatch-sheet-head"><b>${escapeHtml(group.sheet)}</b><small>${group.items.length}款 · ${group.qty}件 · <span class="dispatch-pay-main ${payOk?'is-ok':''}">${escapeHtml(status)}</span></small></div><div class="dispatch-chip-list">${shown}</div></div>`;
         }).join('');
-        return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><button type="button" class="dispatch-rename-btn" data-dispatch-rename="${encodeURIComponent(person.name)}" aria-label="修改 CN ${escapeAttr(person.name)}">改名</button><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount}</span></div><div class="dispatch-items">${items}</div></div>`;
+        return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><button type="button" class="dispatch-rename-btn" data-dispatch-rename="${encodeURIComponent(person.name)}" aria-label="修改 CN ${escapeAttr(person.name)}">改名</button><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount} · 已发 ${shippedCount}</span></div><div class="dispatch-items">${items}</div></div>`;
       }).join('');
     }
     function dispatchTextManifest(){
@@ -7737,7 +7783,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const hold=holdDays==null?'':(holdDays>30?`超期${holdDays-30}天`:`屯货${holdDays}天`);
           const goods=g.goodsPaidCount===g.n?'谷款已收':(g.goodsPartialCount?`谷款部分${g.goodsPaidCount}/${g.n}`:(g.goodsPaidCount>0?`谷款${g.goodsPaidCount}/${g.n}`:'谷款未收'));
           const intl=!g.chinaCount?'':(g.internationalPaidCount===g.n?'国际已收':(g.internationalGeneratedCount>0?`国际${g.internationalPaidCount}/${g.internationalGeneratedCount}`:'待国际'));
-          const ready=g.readyCount?`可发${g.readyCount}/${g.n}`:'';
+          const ready=g.shipped?'已发货':(g.readyCount?`可发${g.readyCount}/${g.n}`:'未发货');
           return `${g.item}${g.n>1?`×${g.n}`:''}${g.sheet?`(${g.sheet})`:''}[${[g.boughtTracked?'已买齐':'已购买',china,hold,goods,intl,ready].filter(Boolean).join('；')}]`;
         }).join('、');
         return `${person.name}：${items}`;
@@ -7754,6 +7800,30 @@ body.export-rendering .cart-count{ font-size:28px; }
     document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.addEventListener('click',()=>{ dispatchStateFilter=button.dataset.dispatchState||'all'; renderDispatch(); }));
     $('dispatchRefreshBtn').addEventListener('click',renderDispatch);
     $('dispatchList').addEventListener('click',async e=>{
+      const intlButton=e.target.closest('[data-dispatch-intl]');
+      if(intlButton){
+        let refs=[];try{refs=JSON.parse(decodeURIComponent(intlButton.dataset.dispatchIntl));}catch(_){return;}
+        const undo=intlButton.dataset.intlConfirmed==='1';
+        if(!refs.length||!await appConfirm(undo?'撤销这些谷子的国际另收／无需确认？':'确认这些谷子的国际费已在别处收齐，或确实不需要国际费？\n只用于排发判断，不会伪造收款，也不会把现有未付国际账单标为已付。','排发国际确认','确认'))return;
+        captureActiveSheet();const before=deepClone(sheets);
+        for(const ref of refs){const sheet=sheets.find(s=>s.id===ref.sheetId);if(!sheet||String(sheet.allocations?.[ref.colId]?.[ref.row]||'').trim()!==ref.person){await appAlert('排单已变化，请刷新重试。','未修改');return;}}
+        refs.forEach(ref=>{const sheet=sheets.find(s=>s.id===ref.sheetId),key=`${ref.colId}:${ref.row}`;sheet.dispatchInternationalExemptCells=sheet.dispatchInternationalExemptCells||{};if(undo)delete sheet.dispatchInternationalExemptCells[key];else sheet.dispatchInternationalExemptCells[key]={person:ref.person,item:ref.item,date:ref.chinaDate||'',at:new Date().toISOString()};});
+        if(!saveState()){sheets=before;await appAlert('未能保存，请先备份并处理存储空间。','保存失败');}renderDispatch();return;
+      }
+      const shipButton=e.target.closest('[data-dispatch-ship]');
+      if(shipButton){
+        let refs=[];try{refs=JSON.parse(decodeURIComponent(shipButton.dataset.dispatchShip));}catch(_){return;}
+        const undo=shipButton.dataset.shipped==='1';
+        let count=refs.length;
+        if(count>1){const answer=await appPrompt(`本款共 ${count} 件，输入本次${undo?'撤销发货':'发货'}数量：`,String(count),undo?'撤销发货':'标记发货');if(answer===null)return;count=Number(answer);if(!Number.isInteger(count)||count<1||count>refs.length){await appAlert('数量必须为 1 到 '+refs.length+' 的整数。','数量不正确');return;}}
+        const chosen=refs.slice(0,count),warn=!undo&&chosen.some(ref=>!ref.ready)?'\n部分谷子尚未满足国内到货、谷款及国际收齐条件，请确认实际已经发出。':'';
+        if(!await appConfirm(`确定${undo?'撤销':'记录'} ${chosen[0]?.person||''} 的 ${chosen[0]?.item||''} ×${count} ${undo?'发货标记':'已发货'}吗？${warn}\n不会修改排单归属或收退款金额。`,undo?'撤销发货':'确认已发货','确认'))return;
+        captureActiveSheet();const before=deepClone(sheets);
+        for(const ref of chosen){const sheet=sheets.find(s=>s.id===ref.sheetId),name=String(sheet?.allocations?.[ref.colId]?.[ref.row]||'').trim();if(!sheet||name!==ref.person){await appAlert('排单已发生变化，请刷新清单再操作。','未修改');return;}}
+        chosen.forEach(ref=>{const sheet=sheets.find(s=>s.id===ref.sheetId),key=`${ref.colId}:${ref.row}`;sheet.dispatchShippedCells=sheet.dispatchShippedCells||{};if(undo)delete sheet.dispatchShippedCells[key];else sheet.dispatchShippedCells[key]={person:ref.person,item:ref.item,at:new Date().toISOString()};});
+        if(!saveState()){sheets=before;await appAlert('发货标记未能保存，请先导出 JSON 备份并处理存储空间。','保存失败');}
+        renderDispatch();return;
+      }
       const button=e.target.closest('[data-dispatch-rename]');if(!button)return;
       const from=decodeURIComponent(button.dataset.dispatchRename||'');
       const answer=await appPrompt('新的 CN 名字：\n会同步更新排单、收款、均摊、国际费用和排发。新名字已存在时，可合并为同一人；下一步先预览。',from,'修改 CN','下一步预览');
@@ -7774,7 +7844,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
       renderDispatch();
       if(!$('dispatchList').children.length||$('dispatchList').querySelector('.dispatch-empty')){ alert('清单为空，无法导出'); return; }
-      const suffix=dispatchStateFilter==='china'?'已到国内':(dispatchStateFilter==='ready'?'可排发':'全部购买');
+      const suffix=dispatchFilterLabel();
       const wrap=$('dispatchWrap'), width=Math.max(680,exportContentWidth(wrap));
       renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,`排发清单_${suffix}.png`)).catch(()=>alert('导出失败，请重试'));
     });
@@ -7792,9 +7862,21 @@ body.export-rendering .cart-count{ font-size:28px; }
       }).filter(Boolean);
       return matched[0]||'';
     }
+    function logisticsBatchOptions(batches){
+      return (batches||[]).map(batch=>({value:String(batch.date||''),label:`${batch.sheet||'未命名排单'} · ${batch.date} 到货`})).filter(b=>b.value).sort((a,b)=>b.value.localeCompare(a.value));
+    }
+    function refreshLogisticsBatchOptions(){
+      const select=$('logisticsDateFilter');if(!select)return;
+      const options=logisticsBatchOptions(internationalBatches());
+      if(logisticsDateFilterVal&&!options.some(o=>o.value===logisticsDateFilterVal))logisticsDateFilterVal='';
+      select.innerHTML='<option value="">全部批次</option>'+options.map(o=>`<option value="${escapeAttr(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+      select.value=logisticsDateFilterVal;
+      $('logisticsDateClear').classList.toggle('is-on',!logisticsDateFilterVal);
+    }
     function renderLogistics(){
       const list=$('logisticsList'); if(!list) return;
       captureActiveSheet();
+      refreshLogisticsBatchOptions();
       const rate=Number(($('logisticsHoldRate')||{}).value)||0, freeDays=logisticsFreeDays();
       const dateFilter=logisticsDateFilterVal;
       const sheetGroups=[];
@@ -7806,7 +7888,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const goods=[];
         cols.forEach(c=>{
           const names=(alloc[c.id]||[]).map(v=>String(v||'').trim());
-          const occupied=names.map((name,row)=>({name,row})).filter(x=>x.name);
+          const occupied=names.map((name,row)=>({name,row})).filter(x=>x.name&&(!dateFilter||logisticsCellMark(c,x.row,x.name,chn,alloc)===dateFilter));
           if(!occupied.length) return;
           const itemGroups=new Map();
           occupied.forEach(entry=>{
