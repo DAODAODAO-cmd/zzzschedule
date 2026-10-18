@@ -666,12 +666,13 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
       <div class="extra-fee-head">
         <div><strong>追加费用收款</strong><span>按收款批次查看、导出和标记收齐。</span></div>
-        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="addSingleAdjustmentBtn">＋ 单人退补</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
+        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
       </div>
       <div class="extra-archive-tools">
         <button type="button" class="btn-primary" id="archiveExtraFeesBtn">存档当前追加</button>
         <select id="extraFeeArchiveSelect"><option value="">选择追加存档</option></select>
         <button type="button" class="btn-ghost" id="restoreExtraFeeArchiveBtn">恢复存档</button>
+        <button type="button" class="btn-ghost" id="updateExtraFeeArchiveStatusBtn">更新存档收款状态</button>
         <button type="button" class="btn-danger" id="deleteExtraFeeArchiveBtn">删除存档</button>
       </div>
       <div class="intl-split-panel" id="intlSplitPanel" hidden>
@@ -6254,7 +6255,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         unitValue:num(d?.unitValue),
         lineBasis:num(d?.lineBasis)
       })).filter(d=>d.item):[];
-      return {id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
+      return {adjustmentArchiveId:String(row.adjustmentArchiveId||''),adjustmentOperationId:String(row.adjustmentOperationId||''),adjustmentBaseAmount:num(row.adjustmentBaseAmount),adjustmentTargetAmount:num(row.adjustmentTargetAmount),id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
     }
     function normalizeExtraFeeArchive(row){
       if(!row||typeof row!=='object') return null;
@@ -6569,6 +6570,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       return map;
     }
+    function archivedAdjustmentNet(archiveId,batchId,sheetId,current,archives){
+      const unique=new Map();
+      [...(archives||[]).flatMap(a=>a.extraFees||[]),...(current||[])].forEach(row=>{
+        if(!['international_refund','international_supplement'].includes(row.feeType)||normalizeArrivalBatchId(extraFeeArrivalBatchId(row))!==normalizeArrivalBatchId(batchId)||Number(row.sheetId||0)!==Number(sheetId||0))return;
+        if(!row.adjustmentArchiveId)throw new Error('这批已有旧版或手动退补，无法确认是否已经生成过。请先核对已有退补，不能重复生成。');
+        if(row.adjustmentArchiveId!==archiveId)return;
+        const identity=row.adjustmentOperationId||`${row.adjustmentArchiveId}|${row.id}|${row.createdAt}`;unique.set(identity,row);
+      });
+      const net=new Map();unique.forEach(row=>{const key=normalizeDispatchKey(row.person);net.set(key,(net.get(key)||0)+(row.feeType==='international_refund'?-1:1)*Math.round(num(row.amount)*100));});return net;
+    }
     async function generateInternationalAdjustmentsFromArchive(){
       const archiveId=$('extraFeeArchiveSelect')?.value||'';
       const archive=(extraFeeArchives||[]).map(normalizeExtraFeeArchive).filter(Boolean).find(a=>a.id===archiveId);
@@ -6592,6 +6603,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!oldRows.length){ alert('当前选择的到货批次，在这份存档里没有旧国际记录。'); return; }
       const batch=internationalBatches().find(b=>b.id===normalizeArrivalBatchId(batchId));
       if(!batch){ alert('当前排单里找不到这批到货记录，无法按现状计算退补。'); return; }
+      let previousAdjustments;try{previousAdjustments=archivedAdjustmentNet(archive.id,batch.id,batch.sheetId,extraFees,extraFeeArchives);}catch(error){await appAlert(error.message);return;}
+      const contextCode=String(syncCode||''),contextSignature=JSON.stringify({sheets,extraFees,extraFeeArchives});
       const total=oldRows.find(row=>num(row.totalAmount)>0)?.totalAmount||oldRows.reduce((sum,row)=>sum+num(row.amount),0);
       const mode=oldRows[0]?.splitMode||'weight';
       const billableTotalWeight=oldRows.find(row=>num(row.batchTotalWeight)>0)?.batchTotalWeight||oldRows.reduce((sum,row)=>sum+num(row.chargeWeight),0);
@@ -6600,27 +6613,28 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!built){ alert('当前排单这批国际的重量/点数合计为 0，不能计算退补。'); return; }
       const oldMap=internationalRowsAmountMap(oldRows);
       const newMap=internationalRowsAmountMap(built.rows.filter(r=>r.amount>0).map(r=>({person:r.person,amount:r.amount})));
-      const keys=new Set([...oldMap.keys(),...newMap.keys()]);
+      const keys=new Set([...oldMap.keys(),...newMap.keys(),...previousAdjustments.keys()]);
       const now=new Date().toISOString(), newRows=[];
       keys.forEach(key=>{
         const oldEntry=oldMap.get(key)||{person:'',amount:0};
         const newEntry=newMap.get(key)||{person:oldEntry.person,key,amount:0};
-        const diff=ceilMoneyValue(num(newEntry.amount)-num(oldEntry.amount));
+        const diff=(Math.round(num(newEntry.amount)*100)-Math.round(num(oldEntry.amount)*100)-(previousAdjustments.get(key)||0))/100;
         if(Math.abs(diff)<0.01) return;
         const person=newEntry.person||oldEntry.person||key;
         const isRefund=diff<0, amount=ceilMoneyValue(Math.abs(diff));
         const oldText=moneyText(oldEntry.amount||0), newText=moneyText(newEntry.amount||0);
-        const note=`原国际 ${oldText} → 当前 ${newText}；${isRefund?'需退':'需补'} ${moneyText(amount)}。旧账来自存档「${archive.name}」。`;
-        newRows.push({id:extraFeeIdSeed++,person,name:`${batch.date} 国际${isRefund?'退款':'补款'}`,amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:[],period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:isRefund?'international_refund':'international_supplement',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:'detail',chargeWeight:0,goodsWeight:0,batchGoodsWeight:built.basisTotal||0,batchTotalWeight:built.chargeTotal||0,totalAmount:total});
+        const note=`原国际 ${oldText} → 当前 ${newText}；已生成净退补 ${moneyText((previousAdjustments.get(key)||0)/100)}；本次${isRefund?'需退':'需补'} ${moneyText(amount)}。旧账来自存档「${archive.name}」。`;
+        newRows.push({adjustmentArchiveId:archive.id,adjustmentOperationId:`archive_diff_${Date.now()}_${Math.random().toString(36).slice(2,10)}`,adjustmentBaseAmount:num(oldEntry.amount),adjustmentTargetAmount:num(newEntry.amount),id:extraFeeIdSeed++,person,name:`${batch.date} 国际${isRefund?'退款':'补款'}`,amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:[],period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:isRefund?'international_refund':'international_supplement',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetId:batch.sheetId,displayMode:'detail',chargeWeight:0,goodsWeight:0,batchGoodsWeight:built.basisTotal||0,batchTotalWeight:built.chargeTotal||0,totalAmount:total});
       });
-      if(!newRows.length){ alert('这份存档和当前排单算出来金额一致，不需要退补。'); return; }
+      if(!newRows.length){ alert('已计入此前生成的退补，没有新的差额，不会重复生成。'); return; }
       const supplementCount=newRows.filter(row=>row.feeType==='international_supplement').length;
       const refundCount=newRows.filter(row=>row.feeType==='international_refund').length;
       const ok=await appConfirm(`会按存档「${archive.name}」和当前“${batch.date} · ${batch.sheet}”对比，新增 ${supplementCount} 笔补款、${refundCount} 笔退款记录。\n不会覆盖原来的国际运费。`,'生成国际退补','确认生成');
       if(!ok) return;
-      extraFees=extraFees.concat(newRows);
-      extraFeeBatchFilter=batch.id;
-      saveState(); renderExtraFeesKeepScroll(); renderDispatch(); alert(`已生成国际退补：补款 ${supplementCount} 笔，退款 ${refundCount} 笔`);
+      if(contextCode!==String(syncCode||'')||contextSignature!==JSON.stringify({sheets,extraFees,extraFeeArchives})){await appAlert('确认期间数据发生变化，请重新生成预览。');return;}
+      const beforeFees=extraFees,beforeFilter=extraFeeBatchFilter;extraFees=extraFees.concat(newRows);extraFeeBatchFilter=batch.id;
+      try{if(!saveState())throw new Error('本机保存失败');}catch(error){extraFees=beforeFees;extraFeeBatchFilter=beforeFilter;await appAlert('退补未生成，已保留原记录。'+(error.message||error));return;}
+      renderExtraFeesKeepScroll(); renderDispatch(); alert(`已生成国际退补：补款 ${supplementCount} 笔，退款 ${refundCount} 笔`);
     }
     function openExtraFeeForm(row=null){
       $('extraFeeForm').hidden=false;
@@ -6914,6 +6928,24 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!archive) return;
       extraFeeArchives=[archive,...(extraFeeArchives||[]).filter(a=>a.id!==archive.id)];
       saveState(); renderExtraFeeArchives(); alert(`已存档：${name}`);
+    }
+    function buildExtraFeeArchiveStatusUpdate(archive,currentRows){
+      const next=deepClone(archive),signature=row=>{const normalized=normalizeExtraFee(row);if(!normalized)return '';delete normalized.paid;delete normalized.paidAt;return JSON.stringify(normalized);};
+      const byId=new Map();(currentRows||[]).forEach(row=>{const id=Number(row.id);if(!byId.has(id))byId.set(id,[]);byId.get(id).push(row);});
+      let updated=0,unchanged=0,skipped=0;
+      next.extraFees=(next.extraFees||[]).map(row=>{const matches=byId.get(Number(row.id))||[];if(!Number(row.id)||matches.length!==1||signature(row)!==signature(matches[0])){skipped++;return row;}const current=matches[0],paid=current.paid===true,paidAt=paid?String(current.paidAt||''):'';if(row.paid===paid&&String(row.paidAt||'')===paidAt){unchanged++;return row;}updated++;return {...row,paid,paidAt};});
+      return {archive:next,updated,unchanged,skipped};
+    }
+    async function updateExtraFeeArchiveStatus(){
+      const id=$('extraFeeArchiveSelect')?.value||'',archive=extraFeeArchives.find(a=>a.id===id);
+      if(!archive){await appAlert('请先选择要更新收款状态的追加存档。');return;}
+      const code=String(syncCode||''),before=JSON.stringify({archive,extraFees}),plan=buildExtraFeeArchiveStatusUpdate(archive,extraFees);
+      if(!plan.updated){await appAlert(`没有可更新的收款状态。\n状态相同 ${plan.unchanged} 笔；未匹配或账单内容已变化 ${plan.skipped} 笔。\n只匹配同一条原账单，不会猜测匹配或覆盖旧金额。`);return;}
+      if(!await appConfirm(`更新存档「${archive.name}」的 ${plan.updated} 笔收款状态？\n状态相同 ${plan.unchanged} 笔；未匹配或内容变化 ${plan.skipped} 笔将跳过。\n\n只更新已收／未收和收款时间，不修改存档金额、CN、数量、重量、分摊规则，也不会替换当前追加表。未收状态也会同步，请核对后确认。`,'更新存档收款状态','确认更新'))return;
+      const current=extraFeeArchives.find(a=>a.id===id);if(code!==String(syncCode||'')||JSON.stringify({archive:current,extraFees})!==before){await appAlert('确认期间数据发生变化，请重新操作。');return;}
+      const index=extraFeeArchives.findIndex(a=>a.id===id);extraFeeArchives[index]=plan.archive;
+      try{if(!saveState())throw new Error('本机保存失败');}catch(error){extraFeeArchives[index]=archive;await appAlert('更新未完成，已保留原存档。'+(error.message||error));return;}
+      renderExtraFeeArchives();renderExtraFeesKeepScroll();renderDispatch();await appAlert(`已更新 ${plan.updated} 笔收款状态，存档计价基准没有变化。`);
     }
     async function restoreExtraFeeArchive(){
       const id=$('extraFeeArchiveSelect')?.value||'';
@@ -10237,8 +10269,6 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('intlSplitPanel').addEventListener('input',e=>{
       if(e.target.matches('#intlTotalAmount,#intlPackagingAmount,[data-intl-factor]')){ saveIntlDraft(); scheduleIntlSplitCalculation(); }
     });
-    const addSingleAdjustmentButton=document.getElementById('addSingleAdjustmentBtn');
-    if(addSingleAdjustmentButton) addSingleAdjustmentButton.addEventListener('click',()=>{ $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML=''; openExtraFeeForm({name:'单人补款',feeType:'international_supplement',batchId:extraFeeBatchFilter&&extraFeeBatchFilter!=='all'?extraFeeBatchFilter:''}); });
     $('cancelExtraFeeBtn').addEventListener('click',closeExtraFeeForm);
     $('saveExtraFeeBtn').addEventListener('click',()=>{
       const id=Number($('extraFeeEditId').value)||0, person=$('extraFeePerson').value.trim(), name=$('extraFeeName').value.trim(), amount=Math.max(0,num($('extraFeeAmount').value));
@@ -10260,6 +10290,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('archiveExtraFeesBtn').addEventListener('click',archiveCurrentExtraFees);
     $('extraFeeArchiveSelect').addEventListener('change',renderExtraFeesKeepScroll);
     $('restoreExtraFeeArchiveBtn').addEventListener('click',restoreExtraFeeArchive);
+    $('updateExtraFeeArchiveStatusBtn').addEventListener('click',updateExtraFeeArchiveStatus);
     $('deleteExtraFeeArchiveBtn').addEventListener('click',deleteExtraFeeArchive);
     function handleExtraPaymentQr(file){ handlePaymentQr(file); }
     $('extraPaymentQrInput').addEventListener('change',e=>{ handleExtraPaymentQr(e.target.files[0]); e.target.value=''; });
