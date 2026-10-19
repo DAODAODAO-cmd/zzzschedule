@@ -6255,7 +6255,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         unitValue:num(d?.unitValue),
         lineBasis:num(d?.lineBasis)
       })).filter(d=>d.item):[];
-      return {adjustmentArchiveId:String(row.adjustmentArchiveId||''),adjustmentOperationId:String(row.adjustmentOperationId||''),adjustmentBaseAmount:num(row.adjustmentBaseAmount),adjustmentTargetAmount:num(row.adjustmentTargetAmount),id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
+      return {batchDisplayTitle:String(row.batchDisplayTitle||''),adjustmentArchiveId:String(row.adjustmentArchiveId||''),adjustmentOperationId:String(row.adjustmentOperationId||''),adjustmentBaseAmount:num(row.adjustmentBaseAmount),adjustmentTargetAmount:num(row.adjustmentTargetAmount),id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
     }
     function normalizeExtraFeeArchive(row){
       if(!row||typeof row!=='object') return null;
@@ -6731,6 +6731,18 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(row.feeType==='international_supplement'||row.feeType==='manual_batch') return true;
       return /退补|退款|单人退|单人补/i.test(`${row.name||''} ${row.note||''} ${row.items||''}`);
     }
+    const extraFeeViewInitialized=new Set();
+    function defaultExtraFeeBatch(rows){
+      const batches=new Map();(rows||[]).forEach(row=>{const id=extraFeeArrivalBatchId(row);if(!id)return;const stamp=String(row.createdAt||row.batchDate||'');if(!batches.has(id))batches.set(id,{id,unpaid:false,stamp:''});const item=batches.get(id);item.unpaid=item.unpaid||row.paid!==true;if(stamp>item.stamp)item.stamp=stamp;});
+      return [...batches.values()].sort((a,b)=>Number(b.unpaid)-Number(a.unpaid)||b.stamp.localeCompare(a.stamp)||b.id.localeCompare(a.id))[0]?.id||'all';
+    }
+    function extraFeeCurrentTitle(){
+      if(extraFeeBatchFilter==='all')return '全部追加费用 · 全部批次';
+      const rows=extraFees.filter(row=>extraFeeArrivalBatchId(row)===extraFeeBatchFilter),custom=rows.find(row=>String(row.batchDisplayTitle||'').trim())?.batchDisplayTitle;
+      if(custom)return custom;
+      if(extraFeeBatchFilter===defaultExtraFeeBatch(extraFees.map(row=>({...row,paid:true})))&&extraFeeTitle&&extraFeeTitle!=='追加费用收款')return extraFeeTitle;
+      const label=$('extraFeeBatchSelect')?.selectedOptions?.[0]?.textContent||extraFeeBatchFilter.replace(/^arrival:/,'');return label+' · 追加费用';
+    }
     function renderExtraFeeBatchSelect(){
       const select=$('extraFeeBatchSelect'); if(!select) return;
       const current=extraFeeBatchFilter||'all';
@@ -6743,7 +6755,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       const options=[...map.values()].sort((a,b)=>String(b.id).localeCompare(String(a.id)));
       select.innerHTML='<option value="all">全部到货批次</option>'+options.map(b=>`<option value="${escapeAttr(b.id)}">${escapeHtml(b.label)}</option>`).join('');
-      select.value=options.some(b=>b.id===current)?current:'all';
+      const context=String(syncCode||'local');let chosen=current;
+      if(!extraFeeViewInitialized.has(context)||!options.some(b=>b.id===chosen)&&chosen!=='all'){
+        if(chosen==='all'||!options.some(b=>b.id===chosen))chosen=defaultExtraFeeBatch(extraFees);
+        if(extraFees.length)extraFeeViewInitialized.add(context);
+      }
+      select.value=options.some(b=>b.id===chosen)?chosen:'all';
       extraFeeBatchFilter=select.value;
     }
     function extraFeeWechatAmount(amount){
@@ -6886,7 +6903,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       let unpaid=0,paidCount=0,unpaidPeople=new Set(); visible.forEach(row=>{ if(row.paid) paidCount++; else { unpaid+=extraFeeSignedAmount(row); unpaidPeople.add(row.person); } });
       $('extraFeeSummary').textContent=`当前批次：已收 ${paidCount} 笔；未收 ${visible.length-paidCount} 笔 / ${unpaidPeople.size} 人 / ${money(unpaid)}`;
       document.querySelectorAll('[data-extra-filter]').forEach(btn=>btn.classList.toggle('active',btn.dataset.extraFilter===extraFeeFilter));
-      if($('extraFeeTitleInput')) $('extraFeeTitleInput').value=extraFeeTitle;
+      if($('extraFeeTitleInput')) $('extraFeeTitleInput').value=extraFeeCurrentTitle();
       if($('extraFeeViewMode')) $('extraFeeViewMode').value=extraFeeViewMode;
       if($('extraFeeColorInput')) $('extraFeeColorInput').value=/^#[0-9a-f]{6}$/i.test(extraFeeColor)?extraFeeColor:'#d1466a';
       if($('extraFeePaidAllBtn')) $('extraFeePaidAllBtn').textContent=visible.length&&visible.every(r=>r.paid)?'当前批次改为未收':'当前批次标记收齐'; if($('showExtraFeeTotalBtn')) $('showExtraFeeTotalBtn').textContent=extraFeeShowTotal?'隐藏总价':'显示总价'; if($('clearExtraPaymentQrBtn')) $('clearExtraPaymentQrBtn').style.display='none';
@@ -6915,13 +6932,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       const qrHtml=sharedExtraQr?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(sharedExtraQr)}" alt="追加费用共用收款码"></div>`:'';
       const color=/^#[0-9a-f]{6}$/i.test(extraFeeColor)?extraFeeColor:'#d1466a';
       const totalWechat=alipayTotal<0?alipayTotal:extraFeeWechatAmount(alipayTotal);
-      list.innerHTML=`<div class="payment-table-wrap"><div id="extraFeeExportTitle" class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(extraFeeTitle||'追加费用收款')}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>${paidAllControl} CN</th><th>谷类</th><th>数量</th><th>g重</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody>${extraFeeShowTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">当前显示合计</td><td class="payment-total-value">${moneyText(alipayTotal)}</td><td class="payment-total-value">${moneyText(totalWechat)}</td></tr></tfoot>`:''}</table>${qrHtml}</div>`;
+      list.innerHTML=`<div class="payment-table-wrap"><div id="extraFeeExportTitle" class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(extraFeeCurrentTitle())}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>${paidAllControl} CN</th><th>谷类</th><th>数量</th><th>g重</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody>${extraFeeShowTotal?`<tfoot><tr><td colspan="4" class="payment-total-label">当前显示合计</td><td class="payment-total-value">${moneyText(alipayTotal)}</td><td class="payment-total-value">${moneyText(totalWechat)}</td></tr></tfoot>`:''}</table>${qrHtml}</div>`;
       restoreExtraFeeScroll(preservePosition);
     }
     async function archiveCurrentExtraFees(){
       const rows=visibleExtraFees();
       if(!rows.length){ alert('当前没有追加费用可以存档'); return; }
-      const fallback=(extraFeeTitle||'追加费用收款').trim()||'追加费用存档';
+      const fallback=extraFeeCurrentTitle().trim()||'追加费用存档';
       const name=String(await appPrompt('给这份追加费用存档起个名字',fallback,'存档当前追加','保存存档')||'').trim();
       if(!name) return;
       const archive=snapshotExtraFeeArchive(name,rows);
@@ -6930,7 +6947,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       saveState(); renderExtraFeeArchives(); alert(`已存档：${name}`);
     }
     function buildExtraFeeArchiveStatusUpdate(archive,currentRows){
-      const next=deepClone(archive),signature=row=>{const normalized=normalizeExtraFee(row);if(!normalized)return '';delete normalized.paid;delete normalized.paidAt;return JSON.stringify(normalized);};
+      const next=deepClone(archive),signature=row=>{const normalized=normalizeExtraFee(row);if(!normalized)return '';delete normalized.batchDisplayTitle;delete normalized.paid;delete normalized.paidAt;return JSON.stringify(normalized);};
       const byId=new Map();(currentRows||[]).forEach(row=>{const id=Number(row.id);if(!byId.has(id))byId.set(id,[]);byId.get(id).push(row);});
       let updated=0,unchanged=0,skipped=0;
       next.extraFees=(next.extraFees||[]).map(row=>{const matches=byId.get(Number(row.id))||[];if(!Number(row.id)||matches.length!==1||signature(row)!==signature(matches[0])){skipped++;return row;}const current=matches[0],paid=current.paid===true,paidAt=paid?String(current.paidAt||''):'';if(row.paid===paid&&String(row.paidAt||'')===paidAt){unchanged++;return row;}updated++;return {...row,paid,paidAt};});
@@ -7029,7 +7046,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       extraFeeFilter=filter; $('extraFeeSearchInput').value=''; renderExtraFees();
       const wrap=$('extraFeeExportWrap'); wrap.classList.add('extra-exporting');
       const scroller=wrap.querySelector('.payment-table-wrap')||wrap;
-      const width=Math.max(760,scroller.scrollWidth), name=(extraFeeTitle||'追加费用收款').replace(/[\\/:*?"<>|]/g,' ').trim()||'追加费用收款';
+      const width=Math.max(760,scroller.scrollWidth), name=extraFeeCurrentTitle().replace(/[\\/:*?"<>|]/g,' ').trim()||'追加费用收款';
       const suffix=filter==='unpaid'?'_未收':(filter==='adjustment'?'_退补':(filter==='supplement'?'_补充':''));
       requestAnimationFrame(()=>renderExportCanvas(scroller,{backgroundColor:'#ffffff',scale:2,width,height:scroller.scrollHeight,windowWidth:width,windowHeight:scroller.scrollHeight,cloneForExport:true,tightExport:true}).then(canvas=>saveCanvasImage(canvas,name+suffix+'.png',true)).catch(()=>alert('导出失败，请重试')).finally(()=>{
         wrap.classList.remove('extra-exporting'); extraFeeFilter=previousFilter; $('extraFeeSearchInput').value=previousSearch; renderExtraFees(); restoreExtraFeeScroll(pos); requestAnimationFrame(()=>restoreExtraFeeScroll(pos)); setTimeout(()=>restoreExtraFeeScroll(pos),80);
@@ -10283,7 +10300,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('extraFeeSearchBtn').addEventListener('click',renderExtraFees); $('extraFeeSearchInput').addEventListener('input',renderExtraFees);
     $('extraFeeBatchSelect').addEventListener('change',e=>{ extraFeeBatchFilter=e.target.value||'all'; renderExtraFeesKeepScroll(); });
     closeExtraFeeForm(); $('intlSplitPanel').hidden=true;
-    $('extraFeeTitleInput').addEventListener('input',e=>{ extraFeeTitle=e.target.value; if($('extraFeeExportTitle')) $('extraFeeExportTitle').textContent=extraFeeTitle||'追加费用收款'; saveState(); });
+    $('extraFeeTitleInput').addEventListener('input',e=>{ extraFeeTitle=e.target.value;if(extraFeeBatchFilter!=='all')extraFees.filter(row=>extraFeeArrivalBatchId(row)===extraFeeBatchFilter).forEach(row=>row.batchDisplayTitle=extraFeeTitle); if($('extraFeeExportTitle')) $('extraFeeExportTitle').textContent=extraFeeCurrentTitle(); saveState(); });
     $('extraFeeViewMode').addEventListener('change',e=>{ extraFeeViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderExtraFeesKeepScroll(); });
     $('extraFeeColorInput').addEventListener('input',e=>{ extraFeeColor=e.target.value; if($('extraFeeExportTitle')) $('extraFeeExportTitle').style.background=extraFeeColor; saveState(); });
     $('showExtraFeeTotalBtn').addEventListener('click',()=>{ extraFeeShowTotal=!extraFeeShowTotal; saveState(); renderExtraFeesKeepScroll(); });
