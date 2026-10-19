@@ -676,9 +676,12 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <button type="button" class="btn-primary" id="archiveExtraFeesBtn">存档当前追加</button>
         <label>历史备份 <select id="extraFeeArchiveSelect"><option value="">选择历史备份（不切换账单）</option></select></label>
         <button type="button" class="btn-ghost" id="restoreExtraFeeArchiveBtn">补回缺失批次</button>
+        <button type="button" class="btn-ghost" id="overwriteExtraFeeBatchBtn">读取并覆盖本批</button>
+        <button type="button" class="btn-ghost" id="overwriteExtraFeeArchiveBtn">更新所选存档</button>
         <button type="button" class="btn-ghost" id="updateExtraFeeArchiveStatusBtn" hidden style="display:none;">更新存档收款状态</button>
         <button type="button" class="btn-danger" id="deleteExtraFeeArchiveBtn">删除存档</button>
       </div>
+      <p class="hint">重算不生成退补；差额另点“从存档生成退补”。读取覆盖＝还原本批；更新存档＝保存当前状态。两种覆盖操作前都会保留旧版备份。</p>
       <div class="intl-split-panel" id="intlSplitPanel" hidden>
         <div class="intl-split-grid">
           <label>国内到货批次<select id="intlBatchSelect"><option value="">请选择</option></select></label>
@@ -1262,6 +1265,7 @@ html{ scrollbar-gutter:stable; }
 .extra-clear-control{display:inline-flex!important;align-items:center;gap:6px;margin:0!important;padding:0 2px;color:var(--muted);font-size:11px!important;font-weight:800;white-space:nowrap}.extra-clear-control select{width:auto!important;min-width:112px;padding:7px 28px 7px 9px!important;background:#fff!important}.toolbar #clearExtraFeesBtn{margin-left:0}@media(max-width:620px){.extra-clear-control{width:auto}.extra-clear-control select{min-width:104px;font-size:11px!important}}
 @media(max-width:620px){.extra-payment-heading-tools{grid-template-columns:minmax(0,1fr) auto}}
 .extra-archive-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 10px}.extra-archive-tools select{width:auto;min-width:180px}.extra-archive-tools button{padding:7px 10px;font-size:11px}
+@media(max-width:620px){.extra-archive-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.extra-archive-tools label{grid-column:1/-1;min-width:0}.extra-archive-tools select{width:100%;min-width:0;min-height:44px}.extra-archive-tools button{min-height:44px;white-space:normal}.extra-fee-head-actions{flex-wrap:wrap}}
 .extra-fee-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.extra-fee-head strong{display:block;font-size:14px}.extra-fee-head span{display:block;margin-top:2px;color:var(--muted);font-size:10.5px}.extra-fee-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#faf8fb}.extra-fee-form label{margin:0}.extra-fee-note-field{grid-column:1/4}.extra-fee-form-actions{display:flex;align-items:end;justify-content:flex-end;gap:6px}.extra-fee-filter{display:flex;gap:5px;margin:8px 0}.extra-fee-filter button{padding:5px 11px;border:1px solid var(--line);background:#fff;color:var(--muted)}.extra-fee-filter button.active{border-color:var(--accent);background:#fff0f4;color:var(--accent)}.extra-fee-summary{color:var(--muted);font-size:11px;font-weight:800}.extra-fee-list{display:grid;gap:8px}.extra-fee-person{border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}.extra-fee-person-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;background:#faf8fb}.extra-fee-person-head b{font-size:13px}.extra-fee-person-head span{font-size:11px;font-weight:900}.extra-fee-row{display:grid;grid-template-columns:minmax(130px,1.2fr) minmax(120px,1fr) 90px 86px auto;align-items:center;gap:7px;padding:8px 10px;border-top:1px solid #eee8f0;font-size:11.5px}.extra-fee-row.is-paid{background:#eff9f2;color:#287247}.extra-fee-main b{display:block}.extra-fee-main small,.extra-fee-source{color:var(--muted);font-size:10px}.extra-fee-money{font-weight:900;text-align:right}.extra-fee-status{padding:4px 7px;border:1px solid #efbdc5;border-radius:999px;background:#fff5f6;color:#b4364c;font-size:10px;font-weight:900;cursor:pointer}.extra-fee-row.is-paid .extra-fee-status{border-color:#b6ddc3;background:#e8f6ed;color:#287247}.extra-fee-actions{display:flex;gap:4px}.extra-fee-actions button{padding:4px 7px;font-size:10px}.extra-fee-empty{padding:20px;color:var(--muted);text-align:center}
 .extra-fee-head-actions{display:flex;gap:6px;flex-wrap:wrap}.intl-split-panel{margin:10px 0;padding:12px;border:1px solid #ded5e2;border-radius:11px;background:#faf8fb}.intl-split-grid{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(120px,.7fr) minmax(120px,.7fr);gap:8px}.intl-split-grid label{margin:0}.intl-split-tip{margin:8px 0}.intl-factor-list{display:grid;gap:5px}.intl-factor-row{display:grid;grid-template-columns:minmax(150px,1fr) 90px auto;align-items:center;gap:8px;padding:7px 9px;border:1px solid #e7e0e9;border-radius:8px;background:#fff;font-size:11px}.intl-factor-row input{padding:5px 7px!important;text-align:center}.intl-split-preview{margin-top:8px}.intl-preview-table{width:100%;border-collapse:collapse}.intl-preview-table th,.intl-preview-table td{padding:7px 8px;border-bottom:1px solid #e9e2eb;text-align:left}.intl-preview-total{margin:8px 0;color:var(--muted);font-size:11px}.intl-table-summary{padding:6px 8px;border-left:1px solid #d8d1db;border-right:1px solid #d8d1db;background:#fff8fb;color:#8a3d55;font-size:11px;font-weight:900;text-align:center}.intl-preview-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}@media(max-width:620px){.intl-split-grid{grid-template-columns:1fr}.intl-factor-row{grid-template-columns:minmax(0,1fr) 78px}.intl-factor-row small{grid-column:1/-1}}@media(max-width:700px){.extra-fee-form{grid-template-columns:1fr 1fr}.extra-fee-note-field{grid-column:1/-1}.extra-fee-form-actions{grid-column:1/-1}.extra-fee-row{grid-template-columns:minmax(0,1fr) 74px 70px}.extra-fee-source{grid-column:1/2}.extra-fee-actions{grid-column:1/-1}.extra-fee-head{align-items:flex-start}}
 .cost-human-tip{ margin-top:10px; padding:9px 11px; border-radius:8px; background:#faf7fb; line-height:1.55; }
@@ -6525,7 +6529,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return rows.map(row=>({...row,batchDisplayTitle:batchTitle,allBatchDisplayTitle:allTitle}));
     }
     async function recalcInternationalFees(){
-      const previousViewBatch=extraFeeBatchFilter;
+      const previousViewBatch=extraFeeBatchFilter,operationCode=String(syncCode||''),operationSignature=JSON.stringify({extraFees,extraFeeArchives,sheets});
       const intlRows=extraFeeRowsForScope().filter(row=>row.feeType==='international'&&row.batchId&&(extraFeeBatchFilter==='all'||extraFeeArrivalBatchId(row)===extraFeeBatchFilter));
       if(!intlRows.length){ alert('当前还没有可重算的国际运费'); return; }
       const batches=[...new Map(intlRows.map(row=>[extraFeeArrivalBatchId(row),{id:extraFeeArrivalBatchId(row),label:`${row.batchDate||''} ${row.source||row.name||'国际运费'}`.trim()}])).values()];
@@ -6534,8 +6538,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         const list=batches.map((b,i)=>`${i+1}. ${b.label||b.id}`).join('\n');
         const input=await appPrompt(`有多批国际运费，请输入要重算的序号：\n${list}`,'1','选择重算批次','继续');
         if(input===null) return;
-        const index=Math.max(1,Math.min(batches.length,Number(input)||0))-1;
-        if(index<0||!batches[index]) return;
+        const index=Number(input)-1;
+        if(!Number.isInteger(index)||index<0||!batches[index]) return;
         batchId=batches[index].id;
       }
       const oldRows=extraFees.filter(row=>row.feeType==='international'&&extraFeeArrivalBatchId(row)===batchId);
@@ -6580,7 +6584,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       const oldIds=new Set(oldRows.map(row=>row.id));
       const now=new Date().toISOString(), previewMode=extraFeeViewMode==='merged'?'merged':'detail';
-      const adjustmentRows=[];
+      let nextId=extraFeeIdSeed;
       const newPersonKeys=new Set();
       const newRows=built.rows.filter(r=>r.amount>0).map(r=>{
         newPersonKeys.add(normalizeDispatchKey(r.person));
@@ -6589,31 +6593,25 @@ body.export-rendering .cart-count{ font-size:28px; }
           : (r.detailRows||[]).map(d=>mode==='weight'?`${d.item}｜克重${fmtNum(d.weight)}g`:(mode==='points'?`${d.item}｜点数${fmtNum(d.point)}`:d.item)).join('、');
         const paidState=oldPaidByPerson.get(normalizeDispatchKey(r.person))||{};
         const diff=ceilMoneyValue(num(r.amount)-num(paidState.amount||0));
-        if(paidState.paid===true&&Math.abs(diff)>=0.01){
-          const isRefund=diff<0, amount=ceilMoneyValue(Math.abs(diff));
-          const note=`原已收 ${moneyText(paidState.amount||0)} → 重算后 ${moneyText(r.amount)}；${isRefund?'需退':'需补'} ${moneyText(amount)}。`;
-          adjustmentRows.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际${isRefund?'退款':'补款'}`,amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:[],period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:isRefund?'international_refund':'international_supplement',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:'detail',chargeWeight:0,goodsWeight:0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total});
-        }
-        const keepPaid=paidState.paid===true&&Math.abs(diff)<0.01;
-        return {id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:detailText,items:detailText,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:keepPaid,createdAt:now,paidAt:keepPaid?paidState.paidAt||now:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total};
+        const keepPaid=paidState.paid===true;
+        return {id:nextId++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:detailText,items:detailText,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:keepPaid,createdAt:now,paidAt:keepPaid?paidState.paidAt||now:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total};
       });
-      oldPaidByPerson.forEach((paidState,key)=>{
-        if(!paidState.paid||newPersonKeys.has(key)||!num(paidState.amount)) return;
-        const amount=ceilMoneyValue(paidState.amount);
-        const note=`原已收 ${moneyText(amount)} → 重算后没有本批谷子；需退 ${moneyText(amount)}。`;
-        adjustmentRows.push({id:extraFeeIdSeed++,person:paidState.person||key,name:`${batch.date} 国际退款`,amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:[],period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international_refund',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:'detail',chargeWeight:0,goodsWeight:0,batchGoodsWeight:built.basisTotal||0,batchTotalWeight:built.chargeTotal||0,totalAmount:total});
-      });
-      const supplementCount=adjustmentRows.filter(row=>row.feeType==='international_supplement').length;
-      const refundCount=adjustmentRows.filter(row=>row.feeType==='international_refund').length;
-      const adjustmentText=adjustmentRows.length?`\n已收过但金额变化的 CN，会额外新增：补款 ${supplementCount} 笔、退款 ${refundCount} 笔。`:'';
-      const ok=await appConfirm(`会按当前排单重新计算“${batch.date} · ${batch.sheet}”的国际运费，并覆盖原来的 ${oldRows.length} 笔记录。\n本批总价：${money(total)}${mode==='weight'?`；整箱总重：${fmtNum(billableTotalWeight)}g`:''}${adjustmentText}\n金额没变的同名 CN 会保留已收状态。`,'重算国际运费','确认覆盖');
-      if(!ok) return;
-      const beforeRecalcFees=extraFees;
-      const titledRows=preserveExtraFeeTitles([...newRows,...adjustmentRows],oldRows,extraFees);
+      const missingPaid=[...oldPaidByPerson.entries()].filter(([key,state])=>state.paid&&!newPersonKeys.has(key));
+      if(missingPaid.length){await appAlert('重算后有已收款 CN 不再出现在本批中，不能直接移除收款记录。请先存档并单独核对退补：'+missingPaid.map(([,state])=>state.person).join('、'));return;}
+      const changedPaid=newRows.filter(row=>row.paid&&Math.abs(num(row.amount)-num(oldPaidByPerson.get(normalizeDispatchKey(row.person))?.amount))>=0.01);
+      if(changedPaid.length){await appAlert('本批有 '+changedPaid.length+' 位已收款 CN 的金额发生变化。为避免把原已收款误当成新金额，普通重算不会覆盖这些记录。\n请使用“从存档生成退补”单独处理，或先读取重算前的存档还原本批。');return;}
+      const ok=await appConfirm(`只重算“${batch.date} · ${batch.sheet}”的国际运费，覆盖原来的 ${oldRows.length} 笔国际记录。\n本批总价：${money(total)}\n不会新增退款或补款，也不会删除已有退补；已收标记保留。覆盖前自动备份本批。`,'仅重算国际','确认重算');
+      if(!ok)return;
+      if(operationCode!==String(syncCode||'')||operationSignature!==JSON.stringify({extraFees,extraFeeArchives,sheets})){await appAlert('核对期间数据已变化，请重新重算。');return;}
+      const beforeRecalcFees=extraFees,beforeArchives=extraFeeArchives,oldSeed=extraFeeIdSeed;
+      const backup=snapshotExtraFeeArchive('重算前 · '+(oldRows[0]?.batchDisplayTitle||batch.date),extraFees.filter(row=>extraFeeArrivalBatchId(row)===batchId));
+      if(!backup){await appAlert('无法创建重算前备份，未修改账单。');return;}
+      const titledRows=preserveExtraFeeTitles(newRows,oldRows,extraFees);
       extraFees=extraFees.filter(row=>!oldIds.has(row.id)).concat(titledRows);
+      extraFeeArchives=[backup,...extraFeeArchives];extraFeeIdSeed=nextId;
       extraFeeBatchFilter=previousViewBatch;
-      try{if(!saveState())throw new Error('本机保存失败');}catch(error){extraFees=beforeRecalcFees;extraFeeBatchFilter=previousViewBatch;await appAlert('重算未保存，已保留原记录。'+(error.message||error));return;}
-      renderExtraFeesKeepScroll(); renderDispatch(); alert(`已重算 ${newRows.length} 笔国际运费${adjustmentRows.length?`，并生成补/退款 ${adjustmentRows.length} 笔`:''}`);
+      try{if(!saveState())throw new Error('本机保存失败');}catch(error){extraFees=beforeRecalcFees;extraFeeArchives=beforeArchives;extraFeeIdSeed=oldSeed;extraFeeBatchFilter=previousViewBatch;await appAlert('重算未保存，已保留原记录。'+(error.message||error));return;}
+      renderExtraFeeArchives();renderExtraFeesKeepScroll();renderDispatch();alert(`已重算 ${newRows.length} 笔国际运费，未生成退补。重算前状态已备份。`);
     }
     function extraFeeSignedAmount(row){
       const amount=Math.max(0,num(row?.amount));
@@ -7070,6 +7068,52 @@ body.export-rendering .cart-count{ font-size:28px; }
       const before=extraFees,oldSeed=extraFeeIdSeed,oldFilter=extraFeeBatchFilter;extraFees=extraFees.concat(plan.added);extraFeeIdSeed=plan.nextId;extraFeeBatchFilter=plan.batchIds[0];
       try{if(!saveState())throw new Error('本机保存失败');}catch(error){extraFees=before;extraFeeIdSeed=oldSeed;extraFeeBatchFilter=oldFilter;await appAlert('补回未完成，原账单和备份保留。'+(error.message||error));return;}
       extraFeeViewInitialized.add(`${String(syncCode||'local')}::live-bills`);renderExtraFeesKeepScroll();renderDispatch();await appAlert(`已补回 ${plan.added.length} 笔实时账单。以后在下方选择该批记收款，历史备份不变。`);
+    }
+    function buildExtraFeeBatchOverwrite(archive,current,batchId,seed=1){
+      const sources=(archive.extraFees||[]).filter(row=>extraFeeArrivalBatchId(row)===batchId);
+      if(!sources.length)throw new Error('存档中没有这一批账单');
+      let nextId=Math.max(Number(seed)||1,...current.map(row=>(Number(row.id)||0)+1));
+      const restored=sources.map(source=>{const row=normalizeExtraFee(deepClone(source));if(!row)throw new Error('存档含无效记录，不能覆盖');row.id=nextId++;return row;});
+      const removed=current.filter(row=>extraFeeArrivalBatchId(row)===batchId);
+      return {rows:current.filter(row=>extraFeeArrivalBatchId(row)!==batchId).concat(restored),removed,restored,nextId};
+    }
+    async function overwriteExtraFeeBatchFromArchive(){
+      const archive=extraFeeArchives.find(a=>a.id===($('extraFeeArchiveSelect')?.value||''));
+      if(!archive){await appAlert('请先选择重算前的历史存档。');return;}
+      const code=String(syncCode||''),signature=JSON.stringify({extraFees,extraFeeArchives});
+      const batches=[...new Set((archive.extraFees||[]).map(extraFeeArrivalBatchId).filter(Boolean))];
+      if(!batches.length){await appAlert('所选存档没有可识别的账单批次。');return;}
+      let batchId=batches.includes(extraFeeBatchFilter)?extraFeeBatchFilter:batches[0];
+      if(batches.length>1){
+        const input=await appPrompt('请选择要读取并覆盖的批次：\n'+batches.map((id,i)=>`${i+1}. ${id}`).join('\n'),String(batches.indexOf(batchId)+1),'读取存档','继续');
+        if(input===null)return;const index=Number(input)-1;if(!Number.isInteger(index)||!batches[index]){await appAlert('序号无效，未修改账单。');return;}batchId=batches[index];
+      }
+      let plan;try{plan=buildExtraFeeBatchOverwrite(archive,extraFees,batchId,extraFeeIdSeed);}catch(error){await appAlert(error.message);return;}
+      const removedPaid=plan.removed.filter(row=>row.paid).length,restoredPaid=plan.restored.filter(row=>row.paid).length;
+      if(!await appConfirm(`用「${archive.name}」还原 ${batchId}？\n当前本批 ${plan.removed.length} 笔（已收 ${removedPaid} 笔）将被替换为存档 ${plan.restored.length} 笔（已收 ${restoredPaid} 笔）。\n本批存档之后新增的退补也会移出实时表；收款勾选回到存档时，请核对是否有之后新收/退款。\n其他批次不动。覆盖前自动备份当前本批，可再读回。`,'读取并覆盖本批','核对后还原'))return;
+      if(code!==String(syncCode||'')||signature!==JSON.stringify({extraFees,extraFeeArchives})){await appAlert('确认期间账单发生变化，请重新核对。');return;}
+      const before=extraFees,beforeArchives=extraFeeArchives,oldSeed=extraFeeIdSeed,oldFilter=extraFeeBatchFilter;
+      const backup=plan.removed.length?snapshotExtraFeeArchive('读取覆盖前 · '+batchId,plan.removed):null;
+      if(plan.removed.length&&!backup){await appAlert('无法创建覆盖前备份，未修改账单。');return;}
+      extraFees=plan.rows;extraFeeIdSeed=plan.nextId;extraFeeBatchFilter=batchId;if(backup)extraFeeArchives=[backup,...extraFeeArchives];
+      try{if(!saveState())throw new Error('本机保存失败');}catch(error){extraFees=before;extraFeeArchives=beforeArchives;extraFeeIdSeed=oldSeed;extraFeeBatchFilter=oldFilter;await appAlert('还原未保存，原账单和存档均已保留。'+error.message);return;}
+      extraFeeRememberedBillChoice(batchId);renderExtraFeeArchives();renderExtraFeesKeepScroll();renderDispatch();await appAlert('已从存档还原这一批。其他批次未改动，覆盖前状态已备份。');
+    }
+    async function overwriteSelectedExtraFeeArchive(){
+      const archive=extraFeeArchives.find(a=>a.id===($('extraFeeArchiveSelect')?.value||''));
+      if(!archive){await appAlert('请先选择要更新的存档。');return;}
+      const code=String(syncCode||''),signature=JSON.stringify({extraFees,extraFeeArchives});
+      const batchIds=[...new Set((archive.extraFees||[]).map(extraFeeArrivalBatchId).filter(Boolean))];
+      if(!batchIds.length||(archive.extraFees||[]).some(row=>!extraFeeArrivalBatchId(row))){await appAlert('该存档含无法识别批次的记录，不能自动更新。请另存新档。');return;}
+      if(batchIds.some(id=>!extraFees.some(row=>extraFeeArrivalBatchId(row)===id))){await appAlert('存档中的部分批次目前不在实时表，不能用空表覆盖。请先核对或补回。');return;}
+      const rows=extraFees.filter(row=>batchIds.includes(extraFeeArrivalBatchId(row)));
+      if(!await appConfirm(`将「${archive.name}」包含的 ${batchIds.length} 批更新为实时表当前的 ${rows.length} 笔（包含当前收款状态）？\n不受搜索/未收筛选影响。旧存档会保留为“更新前备份”，不会改写之前生成退补的依据。实时账单不变。`,'更新所选存档','确认更新'))return;
+      if(code!==String(syncCode||'')||signature!==JSON.stringify({extraFees,extraFeeArchives})){await appAlert('确认期间数据发生变化，请重新核对。');return;}
+      const updated=snapshotExtraFeeArchive(archive.name,rows);if(!updated){await appAlert('无法创建更新后的存档，原存档保留。');return;}
+      updated.extraFeeTitle=archive.extraFeeTitle;
+      const before=extraFeeArchives;extraFeeArchives=[updated,...extraFeeArchives.map(a=>a.id===archive.id?{...a,name:'更新前备份 · '+a.name}:a)];
+      try{if(!saveState())throw new Error('本机保存失败');}catch(error){extraFeeArchives=before;await appAlert('更新未保存，原存档保留。'+error.message);return;}
+      renderExtraFeeArchives();$('extraFeeArchiveSelect').value=updated.id;await appAlert('存档已更新，原版保留为更新前备份；实时账单未变。');
     }
     async function deleteExtraFeeArchive(){
       const id=$('extraFeeArchiveSelect')?.value||'';
@@ -10474,6 +10518,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('archiveExtraFeesBtn').addEventListener('click',archiveCurrentExtraFees);
     $('extraFeeArchiveSelect').addEventListener('change',renderExtraFeesKeepScroll);
     $('restoreExtraFeeArchiveBtn').addEventListener('click',restoreExtraFeeArchive);
+    $('overwriteExtraFeeBatchBtn').addEventListener('click',overwriteExtraFeeBatchFromArchive);
+    $('overwriteExtraFeeArchiveBtn').addEventListener('click',overwriteSelectedExtraFeeArchive);
     $('updateExtraFeeArchiveStatusBtn').addEventListener('click',()=>appAlert('历史备份保持原样。日常收款请在下方实时账单中标记；需要新备份时再点“存档当前追加”。'));
     $('deleteExtraFeeArchiveBtn').addEventListener('click',deleteExtraFeeArchive);
     function handleExtraPaymentQr(file){ handlePaymentQr(file); }
