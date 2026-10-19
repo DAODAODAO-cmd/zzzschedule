@@ -6255,7 +6255,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         unitValue:num(d?.unitValue),
         lineBasis:num(d?.lineBasis)
       })).filter(d=>d.item):[];
-      return {batchDisplayTitle:String(row.batchDisplayTitle||''),adjustmentArchiveId:String(row.adjustmentArchiveId||''),adjustmentOperationId:String(row.adjustmentOperationId||''),adjustmentBaseAmount:num(row.adjustmentBaseAmount),adjustmentTargetAmount:num(row.adjustmentTargetAmount),id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
+      return {allBatchDisplayTitle:String(row.allBatchDisplayTitle||''),batchDisplayTitle:String(row.batchDisplayTitle||''),adjustmentArchiveId:String(row.adjustmentArchiveId||''),adjustmentOperationId:String(row.adjustmentOperationId||''),adjustmentBaseAmount:num(row.adjustmentBaseAmount),adjustmentTargetAmount:num(row.adjustmentTargetAmount),id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
     }
     function normalizeExtraFeeArchive(row){
       if(!row||typeof row!=='object') return null;
@@ -6737,11 +6737,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       return [...batches.values()].sort((a,b)=>Number(b.unpaid)-Number(a.unpaid)||b.stamp.localeCompare(a.stamp)||b.id.localeCompare(a.id))[0]?.id||'all';
     }
     function extraFeeCurrentTitle(){
-      if(extraFeeBatchFilter==='all')return '全部追加费用 · 全部批次';
+      if(extraFeeBatchFilter==='all')return extraFees.find(row=>String(row.allBatchDisplayTitle||'').trim())?.allBatchDisplayTitle||'全部追加费用 · 全部批次';
       const rows=extraFees.filter(row=>extraFeeArrivalBatchId(row)===extraFeeBatchFilter),custom=rows.find(row=>String(row.batchDisplayTitle||'').trim())?.batchDisplayTitle;
       if(custom)return custom;
       if(extraFeeBatchFilter===defaultExtraFeeBatch(extraFees.map(row=>({...row,paid:true})))&&extraFeeTitle&&extraFeeTitle!=='追加费用收款')return extraFeeTitle;
       const label=$('extraFeeBatchSelect')?.selectedOptions?.[0]?.textContent||extraFeeBatchFilter.replace(/^arrival:/,'');return label+' · 追加费用';
+    }
+    function setExtraFeeCurrentTitle(value){
+      const title=String(value||'');
+      if(extraFeeBatchFilter==='all')extraFees.forEach(row=>row.allBatchDisplayTitle=title);
+      else{extraFeeTitle=title;extraFees.filter(row=>extraFeeArrivalBatchId(row)===extraFeeBatchFilter).forEach(row=>row.batchDisplayTitle=title);}
     }
     function renderExtraFeeBatchSelect(){
       const select=$('extraFeeBatchSelect'); if(!select) return;
@@ -6947,7 +6952,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       saveState(); renderExtraFeeArchives(); alert(`已存档：${name}`);
     }
     function buildExtraFeeArchiveStatusUpdate(archive,currentRows){
-      const next=deepClone(archive),signature=row=>{const normalized=normalizeExtraFee(row);if(!normalized)return '';delete normalized.batchDisplayTitle;delete normalized.paid;delete normalized.paidAt;return JSON.stringify(normalized);};
+      const next=deepClone(archive),signature=row=>{const normalized=normalizeExtraFee(row);if(!normalized)return '';delete normalized.batchDisplayTitle;delete normalized.allBatchDisplayTitle;delete normalized.paid;delete normalized.paidAt;return JSON.stringify(normalized);};
       const byId=new Map();(currentRows||[]).forEach(row=>{const id=Number(row.id);if(!byId.has(id))byId.set(id,[]);byId.get(id).push(row);});
       let updated=0,unchanged=0,skipped=0;
       next.extraFees=(next.extraFees||[]).map(row=>{const matches=byId.get(Number(row.id))||[];if(!Number(row.id)||matches.length!==1||signature(row)!==signature(matches[0])){skipped++;return row;}const current=matches[0],paid=current.paid===true,paidAt=paid?String(current.paidAt||''):'';if(row.paid===paid&&String(row.paidAt||'')===paidAt){unchanged++;return row;}updated++;return {...row,paid,paidAt};});
@@ -10300,7 +10305,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('extraFeeSearchBtn').addEventListener('click',renderExtraFees); $('extraFeeSearchInput').addEventListener('input',renderExtraFees);
     $('extraFeeBatchSelect').addEventListener('change',e=>{ extraFeeBatchFilter=e.target.value||'all'; renderExtraFeesKeepScroll(); });
     closeExtraFeeForm(); $('intlSplitPanel').hidden=true;
-    $('extraFeeTitleInput').addEventListener('input',e=>{ extraFeeTitle=e.target.value;if(extraFeeBatchFilter!=='all')extraFees.filter(row=>extraFeeArrivalBatchId(row)===extraFeeBatchFilter).forEach(row=>row.batchDisplayTitle=extraFeeTitle); if($('extraFeeExportTitle')) $('extraFeeExportTitle').textContent=extraFeeCurrentTitle(); saveState(); });
+    $('extraFeeTitleInput').addEventListener('input',e=>{setExtraFeeCurrentTitle(e.target.value);if($('extraFeeExportTitle')) $('extraFeeExportTitle').textContent=extraFeeCurrentTitle();saveState();});
     $('extraFeeViewMode').addEventListener('change',e=>{ extraFeeViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderExtraFeesKeepScroll(); });
     $('extraFeeColorInput').addEventListener('input',e=>{ extraFeeColor=e.target.value; if($('extraFeeExportTitle')) $('extraFeeExportTitle').style.background=extraFeeColor; saveState(); });
     $('showExtraFeeTotalBtn').addEventListener('click',()=>{ extraFeeShowTotal=!extraFeeShowTotal; saveState(); renderExtraFeesKeepScroll(); });
