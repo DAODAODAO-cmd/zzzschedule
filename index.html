@@ -649,7 +649,6 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <input id="paymentTitleInput" type="text" placeholder="填写项目名称">
         <label>显示方式 <select id="paymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="paymentColorInput" type="color" value="#d1466a"></label>
-        <label>当前收款码 <select data-payment-qr-slot-select><option value="0">收款码1</option><option value="1">收款码2</option></select></label>
       </div>
       <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收齐：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div class="extra-fee-filter payment-status-filter" data-payment-status-filter="goods"><button type="button" class="active" data-payment-filter="all">全部</button><button type="button" data-payment-filter="refund">退款</button><button type="button" data-payment-filter="unpaid">未收</button><button type="button" data-payment-filter="paid">已收</button></div>
@@ -705,7 +704,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <div class="extra-fee-form-actions"><button type="button" class="btn-primary" id="saveExtraFeeBtn">保存</button><button type="button" class="btn-ghost" id="cancelExtraFeeBtn">取消</button></div>
       </div>
       <div class="extra-batch-tools">
-        <label hidden>账单范围 <select id="extraFeeSheetScope"><option value="all">独立选择账单</option></select></label><span class="hint" id="extraFeeSheetScopeHint"></span>
+        <span class="hint" id="extraFeeSheetScopeHint"></span>
         <label>查看实时账单 <select id="extraFeeBatchSelect"><option value="all">全部账单批次</option></select></label>
       </div>
       <div class="payment-search-tools"><input id="extraFeeSearchInput" type="text" placeholder="搜索 CN、费用名称或批次"><button type="button" class="btn-ghost" id="extraFeeSearchBtn">查找</button><span class="extra-fee-summary" id="extraFeeSummary"></span></div>
@@ -722,7 +721,6 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <input id="sharePaymentTitleInput" type="text" placeholder="填写均摊项目名称">
         <label>显示方式 <select id="sharePaymentViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         <label>标题颜色 <input id="sharePaymentColorInput" type="color" value="#d1466a"></label>
-        <label>当前收款码 <select data-payment-qr-slot-select><option value="0">收款码1</option><option value="1">收款码2</option></select></label>
       </div>
       <div class="payment-search-tools"><input id="sharePaymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="sharePaymentSearchBtn">查找</button><span class="payment-unpaid-count" id="sharePaymentUnpaidCount">已收齐：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div class="extra-fee-filter payment-status-filter" data-payment-status-filter="share"><button type="button" class="active" data-payment-filter="all">全部</button><button type="button" data-payment-filter="refund">退款</button><button type="button" data-payment-filter="unpaid">未收</button><button type="button" data-payment-filter="paid">已收</button></div>
@@ -6783,7 +6781,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       extraFeeBatchFilter=normalizeArrivalBatchId(batchId);
       saveState(); renderExtraFeesKeepScroll(); renderDispatch(); alert(`已把「${name}」按${modeLabel}追加到当前表：${basis.rows.length} 人。`);
     }
-    let extraFeeSheetScope='all';
     function extraFeeRelatedToSheet(row,sheet,batches=[]){
       if(!sheet)return false;
       if(Array.isArray(row.sheetIds)&&row.sheetIds.length)return row.sheetIds.some(id=>String(id)===String(sheet.id));
@@ -6831,7 +6828,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {count:current.length,unpaid:current.filter(row=>row.paid!==true).length,archives:saved};
     }
     function extraFeeEmptyBatchMessage(){
-      if(!extraFeeRowsForScope().length&&extraFeeSheetScope==='current')return '当前排单没有已关联的当前账单。可切到“全部排单账单”核对旧记录；历史备份不会自动恢复。若确实尚未生成费用，再点击“分摊国际运费”。';
       const info=extraFeeBatchAvailability(extraFeeBatchFilter,extraFees,extraFeeArchives);
       if(extraFeeBatchFilter==='all'||info.count)return '当前筛选没有结果，请切回“全部”状态并清空 CN 搜索。';
       if(info.archives.length)return `本批当前没有实时账单，但历史备份「${info.archives.map(a=>a.name||'未命名').join('、')}」中有记录。可在上方选择对应备份，再点“补回缺失批次”，核对后只添加缺失批次，不覆盖现有账单。`;
@@ -10472,7 +10468,6 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('openArrivalBillBtn').addEventListener('click',async()=>{const date=$('logisticsDateFilter').value;if(!date){await appAlert('请先在到货页面选择具体批次，再查看对应国际账单。');return;}const id=normalizeArrivalBatchId('arrival:'+date);if(!extraFees.some(row=>extraFeeArrivalBatchId(row)===id)){await appAlert('本批当前没有实时国际账单。若以前生成过，请到国际／追加账单中核对历史备份，并补回缺失批次；不要直接重复生成。');return;}extraFeeBatchFilter=id;extraFeeRememberedBillChoice(id);extraFeeViewInitialized.add(`${String(syncCode||'local')}::live-bills`);openInternationalWorkflowStep('billing');$('extraBillsVisibilityPanel').open=true;renderExtraFeesKeepScroll();});
     $('extraFeeSearchBtn').addEventListener('click',renderExtraFees); $('extraFeeSearchInput').addEventListener('input',renderExtraFees);
     $('extraFeeBatchSelect').addEventListener('change',e=>{extraFeeBatchFilter=e.target.value||'all';extraFeeViewInitialized.add(`${String(syncCode||'local')}::live-bills`);extraFeeFilter='all';$('extraFeeSearchInput').value='';renderExtraFeesKeepScroll();});
-    $('extraFeeSheetScope').addEventListener('change',e=>{extraFeeSheetScope=e.target.value==='all'?'all':'current';extraFeeBatchFilter='all';renderExtraFeesKeepScroll();});
     closeExtraFeeForm(); $('intlSplitPanel').hidden=true;
     $('extraFeeTitleInput').addEventListener('input',e=>{setExtraFeeCurrentTitle(e.target.value);if($('extraFeeExportTitle')) $('extraFeeExportTitle').textContent=extraFeeCurrentTitle();saveState();});
     $('extraFeeViewMode').addEventListener('change',e=>{ extraFeeViewMode=e.target.value==='merged'?'merged':'detail'; saveState(); renderExtraFeesKeepScroll(); });
