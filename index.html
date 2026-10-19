@@ -628,9 +628,10 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="international-workflow-heading"><h2>国际与物流</h2><span>到货、账单、排发相互关联；查看切换不修改账目。</span></div>
     <div class="international-workflow-steps"><button type="button" data-logistics-step="arrival">1 · 到货与囤货</button><button type="button" data-logistics-step="billing">2 · 国际／追加账单</button><button type="button" data-logistics-step="dispatch">3 · CN 排发</button></div>
   </section>
+  <div class="panel" id="internationalBillsPanel"><h2>国际／追加实时账单</h2><p class="hint">独立选择账单，不跟随排单切换。到货标记、钱账与历史备份分别保留。</p></div>
   <div class="panel mobile-core" id="paymentPanel">
     <h2>收款统计</h2>
-    <div class="payment-tabs"><button type="button" class="payment-tab active" data-payment-tab="goods">谷子收款</button><button type="button" class="payment-tab" data-payment-tab="extra">追加费用</button><button type="button" class="payment-tab" data-payment-tab="share">均摊统计</button></div>
+    <div class="payment-tabs"><button type="button" class="payment-tab active" data-payment-tab="goods">谷子收款</button><button type="button" class="payment-tab" data-payment-tab="share">均摊统计</button></div>
     <div class="payment-range-tools">
       <strong>统计排单行</strong>
       <label>从第 <input id="paymentStartRow" type="number" min="1" step="1" value="1"> 行</label>
@@ -841,10 +842,12 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button class="btn-ghost" id="logisticsRefreshBtn" data-mobile-label="刷新">刷新</button>
       <button class="btn-ghost" id="logisticsExportBtn" data-mobile-label="导出图片">导出到货图</button>
       <button type="button" class="btn-ghost" id="openArrivalBillBtn">查看这批国际账单</button>
+      <button type="button" class="btn-ghost" id="undoLogisticsArrivalBtn">撤回最近到货操作</button>
     </div>
     <div id="logisticsWrap"><div id="logisticsList"></div></div>
   </div>
 
+  <dialog id="logisticsArrivalDialog" class="arrival-edit-dialog"><div class="arrival-edit-head"><strong id="logisticsArrivalTitle">标记到货</strong><button type="button" class="btn-ghost" id="closeLogisticsArrivalBtn">返回</button></div><div class="arrival-edit-fields"><label>到货阶段<select id="logisticsArrivalStage"><option value="island">岛内到货</option><option value="china">到国内</option></select></label><label>操作<select id="logisticsArrivalOperation"><option value="mark">标记未到货的件</option><option value="remove">撤销已有到货标记</option></select></label><label>到货日期<input type="date" id="logisticsArrivalDate"></label></div><p class="hint">每一行对应一件谷子。部分到货请核对 CN 后选择；不会改买到标记、收退款或生成国际费。已有到货日期不会被新日期覆盖。</p><div class="arrival-edit-selection"><label>本次件数<input type="number" id="logisticsArrivalQty" min="1" step="1" value="1"></label><button type="button" class="btn-ghost" id="selectLogisticsArrivalQtyBtn">按下列顺序选取</button><button type="button" class="btn-ghost" id="selectAllLogisticsArrivalBtn">全选可操作件</button><button type="button" class="btn-ghost" id="clearLogisticsArrivalBtn">全不选</button></div><div id="logisticsArrivalChoices" class="arrival-edit-choices"></div><div class="arrival-edit-footer"><span id="logisticsArrivalSelectionCount">已选 0 件</span><button type="button" class="btn-primary" id="applyLogisticsArrivalBtn">确认选中件到货</button></div></dialog>
   <div class="panel" id="settingsPanel">
     <h2>设置与数据</h2>
     <div class="settings-cloud-tip"><strong>云端同步</strong><span>进入协作组后会自动实时同步：你修改后马上上传，对方打开或等待几秒就能看到最新版本。</span></div>
@@ -1317,6 +1320,19 @@ html{ scrollbar-gutter:stable; }
 .cash-ledger-dialog{width:min(760px,94vw);max-height:85dvh;box-sizing:border-box;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fff;color:var(--text);box-shadow:0 20px 70px #23192826;}
 .cash-ledger-dialog[open]{display:flex;flex-direction:column;gap:14px;overflow:hidden;}
 .cash-ledger-dialog::backdrop{background:rgba(35,25,40,.35);}
+.arrival-edit-dialog{width:min(660px,94vw);max-height:88dvh;box-sizing:border-box;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--text);}
+.arrival-edit-dialog[open]{display:flex;flex-direction:column;gap:12px;overflow:hidden;}
+.arrival-edit-dialog::backdrop{background:#251b2a70;}
+.arrival-edit-head,.arrival-edit-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;}
+.arrival-edit-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+.arrival-edit-fields label,.arrival-edit-selection label{display:grid;gap:5px;font-size:12px;min-width:0;}
+.arrival-edit-fields input,.arrival-edit-fields select,.arrival-edit-selection input{width:100%;min-width:0;min-height:42px;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px;background:#faf8fb;font:inherit;}
+.arrival-edit-selection{display:flex;gap:6px;align-items:end;flex-wrap:wrap;}.arrival-edit-selection label{width:90px;}
+.arrival-edit-choices{min-height:0;overflow:auto;overscroll-behavior:contain;max-height:42dvh;display:grid;gap:6px;}
+.arrival-edit-choice{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);border-radius:8px;min-height:44px;box-sizing:border-box;font-size:12px;cursor:pointer;}.arrival-edit-choice input{width:18px;min-width:18px;height:18px;margin:0;accent-color:#d1466a;}.arrival-edit-choice:has(input:disabled){opacity:.55;cursor:default;}.arrival-edit-choice small{color:var(--muted);}
+.arrival-edit-dialog button,.logi-arrival-tools button{min-height:44px;white-space:normal;touch-action:manipulation;}
+.arrival-edit-footer{padding-top:10px;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);}.logi-arrival-tools{margin-top:8px;}.logi-arrival-tools button{width:100%;font-size:11px;}
+@media(max-width:620px){.arrival-edit-dialog{padding:12px;}.arrival-edit-fields{grid-template-columns:1fr 1fr;}.arrival-edit-fields label:last-child{grid-column:1/-1;}.arrival-edit-selection button{font-size:10px;padding:7px 8px;}.logi-sheet-head{flex-wrap:wrap;}}
 .international-workflow[hidden]{display:none!important;}
 .international-workflow-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
 .international-workflow-heading h2{margin:0!important;}
@@ -2052,7 +2068,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     const workspaceStateCache=new Map();
     let editorName=localStorage.getItem('ggzEditorName')||'', editLockSupported=false, editLockOwned=false, editLockRecord=null, editLockTimer=null;
     let collabEnabled=false, applyingCollab=false, collabBaseline=null, collabRevision=0, collabSendTimer=null, collabPollTimer=null, collabPresenceTimer=null, collabSending=false, collabPolling=false, collabNeedsSend=false, pendingCollabInstallState=null, dataSaverMode=false;
-    const APP_SECTIONS=['goods','order','stats','payment','dispatch','logistics','settings'];
+    const APP_SECTIONS=['goods','order','stats','payment','dispatch','logistics','international-bills','settings'];
+    $('internationalBillsPanel').appendChild($('extraPaymentView'));
     function storedAppSection(){
       const section=localStorage.getItem(APP_SECTION_KEY);
       return APP_SECTIONS.includes(section)?section:'goods';
@@ -2945,11 +2962,11 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function syncInternationalWorkflowNav(){
       const panel=$('internationalWorkflowPanel');if(!panel)return;
-      const step=activeAppSection==='logistics'?'arrival':activeAppSection==='dispatch'?'dispatch':activeAppSection==='payment'&&paymentActiveTab==='extra'?'billing':'';
+      const step=activeAppSection==='logistics'?'arrival':activeAppSection==='dispatch'?'dispatch':activeAppSection==='international-bills'?'billing':'';
       panel.hidden=!step;panel.querySelectorAll('[data-logistics-step]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.logisticsStep===step)));
     }
     function openInternationalWorkflowStep(step){
-      if(step==='billing'){paymentActiveTab='extra';setAppSection('payment',false);syncPaymentControls();}
+      if(step==='billing'){setAppSection('international-bills',false);}
       else setAppSection(step==='dispatch'?'dispatch':'logistics',false);
       syncInternationalWorkflowNav();$('internationalWorkflowPanel').scrollIntoView({block:'start',behavior:'smooth'});
     }
@@ -2959,6 +2976,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         order:['commentPanel','transferPreviewPanel','cancelPreviewPanel','coldPromotionPreviewPanel','previewPanel','matrixPanel'],
         stats:['quantityPanel','cartPanel'],
         payment:['paymentPanel'],
+        'international-bills':['internationalBillsPanel'],
         dispatch:['dispatchPanel'],
         logistics:['logisticsPanel'],
         settings:['settingsPanel']
@@ -2966,11 +2984,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!groups[section]) section='goods'; activeAppSection=section; localStorage.setItem(APP_SECTION_KEY,section);
       document.querySelector('.wrap').dataset.activeSection=section;
       Object.entries(groups).forEach(([group,ids])=>ids.forEach(id=>$(id)?.classList.toggle('app-section-hidden',group!==section)));
-      document.querySelectorAll('[data-app-section]').forEach(button=>button.classList.toggle('active',button.dataset.appSection===section));
+      document.querySelectorAll('[data-app-section]').forEach(button=>button.classList.toggle('active',button.dataset.appSection===section||(section==='international-bills'&&button.dataset.appSection==='logistics')));
       const mobileMoreBtn=$('mobileMoreBtn');
-      if(mobileMoreBtn) mobileMoreBtn.classList.toggle('active',['dispatch','logistics','settings'].includes(section));
+      if(mobileMoreBtn) mobileMoreBtn.classList.toggle('active',['dispatch','logistics','international-bills','settings'].includes(section));
       if(section==='dispatch') renderDispatch();
       if(section==='logistics') renderLogistics();
+      if(section==='international-bills')renderExtraFees();
       syncInternationalWorkflowNav();
       if(scrollToTop) window.scrollTo(0,0);
     }
@@ -6274,10 +6293,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('sharePaymentViewMode').value=sharePaymentViewMode;
       $('shareDeductFixedBtn').textContent=shareDeductFixed?'入均计算：已开启':'入均计算：未开启'; $('shareDeductFixedBtn').classList.toggle('active',shareDeductFixed);
       $('goodsPaymentView').style.display=paymentActiveTab==='goods'?'':'none';
-      $('extraPaymentView').style.display=paymentActiveTab==='extra'?'':'none';
+      $('extraPaymentView').style.display='';
       $('sharePaymentView').style.display=paymentActiveTab==='share'?'':'none';
       syncPaymentStatusFilters();
-      if(paymentActiveTab==='extra') renderExtraFees();
+      if(activeAppSection==='international-bills') renderExtraFees();
       syncInternationalWorkflowNav();
       document.querySelectorAll('[data-payment-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.paymentTab===paymentActiveTab));
     }
@@ -8534,9 +8553,68 @@ body.export-rendering .cart-count{ font-size:28px; }
       select.value=logisticsDateFilterVal;
       $('logisticsDateClear').classList.toggle('is-on',!logisticsDateFilterVal);
     }
+    const logisticsArrivalTargets=new Map();let logisticsArrivalEditing=null;
+    function logisticsArrivalSignature(sheet){return JSON.stringify({columns:sheet.columns||[],groups:sheet.pricingGroups||[],allocations:sheet.allocations||{},sub:sheet.matrixBlindSubCells||{},island:sheet.matrixIslandCells||{},china:sheet.matrixChinaCells||{}});}
+    function buildLogisticsArrivalChanges(sheet,refs,stage,date,operation='mark'){
+      if(!['island','china'].includes(stage)||!['mark','remove'].includes(operation))throw new Error('到货操作类型无效');
+      if(operation==='mark'&&(!/^\d{4}-\d{2}-\d{2}$/.test(date)||new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date))throw new Error('请填写有效的到货日期');
+      const field=stage==='island'?'matrixIslandCells':'matrixChinaCells',store=sheet[field]||{},seen=new Set(),changes=[];
+      const cols=orderDisplayColumns(sheet.columns||[],sheet.pricingGroups||[],sheet.allocations||[]);
+      for(const ref of refs){const col=cols.find(c=>String(c.id)===String(ref.colId)),person=String(sheet.allocations?.[ref.colId]?.[ref.row]||'').trim();
+        if(!col||person!==ref.person||!person||!Number.isInteger(ref.row)||ref.row<0)throw new Error('排单人员或谷子已变化，请关闭后重新打开到货窗口');
+        if(ref.item&&matrixItemDisplayName(col,ref.row,sheet.matrixBlindSubCells||{})!==ref.item)throw new Error('本件谷子明细已变化，请关闭后重新核对');
+        const key=matrixBoughtKey(ref.colId,ref.row);if(seen.has(key))continue;seen.add(key);
+        const before=String(store[key]||''),effective=logisticsCellMark(col,ref.row,person,store,sheet.allocations||{});
+        if(operation==='mark'&&effective)continue;
+        if(operation==='remove'&&!effective)continue;
+        if(operation==='remove'&&col.isPricingCombo&&!before)throw new Error('这件组合的到货标记来自成员谷子，请在原排单成员上撤销，避免误清其他谷子');
+        changes.push({key,colId:ref.colId,row:ref.row,person,before,after:operation==='mark'?date:''});
+      }
+      if(!changes.length)throw new Error('没有可操作的件；已有日期不会被重复覆盖。');
+      return {field,changes};
+    }
+    function renderLogisticsArrivalChoices(){
+      const edit=logisticsArrivalEditing,sheet=sheets.find(s=>String(s.id)===String(edit?.sheetId));if(!sheet)return;
+      const stage=$('logisticsArrivalStage').value,operation=$('logisticsArrivalOperation').value,store=sheet[stage==='island'?'matrixIslandCells':'matrixChinaCells']||{},cols=orderDisplayColumns(sheet.columns||[],sheet.pricingGroups||[],sheet.allocations||{});
+      $('logisticsArrivalDate').disabled=operation==='remove';
+      $('logisticsArrivalChoices').innerHTML=edit.refs.map((ref,i)=>{const col=cols.find(c=>String(c.id)===String(ref.colId)),date=col?logisticsCellMark(col,ref.row,ref.person,store,sheet.allocations||{}):'',disabled=!col||(operation==='mark'?!!date:!date);return `<label class="arrival-edit-choice"><input type="checkbox" data-arrival-choice="${i}" ${disabled?'disabled':''}><span>${escapeHtml(ref.person)} · ${escapeHtml(ref.item)} · 第${ref.row+1}行<br><small>${date?'已标记 '+escapeHtml(date):'尚未标记本阶段到货'}</small></span></label>`;}).join('');
+      syncLogisticsArrivalSelection();
+    }
+    function syncLogisticsArrivalSelection(){const count=$('logisticsArrivalChoices').querySelectorAll('input:checked:not(:disabled)').length;$('logisticsArrivalSelectionCount').textContent=`已选 ${count} 件`;$('applyLogisticsArrivalBtn').disabled=!count;$('applyLogisticsArrivalBtn').textContent=($('logisticsArrivalOperation').value==='remove'?'确认撤销 ':'确认到货 ')+count+' 件';}
+    function openLogisticsArrival(target){
+      captureActiveSheet();const sheet=sheets.find(s=>String(s.id)===String(target?.sheetId));if(!sheet)return;
+      logisticsArrivalEditing={...deepClone(target),signature:logisticsArrivalSignature(sheet),workspace:String(syncCode||'')};$('logisticsArrivalTitle').textContent=target.label;
+      $('logisticsArrivalStage').value='china';$('logisticsArrivalOperation').value='mark';$('logisticsArrivalDate').value=todayISO();$('logisticsArrivalQty').value='1';renderLogisticsArrivalChoices();$('logisticsArrivalDialog').showModal();
+    }
+    async function applyLogisticsArrival(){
+      const edit=logisticsArrivalEditing;if(!edit)return;captureActiveSheet();const sheet=sheets.find(s=>String(s.id)===String(edit.sheetId));
+      if(!sheet||edit.workspace!==String(syncCode||'')||edit.signature!==logisticsArrivalSignature(sheet)){$('logisticsArrivalDialog').close();await appAlert('窗口打开期间排单或到货标记发生变化，本次未应用。请重新打开核对。');return;}
+      try{
+        const refs=[...$('logisticsArrivalChoices').querySelectorAll('input:checked:not(:disabled)')].map(input=>edit.refs[Number(input.dataset.arrivalChoice)]),stage=$('logisticsArrivalStage').value,date=$('logisticsArrivalDate').value,operation=$('logisticsArrivalOperation').value;
+        if(!refs.length)return;const plan=buildLogisticsArrivalChanges(sheet,refs,stage,date,operation),before=deepClone(sheet[plan.field]||{}),history=deepClone(sheet.logisticsArrivalHistory||[]);
+        sheet[plan.field]=sheet[plan.field]||{};plan.changes.forEach(c=>{if(c.after)sheet[plan.field][c.key]=c.after;else delete sheet[plan.field][c.key];});
+        sheet.logisticsArrivalHistory=[...history,{id:'arrival_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),at:Date.now(),field:plan.field,changes:plan.changes}].slice(-5);
+        if(sheet.id===activeSheetId){matrixIslandCells=deepClone(sheet.matrixIslandCells||{});matrixChinaCells=deepClone(sheet.matrixChinaCells||{});}
+        let saved=false;try{saved=saveState();}catch(_){}
+        if(!saved){sheet[plan.field]=before;sheet.logisticsArrivalHistory=history;if(sheet.id===activeSheetId){matrixIslandCells=deepClone(sheet.matrixIslandCells||{});matrixChinaCells=deepClone(sheet.matrixChinaCells||{});}throw new Error('本机保存失败，已保留原到货状态，请先备份并处理空间');}
+        $('logisticsArrivalDialog').close();logisticsArrivalEditing=null;renderMatrix();renderLogistics();renderDispatch();
+      }catch(error){$('logisticsArrivalDialog').close();await appAlert(error.message||'到货未保存');}
+    }
+    async function undoLogisticsArrival(){
+      captureActiveSheet();const latest=sheets.map(sheet=>({sheet,entry:sheet.logisticsArrivalHistory?.at(-1)})).filter(x=>x.entry).sort((a,b)=>b.entry.at-a.entry.at)[0];if(!latest){await appAlert('暂无可撤回的到货操作。');return;}
+      const {sheet,entry}=latest,code=String(syncCode||''),signature=logisticsArrivalSignature(sheet);
+      if(!await appConfirm(`撤回「${sheet.name}」最近一次到货操作，共 ${entry.changes.length} 件？\n只恢复该次到货标记，不恢复整张排单或钱账。`,'撤回到货','确认撤回'))return;
+      if(code!==String(syncCode||'')||!sheets.includes(sheet)||signature!==logisticsArrivalSignature(sheet)||sheet.logisticsArrivalHistory?.at(-1)?.id!==entry.id){await appAlert('确认期间数据变化，请重新核对。');return;}
+      const store=sheet[entry.field]||{};if(entry.changes.some(c=>String(sheet.allocations?.[c.colId]?.[c.row]||'').trim()!==c.person||String(store[c.key]||'')!==c.after)){await appAlert('人员或到货状态已经变化，不能直接撤回，避免覆盖后续操作。');return;}
+      const before=deepClone(store),history=deepClone(sheet.logisticsArrivalHistory);entry.changes.forEach(c=>{if(c.before)store[c.key]=c.before;else delete store[c.key];});sheet.logisticsArrivalHistory.pop();
+      if(sheet.id===activeSheetId){matrixIslandCells=deepClone(sheet.matrixIslandCells||{});matrixChinaCells=deepClone(sheet.matrixChinaCells||{});}
+      let saved=false;try{saved=saveState();}catch(_){}if(!saved){sheet[entry.field]=before;sheet.logisticsArrivalHistory=history;if(sheet.id===activeSheetId){matrixIslandCells=deepClone(sheet.matrixIslandCells||{});matrixChinaCells=deepClone(sheet.matrixChinaCells||{});}await appAlert('撤回未保存，已保留操作前状态。');return;}
+      renderMatrix();renderLogistics();renderDispatch();
+    }
     function renderLogistics(){
       const list=$('logisticsList'); if(!list) return;
       captureActiveSheet();
+      logisticsArrivalTargets.clear();
       refreshLogisticsBatchOptions();
       const rate=Number(($('logisticsHoldRate')||{}).value)||0, freeDays=logisticsFreeDays();
       const dateFilter=logisticsDateFilterVal;
@@ -8585,24 +8663,36 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(chinaCount&&newestChina){
             holdText=over>0?`超期 ${over} 天 · 囤货费 ¥${fee.toFixed(2)}${rate?'':'（未填费率）'}`:`囤货 ${days} 天 · 剩 ${Math.max(0,freeDays-days)} 天免费`;
           }
-          goods.push({name:itemName,qty,islandCount,chinaCount,islandUnique,chinaUnique,cls,mainStatus,holdText});
+          const targetId=`${sheet.id}:${c.id}:${goods.length}`,refs=groupOccupied.map(entry=>({colId:c.id,row:entry.row,person:entry.name,item:itemName}));
+          logisticsArrivalTargets.set(targetId,{sheetId:sheet.id,label:`${sheet.name} · ${itemName}`,refs});
+          goods.push({name:itemName,qty,islandCount,chinaCount,islandUnique,chinaUnique,cls,mainStatus,holdText,targetId,refs});
           goodsCount++; totalQty+=qty; chinaQty+=chinaCount; if(over>0) overdueGoods++;
           });
         });
-        if(goods.length) sheetGroups.push({name:String(sheet.name||'未命名排单').trim()||'未命名排单',goods});
+        if(goods.length){const targetId='sheet:'+sheet.id;logisticsArrivalTargets.set(targetId,{sheetId:sheet.id,label:`${sheet.name} · 本页可见谷子批量到货`,refs:goods.flatMap(item=>item.refs)});sheetGroups.push({name:String(sheet.name||'未命名排单').trim()||'未命名排单',goods,targetId});}
       });
       $('logisticsSummary').textContent=`${sheetGroups.length} 个排单 · ${goodsCount} 款 · 共 ${totalQty} 件 · 国内 ${chinaQty} 件 · 超期 ${overdueGoods} 款`;
       if(!sheetGroups.length){ list.innerHTML='<div class="dispatch-empty">当前没有符合条件的谷子。去排单里使用「岛内到货 / 国内到货」标记后，这里会按排单和谷子汇总。</div>'; return; }
       list.innerHTML=sheetGroups.map(group=>{
         const cards=group.goods.map(item=>{
           const datePills=[...item.islandUnique.map(d=>`<span class="logi-date-pill">岛内 ${escapeHtml(d)}</span>`),...item.chinaUnique.map(d=>`<span class="logi-date-pill">国内 ${escapeHtml(d)}</span>`)].join('');
-          return `<div class="logi-goods-card ${item.cls}"><div class="logi-goods-title"><b>${escapeHtml(item.name)}</b><span class="logi-goods-qty">${item.qty}件</span></div><div class="logi-goods-status"><strong>${escapeHtml(item.mainStatus)}</strong>${item.holdText?`<br>${escapeHtml(item.holdText)}`:''}</div>${datePills?`<div class="logi-goods-dates">${datePills}</div>`:''}</div>`;
+          return `<div class="logi-goods-card ${item.cls}"><div class="logi-goods-title"><b>${escapeHtml(item.name)}</b><span class="logi-goods-qty">${item.qty}件</span></div><div class="logi-goods-status"><strong>${escapeHtml(item.mainStatus)}</strong>${item.holdText?`<br>${escapeHtml(item.holdText)}`:''}</div><div class="logi-arrival-tools" data-html2canvas-ignore="true"><button type="button" class="btn-ghost" data-logi-arrival="${escapeAttr(item.targetId)}">标记／撤销到货</button></div>${datePills?`<div class="logi-goods-dates">${datePills}</div>`:''}</div>`;
         }).join('');
         const sheetQty=group.goods.reduce((sum,item)=>sum+item.qty,0);
-        return `<section class="logi-sheet"><div class="logi-sheet-head"><b>${escapeHtml(group.name)}</b><span>${group.goods.length} 款 · ${sheetQty} 件</span></div><div class="logi-goods-grid">${cards}</div></section>`;
+        return `<section class="logi-sheet"><div class="logi-sheet-head"><b>${escapeHtml(group.name)}</b><span>${group.goods.length} 款 · ${sheetQty} 件</span><button type="button" class="btn-ghost" data-html2canvas-ignore="true" data-logi-arrival="${escapeAttr(group.targetId)}">本表批量到货</button></div><div class="logi-goods-grid">${cards}</div></section>`;
       }).join('');
     }
     $('logisticsRefreshBtn').addEventListener('click',renderLogistics);
+    $('logisticsList').addEventListener('click',e=>{const button=e.target.closest('[data-logi-arrival]');if(button){const target=logisticsArrivalTargets.get(button.dataset.logiArrival);if(target)openLogisticsArrival(target);}});
+    $('closeLogisticsArrivalBtn').addEventListener('click',()=>$('logisticsArrivalDialog').close());
+    $('logisticsArrivalStage').addEventListener('change',renderLogisticsArrivalChoices);
+    $('logisticsArrivalOperation').addEventListener('change',renderLogisticsArrivalChoices);
+    $('logisticsArrivalChoices').addEventListener('change',syncLogisticsArrivalSelection);
+    $('selectAllLogisticsArrivalBtn').addEventListener('click',()=>{$('logisticsArrivalChoices').querySelectorAll('input:not(:disabled)').forEach(input=>input.checked=true);syncLogisticsArrivalSelection();});
+    $('clearLogisticsArrivalBtn').addEventListener('click',()=>{$('logisticsArrivalChoices').querySelectorAll('input').forEach(input=>input.checked=false);syncLogisticsArrivalSelection();});
+    $('selectLogisticsArrivalQtyBtn').addEventListener('click',()=>{const qty=Number($('logisticsArrivalQty').value),inputs=[...$('logisticsArrivalChoices').querySelectorAll('input:not(:disabled)')];if(!Number.isInteger(qty)||qty<1||qty>inputs.length){$('logisticsArrivalSelectionCount').textContent=`本阶段可操作 ${inputs.length} 件，请填写 1—${inputs.length} 的整数`;return;}inputs.forEach((input,i)=>input.checked=i<qty);syncLogisticsArrivalSelection();});
+    $('applyLogisticsArrivalBtn').addEventListener('click',applyLogisticsArrival);
+    $('undoLogisticsArrivalBtn').addEventListener('click',undoLogisticsArrival);
     $('logisticsDateFilter').addEventListener('change',()=>{ logisticsDateFilterVal=$('logisticsDateFilter').value||''; $('logisticsDateClear').classList.toggle('is-on',!logisticsDateFilterVal); renderLogistics(); });
     $('logisticsDateClear').addEventListener('click',()=>{ logisticsDateFilterVal=''; $('logisticsDateFilter').value=''; $('logisticsDateClear').classList.add('is-on'); renderLogistics(); });
     $('logisticsFreeMonths').addEventListener('input',renderLogistics);
@@ -10346,7 +10436,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('paymentSearchInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); findPaymentPerson(); } });
     document.querySelector('.payment-tabs').addEventListener('click',e=>{
       const button=e.target.closest('[data-payment-tab]'); if(!button) return;
-      paymentActiveTab=['goods','extra','share'].includes(button.dataset.paymentTab)?button.dataset.paymentTab:'goods'; closeExtraFeeForm(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML=''; syncPaymentControls();
+      paymentActiveTab=['goods','share'].includes(button.dataset.paymentTab)?button.dataset.paymentTab:'goods'; closeExtraFeeForm(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML=''; syncPaymentControls();
     });
     document.querySelectorAll('[data-payment-status-filter]').forEach(group=>group.addEventListener('click',e=>{
       const button=e.target.closest('[data-payment-filter]'); if(!button) return;
