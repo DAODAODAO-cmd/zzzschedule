@@ -293,7 +293,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button type="button" data-app-section="order"><span>▦</span><b>排单</b><small>录入、预览与排单表</small></button>
     <button type="button" data-app-section="stats"><span>▥</span><b>出图</b><small>数量、推车、水印与调价图</small></button>
     <button type="button" data-app-section="payment"><span>¥</span><b>收款</b><small>谷子收款与均摊</small></button>
-    <button type="button" data-app-section="logistics"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14.5h16l-1.5-5.2A2 2 0 0 0 16.6 8H8.2a2 2 0 0 0-1.8 1.1L4 14.5Z"/><path d="M6.5 14.5v2.2M17.5 14.5v2.2M8.4 8l-1.3 3h10.5L16.7 8M3.5 14.5v2.2h17v-2.2"/><path d="M7.5 17.5a1.5 1.5 0 1 0 0 .1M16.5 17.5a1.5 1.5 0 1 0 0 .1"/></svg></span><b>物流</b><small>到货与囤货</small></button>
+    <button type="button" data-app-section="logistics"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14.5h16l-1.5-5.2A2 2 0 0 0 16.6 8H8.2a2 2 0 0 0-1.8 1.1L4 14.5Z"/><path d="M6.5 14.5v2.2M17.5 14.5v2.2M8.4 8l-1.3 3h10.5L16.7 8M3.5 14.5v2.2h17v-2.2"/><path d="M7.5 17.5a1.5 1.5 0 1 0 0 .1M16.5 17.5a1.5 1.5 0 1 0 0 .1"/></svg></span><b>国际物流</b><small>到货、账单与排发</small></button>
     <button type="button" data-app-section="dispatch"><span>▤</span><b>排发</b><small>谁该发什么</small></button>
     <button type="button" data-app-section="settings"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M11 4v6M4 17h4m4 0h8M8 14v6"/></svg></span><b>设置</b><small>数据与云端</small></button>
   </nav>
@@ -624,6 +624,10 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
   </div>
 
+  <section class="panel international-workflow" id="internationalWorkflowPanel" hidden>
+    <div class="international-workflow-heading"><h2>国际与物流</h2><span>到货、账单、排发相互关联；查看切换不修改账目。</span></div>
+    <div class="international-workflow-steps"><button type="button" data-logistics-step="arrival">1 · 到货与囤货</button><button type="button" data-logistics-step="billing">2 · 国际／追加账单</button><button type="button" data-logistics-step="dispatch">3 · CN 排发</button></div>
+  </section>
   <div class="panel mobile-core" id="paymentPanel">
     <h2>收款统计</h2>
     <div class="payment-tabs"><button type="button" class="payment-tab active" data-payment-tab="goods">谷子收款</button><button type="button" class="payment-tab" data-payment-tab="extra">追加费用</button><button type="button" class="payment-tab" data-payment-tab="share">均摊统计</button></div>
@@ -653,6 +657,8 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="toolbar"><button type="button" class="btn-ghost settlement-mode-toggle" id="toggleBoughtSettlementBtn" data-mobile-label="结算中心" aria-pressed="false" title="仅在缺货、砍单或需要退补款时开启；开启后同时显示差额与结算中心">开启结算中心</button><button type="button" class="btn-ghost payment-calc-toggle" id="collectBoughtOnlyBtn" data-mobile-label="买到" aria-pressed="false" title="收款表只显示并计算已标记买到的谷子，没买到的自动隐藏">只收买到：未开启</button><button type="button" class="btn-ghost payment-calc-toggle" id="includeShareInPaymentBtn" data-mobile-label="均摊" aria-pressed="false" title="打开后，谷子收款金额会自动加上均摊">加入均摊：未开启</button><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportRefundPaymentBtn" data-mobile-label="退款图">导出退款图</button><button class="btn-ghost" id="exportUnpaidPaymentBtn" data-mobile-label="未肾">导出未肾图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div><div id="settlementDashboard" class="settlement-dashboard" hidden></div>
     </div>
     <div id="extraPaymentView" style="display:none;">
+      <details id="extraBillsVisibilityPanel" class="extra-bills-visibility">
+        <summary><strong>国际／追加账单</strong><span>按需展开查看，收起不会删除账单</span></summary>
       <div class="payment-heading-tools extra-payment-heading-tools">
         <input id="extraFeeTitleInput" type="text" placeholder="填写追加费用收款标题">
         <label>显示方式 <select id="extraFeeViewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
@@ -665,13 +671,13 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
       <div class="extra-fee-head">
         <div><strong>追加费用收款</strong><span>按收款批次查看、导出和标记收齐。</span></div>
-        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
+        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button><button type="button" class="btn-ghost" id="openReadyDispatchBtn">查看可排发</button></div>
       </div>
       <div class="extra-archive-tools">
         <button type="button" class="btn-primary" id="archiveExtraFeesBtn">存档当前追加</button>
-        <select id="extraFeeArchiveSelect"><option value="">选择追加存档</option></select>
-        <button type="button" class="btn-ghost" id="restoreExtraFeeArchiveBtn">恢复存档</button>
-        <button type="button" class="btn-ghost" id="updateExtraFeeArchiveStatusBtn">更新存档收款状态</button>
+        <label>历史备份 <select id="extraFeeArchiveSelect"><option value="">选择历史备份（不切换账单）</option></select></label>
+        <button type="button" class="btn-ghost" id="restoreExtraFeeArchiveBtn">补回缺失批次</button>
+        <button type="button" class="btn-ghost" id="updateExtraFeeArchiveStatusBtn" hidden style="display:none;">更新存档收款状态</button>
         <button type="button" class="btn-danger" id="deleteExtraFeeArchiveBtn">删除存档</button>
       </div>
       <div class="intl-split-panel" id="intlSplitPanel" hidden>
@@ -698,8 +704,8 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <div class="extra-fee-form-actions"><button type="button" class="btn-primary" id="saveExtraFeeBtn">保存</button><button type="button" class="btn-ghost" id="cancelExtraFeeBtn">取消</button></div>
       </div>
       <div class="extra-batch-tools">
-        <label>账单范围 <select id="extraFeeSheetScope"><option value="current">跟随当前排单</option><option value="all">全部排单账单</option></select></label><span class="hint" id="extraFeeSheetScopeHint"></span>
-        <label>查看账单批次 <select id="extraFeeBatchSelect"><option value="all">全部账单批次</option></select></label>
+        <label hidden>账单范围 <select id="extraFeeSheetScope"><option value="all">独立选择账单</option></select></label><span class="hint" id="extraFeeSheetScopeHint"></span>
+        <label>查看实时账单 <select id="extraFeeBatchSelect"><option value="all">全部账单批次</option></select></label>
       </div>
       <div class="payment-search-tools"><input id="extraFeeSearchInput" type="text" placeholder="搜索 CN、费用名称或批次"><button type="button" class="btn-ghost" id="extraFeeSearchBtn">查找</button><span class="extra-fee-summary" id="extraFeeSummary"></span></div>
       <div class="extra-fee-filter"><button type="button" class="active" data-extra-filter="all">全部</button><button type="button" data-extra-filter="adjustment">退补</button><button type="button" data-extra-filter="unpaid">未收</button><button type="button" data-extra-filter="paid">已收</button></div>
@@ -708,6 +714,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <div id="extraFeeExportQr" class="payment-code-export" style="display:none;"><img id="extraFeeQrImage" crossorigin="anonymous" alt="收款码"></div>
       </div>
       <div class="toolbar"><button type="button" class="btn-ghost" id="extraFeePaidAllBtn">全部标记收齐</button><button type="button" class="btn-ghost" id="showExtraFeeTotalBtn">隐藏总价</button><button type="button" class="btn-ghost" id="exportExtraFeeBtn">导出收款图</button><button type="button" class="btn-ghost" id="exportExtraFeeAdjustmentBtn">导出退补图</button><button type="button" class="btn-ghost" id="exportExtraFeeUnpaidBtn">导出未收图</button><button type="button" class="btn-ghost" id="exportExtraFeeExcelBtn">导出 Excel</button><button type="button" class="btn-ghost" id="copyExtraFeeBtn">复制表格</button><label class="extra-clear-control">清空范围 <select id="extraFeeClearScope"><option value="visible">当前显示</option><option value="unpaid">全部未收</option><option value="paid">全部已收</option><option value="all">全部追加费用</option></select></label><button type="button" class="btn-danger" id="clearExtraFeesBtn">清空表</button></div>
+      </details>
     </div>
     <div id="sharePaymentView" style="display:none;">
       <div class="payment-heading-tools">
@@ -833,6 +840,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="toolbar">
       <button class="btn-ghost" id="logisticsRefreshBtn" data-mobile-label="刷新">刷新</button>
       <button class="btn-ghost" id="logisticsExportBtn" data-mobile-label="导出图片">导出到货图</button>
+      <button type="button" class="btn-ghost" id="openArrivalBillBtn">查看这批国际账单</button>
     </div>
     <div id="logisticsWrap"><div id="logisticsList"></div></div>
   </div>
@@ -878,7 +886,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="mobile-more-handle" aria-hidden="true"></div>
       <div class="mobile-more-head"><strong>更多功能</strong><button type="button" id="mobileMoreCloseBtn" aria-label="关闭">×</button></div>
       <div class="mobile-more-grid">
-        <button type="button" data-app-section="logistics"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14.5h16l-1.5-5.2A2 2 0 0 0 16.6 8H8.2a2 2 0 0 0-1.8 1.1L4 14.5Z"/><path d="M6.5 14.5v2.2M17.5 14.5v2.2M8.4 8l-1.3 3h10.5L16.7 8M3.5 14.5v2.2h17v-2.2"/><path d="M7.5 17.5a1.5 1.5 0 1 0 0 .1M16.5 17.5a1.5 1.5 0 1 0 0 .1"/></svg></span><b>物流</b><small>到货与囤货</small></button>
+        <button type="button" data-app-section="logistics"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14.5h16l-1.5-5.2A2 2 0 0 0 16.6 8H8.2a2 2 0 0 0-1.8 1.1L4 14.5Z"/><path d="M6.5 14.5v2.2M17.5 14.5v2.2M8.4 8l-1.3 3h10.5L16.7 8M3.5 14.5v2.2h17v-2.2"/><path d="M7.5 17.5a1.5 1.5 0 1 0 0 .1M16.5 17.5a1.5 1.5 0 1 0 0 .1"/></svg></span><b>国际物流</b><small>到货、账单与排发</small></button>
         <button type="button" data-app-section="dispatch"><span>▤</span><b>排发</b><small>按 CN 查看可发内容</small></button>
         <button type="button" data-app-section="settings"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M11 4v6M4 17h4m4 0h8M8 14v6"/></svg></span><b>设置</b><small>数据与云端</small></button>
       </div>
@@ -1309,6 +1317,24 @@ html{ scrollbar-gutter:stable; }
 .cash-ledger-dialog{width:min(760px,94vw);max-height:85dvh;box-sizing:border-box;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fff;color:var(--text);box-shadow:0 20px 70px #23192826;}
 .cash-ledger-dialog[open]{display:flex;flex-direction:column;gap:14px;overflow:hidden;}
 .cash-ledger-dialog::backdrop{background:rgba(35,25,40,.35);}
+.international-workflow[hidden]{display:none!important;}
+.international-workflow-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+.international-workflow-heading h2{margin:0!important;}
+.international-workflow-heading>span{color:var(--muted);font-size:11px;line-height:1.6;}
+.international-workflow-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+.international-workflow-steps button{min-height:44px;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#faf8fb;color:var(--muted);font-family:inherit;font-size:12px;font-weight:650;line-height:1.5;white-space:normal;overflow-wrap:anywhere;cursor:pointer;touch-action:manipulation;}
+.international-workflow-steps button[aria-pressed=true]{background:#fff0f5;border-color:#e5a9bd;color:#b5365b;}
+@media(max-width:620px){.international-workflow-steps{gap:5px;}.international-workflow-steps button{padding:8px 4px;font-size:10px;}.international-workflow-heading{gap:5px;margin-bottom:8px;}}
+@media(max-width:380px){.international-workflow-steps{grid-template-columns:1fr;}.international-workflow-steps button{text-align:left;padding:10px 12px;}}
+.extra-bills-visibility{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px;}
+.extra-bills-visibility>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;min-height:36px;color:var(--text);}
+.extra-bills-visibility>summary::-webkit-details-marker{display:none;}
+.extra-bills-visibility>summary strong{font-size:13px;}
+.extra-bills-visibility>summary span{flex:1;color:var(--muted);font-size:11px;line-height:1.5;}
+.extra-bills-visibility>summary::after{content:'展开账单 ▾';font-size:11px;color:#b73860;white-space:nowrap;}
+.extra-bills-visibility[open]>summary{margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);}
+.extra-bills-visibility[open]>summary::after{content:'收起账单 ▴';}
+@media(max-width:620px){.extra-bills-visibility{padding:9px;}.extra-bills-visibility>summary{flex-wrap:wrap;gap:5px;}.extra-bills-visibility>summary span{flex-basis:100%;order:3;}}
 body.export-rendering .payment-share-note,body.export-rendering .extra-intl-total-line{display:none!important;}
 .cash-ledger-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;flex-shrink:0;}
 .cash-ledger-head strong{font-size:17px;line-height:1.5;}
@@ -2917,6 +2943,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       if($('toggleSheetCompletedBtn')){ $('toggleSheetCompletedBtn').textContent=completed?'恢复进行中':'标记完成'; $('toggleSheetCompletedBtn').classList.toggle('is-completed',completed); }
       if($('mobileToggleSheetCompletedBtn')) $('mobileToggleSheetCompletedBtn').textContent=completed?'恢复':'完成';
     }
+    function syncInternationalWorkflowNav(){
+      const panel=$('internationalWorkflowPanel');if(!panel)return;
+      const step=activeAppSection==='logistics'?'arrival':activeAppSection==='dispatch'?'dispatch':activeAppSection==='payment'&&paymentActiveTab==='extra'?'billing':'';
+      panel.hidden=!step;panel.querySelectorAll('[data-logistics-step]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.logisticsStep===step)));
+    }
+    function openInternationalWorkflowStep(step){
+      if(step==='billing'){paymentActiveTab='extra';setAppSection('payment',false);syncPaymentControls();}
+      else setAppSection(step==='dispatch'?'dispatch':'logistics',false);
+      syncInternationalWorkflowNav();$('internationalWorkflowPanel').scrollIntoView({block:'start',behavior:'smooth'});
+    }
     function setAppSection(section,scrollToTop=true){
       const groups={
         goods:['costPanel','columnPanel'],
@@ -2935,6 +2971,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(mobileMoreBtn) mobileMoreBtn.classList.toggle('active',['dispatch','logistics','settings'].includes(section));
       if(section==='dispatch') renderDispatch();
       if(section==='logistics') renderLogistics();
+      syncInternationalWorkflowNav();
       if(scrollToTop) window.scrollTo(0,0);
     }
     function appDialog({message,title='提示',okText='确定',cancelText='取消',input=false,value='',placeholder=''}){
@@ -6241,6 +6278,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('sharePaymentView').style.display=paymentActiveTab==='share'?'':'none';
       syncPaymentStatusFilters();
       if(paymentActiveTab==='extra') renderExtraFees();
+      syncInternationalWorkflowNav();
       document.querySelectorAll('[data-payment-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.paymentTab===paymentActiveTab));
     }
 
@@ -6270,8 +6308,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const current=select.value;
       const archives=(extraFeeArchives||[]).map(normalizeExtraFeeArchive).filter(Boolean).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
       extraFeeArchives=archives;
-      select.innerHTML='<option value="">选择追加存档</option>'+archives.map(a=>`<option value="${escapeAttr(a.id)}">${escapeHtml(a.name)} · ${new Date(a.createdAt).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</option>`).join('');
-      if(archives.some(a=>a.id===current)) select.value=current;
+      select.innerHTML='<option value="">选择历史备份（不切换账单）</option>'+archives.map(a=>`<option value="${escapeAttr(a.id)}">备份 · ${escapeHtml(a.name)} · ${new Date(a.createdAt).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</option>`).join('');
+      if(archives.some(a=>a.id===current))select.value=current;
     }
     function snapshotExtraFeeArchive(name,fees=extraFees){
       return normalizeExtraFeeArchive({id:`archive_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,name,createdAt:new Date().toISOString(),extraFees:deepClone(fees),extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode});
@@ -6726,7 +6764,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       extraFeeBatchFilter=normalizeArrivalBatchId(batchId);
       saveState(); renderExtraFeesKeepScroll(); renderDispatch(); alert(`已把「${name}」按${modeLabel}追加到当前表：${basis.rows.length} 人。`);
     }
-    let extraFeeSheetScope='current';
+    let extraFeeSheetScope='all';
     function extraFeeRelatedToSheet(row,sheet,batches=[]){
       if(!sheet)return false;
       if(Array.isArray(row.sheetIds)&&row.sheetIds.length)return row.sheetIds.some(id=>String(id)===String(sheet.id));
@@ -6735,13 +6773,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(names.includes(String(sheet.name||'').trim()))return true;
       const batch=batches.find(b=>b.id===extraFeeArrivalBatchId(row));return !!batch?.sheetIds?.some(id=>String(id)===String(sheet.id));
     }
-    function extraFeeRowsForScope(rows=extraFees){
-      if(extraFeeSheetScope==='all')return rows;
-      const sheet=sheets.find(s=>String(s.id)===String(activeSheetId)),batches=internationalBatches();
-      const related=row=>extraFeeRelatedToSheet(row,sheet,batches),batchIds=new Set(rows.filter(related).map(extraFeeArrivalBatchId).filter(Boolean));
-      // The order sheet locates a bill, never slices its people, items or amount.
-      return rows.filter(row=>related(row)||batchIds.has(extraFeeArrivalBatchId(row)));
-    }
+    function extraFeeRowsForScope(rows=extraFees){return rows;}
     function visibleExtraFees(){
       const q=String($('extraFeeSearchInput')?.value||'').trim().toLowerCase();
       return extraFeeRowsForScope().filter(row=>{
@@ -6783,8 +6815,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!extraFeeRowsForScope().length&&extraFeeSheetScope==='current')return '当前排单没有已关联的当前账单。可切到“全部排单账单”核对旧记录；历史备份不会自动恢复。若确实尚未生成费用，再点击“分摊国际运费”。';
       const info=extraFeeBatchAvailability(extraFeeBatchFilter,extraFees,extraFeeArchives);
       if(extraFeeBatchFilter==='all'||info.count)return '当前筛选没有结果，请切回“全部”状态并清空 CN 搜索。';
-      if(info.archives.length)return `本批在当前账表中没有记录，但历史备份「${info.archives.map(a=>a.name||'未命名').join('、')}」中有账单。下方只筛选当前账表，不会自动恢复备份。请核对上方历史备份；恢复会替换当前追加账表，不能直接覆盖。`;
+      if(info.archives.length)return `本批当前没有实时账单，但历史备份「${info.archives.map(a=>a.name||'未命名').join('、')}」中有记录。可在上方选择对应备份，再点“补回缺失批次”，核对后只添加缺失批次，不覆盖现有账单。`;
       return '这批已登记到货，但当前还没有生成追加费用账单。请点击“分摊国际运费”，选择本批计算；若以前收过款，请先检查历史备份，不要重复生成。';
+    }
+    function extraFeeRememberedBillChoice(value){
+      const key='ggzExtraFeeBillChoice_v1:'+String(syncCode||'local');
+      try{if(value!==undefined){localStorage.setItem(key,JSON.stringify({batch:String(value)}));return value;}return JSON.parse(localStorage.getItem(key)||'null')?.batch||null;}catch(_){return null;}
     }
     function renderExtraFeeBatchSelect(){
       const select=$('extraFeeBatchSelect'); if(!select) return;
@@ -6798,14 +6834,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       const options=[...map.values()].sort((a,b)=>String(b.id).localeCompare(String(a.id)));
       select.innerHTML='<option value="all">全部账单批次（汇总）</option>'+options.map(b=>{const info=extraFeeBatchAvailability(b.id,extraFees,extraFeeArchives),state=info.count?(info.unpaid?`未收 ${info.unpaid} 笔`:`已收齐 ${info.count} 笔`):(info.archives.length?'仅历史备份有账单':'尚未生成费用');return `<option value="${escapeAttr(b.id)}">${escapeHtml(b.label+' · '+state)}</option>`;}).join('');
-      const context=`${String(syncCode||'local')}::${extraFeeSheetScope}::${activeSheetId}`;let chosen=current;
+      const context=`${String(syncCode||'local')}::live-bills`;let chosen=current;
       if(!extraFeeViewInitialized.has(context)||!options.some(b=>b.id===chosen)&&chosen!=='all'){
-        chosen=defaultExtraFeeBatch(scopedRows);
+        const remembered=extraFeeRememberedBillChoice();chosen=remembered&&(remembered==='all'||options.some(b=>b.id===remembered))?remembered:defaultExtraFeeBatch(scopedRows);
         if(scopedRows.length)extraFeeViewInitialized.add(context);
       }
       select.value=options.some(b=>b.id===chosen)?chosen:'all';
       extraFeeBatchFilter=select.value;
-      if($('extraFeeSheetScopeHint'))$('extraFeeSheetScopeHint').textContent=extraFeeSheetScope==='current'?`由「${sheets.find(s=>s.id===activeSheetId)?.name||'未命名'}」定位整批账单；人员、谷子与金额完整保留，不按本表裁切。`:'查看全部排单账单；无法识别归属的旧记录也在这里。';
+      if(scopedRows.length)extraFeeRememberedBillChoice(extraFeeBatchFilter);
+      if($('extraFeeSheetScopeHint'))$('extraFeeSheetScopeHint').textContent='下方是独立的实时账单：收款状态直接保存到所选批次，切换左侧排单不会改变选择。上方历史备份保持原样，不随日常收款更新。';
     }
     function extraFeeWechatAmount(amount){
       return wechatFeeAmount(amount);
@@ -6940,7 +6977,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let extraFeeRenderedScope='';
     function renderExtraFees(){
       const list=$('extraFeeList'); if(!list) return;
-      const viewScope=`${syncCode||'local'}::${extraFeeSheetScope}::${activeSheetId}`;
+      const viewScope=`${syncCode||'local'}::live-bills`;
       if(extraFeeRenderedScope!==viewScope){extraFeeRenderedScope=viewScope;extraFeeFilter='all';$('extraFeeSearchInput').value='';}
       const preservePosition=list.querySelector('table')?captureExtraFeeScroll():null;
       renderExtraFeeArchives();
@@ -7001,32 +7038,23 @@ body.export-rendering .cart-count{ font-size:28px; }
       next.extraFees=(next.extraFees||[]).map(row=>{const matches=byId.get(Number(row.id))||[];if(!Number(row.id)||matches.length!==1||signature(row)!==signature(matches[0])){skipped++;return row;}const current=matches[0],paid=current.paid===true,paidAt=paid?String(current.paidAt||''):'';if(row.paid===paid&&String(row.paidAt||'')===paidAt){unchanged++;return row;}updated++;return {...row,paid,paidAt};});
       return {archive:next,updated,unchanged,skipped};
     }
-    async function updateExtraFeeArchiveStatus(){
-      const id=$('extraFeeArchiveSelect')?.value||'',archive=extraFeeArchives.find(a=>a.id===id);
-      if(!archive){await appAlert('请先选择要更新收款状态的追加存档。');return;}
-      const code=String(syncCode||''),before=JSON.stringify({archive,extraFees}),plan=buildExtraFeeArchiveStatusUpdate(archive,extraFees);
-      if(!plan.updated){await appAlert(`没有可更新的收款状态。\n状态相同 ${plan.unchanged} 笔；未匹配或账单内容已变化 ${plan.skipped} 笔。\n只匹配同一条原账单，不会猜测匹配或覆盖旧金额。`);return;}
-      if(!await appConfirm(`更新存档「${archive.name}」的 ${plan.updated} 笔收款状态？\n状态相同 ${plan.unchanged} 笔；未匹配或内容变化 ${plan.skipped} 笔将跳过。\n\n只更新已收／未收和收款时间，不修改存档金额、CN、数量、重量、分摊规则，也不会替换当前追加表。未收状态也会同步，请核对后确认。`,'更新存档收款状态','确认更新'))return;
-      const current=extraFeeArchives.find(a=>a.id===id);if(code!==String(syncCode||'')||JSON.stringify({archive:current,extraFees})!==before){await appAlert('确认期间数据发生变化，请重新操作。');return;}
-      const index=extraFeeArchives.findIndex(a=>a.id===id);extraFeeArchives[index]=plan.archive;
-      try{if(!saveState())throw new Error('本机保存失败');}catch(error){extraFeeArchives[index]=archive;await appAlert('更新未完成，已保留原存档。'+(error.message||error));return;}
-      renderExtraFeeArchives();renderExtraFeesKeepScroll();renderDispatch();await appAlert(`已更新 ${plan.updated} 笔收款状态，存档计价基准没有变化。`);
+    function buildMissingExtraFeeRecovery(archive,current,seed=1){
+      const existing=new Set(current.map(extraFeeArrivalBatchId).filter(Boolean)),groups=new Map();let unknown=0;
+      (archive.extraFees||[]).forEach(row=>{const id=extraFeeArrivalBatchId(row);if(!id){unknown++;return;}if(!groups.has(id))groups.set(id,[]);groups.get(id).push(row);});
+      let nextId=Math.max(Number(seed)||1,...current.map(row=>(Number(row.id)||0)+1)),skipped=0;const added=[],batchIds=[];
+      groups.forEach((rows,id)=>{if(existing.has(id)){skipped+=rows.length;return;}batchIds.push(id);rows.forEach(source=>{const row=normalizeExtraFee(deepClone(source));if(!row){unknown++;return;}row.id=nextId++;row.batchDisplayTitle=row.batchDisplayTitle||(groups.size===1?(archive.extraFeeTitle||archive.name||''):'');added.push(row);});});
+      return {added,batchIds,nextId,skipped,unknown};
     }
     async function restoreExtraFeeArchive(){
-      const id=$('extraFeeArchiveSelect')?.value||'';
-      const archive=(extraFeeArchives||[]).find(a=>a.id===id);
-      if(!archive){ alert('请先选择一个追加存档'); return; }
-      if(extraFees.length){
-        const ok=await appConfirm(`恢复存档“${archive.name}”会替换当前追加费用表。\n如果当前表还要保留，请先点“存档当前追加”。`,'恢复追加存档','确认恢复');
-        if(!ok) return;
-      }
-      extraFees=deepClone(archive.extraFees||[]).map(normalizeExtraFee).filter(Boolean);
-      extraFeeIdSeed=Math.max(1,...extraFees.map(x=>(Number(x.id)||0)+1));
-      extraFeeTitle=archive.extraFeeTitle||archive.name||'追加费用收款';
-      extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(archive.extraFeeColor||''))?archive.extraFeeColor:'#d1466a';
-      extraFeeShowTotal=archive.extraFeeShowTotal!==false;
-      extraFeeViewMode=archive.extraFeeViewMode==='merged'?'merged':'detail';
-      saveState(); renderExtraFeesKeepScroll(); renderDispatch();
+      const id=$('extraFeeArchiveSelect')?.value||'',archive=(extraFeeArchives||[]).find(a=>a.id===id);
+      if(!archive){await appAlert('请先选择历史备份。');return;}
+      const plan=buildMissingExtraFeeRecovery(archive,extraFees,extraFeeIdSeed),code=String(syncCode||''),signature=JSON.stringify({extraFees,extraFeeArchives});
+      if(!plan.added.length){await appAlert(`没有可安全补回的缺失批次。\n已有批次的 ${plan.skipped} 笔未覆盖；无批次或无效 ${plan.unknown} 笔需另行核对。\n已有批次不自动合并，避免重复收费。`);return;}
+      if(!await appConfirm(`从备份「${archive.name}」补回 ${plan.batchIds.length} 个缺失批次、${plan.added.length} 笔账单？\n${plan.batchIds.join('、')}\n\n当前已有的 ${plan.skipped} 笔跳过，不覆盖、不删除现有账单。历史备份本身保持不变。\n补回的收款状态以备份时为准；之后的收退款若未记录在备份里，需要你重新核对。`,'补回缺失账单','核对后补回'))return;
+      if(code!==String(syncCode||'')||signature!==JSON.stringify({extraFees,extraFeeArchives})){await appAlert('确认期间数据发生变化，请重新核对。');return;}
+      const before=extraFees,oldSeed=extraFeeIdSeed,oldFilter=extraFeeBatchFilter;extraFees=extraFees.concat(plan.added);extraFeeIdSeed=plan.nextId;extraFeeBatchFilter=plan.batchIds[0];
+      try{if(!saveState())throw new Error('本机保存失败');}catch(error){extraFees=before;extraFeeIdSeed=oldSeed;extraFeeBatchFilter=oldFilter;await appAlert('补回未完成，原账单和备份保留。'+(error.message||error));return;}
+      extraFeeViewInitialized.add(`${String(syncCode||'local')}::live-bills`);renderExtraFeesKeepScroll();renderDispatch();await appAlert(`已补回 ${plan.added.length} 笔实时账单。以后在下方选择该批记收款，历史备份不变。`);
     }
     async function deleteExtraFeeArchive(){
       const id=$('extraFeeArchiveSelect')?.value||'';
@@ -7085,8 +7113,11 @@ body.export-rendering .cart-count{ font-size:28px; }
     function setExtraFeesPaid(rows,paid){
       const pos=captureExtraFeeScroll();
       if(document.activeElement&&$('extraFeeList')?.contains(document.activeElement)) document.activeElement.blur();
+      if((rows||[]).some(row=>!extraFees.includes(row))){alert('账单已变化，请刷新列表后重新标记。');return false;}
+      const before=(rows||[]).map(row=>({row,paid:row.paid,paidAt:row.paidAt}));
       const now=new Date().toISOString(); (rows||[]).forEach(row=>{ row.paid=!!paid; row.paidAt=paid?now:''; });
-      saveState(); renderExtraFeesKeepScroll(pos); renderDispatch();
+      try{if(!saveState())throw new Error('本机保存失败');}catch(error){before.forEach(old=>{old.row.paid=old.paid;old.row.paidAt=old.paidAt;});renderExtraFeesKeepScroll(pos);alert('收款状态未保存，已保留原状态。'+(error.message||error));return false;}
+      renderExtraFeesKeepScroll(pos); renderDispatch();return true;
     }
     function exportExtraFeeImage(filter='all'){
       if(typeof html2canvas==='undefined'||!extraFees.length){ alert('还没有追加费用数据'); return; }
@@ -10345,8 +10376,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(old) Object.assign(old,next); else extraFees.push(next);
       saveState(); closeExtraFeeForm(); renderExtraFeesKeepScroll();
     });
+    try{$('extraBillsVisibilityPanel').open=localStorage.getItem('ggzExtraBillsPanelOpen_v1')==='1';}catch(_){}
+    $('extraBillsVisibilityPanel').addEventListener('toggle',()=>{const panel=$('extraBillsVisibilityPanel');try{localStorage.setItem('ggzExtraBillsPanelOpen_v1',panel.open?'1':'0');}catch(_){}if(panel.open)renderExtraFeesKeepScroll();});
+    document.querySelectorAll('[data-logistics-step]').forEach(button=>button.addEventListener('click',()=>openInternationalWorkflowStep(button.dataset.logisticsStep)));
+    $('openArrivalBillBtn').addEventListener('click',async()=>{const date=$('logisticsDateFilter').value;if(!date){await appAlert('请先在到货页面选择具体批次，再查看对应国际账单。');return;}const id=normalizeArrivalBatchId('arrival:'+date);if(!extraFees.some(row=>extraFeeArrivalBatchId(row)===id)){await appAlert('本批当前没有实时国际账单。若以前生成过，请到国际／追加账单中核对历史备份，并补回缺失批次；不要直接重复生成。');return;}extraFeeBatchFilter=id;extraFeeRememberedBillChoice(id);extraFeeViewInitialized.add(`${String(syncCode||'local')}::live-bills`);openInternationalWorkflowStep('billing');$('extraBillsVisibilityPanel').open=true;renderExtraFeesKeepScroll();});
+    $('openReadyDispatchBtn').addEventListener('click',()=>{dispatchStateFilter='ready';if($('dispatchSearchInput'))$('dispatchSearchInput').value='';openInternationalWorkflowStep('dispatch');});
     $('extraFeeSearchBtn').addEventListener('click',renderExtraFees); $('extraFeeSearchInput').addEventListener('input',renderExtraFees);
-    $('extraFeeBatchSelect').addEventListener('change',e=>{extraFeeBatchFilter=e.target.value||'all';extraFeeViewInitialized.add(`${String(syncCode||'local')}::${extraFeeSheetScope}::${activeSheetId}`);extraFeeFilter='all';$('extraFeeSearchInput').value='';renderExtraFeesKeepScroll();});
+    $('extraFeeBatchSelect').addEventListener('change',e=>{extraFeeBatchFilter=e.target.value||'all';extraFeeViewInitialized.add(`${String(syncCode||'local')}::live-bills`);extraFeeFilter='all';$('extraFeeSearchInput').value='';renderExtraFeesKeepScroll();});
     $('extraFeeSheetScope').addEventListener('change',e=>{extraFeeSheetScope=e.target.value==='all'?'all':'current';extraFeeBatchFilter='all';renderExtraFeesKeepScroll();});
     closeExtraFeeForm(); $('intlSplitPanel').hidden=true;
     $('extraFeeTitleInput').addEventListener('input',e=>{setExtraFeeCurrentTitle(e.target.value);if($('extraFeeExportTitle')) $('extraFeeExportTitle').textContent=extraFeeCurrentTitle();saveState();});
@@ -10356,7 +10392,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('archiveExtraFeesBtn').addEventListener('click',archiveCurrentExtraFees);
     $('extraFeeArchiveSelect').addEventListener('change',renderExtraFeesKeepScroll);
     $('restoreExtraFeeArchiveBtn').addEventListener('click',restoreExtraFeeArchive);
-    $('updateExtraFeeArchiveStatusBtn').addEventListener('click',updateExtraFeeArchiveStatus);
+    $('updateExtraFeeArchiveStatusBtn').addEventListener('click',()=>appAlert('历史备份保持原样。日常收款请在下方实时账单中标记；需要新备份时再点“存档当前追加”。'));
     $('deleteExtraFeeArchiveBtn').addEventListener('click',deleteExtraFeeArchive);
     function handleExtraPaymentQr(file){ handlePaymentQr(file); }
     $('extraPaymentQrInput').addEventListener('change',e=>{ handleExtraPaymentQr(e.target.files[0]); e.target.value=''; });
