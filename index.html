@@ -293,7 +293,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button type="button" data-app-section="order"><span>▦</span><b>排单</b><small>录入、预览与排单表</small></button>
     <button type="button" data-app-section="stats"><span>▥</span><b>出图</b><small>数量、推车、水印与调价图</small></button>
     <button type="button" data-app-section="payment"><span>¥</span><b>收款</b><small>谷子收款与均摊</small></button>
-    <button type="button" data-app-section="logistics"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14.5h16l-1.5-5.2A2 2 0 0 0 16.6 8H8.2a2 2 0 0 0-1.8 1.1L4 14.5Z"/><path d="M6.5 14.5v2.2M17.5 14.5v2.2M8.4 8l-1.3 3h10.5L16.7 8M3.5 14.5v2.2h17v-2.2"/><path d="M7.5 17.5a1.5 1.5 0 1 0 0 .1M16.5 17.5a1.5 1.5 0 1 0 0 .1"/></svg></span><b>国际物流</b><small>到货、账单与排发</small></button>
+    <button type="button" data-app-section="logistics"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14.5h16l-1.5-5.2A2 2 0 0 0 16.6 8H8.2a2 2 0 0 0-1.8 1.1L4 14.5Z"/><path d="M6.5 14.5v2.2M17.5 14.5v2.2M8.4 8l-1.3 3h10.5L16.7 8M3.5 14.5v2.2h17v-2.2"/><path d="M7.5 17.5a1.5 1.5 0 1 0 0 .1M16.5 17.5a1.5 1.5 0 1 0 0 .1"/></svg></span><b>物流</b><small>到货与国际账单</small></button>
     <button type="button" data-app-section="dispatch"><span>▤</span><b>排发</b><small>谁该发什么</small></button>
     <button type="button" data-app-section="settings"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M11 4v6M4 17h4m4 0h8M8 14v6"/></svg></span><b>设置</b><small>数据与云端</small></button>
   </nav>
@@ -625,8 +625,8 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <section class="panel international-workflow" id="internationalWorkflowPanel" hidden>
-    <div class="international-workflow-heading"><h2>国际与物流</h2><span>到货、账单、排发相互关联；查看切换不修改账目。</span></div>
-    <div class="international-workflow-steps"><button type="button" data-logistics-step="arrival">1 · 到货与囤货</button><button type="button" data-logistics-step="billing">2 · 国际／追加账单</button><button type="button" data-logistics-step="dispatch">3 · CN 排发</button></div>
+    <div class="international-workflow-heading"><h2>物流</h2><span>查看到货与国际账单；切换不修改账目。</span></div>
+    <div class="international-workflow-steps"><button type="button" data-logistics-step="arrival">到货</button><button type="button" data-logistics-step="billing">国际</button></div>
   </section>
   <div class="panel" id="internationalBillsPanel"><h2>国际／追加实时账单</h2><p class="hint">独立选择账单，不跟随排单切换。到货标记、钱账与历史备份分别保留。</p></div>
   <div class="panel mobile-core" id="paymentPanel">
@@ -672,7 +672,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       </div>
       <div class="extra-fee-head">
         <div><strong>追加费用收款</strong><span>按收款批次查看、导出和标记收齐。</span></div>
-        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button><button type="button" class="btn-ghost" id="openReadyDispatchBtn">查看可排发</button></div>
+        <div class="extra-fee-head-actions"><button type="button" class="btn-primary" id="openIntlSplitBtn">＋ 分摊国际运费</button><button type="button" class="btn-ghost" id="intlDiffFeesBtn" style="display:none;">从存档生成退补</button><button type="button" class="btn-ghost" id="recalcIntlFeesBtn" style="display:none;">重算国际</button></div>
       </div>
       <div class="extra-archive-tools">
         <button type="button" class="btn-primary" id="archiveExtraFeesBtn">存档当前追加</button>
@@ -889,7 +889,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="mobile-more-handle" aria-hidden="true"></div>
       <div class="mobile-more-head"><strong>更多功能</strong><button type="button" id="mobileMoreCloseBtn" aria-label="关闭">×</button></div>
       <div class="mobile-more-grid">
-        <button type="button" data-app-section="logistics"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14.5h16l-1.5-5.2A2 2 0 0 0 16.6 8H8.2a2 2 0 0 0-1.8 1.1L4 14.5Z"/><path d="M6.5 14.5v2.2M17.5 14.5v2.2M8.4 8l-1.3 3h10.5L16.7 8M3.5 14.5v2.2h17v-2.2"/><path d="M7.5 17.5a1.5 1.5 0 1 0 0 .1M16.5 17.5a1.5 1.5 0 1 0 0 .1"/></svg></span><b>国际物流</b><small>到货、账单与排发</small></button>
+        <button type="button" data-app-section="logistics"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14.5h16l-1.5-5.2A2 2 0 0 0 16.6 8H8.2a2 2 0 0 0-1.8 1.1L4 14.5Z"/><path d="M6.5 14.5v2.2M17.5 14.5v2.2M8.4 8l-1.3 3h10.5L16.7 8M3.5 14.5v2.2h17v-2.2"/><path d="M7.5 17.5a1.5 1.5 0 1 0 0 .1M16.5 17.5a1.5 1.5 0 1 0 0 .1"/></svg></span><b>物流</b><small>到货与国际账单</small></button>
         <button type="button" data-app-section="dispatch"><span>▤</span><b>排发</b><small>按 CN 查看可发内容</small></button>
         <button type="button" data-app-section="settings"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M11 4v6M4 17h4m4 0h8M8 14v6"/></svg></span><b>设置</b><small>数据与云端</small></button>
       </div>
@@ -1337,7 +1337,7 @@ html{ scrollbar-gutter:stable; }
 .international-workflow-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
 .international-workflow-heading h2{margin:0!important;}
 .international-workflow-heading>span{color:var(--muted);font-size:11px;line-height:1.6;}
-.international-workflow-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+.international-workflow-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
 .international-workflow-steps button{min-height:44px;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#faf8fb;color:var(--muted);font-family:inherit;font-size:12px;font-weight:650;line-height:1.5;white-space:normal;overflow-wrap:anywhere;cursor:pointer;touch-action:manipulation;}
 .international-workflow-steps button[aria-pressed=true]{background:#fff0f5;border-color:#e5a9bd;color:#b5365b;}
 @media(max-width:620px){.international-workflow-steps{gap:5px;}.international-workflow-steps button{padding:8px 4px;font-size:10px;}.international-workflow-heading{gap:5px;margin-bottom:8px;}}
@@ -2962,12 +2962,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function syncInternationalWorkflowNav(){
       const panel=$('internationalWorkflowPanel');if(!panel)return;
-      const step=activeAppSection==='logistics'?'arrival':activeAppSection==='dispatch'?'dispatch':activeAppSection==='international-bills'?'billing':'';
+      const step=activeAppSection==='logistics'?'arrival':activeAppSection==='international-bills'?'billing':'';
       panel.hidden=!step;panel.querySelectorAll('[data-logistics-step]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.logisticsStep===step)));
     }
     function openInternationalWorkflowStep(step){
       if(step==='billing'){setAppSection('international-bills',false);}
-      else setAppSection(step==='dispatch'?'dispatch':'logistics',false);
+      else setAppSection('logistics',false);
       syncInternationalWorkflowNav();$('internationalWorkflowPanel').scrollIntoView({block:'start',behavior:'smooth'});
     }
     function setAppSection(section,scrollToTop=true){
@@ -10470,7 +10470,6 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('extraBillsVisibilityPanel').addEventListener('toggle',()=>{const panel=$('extraBillsVisibilityPanel');try{localStorage.setItem('ggzExtraBillsPanelOpen_v1',panel.open?'1':'0');}catch(_){}if(panel.open)renderExtraFeesKeepScroll();});
     document.querySelectorAll('[data-logistics-step]').forEach(button=>button.addEventListener('click',()=>openInternationalWorkflowStep(button.dataset.logisticsStep)));
     $('openArrivalBillBtn').addEventListener('click',async()=>{const date=$('logisticsDateFilter').value;if(!date){await appAlert('请先在到货页面选择具体批次，再查看对应国际账单。');return;}const id=normalizeArrivalBatchId('arrival:'+date);if(!extraFees.some(row=>extraFeeArrivalBatchId(row)===id)){await appAlert('本批当前没有实时国际账单。若以前生成过，请到国际／追加账单中核对历史备份，并补回缺失批次；不要直接重复生成。');return;}extraFeeBatchFilter=id;extraFeeRememberedBillChoice(id);extraFeeViewInitialized.add(`${String(syncCode||'local')}::live-bills`);openInternationalWorkflowStep('billing');$('extraBillsVisibilityPanel').open=true;renderExtraFeesKeepScroll();});
-    $('openReadyDispatchBtn').addEventListener('click',()=>{dispatchStateFilter='ready';if($('dispatchSearchInput'))$('dispatchSearchInput').value='';openInternationalWorkflowStep('dispatch');});
     $('extraFeeSearchBtn').addEventListener('click',renderExtraFees); $('extraFeeSearchInput').addEventListener('input',renderExtraFees);
     $('extraFeeBatchSelect').addEventListener('change',e=>{extraFeeBatchFilter=e.target.value||'all';extraFeeViewInitialized.add(`${String(syncCode||'local')}::live-bills`);extraFeeFilter='all';$('extraFeeSearchInput').value='';renderExtraFeesKeepScroll();});
     $('extraFeeSheetScope').addEventListener('change',e=>{extraFeeSheetScope=e.target.value==='all'?'all':'current';extraFeeBatchFilter='all';renderExtraFeesKeepScroll();});
