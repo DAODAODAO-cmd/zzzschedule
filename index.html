@@ -821,11 +821,19 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-ghost" id="dispatchRefreshBtn" data-mobile-label="刷新">刷新清单</button>
+      <button type="button" class="btn-primary" id="dispatchBatchShipBtn" data-mobile-label="批量发货">批量发货</button>
       <button class="btn-ghost" id="undoRenameCnBtn" data-mobile-label="撤销改名" disabled>撤销上次改名/合并</button>
       <button class="btn-ghost" id="dispatchExportPngBtn" data-mobile-label="导出图片">导出清单图</button>
       <button class="btn-ghost" id="dispatchCopyBtn" data-mobile-label="复制">复制文字清单</button>
     </div>
     <div id="dispatchWrap"><div id="dispatchList"></div></div>
+    <dialog id="dispatchBatchShipDialog" class="arrival-edit-dialog" data-html2canvas-ignore="true">
+      <div class="arrival-edit-head"><strong>批量标记已发货</strong><button type="button" class="btn-ghost" id="closeDispatchBatchShipBtn">取消</button></div>
+      <p class="hint" id="dispatchBatchShipHint">按排发状态及 CN 搜索筛选，只列未发货的件；每行一件，不修改到货或账目。</p>
+      <div class="arrival-edit-selection"><button type="button" class="btn-ghost" id="selectReadyDispatchBatchBtn">只选可排发</button><button type="button" class="btn-ghost" id="selectAllDispatchBatchBtn">全选</button><button type="button" class="btn-ghost" id="clearDispatchBatchBtn">全不选</button></div>
+      <div id="dispatchBatchShipChoices" class="arrival-edit-choices"></div>
+      <div class="arrival-edit-footer"><span id="dispatchBatchShipCount">已选 0 件</span><button type="button" class="btn-primary" id="applyDispatchBatchShipBtn" disabled>确认批量发货</button></div>
+    </dialog>
   </div>
 
   <div class="panel" id="logisticsPanel">
@@ -1330,6 +1338,7 @@ html{ scrollbar-gutter:stable; }
 .arrival-edit-fields input,.arrival-edit-fields select,.arrival-edit-selection input{width:100%;min-width:0;min-height:42px;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px;background:#faf8fb;font:inherit;}
 .arrival-edit-selection{display:flex;gap:6px;align-items:end;flex-wrap:wrap;}.arrival-edit-selection label{width:90px;}
 .arrival-edit-choices{min-height:0;overflow:auto;overscroll-behavior:contain;max-height:42dvh;display:grid;gap:6px;}
+.dispatch-batch-choice{display:flex;align-items:center;gap:10px;min-height:48px;padding:10px;border:1px solid #e5deea;border-radius:10px;background:#fff;cursor:pointer;}.dispatch-batch-choice input{width:20px;height:20px;flex:0 0 20px;accent-color:#d1466a;}.dispatch-batch-choice span{min-width:0;overflow-wrap:anywhere;}.dispatch-batch-choice small{display:block;margin-top:4px;color:var(--muted);}.dispatch-batch-choice:has(input:checked){border-color:#d1466a;background:#fff3f7;}#dispatchBatchShipDialog .arrival-edit-selection button,#dispatchBatchShipDialog .arrival-edit-footer button{min-height:44px;}
 .arrival-edit-choice{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);border-radius:8px;min-height:44px;box-sizing:border-box;font-size:12px;cursor:pointer;}.arrival-edit-choice input{width:18px;min-width:18px;height:18px;margin:0;accent-color:#d1466a;}.arrival-edit-choice:has(input:disabled){opacity:.55;cursor:default;}.arrival-edit-choice small{color:var(--muted);}
 .arrival-edit-dialog button,.logi-arrival-tools button{min-height:44px;white-space:normal;touch-action:manipulation;}
 .arrival-edit-footer{padding-top:10px;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);}.logi-arrival-tools{margin-top:8px;}.logi-arrival-tools button{width:100%;font-size:11px;}
@@ -8516,6 +8525,53 @@ body.export-rendering .cart-count{ font-size:28px; }
         return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><button type="button" class="dispatch-rename-btn" data-dispatch-rename="${encodeURIComponent(person.name)}" aria-label="修改 CN ${escapeAttr(person.name)}">改名</button><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount} · 已发 ${shippedCount}</span></div><div class="dispatch-items">${items}</div></div>`;
       }).join('');
     }
+    let dispatchBatchShipDraft=null,dispatchBatchShipSaving=false;
+    function dispatchShipmentRefKey(ref){return JSON.stringify([String(ref.sheetId),String(ref.colId),Number(ref.row),String(ref.person),String(ref.item)]);}
+    function buildDispatchBatchShipmentPlan(selected,currentItems){
+      if(!selected.length)throw new Error('请先勾选要标记发货的谷子。');
+      const current=new Map();for(const item of currentItems){const key=dispatchShipmentRefKey(item);if(current.has(key))throw new Error('排发记录存在重复标识，请刷新核对');current.set(key,item);}
+      const seen=new Set(),items=[];
+      for(const ref of selected){const key=dispatchShipmentRefKey(ref);if(seen.has(key))continue;seen.add(key);const item=current.get(key);if(!item||item.shipped)throw new Error('选中谷子的 CN、排单位置或发货状态已变化，请重新打开批量发货。');items.push(item);}
+      return {items,notReady:items.filter(item=>!item.ready).length,people:new Set(items.map(item=>normalizeDispatchKey(item.person))).size};
+    }
+    function syncDispatchBatchShipCount(){
+      const count=$('dispatchBatchShipChoices').querySelectorAll('input:checked').length;
+      $('dispatchBatchShipCount').textContent=`已选 ${count} 件`;$('applyDispatchBatchShipBtn').disabled=!count||dispatchBatchShipSaving;
+    }
+    async function openDispatchBatchShip(){
+      if(dispatchBatchShipSaving)return;
+      const all=buildDispatchRecords(),query=normalizeDispatchKey($('dispatchSearchInput').value);
+      const items=all.filter(person=>!query||person.key.includes(query)).flatMap(person=>dispatchVisibleItems(person)).filter(item=>!item.shipped);
+      if(!items.length){await appAlert('当前状态及 CN 搜索条件下没有未发货的谷子。请先切换“未发货”或“可排发”，或清空 CN 搜索。');return;}
+      dispatchBatchShipDraft={code:String(syncCode||''),items:deepClone(items)};
+      $('dispatchBatchShipHint').textContent=`范围：${dispatchFilterLabel()}${query?' · CN 包含 '+$('dispatchSearchInput').value:' · 全部 CN'}，共 ${items.length} 件未发货。每行一件，默认不选；不会修改到货、买齐或账目。`;
+      $('dispatchBatchShipChoices').innerHTML=items.map((item,index)=>`<label class="dispatch-batch-choice"><input type="checkbox" data-dispatch-batch-index="${index}"><span><b>${escapeHtml(item.person)}</b> · ${escapeHtml(item.item)}<small>${escapeHtml(item.sheet)} · 第 ${item.row+1} 行 · ${item.ready?'可排发':'尚未满足到货／收款条件，请核对'}</small></span></label>`).join('');
+      syncDispatchBatchShipCount();$('dispatchBatchShipDialog').showModal();
+    }
+    async function applyDispatchBatchShip(){
+      if(dispatchBatchShipSaving||!dispatchBatchShipDraft)return;
+      const draft=dispatchBatchShipDraft;
+      const selected=[...$('dispatchBatchShipChoices').querySelectorAll('input:checked')].map(input=>draft.items[Number(input.dataset.dispatchBatchIndex)]).filter(Boolean);
+      dispatchBatchShipSaving=true;syncDispatchBatchShipCount();
+      try{
+        if(draft.code!==String(syncCode||''))throw new Error('已切换协作组，请重新打开批量发货。');
+        let plan=buildDispatchBatchShipmentPlan(selected,buildDispatchRecords().flatMap(person=>person.items));
+        const signature=JSON.stringify(plan.items);
+        if(!await appConfirm(`确认将 ${plan.people} 位 CN 的 ${plan.items.length} 件谷子标记为已发货？${plan.notReady?'\n注意：其中 '+plan.notReady+' 件尚未满足到货／谷款／国际费条件，请确认实际已发出。':''}\n只修改选中的发货标记，不修改排单归属或收退款。`,'批量发货确认','确认已实际发出'))return;
+        if(draft!==dispatchBatchShipDraft||draft.code!==String(syncCode||''))throw new Error('操作范围已变化，请重新打开批量发货。');
+        plan=buildDispatchBatchShipmentPlan(selected,buildDispatchRecords().flatMap(person=>person.items));
+        if(signature!==JSON.stringify(plan.items))throw new Error('确认期间到货、收款或排发状态发生变化，请重新核对。');
+        const touched=[...new Set(plan.items.map(item=>item.sheetId))].map(id=>{const sheet=sheets.find(s=>s.id===id);if(!sheet)throw new Error('原排单已不存在');return {sheet,had:Object.prototype.hasOwnProperty.call(sheet,'dispatchShippedCells'),before:deepClone(sheet.dispatchShippedCells||{})};});
+        const at=new Date().toISOString();
+        try{
+          for(const item of plan.items){const sheet=sheets.find(s=>s.id===item.sheetId);sheet.dispatchShippedCells=sheet.dispatchShippedCells||{};sheet.dispatchShippedCells[`${item.colId}:${item.row}`]={person:item.person,item:item.item,at};}
+          if(!saveState({snapshotReason:'批量发货后',forceSnapshot:true,flushCollabNow:true}))throw new Error('本机保存失败');
+        }catch(error){for(const entry of touched){if(entry.had)entry.sheet.dispatchShippedCells=entry.before;else delete entry.sheet.dispatchShippedCells;}throw error;}
+        $('dispatchBatchShipDialog').close();dispatchBatchShipDraft=null;renderDispatch();
+        await appAlert(`已在本机保存 ${plan.items.length} 件发货标记。${collabEnabled?'实时协作已排队同步，请留意顶部同步结果。':'实时协作未开启，其他设备尚未更新。'}`);
+      }catch(error){await appAlert('批量发货未完成：'+(error.message||error));}
+      finally{dispatchBatchShipSaving=false;syncDispatchBatchShipCount();}
+    }
     function dispatchTextManifest(){
       return buildDispatchRecords().map(person=>{
         const visible=dispatchVisibleItems(person); if(!visible.length) return '';
@@ -8618,6 +8674,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('undoRenameCnBtn').addEventListener('click',()=>undoCnMerge().catch(error=>{console.error(error);appAlert(error.message||'撤销失败，备份仍保留');}));
     $('dispatchSearchBtn').addEventListener('click',dispatchSearch);
+    $('dispatchBatchShipBtn').addEventListener('click',openDispatchBatchShip);
+    $('closeDispatchBatchShipBtn').addEventListener('click',()=>{if(!dispatchBatchShipSaving){$('dispatchBatchShipDialog').close();dispatchBatchShipDraft=null;}});
+    $('dispatchBatchShipDialog').addEventListener('cancel',e=>{if(dispatchBatchShipSaving)e.preventDefault();else dispatchBatchShipDraft=null;});
+    $('dispatchBatchShipChoices').addEventListener('change',syncDispatchBatchShipCount);
+    $('selectAllDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=true);syncDispatchBatchShipCount();});
+    $('clearDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=false);syncDispatchBatchShipCount();});
+    $('selectReadyDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=dispatchBatchShipDraft?.items[Number(input.dataset.dispatchBatchIndex)]?.ready===true);syncDispatchBatchShipCount();});
+    $('applyDispatchBatchShipBtn').addEventListener('click',applyDispatchBatchShip);
     $('dispatchSearchInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); dispatchSearch(); } });
     $('dispatchCopyBtn').addEventListener('click',async()=>{
       const text=dispatchTextManifest(); if(!text){ alert('清单为空'); return; }
