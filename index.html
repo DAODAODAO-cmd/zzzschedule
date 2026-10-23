@@ -1345,6 +1345,7 @@ html{ scrollbar-gutter:stable; }
 .inline-batch-editor{display:flex;flex-direction:column;gap:12px;width:100%;box-sizing:border-box;padding:14px;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:#fff;scroll-margin-top:12px;}
 .inline-batch-editor[hidden]{display:none!important;}.inline-batch-editor .arrival-edit-choices{max-height:none;overflow:visible;overscroll-behavior:auto;}.inline-batch-editor>label{display:grid;gap:5px;font-size:12px;}.inline-batch-editor>label input,.inline-batch-editor>label select{width:100%;min-height:44px;padding:8px;border:1px solid var(--line);border-radius:8px;box-sizing:border-box;background:#faf8fb;color:var(--text);font:inherit;}.inline-batch-editor button{min-height:44px;touch-action:manipulation;}.inline-batch-editor .arrival-edit-footer{position:sticky;bottom:0;z-index:4;background:#fff;padding:12px 0 calc(10px + env(safe-area-inset-bottom,0px));box-shadow:0 -5px 10px #fff;flex-wrap:wrap;}.inline-batch-editor .arrival-edit-footer>span{margin-right:auto;font-weight:700;}.inline-batch-editor .dispatch-batch-group{padding:10px;border:1px solid var(--line);border-radius:10px;background:#fcfafd;}.inline-batch-editor .dispatch-batch-group summary{cursor:pointer;min-height:36px;line-height:36px;}.inline-batch-editor .dispatch-batch-group .arrival-edit-selection{margin:6px 0;}.inline-batch-editor .arrival-edit-head strong{overflow-wrap:anywhere;}@media(max-width:620px){.inline-batch-editor{padding:10px;}.inline-batch-editor .arrival-edit-footer{gap:7px;}.inline-batch-editor .arrival-edit-footer button{flex:1;}.inline-batch-editor .arrival-edit-footer>span{flex-basis:100%;}}
 .arrival-edit-head,.arrival-edit-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;}
+@media(min-width:621px){.logi-card-toolbar{flex-wrap:nowrap;flex:0 1 auto;max-width:100%;min-width:0;gap:6px;overflow-x:auto;padding-bottom:2px;}.logi-card-toolbar>*{flex:0 0 auto;white-space:nowrap;}.logi-card-toolbar select[data-logi-card-stage]{width:96px;min-width:96px;box-sizing:border-box;}.logi-card-toolbar input[data-logi-card-date]{width:136px;min-width:136px;box-sizing:border-box;}.logi-card-toolbar button{width:auto;padding-left:10px;padding-right:10px;}.logi-sheet-head:has(.logi-card-toolbar){align-items:center;}.logi-sheet-head:has(.logi-card-toolbar)>b{min-width:0;overflow-wrap:anywhere;}}
 .arrival-edit-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
 .arrival-edit-fields label,.arrival-edit-selection label{display:grid;gap:5px;font-size:12px;min-width:0;}
 .arrival-edit-fields input,.arrival-edit-fields select,.arrival-edit-selection input{width:100%;min-width:0;min-height:42px;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px;background:#faf8fb;font:inherit;}
@@ -2742,6 +2743,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function saveState(options={}){
       if(isLoadingSheet) return true;
+      if(!applyingCloud&&!applyingCollab)cancelPendingCollabInstallForLocalEdit();
       captureActiveSheet();
       const localSaved=persistLocalState();
       if(localSaved!=='failed'&&!options.skipSnapshot) recordLocalSnapshot(options.snapshotReason||'自动保存',options.forceSnapshot===true);
@@ -3419,21 +3421,26 @@ body.export-rendering .cart-count{ font-size:28px; }
       const active=document.activeElement, list=$('columnList');
       return !!(active&&list&&list.contains(active)&&isTypingTarget(active));
     }
+    let pendingCollabInstallGuard=null,collabConnecting=false;
     function flushPendingCollabInstall(){
       if(!pendingCollabInstallState||isColumnListEditing()) return false;
       const state=pendingCollabInstallState;
       pendingCollabInstallState=null;
+      if(pendingCollabInstallGuard&&(pendingCollabInstallGuard.code!==syncCode||pendingCollabInstallGuard.local!==localRevision||pendingCollabInstallGuard.remote!==collabRevision)){pendingCollabInstallGuard=null;return false;}
+      pendingCollabInstallGuard=null;
       return installCollabState(state);
     }
     function cancelPendingCollabInstallForLocalEdit(){
       if(!pendingCollabInstallState) return;
       pendingCollabInstallState=null;
+      pendingCollabInstallGuard=null;
       if(collabEnabled) setCollabStatus('已保留本机输入，等待同步','warn');
     }
     function installCollabState(state){
       if(!state||!Array.isArray(state.sheets)||!state.sheets.length) return false;
       if(isColumnListEditing()){
         pendingCollabInstallState=deepClone(state);
+        pendingCollabInstallGuard={code:syncCode,local:localRevision,remote:collabRevision};
         setCollabStatus('正在输入，云端刷新已延后','warn');
         return false;
       }
@@ -3606,118 +3613,150 @@ body.export-rendering .cart-count{ font-size:28px; }
       const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
       return row;
     }
-    async function replaceCollabStateAfterTimeout(sentState,localSentState){
-      try{
-        const client=getCloudClient(syncCode), {data,error}=await lockRequest(client.rpc('ggz_replace_collab_state',{p_sync_code:syncCode,p_state:sentState,p_base_revision:collabRevision,p_author_name:editorName||'未命名'}),45000,'实时协作轻量整包同步');
-        if(error) throw error;
-        const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
-        const conflicts=Array.isArray(row.out_conflicts)?row.out_conflicts:[];
-        const latestLocal=collabProjectSnapshot(), latestCloud=await collabCloudProjectSnapshot(latestLocal), laterOps=collabDiff(sentState,latestCloud);
-        if(conflicts.length){
-          captureActiveSheet(); recordLocalSnapshot('协作冲突前（本机修改）',true);
-          try{ localStorage.setItem(COLLAB_CONFLICT_KEY_PREFIX+syncCode,JSON.stringify({time:new Date().toISOString(),author:editorName,ops:collabDiff(collabBaseline||sentState,latestCloud),conflicts})); }catch(_){}
-          const latestState=deepClone(row.out_state),displayState=preserveMatchingLocalImages(applyCollabOps(deepClone(latestState),laterOps),latestLocal,latestCloud);
-          collabBaseline=latestState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState);
-          collabNeedsSend=laterOps.length>0;
-          setCollabStatus('云端已有新版本；未合并的本机修改已另存“协作冲突前”快照，请核对','warn');
-          return true;
-        }
-        const serverState=deepClone(row.out_state),displayState=preserveMatchingLocalImages(applyCollabOps(deepClone(serverState),laterOps),latestLocal,latestCloud);
-        collabBaseline=serverState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState);
-        collabNeedsSend=laterOps.length>0; clearTimeout(collabSendTimer); collabSendTimer=null;
-        if(!collabNeedsSend) collabPendingSheetNames.clear();
-        setCollabStatus(`实时协作已用轻量整包同步 · 版本 ${collabRevision}`,'ok');
-        if(collabNeedsSend) scheduleCollabSync();
-        return true;
-      }catch(fallbackError){
-        if(lockFeatureMissing(fallbackError)){ setCollabStatus('同步超时：需要先在 Supabase 执行轻量整包同步 SQL','bad'); }
-        return false;
+    async function stableRealtimeSnapshot(code){
+      for(let attempt=0;attempt<3;attempt++){
+        const revision=localRevision,local=collabProjectSnapshot(),cloud=await collabCloudProjectSnapshot(local);
+        if(String(syncCode)!==String(code)||cloudPublishingCollab)throw new Error('协作组或同步模式已变化');
+        if(revision===localRevision)return {local,cloud,revision};
       }
+      throw new Error('正在连续编辑，已保留本机修改，稍后重试同步');
+    }
+    function pauseRealtimeForSafety(message){
+      recordLocalSnapshot('实时协作保护（本机未覆盖）',true);
+      collabEnabled=false;collabNeedsSend=false;pendingCollabInstallState=null;clearTimeout(collabSendTimer);collabSendTimer=null;stopCollabPolling();stopCollabPresence();
+      restoredSnapshotPendingUpload=true;cloudConflictPaused=true;clearIdleCloudUpload();
+      try{localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+syncCode,'0');localStorage.setItem('ggzRestoredPendingPublish_v1:'+syncCode,'1');}catch(_){}
+      syncCollabUI();setCollabStatus(message+'；本机已保留，请先导出备份再核对','warn');
+    }
+    function realtimeLayoutConflict(sent,server,laterOps){
+      return ['sheets','extraFees','extraFeeArchives','itemCatalog'].some(key=>{
+        if(!laterOps.some(op=>String(op.path?.[0])===key))return false;
+        const ids=value=>JSON.stringify((value?.[key]||[]).map(item=>String(item?.id??item?.catalogId??'')));
+        return ids(sent)!==ids(server);
+      });
+    }
+    async function prepareRealtimeResponse(row,sentState,code){
+      if(!row?.out_state)throw new Error('协作云端没有返回状态');
+      const after=await stableRealtimeSnapshot(code),version=Number(row.out_revision);
+      if(!collabEnabled||code!==syncCode||!Number.isFinite(version)||version<collabRevision)return null;
+      const server=deepClone(row.out_state),laterOps=collabDiff(sentState,after.cloud);
+      if(realtimeLayoutConflict(sentState,server,laterOps)){pauseRealtimeForSafety('双方同时新增、删除或排序表格，已停止按位置合并，防止串表');return null;}
+      return {server,version,laterOps,revision:after.revision,display:preserveMatchingLocalImages(applyCollabOps(deepClone(server),laterOps),after.local,after.cloud)};
+    }
+    function commitRealtimeResponse(prepared,code){
+      if(!prepared||!collabEnabled||cloudPublishingCollab||code!==syncCode||prepared.revision!==localRevision||prepared.version<collabRevision)return false;
+      if(isColumnListEditing()){setCollabStatus('正在编辑，保留本机输入，稍后再同步','warn');return false;}
+      if(!installCollabState(prepared.display))return false;
+      collabBaseline=prepared.server;collabRevision=prepared.version;collabNeedsSend=prepared.laterOps.length>0;
+      if(!collabNeedsSend)collabPendingSheetNames.clear();
+      return true;
+    }
+    async function replaceCollabStateAfterTimeout(sentState,localSentState,requestCode=syncCode){
+      if(requestCode!==syncCode||!collabEnabled||cloudPublishingCollab)return false;
+      try{
+        const client=getCloudClient(requestCode),{data,error}=await lockRequest(client.rpc('ggz_replace_collab_state',{p_sync_code:requestCode,p_state:sentState,p_base_revision:collabRevision,p_author_name:editorName||'未命名'}),45000,'实时协作轻量整包同步');
+        if(error)throw error;
+        const row=collabResultRow(data),prepared=await prepareRealtimeResponse(row,sentState,requestCode);
+        if(!commitRealtimeResponse(prepared,requestCode))return false;
+        if((row.out_conflicts||[]).length){recordLocalSnapshot('协作冲突后（未接受修改另行核对）',true);setCollabStatus('云端已有新版本，请核对未合并修改','warn');}
+        else setCollabStatus('实时协作已用轻量整包同步 · 版本 '+collabRevision,'ok');
+        return true;
+      }catch(error){if(requestCode===syncCode&&lockFeatureMissing(error))setCollabStatus('同步未完成：实时协作整包接口尚不可用，本机数据保留','bad');return false;}
     }
     async function flushCollabChanges(){
-      clearTimeout(collabSendTimer); collabSendTimer=null;
+      clearTimeout(collabSendTimer);collabSendTimer=null;
       if(cloudPublishingCollab)return false;
-      if(!collabEnabled||applyingCollab) return true;
-      if(collabSending){ collabNeedsSend=true; return false; }
-      const localSentState=collabProjectSnapshot(),sentState=await collabCloudProjectSnapshot(localSentState),ops=collabDiff(collabBaseline||sentState,sentState);
-      ops.forEach(op=>{
-        const path=Array.isArray(op?.path)?op.path:[];
-        if(String(path[0]||'')==='sheets'){
-          const index=Number(path[1]);
-          op.sheet_name=String(sentState?.sheets?.[index]?.name||collabBaseline?.sheets?.[index]?.name||'');
-        }
-      });
-      if(!ops.length){ collabNeedsSend=false; collabPendingSheetNames.clear(); setCollabStatus(`实时协作已同步 · 版本 ${collabRevision}`,'ok'); return true; }
-      collabPendingSheetNames=new Set(ops.map(op=>op.sheet_name||'项目设置'));
-      collabSending=true; collabNeedsSend=false;
-      let syncError=null;
+      if(!collabEnabled||applyingCollab)return true;
+      if(collabSending||collabPolling){collabNeedsSend=true;return false;}
+      const code=syncCode;collabSending=true;
+      let syncError=null,sentState=null,localSentState=null;
       try{
-        const client=getCloudClient(syncCode), {data,error}=await lockRequest(client.rpc('ggz_apply_collab_patch',{p_sync_code:syncCode,p_patch:ops,p_author_name:editorName||'未命名'}),45000,'实时协作同步');
-        if(error) throw error;
-        const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作云端没有返回状态');
-        const localAfterState=collabProjectSnapshot(),afterState=await collabCloudProjectSnapshot(localAfterState),laterOps=collabDiff(sentState,afterState),serverState=deepClone(row.out_state),displayCloudState=applyCollabOps(deepClone(serverState),laterOps),displayState=preserveMatchingLocalImages(displayCloudState,localAfterState,afterState);
-        const conflicts=Array.isArray(row.out_conflicts)?row.out_conflicts:[];
-        if(conflicts.length){ captureActiveSheet(); recordLocalSnapshot('协作冲突前（本机修改）',true); }
-        collabBaseline=serverState; collabRevision=Number(row.out_revision)||collabRevision; installCollabState(displayState);
-        if(conflicts.length){
-          const conflictPaths=new Set(conflicts.map(item=>JSON.stringify(item.path||[]))), rejectedOps=ops.filter(op=>conflictPaths.has(JSON.stringify(op.path||[])));
-          try{ localStorage.setItem(COLLAB_CONFLICT_KEY_PREFIX+syncCode,JSON.stringify({time:new Date().toISOString(),author:editorName,ops:rejectedOps,conflicts})); }catch(_){}
-          setCollabStatus(`有 ${conflicts.length} 处刚被别人修改，已阻止互相覆盖`,'warn');
-          alert(`有 ${conflicts.length} 处内容和别人同时修改。系统没有覆盖对方的数据，请核对最新表格后重新操作。`);
+        const captured=await stableRealtimeSnapshot(code);sentState=captured.cloud;localSentState=captured.local;
+        if(!collabEnabled||code!==syncCode)return false;
+        const ops=collabDiff(collabBaseline||sentState,sentState);
+        if(!ops.length){
+          if(captured.revision!==localRevision){collabNeedsSend=true;return false;}
+          collabNeedsSend=false;collabPendingSheetNames.clear();setCollabStatus('实时协作已同步 · 版本 '+collabRevision,'ok');return true;
         }
-        else { if(!laterOps.length) collabPendingSheetNames.clear(); setCollabStatus(`实时协作已同步 · 版本 ${collabRevision}`,'ok'); }
-        if(laterOps.length){ collabNeedsSend=true; scheduleCollabSync(); }
+        ops.forEach(op=>{const path=op.path||[];if(String(path[0])==='sheets'){const index=Number(path[1]);op.sheet_name=String(sentState.sheets?.[index]?.name||collabBaseline?.sheets?.[index]?.name||'');}});
+        collabPendingSheetNames=new Set(ops.map(op=>op.sheet_name||'项目设置'));collabNeedsSend=false;
+        const client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_apply_collab_patch',{p_sync_code:code,p_patch:ops,p_author_name:editorName||'未命名'}),45000,'实时协作同步');
+        if(error)throw error;
+        if(code!==syncCode||!collabEnabled)return false;
+        const row=collabResultRow(data),conflicts=Array.isArray(row?.out_conflicts)?row.out_conflicts:[];
+        if(conflicts.length)recordLocalSnapshot('协作冲突前（本机修改）',true);
+        const prepared=await prepareRealtimeResponse(row,sentState,code);
+        if(!commitRealtimeResponse(prepared,code)){if(collabEnabled&&code===syncCode)collabNeedsSend=true;return false;}
+        if(conflicts.length){
+          try{localStorage.setItem(COLLAB_CONFLICT_KEY_PREFIX+code,JSON.stringify({time:new Date().toISOString(),author:editorName,ops,conflicts}));}catch(_){}
+          setCollabStatus('有 '+conflicts.length+' 处同时修改，未接受的本机操作已另存冲突快照，请核对','warn');
+          alert('部分修改与其他人冲突，已保留冲突前本机快照，请核对后重新操作。');
+        }else setCollabStatus('实时协作已同步 · 版本 '+collabRevision,'ok');
         return conflicts.length===0;
       }catch(error){
-        syncError=error;
-        if(isCollabPermissionError(error)){ disableCollabForPermissionError(error); return false; }
-        if(isStatementTimeout(error)&&await replaceCollabStateAfterTimeout(sentState,localSentState)) return true;
-        collabNeedsSend=true; setCollabStatus('同步失败：'+readableSyncError(error)+'，已保留本机修改并重试','bad'); return false;
+        syncError=error;if(code!==syncCode||!collabEnabled)return false;
+        if(isCollabPermissionError(error)){disableCollabForPermissionError(error);return false;}
+        if(sentState&&isStatementTimeout(error)&&await replaceCollabStateAfterTimeout(sentState,localSentState,code))return true;
+        if(collabEnabled){collabNeedsSend=true;setCollabStatus('同步待重试：'+readableSyncError(error)+'；本机修改保留','warn');}return false;
+      }finally{
+        collabSending=false;
+        if(code===syncCode&&collabEnabled&&collabNeedsSend&&!collabSendTimer)collabSendTimer=setTimeout(flushCollabChanges,isStatementTimeout(syncError)?COLLAB_TIMEOUT_RETRY_DELAY_MS:(dataSaverMode?COLLAB_RETRY_DELAY_MS:COLLAB_RETRY_DELAY_FAST_MS));
       }
-      finally{ collabSending=false; if(collabNeedsSend&&!collabSendTimer) collabSendTimer=setTimeout(flushCollabChanges,isStatementTimeout(syncError)?COLLAB_TIMEOUT_RETRY_DELAY_MS:(dataSaverMode?COLLAB_RETRY_DELAY_MS:COLLAB_RETRY_DELAY_FAST_MS)); }
     }
     async function pollCollabState(){
-      if(cloudPublishingCollab)return;
-      if(!collabEnabled||collabPolling||collabSending) return;
-      if(collabNeedsSend||collabSendTimer){ await flushCollabChanges(); return; }
-      collabPolling=true;
+      if(cloudPublishingCollab||!collabEnabled||collabPolling||collabSending)return;
+      if(collabNeedsSend||collabSendTimer){await flushCollabChanges();return;}
+      const code=syncCode,atRevision=localRevision;collabPolling=true;
+      const safe=()=>code===syncCode&&collabEnabled&&!cloudPublishingCollab&&!collabSending&&atRevision===localRevision&&!collabNeedsSend&&!collabSendTimer;
       try{
-        const client=getCloudClient(syncCode), {data,error}=await lockRequest(client.from('ggz_collab_projects').select('revision,updated_by').eq('sync_code',syncCode).maybeSingle(),20000,'实时协作检查');
-        if(error) throw error;
+        const client=getCloudClient(code),{data,error}=await lockRequest(client.from('ggz_collab_projects').select('revision,updated_by').eq('sync_code',code).maybeSingle(),20000,'实时协作检查');
+        if(error)throw error;if(!safe())return;
         if(data&&Number(data.revision)>collabRevision){
-          const {data:latest,error:latestError}=await lockRequest(client.from('ggz_collab_projects').select('state,revision,updated_by').eq('sync_code',syncCode).maybeSingle(),45000,'实时协作读取');
-          if(latestError) throw latestError;
-          if(latest?.state){ const localState=collabProjectSnapshot(),compressedLocalState=await collabCloudProjectSnapshot(localState),displayState=preserveMatchingLocalImages(latest.state,localState,compressedLocalState); collabBaseline=deepClone(latest.state); collabRevision=Number(latest.revision)||collabRevision; installCollabState(displayState); setCollabStatus(`${latest.updated_by||'其他人'}刚刚更新 · 版本 ${collabRevision}`,'ok'); }
+          const {data:latest,error:latestError}=await lockRequest(client.from('ggz_collab_projects').select('state,revision,updated_by').eq('sync_code',code).maybeSingle(),45000,'实时协作读取');
+          if(latestError)throw latestError;if(!safe()||!latest?.state||Number(latest.revision)<=collabRevision)return;
+          const snapshot=await stableRealtimeSnapshot(code);
+          if(!safe()||snapshot.revision!==atRevision||Number(latest.revision)<=collabRevision||isColumnListEditing())return;
+          const display=preserveMatchingLocalImages(latest.state,snapshot.local,snapshot.cloud);
+          if(!installCollabState(display))return;
+          collabBaseline=deepClone(latest.state);collabRevision=Number(latest.revision);setCollabStatus((latest.updated_by||'其他人')+'刚刚更新 · 版本 '+collabRevision,'ok');
         }
       }catch(error){
-        if(isCollabPermissionError(error)){ disableCollabForPermissionError(error); return; }
-        setCollabStatus('实时协作连接暂时中断，正在重试','bad');
+        if(code!==syncCode)return;
+        if(isCollabPermissionError(error)){disableCollabForPermissionError(error);return;}
+        setCollabStatus('实时协作连接暂时中断，本机数据保留，正在重试','bad');
+      }finally{
+        collabPolling=false;
+        if(code===syncCode&&collabEnabled&&collabNeedsSend&&!collabSending&&!collabSendTimer)scheduleCollabSync();
       }
-      finally{ collabPolling=false; }
     }
     async function startCollab(autoStart=false){
+      if(collabConnecting)return false;
       if(cloudPublishingCollab||restoredSnapshotPendingUpload||localStorage.getItem('ggzRestoredPendingPublish_v1:'+syncCode)==='1'){if(!autoStart)await appAlert('恢复或发布尚未完成，请先备份并使用“上传云端”核对发布；现在连接会读回旧协作数据。');return false;}
       const code=normalizedSyncCode(); if(!code){ if(!autoStart) alert('请先加入或新建协作组'); return false; }
       const name=String($('editorNameInput').value||'').trim(); if(!name){ if(!autoStart){ alert('请先填写编辑者名字'); $('editorNameInput').focus(); } return false; }
       syncCode=code; editorName=name; localStorage.setItem('ggzEditorName',editorName); $('startCollabBtn').disabled=true; setCollabStatus('正在连接实时协作…','warn');
+      collabConnecting=true;
       try{
-        const localInitialState=collabProjectSnapshot(),initialState=await collabCloudProjectSnapshot(localInitialState),client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),60000,'实时协作连接');
+        const captured=await stableRealtimeSnapshot(code),localInitialState=captured.local,initialState=captured.cloud,client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),60000,'实时协作连接');
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作状态为空');
         if(!autoStart&&!collabStatesEqual(row.out_state,initialState)){
           const accepted=await appConfirm('协作云端已经有其他人的版本。开启后会先以协作云端为准，确定继续吗？','发现协作版本','继续开启');
           if(!accepted){ syncCollabUI(); return false; }
         }
+        if(code!==syncCode)return false;
+        if(captured.revision!==localRevision||isColumnListEditing()){pauseRealtimeForSafety('连接期间出现本机新编辑，已停止应用旧连接结果');return false;}
         const displayState=preserveMatchingLocalImages(row.out_state,localInitialState,initialState);
         collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=deepClone(row.out_state); installCollabState(displayState);
         localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1'); clearIdleCloudUpload(); startCollabPolling(); syncCollabUI(); startCollabPresence(); setCollabStatus(`实时协作已连接 · 版本 ${collabRevision}`,'ok'); setCloudStatus('完整云端备份可手动上传'); return true;
       }catch(error){
+        if(code!==syncCode)return false;
         collabEnabled=false; syncCollabUI();
         const reason=readableCollabError(error);
         if(lockFeatureMissing(error)&&!autoStart) alert('实时协作 SQL 尚未安装，请在 Supabase 执行最新的完整 supabase_setup.sql。');
         else if(!autoStart) alert('开启实时协作失败：'+reason);
         setCollabStatus('实时协作尚未连接：'+reason,'bad'); return false;
-      }
+      }finally{collabConnecting=false;}
     }
     async function stopCollab(){
       if(!collabEnabled) return;
@@ -8582,7 +8621,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function dispatchInlineShipmentChoices(group){
       const draft=dispatchBatchShipDraft;if(!draft||group.shipped)return '';
       const refs=(group.shipmentRefs||[]).map(ref=>({ref,index:draft.items.findIndex(item=>dispatchShipmentRefKey(item)===dispatchShipmentRefKey(ref))})).filter(entry=>entry.index>=0);
-      const pieces=refs.map(({index,ref},n)=>`<label class="dispatch-inline-choice" data-html2canvas-ignore="true"><input type="checkbox" data-dispatch-inline-index="${index}" ${draft.selectedIndices?.has(index)?'checked':''} aria-label="选择 ${escapeAttr(group.item)} 第 ${n+1} 件">${refs.length>1?'第 '+(ref.row+1)+' 行':'选'}</label>`).join('');
+      const pieces=refs.map(({index,ref},n)=>`<label class="dispatch-inline-choice" data-html2canvas-ignore="true"><input type="checkbox" data-dispatch-inline-index="${index}" ${draft.selectedIndices?.has(index)?'checked':''} aria-label="选择 ${escapeAttr(group.item)} 第 ${n+1} 件">${refs.length>1?'第 '+(ref.row+1)+' 行':''}</label>`).join('');
       if(refs.length<=1)return pieces;
       const indices=refs.map(entry=>entry.index),count=indices.filter(i=>draft.selectedIndices?.has(i)).length,encoded=escapeAttr(indices.join(','));
       return `<span class="dispatch-inline-quantity" data-html2canvas-ignore="true"><label><input type="checkbox" data-dispatch-inline-whole="${encoded}" ${count===refs.length?'checked':''} aria-label="选中整款 ${escapeAttr(group.item)}">整款</label><label>本次发 <input type="number" inputmode="numeric" min="0" max="${refs.length}" step="1" value="${count}" data-dispatch-inline-quantity="${encoded}" aria-label="本次发货数量，按本款排单顺序选取"> / ${refs.length} 件</label><button type="button" class="dispatch-piece-toggle" data-dispatch-inline-expand aria-expanded="false">逐件选择</button><span class="dispatch-inline-piece-grid" hidden>${pieces}</span></span>`;
