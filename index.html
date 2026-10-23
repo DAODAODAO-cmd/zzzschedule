@@ -829,14 +829,16 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button class="btn-ghost" id="dispatchCopyBtn" data-mobile-label="复制">复制文字清单</button>
     </div>
     <div id="dispatchWrap"><div id="dispatchList"></div></div>
-    <dialog id="dispatchBatchShipDialog" class="arrival-edit-dialog" data-html2canvas-ignore="true">
+    <section id="dispatchBatchShipDialog" class="inline-batch-editor" hidden data-html2canvas-ignore="true" aria-label="发货批量选择">
       <div class="arrival-edit-head"><strong>批量标记已发货</strong><button type="button" class="btn-ghost" id="closeDispatchBatchShipBtn">取消</button></div>
       <p class="hint" id="dispatchBatchShipHint">按排发状态及 CN 搜索筛选，只列未发货的件；每行一件，不修改到货或账目。</p>
       <label>分组方式 <select id="dispatchBatchGroupMode"><option value="person">按 CN 选人</option><option value="sheet">按排单选表</option></select></label>
+      <label>搜索 CN <input id="dispatchBatchPersonSearch" type="search" placeholder="输入名字查找，变更搜索会清空勾选"></label>
+      <label>本次发货件数 <input id="dispatchBatchShipQty" type="text" readonly value="0" aria-label="本次发货件数，随勾选自动统计"></label>
       <div class="arrival-edit-selection"><button type="button" class="btn-ghost" id="selectReadyDispatchBatchBtn">只选可排发</button><button type="button" class="btn-ghost" id="selectAllDispatchBatchBtn">全选</button><button type="button" class="btn-ghost" id="clearDispatchBatchBtn">全不选</button></div>
       <div id="dispatchBatchShipChoices" class="arrival-edit-choices"></div>
-      <div class="arrival-edit-footer"><span id="dispatchBatchShipCount">已选 0 件</span><button type="button" class="btn-primary" id="applyDispatchBatchShipBtn" disabled>确认批量发货</button></div>
-    </dialog>
+      <div class="arrival-edit-footer"><span id="dispatchBatchShipCount">已选 0 件</span><button type="button" class="btn-ghost" id="cancelDispatchBatchInlineBtn">取消</button><button type="button" class="btn-primary" id="applyDispatchBatchShipBtn" disabled>确认批量发货</button></div>
+    </section>
   </div>
 
   <div class="panel" id="logisticsPanel">
@@ -858,7 +860,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div id="logisticsWrap"><div id="logisticsList"></div></div>
   </div>
 
-  <dialog id="logisticsArrivalDialog" class="arrival-edit-dialog"><div class="arrival-edit-head"><strong id="logisticsArrivalTitle">标记到货</strong><button type="button" class="btn-ghost" id="closeLogisticsArrivalBtn">返回</button></div><div class="arrival-edit-fields"><label>到货阶段<select id="logisticsArrivalStage"><option value="island">岛内到货</option><option value="china">到国内</option></select></label><label>操作<select id="logisticsArrivalOperation"><option value="mark">标记未到货的件</option><option value="remove">撤销已有到货标记</option></select></label><label>到货日期<input type="date" id="logisticsArrivalDate"></label></div><p class="hint">每一行对应一件谷子。部分到货请核对 CN 后选择；不会改买到标记、收退款或生成国际费。已有到货日期不会被新日期覆盖。</p><div class="arrival-edit-selection"><label>本次件数<input type="number" id="logisticsArrivalQty" min="1" step="1" value="1"></label><button type="button" class="btn-ghost" id="selectLogisticsArrivalQtyBtn">按下列顺序选取</button><button type="button" class="btn-ghost" id="selectAllLogisticsArrivalBtn">全选可操作件</button><button type="button" class="btn-ghost" id="clearLogisticsArrivalBtn">全不选</button></div><div id="logisticsArrivalChoices" class="arrival-edit-choices"></div><div class="arrival-edit-footer"><span id="logisticsArrivalSelectionCount">已选 0 件</span><button type="button" class="btn-primary" id="applyLogisticsArrivalBtn">确认选中件到货</button></div></dialog>
+  <section id="logisticsArrivalDialog" class="inline-batch-editor" hidden data-html2canvas-ignore="true" aria-label="到货批量选择"><div class="arrival-edit-head"><strong id="logisticsArrivalTitle">标记到货</strong><button type="button" class="btn-ghost" id="closeLogisticsArrivalBtn">取消选择</button></div><div class="arrival-edit-fields"><label>到货阶段<select id="logisticsArrivalStage"><option value="island">岛内到货</option><option value="china">到国内</option></select></label><label>操作<select id="logisticsArrivalOperation"><option value="mark">标记未到货的件</option><option value="remove">撤销已有到货标记</option></select></label><label>到货日期<input type="date" id="logisticsArrivalDate"></label></div><p class="hint">每一行对应一件谷子。部分到货请核对 CN 后选择；不会改买到标记、收退款或生成国际费。已有到货日期不会被新日期覆盖。</p><div class="arrival-edit-selection"><label>本次到货件数<input type="text" id="logisticsArrivalQty" readonly value="0" aria-label="本次选中件数，随勾选自动统计"></label><button type="button" class="btn-ghost" id="selectAllLogisticsArrivalBtn">全选可操作件</button><button type="button" class="btn-ghost" id="clearLogisticsArrivalBtn">全不选</button></div><label>搜索 CN<input type="search" id="logisticsArrivalPersonSearch" placeholder="输入名字查找；改变搜索会清空勾选"></label><div id="logisticsArrivalChoices" class="arrival-edit-choices"></div><div class="arrival-edit-footer"><span id="logisticsArrivalSelectionCount">已选 0 件</span><button type="button" class="btn-ghost" id="cancelLogisticsArrivalInlineBtn">取消</button><button type="button" class="btn-primary" id="applyLogisticsArrivalBtn">确认选中件到货</button></div></section>
   <div class="panel" id="settingsPanel">
     <h2>设置与数据</h2>
     <div class="settings-cloud-tip"><strong>云端同步</strong><span>进入协作组后会自动实时同步：你修改后马上上传，对方打开或等待几秒就能看到最新版本。</span></div>
@@ -1335,6 +1337,8 @@ html{ scrollbar-gutter:stable; }
 .arrival-edit-dialog{width:min(660px,94vw);max-height:88dvh;box-sizing:border-box;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--text);}
 .arrival-edit-dialog[open]{display:flex;flex-direction:column;gap:12px;overflow:hidden;}
 .arrival-edit-dialog::backdrop{background:#251b2a70;}
+.inline-batch-editor{display:flex;flex-direction:column;gap:12px;width:100%;box-sizing:border-box;padding:14px;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:#fff;scroll-margin-top:12px;}
+.inline-batch-editor[hidden]{display:none!important;}.inline-batch-editor .arrival-edit-choices{max-height:none;overflow:visible;overscroll-behavior:auto;}.inline-batch-editor>label{display:grid;gap:5px;font-size:12px;}.inline-batch-editor>label input,.inline-batch-editor>label select{width:100%;min-height:44px;padding:8px;border:1px solid var(--line);border-radius:8px;box-sizing:border-box;background:#faf8fb;color:var(--text);font:inherit;}.inline-batch-editor button{min-height:44px;touch-action:manipulation;}.inline-batch-editor .arrival-edit-footer{position:sticky;bottom:0;z-index:4;background:#fff;padding:12px 0 calc(10px + env(safe-area-inset-bottom,0px));box-shadow:0 -5px 10px #fff;flex-wrap:wrap;}.inline-batch-editor .arrival-edit-footer>span{margin-right:auto;font-weight:700;}.inline-batch-editor .dispatch-batch-group{padding:10px;border:1px solid var(--line);border-radius:10px;background:#fcfafd;}.inline-batch-editor .dispatch-batch-group summary{cursor:pointer;min-height:36px;line-height:36px;}.inline-batch-editor .dispatch-batch-group .arrival-edit-selection{margin:6px 0;}.inline-batch-editor .arrival-edit-head strong{overflow-wrap:anywhere;}@media(max-width:620px){.inline-batch-editor{padding:10px;}.inline-batch-editor .arrival-edit-footer{gap:7px;}.inline-batch-editor .arrival-edit-footer button{flex:1;}.inline-batch-editor .arrival-edit-footer>span{flex-basis:100%;}}
 .arrival-edit-head,.arrival-edit-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;}
 .arrival-edit-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
 .arrival-edit-fields label,.arrival-edit-selection label{display:grid;gap:5px;font-size:12px;min-width:0;}
@@ -8565,8 +8569,14 @@ body.export-rendering .cart-count{ font-size:28px; }
           const payOk=group.goodsPaidQty===group.qty&&(!group.intlNeededQty||group.intlPaidQty===group.intlNeededQty);
           return `<div class="dispatch-sheet-group"><div class="dispatch-sheet-head"><b>${escapeHtml(group.sheet)}</b><small>${group.items.length}款 · ${group.qty}件 · <span class="dispatch-pay-main ${payOk?'is-ok':''}">${escapeHtml(status)}</span></small></div><div class="dispatch-chip-list">${shown}</div></div>`;
         }).join('');
-        return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><button type="button" class="dispatch-rename-btn" data-dispatch-rename="${encodeURIComponent(person.name)}" aria-label="修改 CN ${escapeAttr(person.name)}">改名</button><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount} · 已发 ${shippedCount}</span></div><div class="dispatch-items">${items}</div></div>`;
+        return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><button type="button" class="dispatch-rename-btn" data-dispatch-rename="${encodeURIComponent(person.name)}" aria-label="修改 CN ${escapeAttr(person.name)}">改名</button><button type="button" class="dispatch-action" data-dispatch-person-ship="${escapeAttr(encodeURIComponent(person.name))}" data-html2canvas-ignore="true">本人的批量发货</button><span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount} · 已发 ${shippedCount}</span></div><div class="dispatch-items">${items}</div></div>`;
       }).join('');
+    }
+    function openInlineBatchEditor(id,wrapId){
+      const editor=$(id),wrap=$(wrapId);wrap.before(editor);wrap.hidden=true;editor.hidden=false;editor.scrollIntoView({block:'start',behavior:'smooth'});
+    }
+    function closeInlineBatchEditor(id){
+      $(id).hidden=true;$(id==='dispatchBatchShipDialog'?'dispatchWrap':'logisticsWrap').hidden=false;
     }
     let dispatchBatchShipDraft=null,dispatchBatchShipSaving=false;
     function dispatchShipmentRefKey(ref){return JSON.stringify([String(ref.sheetId),String(ref.colId),Number(ref.row),String(ref.person),String(ref.item)]);}
@@ -8579,25 +8589,27 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function syncDispatchBatchShipCount(){
       const count=$('dispatchBatchShipChoices').querySelectorAll('input[data-dispatch-batch-index]:checked').length;
+      $('dispatchBatchShipQty').value=String(count);
       $('dispatchBatchShipCount').textContent=`已选 ${count} 件`;$('applyDispatchBatchShipBtn').disabled=!count||dispatchBatchShipSaving;
     }
     function renderDispatchBatchGroups(){
       const selected=new Set([...$('dispatchBatchShipChoices').querySelectorAll('input[data-dispatch-batch-index]:checked')].map(input=>Number(input.dataset.dispatchBatchIndex)));
-      const bySheet=$('dispatchBatchGroupMode').value==='sheet',groups=new Map();
-      (dispatchBatchShipDraft?.items||[]).forEach((item,index)=>{const key=bySheet?String(item.sheetId):normalizeDispatchKey(item.person);if(!groups.has(key))groups.set(key,{label:bySheet?item.sheet:item.person,items:[]});groups.get(key).items.push({item,index});});
+      const bySheet=$('dispatchBatchGroupMode').value==='sheet',query=normalizeDispatchKey($('dispatchBatchPersonSearch').value),groups=new Map();
+      (dispatchBatchShipDraft?.items||[]).forEach((item,index)=>{if(query&&!normalizeDispatchKey(item.person).includes(query))return;const key=bySheet?String(item.sheetId):normalizeDispatchKey(item.person);if(!groups.has(key))groups.set(key,{label:bySheet?item.sheet:item.person,items:[]});groups.get(key).items.push({item,index});});
       $('dispatchBatchShipChoices').innerHTML=[...groups.values()].map(group=>`<details class="dispatch-batch-group" open><summary><b>${escapeHtml(group.label)}</b> · ${group.items.length} 件</summary><div class="arrival-edit-selection"><button type="button" class="btn-ghost" data-dispatch-batch-group="${group.items.map(entry=>entry.index).join(',')}" data-select-group="1">选中本${bySheet?'表':'人'}</button><button type="button" class="btn-ghost" data-dispatch-batch-group="${group.items.map(entry=>entry.index).join(',')}" data-select-group="0">取消本${bySheet?'表':'人'}</button></div>${group.items.map(({item,index})=>`<label class="dispatch-batch-choice"><input type="checkbox" data-dispatch-batch-index="${index}"${selected.has(index)?' checked':''}><span><b>${escapeHtml(item.person)}</b> · ${escapeHtml(item.item)}<small>${escapeHtml(item.sheet)} · 第 ${item.row+1} 行 · ${item.ready?'可排发':'尚未满足到货／收款条件，请核对'}</small></span></label>`).join('')}</details>`).join('');
       syncDispatchBatchShipCount();
     }
-    async function openDispatchBatchShip(){
+    async function openDispatchBatchShip(personName=''){
       if(dispatchBatchShipSaving)return;
-      const all=buildDispatchRecords(),query=normalizeDispatchKey($('dispatchSearchInput').value);
-      const items=all.filter(person=>!query||person.key.includes(query)).flatMap(person=>dispatchVisibleItems(person)).filter(item=>!item.shipped);
+      const exact=typeof personName==='string'&&personName.trim()?normalizeDispatchKey(personName):'',all=buildDispatchRecords(),query=exact||normalizeDispatchKey($('dispatchSearchInput').value);
+      const items=all.filter(person=>exact?person.key===exact:(!query||person.key.includes(query))).flatMap(person=>dispatchVisibleItems(person)).filter(item=>!item.shipped);
       if(!items.length){await appAlert('当前状态及 CN 搜索条件下没有未发货的谷子。请先切换“未发货”或“可排发”，或清空 CN 搜索。');return;}
       dispatchBatchShipDraft={code:String(syncCode||''),items:deepClone(items)};
+      $('dispatchBatchPersonSearch').value='';
       $('dispatchBatchShipChoices').innerHTML='';
-      $('dispatchBatchShipHint').textContent=`范围：${dispatchFilterLabel()}${query?' · CN 包含 '+$('dispatchSearchInput').value:' · 全部 CN'}，共 ${items.length} 件未发货。每行一件，默认不选；不会修改到货、买齐或账目。`;
+      $('dispatchBatchShipHint').textContent=`范围：${dispatchFilterLabel()}${exact?' · CN '+personName:query?' · CN 包含 '+$('dispatchSearchInput').value:' · 全部 CN'}，共 ${items.length} 件未发货。每行一件，默认不选；不会修改到货、买齐或账目。`;
       renderDispatchBatchGroups();
-      syncDispatchBatchShipCount();$('dispatchBatchShipDialog').showModal();
+      syncDispatchBatchShipCount();openInlineBatchEditor('dispatchBatchShipDialog','dispatchWrap');
     }
     async function applyDispatchBatchShip(){
       if(dispatchBatchShipSaving||!dispatchBatchShipDraft)return;
@@ -8618,7 +8630,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           for(const item of plan.items){const sheet=sheets.find(s=>s.id===item.sheetId);sheet.dispatchShippedCells=sheet.dispatchShippedCells||{};sheet.dispatchShippedCells[`${item.colId}:${item.row}`]={person:item.person,item:item.item,at};}
           if(!saveState({snapshotReason:'批量发货后',forceSnapshot:true,flushCollabNow:true}))throw new Error('本机保存失败');
         }catch(error){for(const entry of touched){if(entry.had)entry.sheet.dispatchShippedCells=entry.before;else delete entry.sheet.dispatchShippedCells;}throw error;}
-        $('dispatchBatchShipDialog').close();dispatchBatchShipDraft=null;renderDispatch();
+        closeInlineBatchEditor('dispatchBatchShipDialog');dispatchBatchShipDraft=null;renderDispatch();
         await appAlert(`已在本机保存 ${plan.items.length} 件发货标记。${collabEnabled?'实时协作已排队同步，请留意顶部同步结果。':'实时协作未开启，其他设备尚未更新。'}`);
       }catch(error){await appAlert('批量发货未完成：'+(error.message||error));}
       finally{dispatchBatchShipSaving=false;syncDispatchBatchShipCount();}
@@ -8714,6 +8726,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(!saveState()){sheets=before;await appAlert('发货标记未能保存，请先导出 JSON 备份并处理存储空间。','保存失败');}
         renderDispatch();return;
       }
+      const personShip=e.target.closest('[data-dispatch-person-ship]');if(personShip){await openDispatchBatchShip(decodeURIComponent(personShip.dataset.dispatchPersonShip));return;}
       const button=e.target.closest('[data-dispatch-rename]');if(!button)return;
       const from=decodeURIComponent(button.dataset.dispatchRename||'');
       const answer=await appPrompt('新的 CN 名字：\n会同步更新排单、收款、均摊、国际费用和排发。新名字已存在时，可合并为同一人；下一步先预览。',from,'修改 CN','下一步预览');
@@ -8726,10 +8739,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('undoRenameCnBtn').addEventListener('click',()=>undoCnMerge().catch(error=>{console.error(error);appAlert(error.message||'撤销失败，备份仍保留');}));
     $('dispatchSearchBtn').addEventListener('click',dispatchSearch);
     $('dispatchBatchShipBtn').addEventListener('click',openDispatchBatchShip);
-    $('closeDispatchBatchShipBtn').addEventListener('click',()=>{if(!dispatchBatchShipSaving){$('dispatchBatchShipDialog').close();dispatchBatchShipDraft=null;}});
-    $('dispatchBatchShipDialog').addEventListener('cancel',e=>{if(dispatchBatchShipSaving)e.preventDefault();else dispatchBatchShipDraft=null;});
+    function cancelDispatchInlineSelection(){if(!dispatchBatchShipSaving){closeInlineBatchEditor('dispatchBatchShipDialog');dispatchBatchShipDraft=null;}}
+    $('closeDispatchBatchShipBtn').addEventListener('click',cancelDispatchInlineSelection);
+    $('cancelDispatchBatchInlineBtn').addEventListener('click',cancelDispatchInlineSelection);
     $('dispatchBatchShipChoices').addEventListener('change',syncDispatchBatchShipCount);
     $('dispatchBatchGroupMode').addEventListener('change',()=>{if(!dispatchBatchShipSaving)renderDispatchBatchGroups();});
+    $('dispatchBatchPersonSearch').addEventListener('input',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').innerHTML='';renderDispatchBatchGroups();});
     $('dispatchBatchShipChoices').addEventListener('click',e=>{const button=e.target.closest('[data-dispatch-batch-group]');if(!button||dispatchBatchShipSaving)return;const indices=new Set(button.dataset.dispatchBatchGroup.split(','));$('dispatchBatchShipChoices').querySelectorAll('input[data-dispatch-batch-index]').forEach(input=>{if(indices.has(input.dataset.dispatchBatchIndex))input.checked=button.dataset.selectGroup==='1';});syncDispatchBatchShipCount();});
     $('selectAllDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=true);syncDispatchBatchShipCount();});
     $('clearDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=false);syncDispatchBatchShipCount();});
@@ -8797,18 +8812,20 @@ body.export-rendering .cart-count{ font-size:28px; }
       const edit=logisticsArrivalEditing,sheet=sheets.find(s=>String(s.id)===String(edit?.sheetId));if(!sheet)return;
       const stage=$('logisticsArrivalStage').value,operation=$('logisticsArrivalOperation').value,store=sheet[stage==='island'?'matrixIslandCells':'matrixChinaCells']||{},cols=orderDisplayColumns(sheet.columns||[],sheet.pricingGroups||[],sheet.allocations||{});
       $('logisticsArrivalDate').disabled=operation==='remove';
-      $('logisticsArrivalChoices').innerHTML=edit.refs.map((ref,i)=>{const col=cols.find(c=>String(c.id)===String(ref.colId)),date=col?logisticsCellMark(col,ref.row,ref.person,store,sheet.allocations||{}):'',disabled=!col||(operation==='mark'?!!date:!date);return `<label class="arrival-edit-choice"><input type="checkbox" data-arrival-choice="${i}" ${disabled?'disabled':''}><span>${escapeHtml(ref.person)} · ${escapeHtml(ref.item)} · 第${ref.row+1}行<br><small>${date?'已标记 '+escapeHtml(date):'尚未标记本阶段到货'}</small></span></label>`;}).join('');
+      const query=normalizeDispatchKey($('logisticsArrivalPersonSearch').value),groups=new Map();
+      edit.refs.forEach((ref,i)=>{if(query&&!normalizeDispatchKey(ref.person).includes(query))return;const key=normalizeDispatchKey(ref.person);if(!groups.has(key))groups.set(key,{person:ref.person,refs:[]});groups.get(key).refs.push({ref,i});});
+      $('logisticsArrivalChoices').innerHTML=[...groups.values()].map(group=>`<details class="dispatch-batch-group" open><summary><b>${escapeHtml(group.person)}</b> · ${group.refs.length} 件</summary><div class="arrival-edit-selection"><button type="button" class="btn-ghost" data-arrival-person="${escapeAttr(encodeURIComponent(group.person))}" data-arrival-person-select="1">选中此人</button><button type="button" class="btn-ghost" data-arrival-person="${escapeAttr(encodeURIComponent(group.person))}" data-arrival-person-select="0">取消此人</button></div>${group.refs.map(({ref,i})=>{const col=cols.find(c=>String(c.id)===String(ref.colId)),date=col?logisticsCellMark(col,ref.row,ref.person,store,sheet.allocations||{}):'',disabled=!col||(operation==='mark'?!!date:!date);return `<label class="arrival-edit-choice"><input type="checkbox" data-arrival-choice="${i}" ${disabled?'disabled':''}><span>${escapeHtml(ref.person)} · ${escapeHtml(ref.item)} · 第${ref.row+1}行<br><small>${date?'已标记 '+escapeHtml(date):'尚未标记本阶段到货'}</small></span></label>`;}).join('')}</details>`).join('')||'<p class="hint">没有匹配的 CN，请修改搜索。</p>';
       syncLogisticsArrivalSelection();
     }
-    function syncLogisticsArrivalSelection(){const count=$('logisticsArrivalChoices').querySelectorAll('input:checked:not(:disabled)').length;$('logisticsArrivalSelectionCount').textContent=`已选 ${count} 件`;$('applyLogisticsArrivalBtn').disabled=!count;$('applyLogisticsArrivalBtn').textContent=($('logisticsArrivalOperation').value==='remove'?'确认撤销 ':'确认到货 ')+count+' 件';}
+    function syncLogisticsArrivalSelection(){const count=$('logisticsArrivalChoices').querySelectorAll('input:checked:not(:disabled)').length;$('logisticsArrivalQty').value=String(count);$('logisticsArrivalSelectionCount').textContent=`已选 ${count} 件`;$('applyLogisticsArrivalBtn').disabled=!count;$('applyLogisticsArrivalBtn').textContent=($('logisticsArrivalOperation').value==='remove'?'确认撤销 ':'确认到货 ')+count+' 件';}
     function openLogisticsArrival(target){
       captureActiveSheet();const sheet=sheets.find(s=>String(s.id)===String(target?.sheetId));if(!sheet)return;
       logisticsArrivalEditing={...deepClone(target),signature:logisticsArrivalSignature(sheet),workspace:String(syncCode||'')};$('logisticsArrivalTitle').textContent=target.label;
-      $('logisticsArrivalStage').value='china';$('logisticsArrivalOperation').value='mark';$('logisticsArrivalDate').value=todayISO();$('logisticsArrivalQty').value='1';renderLogisticsArrivalChoices();$('logisticsArrivalDialog').showModal();
+      $('logisticsArrivalStage').value='china';$('logisticsArrivalOperation').value='mark';$('logisticsArrivalDate').value=todayISO();$('logisticsArrivalQty').value='0';$('logisticsArrivalPersonSearch').value='';renderLogisticsArrivalChoices();openInlineBatchEditor('logisticsArrivalDialog','logisticsWrap');
     }
     async function applyLogisticsArrival(){
       const edit=logisticsArrivalEditing;if(!edit)return;captureActiveSheet();const sheet=sheets.find(s=>String(s.id)===String(edit.sheetId));
-      if(!sheet||edit.workspace!==String(syncCode||'')||edit.signature!==logisticsArrivalSignature(sheet)){$('logisticsArrivalDialog').close();await appAlert('窗口打开期间排单或到货标记发生变化，本次未应用。请重新打开核对。');return;}
+      if(!sheet||edit.workspace!==String(syncCode||'')||edit.signature!==logisticsArrivalSignature(sheet)){closeInlineBatchEditor('logisticsArrivalDialog');await appAlert('窗口打开期间排单或到货标记发生变化，本次未应用。请重新打开核对。');return;}
       try{
         const refs=[...$('logisticsArrivalChoices').querySelectorAll('input:checked:not(:disabled)')].map(input=>edit.refs[Number(input.dataset.arrivalChoice)]),stage=$('logisticsArrivalStage').value,date=$('logisticsArrivalDate').value,operation=$('logisticsArrivalOperation').value;
         if(!refs.length)return;const plan=buildLogisticsArrivalChanges(sheet,refs,stage,date,operation),before=deepClone(sheet[plan.field]||{}),history=deepClone(sheet.logisticsArrivalHistory||[]);
@@ -8817,8 +8834,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(sheet.id===activeSheetId){matrixIslandCells=deepClone(sheet.matrixIslandCells||{});matrixChinaCells=deepClone(sheet.matrixChinaCells||{});}
         let saved=false;try{saved=saveState();}catch(_){}
         if(!saved){sheet[plan.field]=before;sheet.logisticsArrivalHistory=history;if(sheet.id===activeSheetId){matrixIslandCells=deepClone(sheet.matrixIslandCells||{});matrixChinaCells=deepClone(sheet.matrixChinaCells||{});}throw new Error('本机保存失败，已保留原到货状态，请先备份并处理空间');}
-        $('logisticsArrivalDialog').close();logisticsArrivalEditing=null;renderMatrix();renderLogistics();renderDispatch();
-      }catch(error){$('logisticsArrivalDialog').close();await appAlert(error.message||'到货未保存');}
+        closeInlineBatchEditor('logisticsArrivalDialog');logisticsArrivalEditing=null;renderMatrix();renderLogistics();renderDispatch();
+      }catch(error){closeInlineBatchEditor('logisticsArrivalDialog');await appAlert(error.message||'到货未保存');}
     }
     async function undoLogisticsArrival(){
       captureActiveSheet();const latest=sheets.map(sheet=>({sheet,entry:sheet.logisticsArrivalHistory?.at(-1)})).filter(x=>x.entry).sort((a,b)=>b.entry.at-a.entry.at)[0];if(!latest){await appAlert('暂无可撤回的到货操作。');return;}
@@ -8904,13 +8921,15 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     $('logisticsRefreshBtn').addEventListener('click',renderLogistics);
     $('logisticsList').addEventListener('click',e=>{const button=e.target.closest('[data-logi-arrival]');if(button){const target=logisticsArrivalTargets.get(button.dataset.logiArrival);if(target)openLogisticsArrival(target);}});
-    $('closeLogisticsArrivalBtn').addEventListener('click',()=>$('logisticsArrivalDialog').close());
+    $('closeLogisticsArrivalBtn').addEventListener('click',()=>closeInlineBatchEditor('logisticsArrivalDialog'));
+    $('cancelLogisticsArrivalInlineBtn').addEventListener('click',()=>{closeInlineBatchEditor('logisticsArrivalDialog');logisticsArrivalEditing=null;});
     $('logisticsArrivalStage').addEventListener('change',renderLogisticsArrivalChoices);
     $('logisticsArrivalOperation').addEventListener('change',renderLogisticsArrivalChoices);
     $('logisticsArrivalChoices').addEventListener('change',syncLogisticsArrivalSelection);
     $('selectAllLogisticsArrivalBtn').addEventListener('click',()=>{$('logisticsArrivalChoices').querySelectorAll('input:not(:disabled)').forEach(input=>input.checked=true);syncLogisticsArrivalSelection();});
     $('clearLogisticsArrivalBtn').addEventListener('click',()=>{$('logisticsArrivalChoices').querySelectorAll('input').forEach(input=>input.checked=false);syncLogisticsArrivalSelection();});
-    $('selectLogisticsArrivalQtyBtn').addEventListener('click',()=>{const qty=Number($('logisticsArrivalQty').value),inputs=[...$('logisticsArrivalChoices').querySelectorAll('input:not(:disabled)')];if(!Number.isInteger(qty)||qty<1||qty>inputs.length){$('logisticsArrivalSelectionCount').textContent=`本阶段可操作 ${inputs.length} 件，请填写 1—${inputs.length} 的整数`;return;}inputs.forEach((input,i)=>input.checked=i<qty);syncLogisticsArrivalSelection();});
+    $('logisticsArrivalPersonSearch').addEventListener('input',renderLogisticsArrivalChoices);
+    $('logisticsArrivalChoices').addEventListener('click',e=>{const button=e.target.closest('[data-arrival-person]');if(!button)return;const key=normalizeDispatchKey(decodeURIComponent(button.dataset.arrivalPerson));$('logisticsArrivalChoices').querySelectorAll('input[data-arrival-choice]:not(:disabled)').forEach(input=>{const ref=logisticsArrivalEditing?.refs[Number(input.dataset.arrivalChoice)];if(ref&&normalizeDispatchKey(ref.person)===key)input.checked=button.dataset.arrivalPersonSelect==='1';});syncLogisticsArrivalSelection();});
     $('applyLogisticsArrivalBtn').addEventListener('click',applyLogisticsArrival);
     $('undoLogisticsArrivalBtn').addEventListener('click',undoLogisticsArrival);
     $('logisticsDateFilter').addEventListener('change',()=>{ logisticsDateFilterVal=$('logisticsDateFilter').value||''; $('logisticsDateClear').classList.toggle('is-on',!logisticsDateFilterVal); renderLogistics(); });
