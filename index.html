@@ -332,7 +332,9 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button id="stopCollabBtn" class="btn-ghost" disabled style="display:none;">关闭实时同步</button>
     <button id="dataSaverBtn" class="btn-ghost" type="button" style="display:none;">省流量：开</button>
     <button id="cloudUploadBtn" class="btn-primary">上传云端</button>
-    <button id="cloudDownloadBtn" class="btn-ghost">读取云端</button>
+    <button id="cloudDownloadBtn" class="btn-ghost">读取／下载云端</button>
+    <button id="manualGroupSnapshotBtn" class="btn-ghost" type="button">保存快照</button>
+    <button id="groupSnapshotInfoBtn" class="btn-ghost" type="button">快照说明</button>
     <span id="localStatus">本机已保存</span>
     <span id="cloudStatus">尚未选择协作组</span>
     <span id="collabStatus">打开后自动实时同步</span>
@@ -830,6 +832,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <dialog id="dispatchBatchShipDialog" class="arrival-edit-dialog" data-html2canvas-ignore="true">
       <div class="arrival-edit-head"><strong>批量标记已发货</strong><button type="button" class="btn-ghost" id="closeDispatchBatchShipBtn">取消</button></div>
       <p class="hint" id="dispatchBatchShipHint">按排发状态及 CN 搜索筛选，只列未发货的件；每行一件，不修改到货或账目。</p>
+      <label>分组方式 <select id="dispatchBatchGroupMode"><option value="person">按 CN 选人</option><option value="sheet">按排单选表</option></select></label>
       <div class="arrival-edit-selection"><button type="button" class="btn-ghost" id="selectReadyDispatchBatchBtn">只选可排发</button><button type="button" class="btn-ghost" id="selectAllDispatchBatchBtn">全选</button><button type="button" class="btn-ghost" id="clearDispatchBatchBtn">全不选</button></div>
       <div id="dispatchBatchShipChoices" class="arrival-edit-choices"></div>
       <div class="arrival-edit-footer"><span id="dispatchBatchShipCount">已选 0 件</span><button type="button" class="btn-primary" id="applyDispatchBatchShipBtn" disabled>确认批量发货</button></div>
@@ -2185,7 +2188,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('workspaceInviteList').innerHTML=workspaceInvites.length?workspaceInvites.map(invite=>`<div class="workspace-list-row" data-workspace-invite="${escapeAttr(invite.id)}"><div><strong>${escapeHtml(invite.group_name)}</strong><br><small>${escapeHtml(invite.invited_by_name)} 邀请你加入</small></div><span class="workspace-row-actions"><button type="button" data-invite-action="decline">拒绝</button><button type="button" class="primary" data-invite-action="accept">接受</button></span></div>`).join(''):'<div class="workspace-list-empty">暂时没有新邀请</div>';
       $('syncCodeInput').value=syncCode;
       $('cloudUploadBtn').disabled=!group||cloudBusy;
-      $('cloudDownloadBtn').disabled=!group||cloudBusy||collabEnabled;
+      $('cloudDownloadBtn').disabled=!group||cloudBusy;
       syncCollabUI();
     }
     async function disconnectCurrentWorkspace(){
@@ -3875,6 +3878,44 @@ body.export-rendering .cart-count{ font-size:28px; }
         }
       }
       finally{cloudBusy=false;cloudPublishingCollab=false;if(collabEnabled&&collabNeedsSend)scheduleCollabSync();}
+    }
+    async function manualReadOrDownloadCloud(){
+      const code=normalizedSyncCode();if(!code){await appAlert('请先选择协作组。');return;}
+      if(cloudBusy||cloudPublishingCollab||collabSending||collabPolling){await appAlert('正在同步，请等顶部同步结束后再读取。');return;}
+      const answer=await appPrompt('请选择操作序号：\n1. 手动读取云端最新版（与实时同步为同一份数据）\n2. 下载云端最新版 JSON（与实时同步为同一份数据，不改当前页面）\n\n读取会替换本机整个协作组；下载只保存文件。历史备份请走独立的快照／恢复入口，不作为日常读取来源。','1','手动读取／下载云端','继续');
+      if(answer===null)return;const choice=Number(answer);if(!Number.isInteger(choice)||choice<1||choice>2){await appAlert('请输入 1 或 2。');return;}
+      if(code!==syncCode||cloudBusy||collabSending||collabPolling){await appAlert('协作组或同步状态已变化，请重试。');return;}
+      const downloadOnly=choice===2,wasEnabled=collabEnabled;
+      cloudBusy=true;cloudPublishingCollab=true;clearTimeout(collabSendTimer);collabSendTimer=null;
+      let before=null,applying=false;
+      try{
+        const client=getCloudClient(code);let payload,revision=0,updatedAt='';
+        const row=await readCollabPublication(client,code);if(!row?.state?.sheets?.length)throw new Error('实时协作没有可读取的表');payload=deepClone(row.state);revision=Number(row.revision)||0;
+        if(code!==syncCode)throw new Error('协作组已切换，未应用数据');
+        const label=`云端最新版 · 版本 ${revision}`;
+        if(downloadOnly){downloadBackup(payload,'云端最新版.json');await appAlert(`已发起下载：${label}，${payload.sheets.length} 张表。请检查浏览器下载结果；当前页面未修改。`);return;}
+        captureActiveSheet();before=deepClone(localStatePayload());const localAtRead=localRevision;
+        if(!await appConfirm(`读取 ${label}，共 ${payload.sheets.length} 张表？\n将替换本机全部表和账目，未上传的修改可能不在云端。\n先下载当前本机完整备份。读取后继续原来的实时同步状态；手动读取与实时同步是同一份数据。`,'核对云端来源','备份并继续'))return;
+        downloadBackup(before,'手动读取云端前-本机备份.json');
+        if(!await appConfirm('请确认本机备份已下载成功；未成功请取消。','确认读取前备份','已下载，读取'))return;
+        captureActiveSheet();if(code!==syncCode||localAtRead!==localRevision||JSON.stringify(localStatePayload())!==JSON.stringify(before))throw new Error('确认期间本机数据变化，未覆盖，请重新读取');
+        recordLocalSnapshot('手动读取云端前',true);
+        collabEnabled=false;stopCollabPolling();stopCollabPresence();pendingCollabInstallState=null;applying=true;
+        applyProjectPayload({...payload,activeSheetId:before.activeSheetId},code,'');
+        if(persistLocalState()==='failed')throw new Error('本机保存失败，未完成读取');
+          collabBaseline=deepClone(payload);collabRevision=revision;collabNeedsSend=false;collabPendingSheetNames.clear();restoredSnapshotPendingUpload=false;localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);
+          collabEnabled=wasEnabled;localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,wasEnabled?'1':'0');if(wasEnabled){startCollabPolling();startCollabPresence();}
+          setCollabStatus(`手动读取已完成 · 版本 ${revision}${wasEnabled?' · 继续实时同步':' · 实时同步未开启'}`,'ok');
+
+        recordLocalSnapshot('手动读取云端后',true);syncCollabUI();renderWorkspaceUI();setCloudStatus(`已读取 ${label} · ${payload.sheets.length} 张表`,'');applying=false;
+      }catch(error){
+        if(applying&&before){try{applyProjectPayload(before,code);persistLocalState();}catch(_){}collabEnabled=false;stopCollabPolling();stopCollabPresence();restoredSnapshotPendingUpload=true;try{localStorage.setItem('ggzRestoredPendingPublish_v1:'+code,'1');localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'0');}catch(_){}cloudConflictPaused=true;clearIdleCloudUpload();syncCollabUI();}
+        await appAlert('手动读取／下载未完成：'+(error.message||error)+'。请保留已下载的本机备份。');
+      }finally{cloudBusy=false;cloudPublishingCollab=false;renderWorkspaceUI();if(collabEnabled&&collabNeedsSend)scheduleCollabSync();}
+    }
+    async function showLocalSnapshotInfo(){
+      const list=loadLocalSnapshots().filter(item=>item.workspaceCode===String(syncCode||'')),last=list[0];
+      await appAlert('快照保存在当前设备、当前浏览器里，不会随实时同步自动传给其他电脑。\n\n有数据变化并触发保存时，自动快照两次之间至少间隔 30 秒，不是固定每 30 秒定时备份；上传、恢复、删除等部分操作会额外保存。\n最多保留最近 20 份，空间不足时可能更少；不保证包含图片。版本日志不等于可恢复快照。\n\n现在可点“保存快照”主动保存，重要节点再导出 JSON 文件。恢复入口可选择只恢复当前表或整个协作组。\n\n当前协作组本机可见 '+list.length+' 份'+(last?'；最近：'+new Date(last.createdAt).toLocaleString('zh-CN')+' · '+last.reason:'')+'。','快照保存说明');
     }
     async function downloadCloud(silent,force=false){
       const code=normalizedSyncCode(); if(!code){ setCloudStatus('请先加入或新建协作组',true); return false; } if(cloudBusy) return false;
@@ -7842,7 +7883,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('acquireEditLockBtn').addEventListener('click',acquireEditLock);
     $('releaseEditLockBtn').addEventListener('click',()=>releaseEditLock(true,false));
     $('cloudUploadBtn').addEventListener('click',()=>uploadCloud(false));
-    $('cloudDownloadBtn').addEventListener('click',()=>{ if(collabEnabled){ alert('实时协作开启时会自动读取最新状态，不需要再手动读取完整备份。'); return; } downloadCloud(false); });
+    $('cloudDownloadBtn').addEventListener('click',manualReadOrDownloadCloud);
+    $('groupSnapshotInfoBtn').addEventListener('click',showLocalSnapshotInfo);
+    $('manualGroupSnapshotBtn').addEventListener('click',async()=>{const saved=recordLocalSnapshot('手动保存快照',true);await appAlert(saved?'已保存当前协作组的本机快照，包含全部排单及账目。它只在当前浏览器，请另导出 JSON 作为独立备份。':'快照未能保存，可能没有有效数据或浏览器空间不足。请先导出 JSON，勿清缓存。');});
 
     $('addColumnBtn').addEventListener('click',()=>{ addColumn('新角色'+(columns.length+1),[], 'avg',0,0); saveState(); renderColumnList(); recalc(); });
     $('saveColumnsToCatalogBtn').addEventListener('click',()=>{ saveColumnsToCatalog(); const b=$('saveColumnsToCatalogBtn'),old=b.textContent;b.textContent='已保存';setTimeout(()=>b.textContent=old,1200); });
@@ -8535,8 +8578,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {items,notReady:items.filter(item=>!item.ready).length,people:new Set(items.map(item=>normalizeDispatchKey(item.person))).size};
     }
     function syncDispatchBatchShipCount(){
-      const count=$('dispatchBatchShipChoices').querySelectorAll('input:checked').length;
+      const count=$('dispatchBatchShipChoices').querySelectorAll('input[data-dispatch-batch-index]:checked').length;
       $('dispatchBatchShipCount').textContent=`已选 ${count} 件`;$('applyDispatchBatchShipBtn').disabled=!count||dispatchBatchShipSaving;
+    }
+    function renderDispatchBatchGroups(){
+      const selected=new Set([...$('dispatchBatchShipChoices').querySelectorAll('input[data-dispatch-batch-index]:checked')].map(input=>Number(input.dataset.dispatchBatchIndex)));
+      const bySheet=$('dispatchBatchGroupMode').value==='sheet',groups=new Map();
+      (dispatchBatchShipDraft?.items||[]).forEach((item,index)=>{const key=bySheet?String(item.sheetId):normalizeDispatchKey(item.person);if(!groups.has(key))groups.set(key,{label:bySheet?item.sheet:item.person,items:[]});groups.get(key).items.push({item,index});});
+      $('dispatchBatchShipChoices').innerHTML=[...groups.values()].map(group=>`<details class="dispatch-batch-group" open><summary><b>${escapeHtml(group.label)}</b> · ${group.items.length} 件</summary><div class="arrival-edit-selection"><button type="button" class="btn-ghost" data-dispatch-batch-group="${group.items.map(entry=>entry.index).join(',')}" data-select-group="1">选中本${bySheet?'表':'人'}</button><button type="button" class="btn-ghost" data-dispatch-batch-group="${group.items.map(entry=>entry.index).join(',')}" data-select-group="0">取消本${bySheet?'表':'人'}</button></div>${group.items.map(({item,index})=>`<label class="dispatch-batch-choice"><input type="checkbox" data-dispatch-batch-index="${index}"${selected.has(index)?' checked':''}><span><b>${escapeHtml(item.person)}</b> · ${escapeHtml(item.item)}<small>${escapeHtml(item.sheet)} · 第 ${item.row+1} 行 · ${item.ready?'可排发':'尚未满足到货／收款条件，请核对'}</small></span></label>`).join('')}</details>`).join('');
+      syncDispatchBatchShipCount();
     }
     async function openDispatchBatchShip(){
       if(dispatchBatchShipSaving)return;
@@ -8544,14 +8594,15 @@ body.export-rendering .cart-count{ font-size:28px; }
       const items=all.filter(person=>!query||person.key.includes(query)).flatMap(person=>dispatchVisibleItems(person)).filter(item=>!item.shipped);
       if(!items.length){await appAlert('当前状态及 CN 搜索条件下没有未发货的谷子。请先切换“未发货”或“可排发”，或清空 CN 搜索。');return;}
       dispatchBatchShipDraft={code:String(syncCode||''),items:deepClone(items)};
+      $('dispatchBatchShipChoices').innerHTML='';
       $('dispatchBatchShipHint').textContent=`范围：${dispatchFilterLabel()}${query?' · CN 包含 '+$('dispatchSearchInput').value:' · 全部 CN'}，共 ${items.length} 件未发货。每行一件，默认不选；不会修改到货、买齐或账目。`;
-      $('dispatchBatchShipChoices').innerHTML=items.map((item,index)=>`<label class="dispatch-batch-choice"><input type="checkbox" data-dispatch-batch-index="${index}"><span><b>${escapeHtml(item.person)}</b> · ${escapeHtml(item.item)}<small>${escapeHtml(item.sheet)} · 第 ${item.row+1} 行 · ${item.ready?'可排发':'尚未满足到货／收款条件，请核对'}</small></span></label>`).join('');
+      renderDispatchBatchGroups();
       syncDispatchBatchShipCount();$('dispatchBatchShipDialog').showModal();
     }
     async function applyDispatchBatchShip(){
       if(dispatchBatchShipSaving||!dispatchBatchShipDraft)return;
       const draft=dispatchBatchShipDraft;
-      const selected=[...$('dispatchBatchShipChoices').querySelectorAll('input:checked')].map(input=>draft.items[Number(input.dataset.dispatchBatchIndex)]).filter(Boolean);
+      const selected=[...$('dispatchBatchShipChoices').querySelectorAll('input[data-dispatch-batch-index]:checked')].map(input=>draft.items[Number(input.dataset.dispatchBatchIndex)]).filter(Boolean);
       dispatchBatchShipSaving=true;syncDispatchBatchShipCount();
       try{
         if(draft.code!==String(syncCode||''))throw new Error('已切换协作组，请重新打开批量发货。');
@@ -8678,6 +8729,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('closeDispatchBatchShipBtn').addEventListener('click',()=>{if(!dispatchBatchShipSaving){$('dispatchBatchShipDialog').close();dispatchBatchShipDraft=null;}});
     $('dispatchBatchShipDialog').addEventListener('cancel',e=>{if(dispatchBatchShipSaving)e.preventDefault();else dispatchBatchShipDraft=null;});
     $('dispatchBatchShipChoices').addEventListener('change',syncDispatchBatchShipCount);
+    $('dispatchBatchGroupMode').addEventListener('change',()=>{if(!dispatchBatchShipSaving)renderDispatchBatchGroups();});
+    $('dispatchBatchShipChoices').addEventListener('click',e=>{const button=e.target.closest('[data-dispatch-batch-group]');if(!button||dispatchBatchShipSaving)return;const indices=new Set(button.dataset.dispatchBatchGroup.split(','));$('dispatchBatchShipChoices').querySelectorAll('input[data-dispatch-batch-index]').forEach(input=>{if(indices.has(input.dataset.dispatchBatchIndex))input.checked=button.dataset.selectGroup==='1';});syncDispatchBatchShipCount();});
     $('selectAllDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=true);syncDispatchBatchShipCount();});
     $('clearDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=false);syncDispatchBatchShipCount();});
     $('selectReadyDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=dispatchBatchShipDraft?.items[Number(input.dataset.dispatchBatchIndex)]?.ready===true);syncDispatchBatchShipCount();});
