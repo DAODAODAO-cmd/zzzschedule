@@ -335,6 +335,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button id="cloudDownloadBtn" class="btn-ghost">读取／下载云端</button>
     <button id="manualGroupSnapshotBtn" class="btn-ghost" type="button">保存快照</button>
     <button id="groupSnapshotInfoBtn" class="btn-ghost" type="button">快照说明</button>
+    <button id="resolveRealtimeReviewBtn" class="btn-ghost" type="button" hidden>核对未同步修改</button>
     <span id="localStatus">本机已保存</span>
     <span id="cloudStatus">尚未选择协作组</span>
     <span id="collabStatus">打开后自动实时同步</span>
@@ -2552,6 +2553,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function applyProjectPayload(d,code=syncCode,updatedAt=''){
       if(!d||!Array.isArray(d.sheets)||!d.sheets.length) throw new Error('云端数据为空');
+      collabAcknowledgedState=null;
       applyingCloud=true; sheets=d.sheets;
       sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
       setPaymentQrSlotsFromState(d,d.sharedPaymentQrImg||sheets.find(s=>s.paymentQrImg||s.alipayQrImg||s.wechatQrImg)?.paymentQrImg||sheets.find(s=>s.alipayQrImg)?.alipayQrImg||sheets.find(s=>s.wechatQrImg)?.wechatQrImg||''); extraPaymentQrImg=d.extraPaymentQrImg||'';
@@ -3426,6 +3428,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     let pendingCollabInstallGuard=null,collabConnecting=false;
     function flushPendingCollabInstall(){
+      if(collabAcknowledgedState){flushAcknowledgedRealtimeState();return false;}
       if(!pendingCollabInstallState||isColumnListEditing()) return false;
       const state=pendingCollabInstallState;
       pendingCollabInstallState=null;
@@ -3453,6 +3456,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const viewPosition={pageX:window.scrollX,pageY:window.scrollY,paymentLeft:paymentScroll?.scrollLeft||0,paymentTop:paymentScroll?.scrollTop||0,shareLeft:shareScroll?.scrollLeft||0,shareTop:shareScroll?.scrollTop||0};
       applyingCollab=true;
       try{
+        collabAcknowledgedState=null;
         sheets=deepClone(state.sheets); sheetIdSeed=Number(state.sheetIdSeed)||Math.max(...sheets.map(s=>(Number(s.id)||0)+1));
         itemCatalog=migrateCatalogItems(deepClone(Array.isArray(state.itemCatalog)?state.itemCatalog:[]));
         catalogIdSeed=Math.max(Number(state.catalogIdSeed)||1,...itemCatalog.map(x=>(Number(x.catalogId)||0)+1));
@@ -3505,6 +3509,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return raw||'未知错误';
     }
     function syncCollabUI(){
+      const review=$('resolveRealtimeReviewBtn');if(review){review.hidden=!pendingRealtimeReview||pendingRealtimeReview.code!==syncCode;}
       $('startCollabBtn').disabled=collabEnabled||!syncCode;
       $('stopCollabBtn').disabled=!collabEnabled;
       const saver=$('dataSaverBtn'); if(saver){ saver.textContent=dataSaverMode?'省流量：开':'省流量：关'; saver.classList.toggle('active',dataSaverMode); saver.title=dataSaverMode?'减少实时轮询和在线名单刷新，节省 Supabase Egress':'更快看到协作变化，但会增加 Supabase Egress'; }
@@ -3618,9 +3623,19 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     async function stableRealtimeSnapshot(code){
       for(let attempt=0;attempt<3;attempt++){
-        const revision=localRevision,local=collabProjectSnapshot(),cloud=await collabCloudProjectSnapshot(local);
+        const revision=localRevision,local=collabProjectSnapshot(),uiCloud=await collabCloudProjectSnapshot(local);
         if(String(syncCode)!==String(code)||cloudPublishingCollab)throw new Error('协作组或同步模式已变化');
-        if(revision===localRevision)return {local,cloud,revision};
+        if(revision===localRevision){
+          let cloud=uiCloud;
+          const acknowledged=collabAcknowledgedState;
+          if(acknowledged&&acknowledged.code===code){
+            const changes=classifyRealtimeIntent(acknowledged.uiBase,uiCloud,acknowledged.uiBase,acknowledged.display);
+            const layoutChanged=realtimeLayoutConflict(acknowledged.uiBase,acknowledged.display,changes.intent);
+            if(collabEnabled&&(changes.real.length||layoutChanged)){if(layoutChanged)collabAcknowledgedState=null;queueRealtimeReview({base:layoutChanged?acknowledged.uiBase:acknowledged.server,server:acknowledged.server,version:acknowledged.version,real:changes.real},code,'编辑期间云端同一位置已有不同值，请核对');throw new Error('本机输入已保留，待核对同步值');}
+            cloud=applyCollabOps(deepClone(acknowledged.display),changes.intent);
+          }
+          return {local,uiCloud,cloud,revision};
+        }
       }
       throw new Error('正在连续编辑，已保留本机修改，稍后重试同步');
     }
@@ -3638,32 +3653,93 @@ body.export-rendering .cart-count{ font-size:28px; }
         return ids(sent)!==ids(server);
       });
     }
-    async function prepareRealtimeResponse(row,sentState,code){
+    let pendingRealtimeReview=null,realtimeRejectedRetry={key:'',count:0},collabAcknowledgedState=null;
+    function collabPathValue(state,path){
+      let value=state;for(const key of path||[]){if(value===null||typeof value!=='object'||!Object.prototype.hasOwnProperty.call(value,String(key)))return {exists:false};value=value[String(key)];}return {exists:true,value};
+    }
+    function collabOperationMatches(op,state,old=false){
+      const at=collabPathValue(state,op.path),missing=old?op.old_missing===true:op.op==='delete';
+      return missing?!at.exists:at.exists&&collabStatesEqual(at.value,old?op.old:op.value);
+    }
+    function classifyRealtimeIntent(base,local,sent,server){
+      const intent=collabDiff(base,local),pending=intent.filter(op=>!collabOperationMatches(op,server));
+      const real=pending.filter(op=>{if(collabOperationMatches(op,server,true))return false;const previous=collabPathValue(sent,op.path),current=collabPathValue(server,op.path);return previous.exists!==current.exists||previous.exists&&!collabStatesEqual(previous.value,current.value);});
+      return {intent,pending,real};
+    }
+    async function prepareRealtimeResponse(row,sentState,code,baseState=sentState){
       if(!row?.out_state)throw new Error('协作云端没有返回状态');
       const after=await stableRealtimeSnapshot(code),version=Number(row.out_revision);
       if(!collabEnabled||code!==syncCode||!Number.isFinite(version)||version<collabRevision)return null;
-      const server=deepClone(row.out_state),laterOps=collabDiff(sentState,after.cloud);
-      if(realtimeLayoutConflict(sentState,server,laterOps)){pauseRealtimeForSafety('双方同时新增、删除或排序表格，已停止按位置合并，防止串表');return null;}
-      return {server,version,laterOps,revision:after.revision,display:preserveMatchingLocalImages(applyCollabOps(deepClone(server),laterOps),after.local,after.cloud)};
+      const server=deepClone(row.out_state),classified=classifyRealtimeIntent(baseState,after.cloud,sentState,server),laterOps=classified.pending;
+      const layoutConflict=realtimeLayoutConflict(sentState,server,laterOps)&&!collabStatesEqual(baseState?.sheets?.map(s=>s.id),server?.sheets?.map(s=>s.id));
+      return {server,version,laterOps,uiCloud:after.uiCloud,revision:after.revision,base:deepClone(baseState),intent:classified.intent,real:classified.real,layoutConflict,display:classified.real.length||layoutConflict?null:preserveMatchingLocalImages(applyCollabOps(deepClone(server),laterOps),after.local,after.cloud)};
+    }
+    function queueRealtimeReview(prepared,code,message){
+      pendingRealtimeReview={code,base:prepared.base,server:prepared.server,version:prepared.version,message,conflictPaths:prepared.real.map(op=>JSON.stringify(op.path))};
+      pauseRealtimeForSafety(message+'；未同步的价格和新谷子保留在当前页面');
+    }
+    async function resolveRealtimeReview(){
+      const review=pendingRealtimeReview,code=syncCode;if(!review||review.code!==code){await appAlert('当前协作组没有待核对修改');return;}
+      if(cloudBusy||collabSending||collabPolling){await appAlert('正在处理同步，请稍后核对');return;}
+      cloudBusy=true;
+      try{
+        const current=await stableRealtimeSnapshot(code),client=getCloudClient(code),latest=await readCollabPublication(client,code);
+        if(!latest?.state?.sheets?.length)throw new Error('无法读取实时协作数据，请保留本机修改');
+        const classified=classifyRealtimeIntent(review.base,current.cloud,review.server,latest.state),intent=classified.intent;
+        if(realtimeLayoutConflict(review.base,latest.state,intent))throw new Error('云端表结构与本机编辑依据不同，不能按位置处理，请先导出本机备份');
+        const conflicts=new Set([...(review.conflictPaths||[]),...classified.real.map(op=>JSON.stringify(op.path))]);
+        const format=value=>value===undefined?'（不存在）':typeof value==='object'?JSON.stringify(value).slice(0,150):String(value);
+        const details=classified.pending.slice(0,10).map(op=>{const path=op.path||[],sheet=path[0]==='sheets'?current.local.sheets?.[Number(path[1])]:null,col=path[2]==='columns'?sheet?.columns?.[Number(path[3])]:null;return `${sheet?'「'+sheet.name+'」':''}${col?' '+(col.name||col.id):''} · ${path.slice(2).join('/')}\n本机：${op.op==='delete'?'（删除）':format(op.value)}\n云端：${format(collabPathValue(latest.state,path).value)}`;}).join('\n\n');
+        const choice=await appPrompt(`本机的价格和新谷子仍保留，尚未同步 ${classified.pending.length} 项。\n${details}${classified.pending.length>10?'\n……其余项保留在本机备份中':''}\n\n1. 保留本机这些修改，按最新云端基准重试（只提交差异，不整组覆盖）\n2. 采用云端的冲突项，其他本机修改保留\n3. 暂不处理，继续保留本机并暂停同步`,'3','核对未同步修改','继续');
+        if(choice===null||String(choice).trim()==='3')return;
+        if(!['1','2'].includes(String(choice).trim()))throw new Error('请输入 1、2 或 3');
+        if(review!==pendingRealtimeReview||code!==syncCode||current.revision!==localRevision)throw new Error('本机内容已变化，请重新打开核对');
+        const verified=await readCollabPublication(client,code);
+        if(code!==syncCode||current.revision!==localRevision||!verified||Number(verified.revision)!==Number(latest.revision)||!collabStatesEqual(verified.state,latest.state))throw new Error('确认期间云端或本机又有更新，本次没有应用，请重新核对');
+        const keep=String(choice).trim()==='1'?intent:intent.filter(op=>!conflicts.has(JSON.stringify(op.path)));
+        const desired=applyCollabOps(deepClone(verified.state),keep),display=preserveMatchingLocalImages(desired,current.local,current.cloud);
+        recordLocalSnapshot('同步冲突选择前（本机完整修改）',true);
+        if(isColumnListEditing()||!installCollabState(display))throw new Error('当前正在编辑，请结束输入后重新核对');
+        collabBaseline=deepClone(verified.state);collabRevision=Number(verified.revision)||0;collabNeedsSend=collabDiff(collabBaseline,desired).length>0;collabEnabled=true;pendingRealtimeReview=null;realtimeRejectedRetry={key:'',count:0};restoredSnapshotPendingUpload=false;cloudConflictPaused=false;
+        try{localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1');}catch(_){}
+        syncCollabUI();startCollabPolling();startCollabPresence();setCollabStatus(collabNeedsSend?'所选修改已保留，正在重新同步':'已采用核对结果 · 版本 '+collabRevision,collabNeedsSend?'warn':'ok');
+      }catch(error){await appAlert('核对未完成：'+(error.message||error)+'。当前本机修改未被清除。');}
+      finally{cloudBusy=false;if(collabEnabled&&collabNeedsSend)scheduleCollabSync();}
+    }
+    function acceptRealtimeResult(prepared,code){
+      if(!prepared)return false;
+      if(prepared.real.length||prepared.layoutConflict){queueRealtimeReview(prepared,code,'云端与本机依据不一致，需要选择如何处理');return false;}
+      if(!commitRealtimeResponse(prepared,code))return false;
+      if(prepared.laterOps.length){
+        const key=JSON.stringify(prepared.laterOps.map(op=>({op:op.op,path:op.path,value:op.value})));realtimeRejectedRetry=key===realtimeRejectedRetry.key?{key,count:realtimeRejectedRetry.count+1}:{key,count:1};
+        if(realtimeRejectedRetry.count>2){queueRealtimeReview(prepared,code,'服务器连续未接受同一批修改，已停止重复提交，不代表有人编辑');return false;}
+        setCollabStatus('本机修改已保留，正在按最新基准重试同步','warn');
+      }else{realtimeRejectedRetry={key:'',count:0};setCollabStatus('实时协作已同步 · 版本 '+collabRevision,'ok');}
+      return true;
     }
     function commitRealtimeResponse(prepared,code){
       if(!prepared||!collabEnabled||cloudPublishingCollab||code!==syncCode||prepared.revision!==localRevision||prepared.version<collabRevision)return false;
-      if(isColumnListEditing()){setCollabStatus('正在编辑，保留本机输入，稍后再同步','warn');return false;}
-      if(!installCollabState(prepared.display))return false;
+      if(isColumnListEditing()){
+        collabAcknowledgedState={code,server:deepClone(prepared.server),version:prepared.version,uiBase:deepClone(prepared.uiCloud),display:applyCollabOps(deepClone(prepared.server),prepared.laterOps)};
+      }else{
+        if(!installCollabState(prepared.display))return false;
+        collabAcknowledgedState=null;
+      }
       collabBaseline=prepared.server;collabRevision=prepared.version;collabNeedsSend=prepared.laterOps.length>0;
       if(!collabNeedsSend)collabPendingSheetNames.clear();
       return true;
+    }
+    async function flushAcknowledgedRealtimeState(){
+      const acknowledged=collabAcknowledgedState;if(!acknowledged||!collabEnabled||isColumnListEditing()||collabSending||collabPolling||cloudBusy||cloudPublishingCollab)return;
+      try{const prepared=await prepareRealtimeResponse({out_state:acknowledged.server,out_revision:acknowledged.version},acknowledged.server,acknowledged.code,acknowledged.server);if(acknowledged!==collabAcknowledgedState)return;acceptRealtimeResult(prepared,acknowledged.code);if(collabEnabled&&collabNeedsSend)scheduleCollabSync();}catch(error){if(collabEnabled)setCollabStatus('本机输入保留，界面刷新待重试：'+error.message,'warn');}
     }
     async function replaceCollabStateAfterTimeout(sentState,localSentState,requestCode=syncCode){
       if(requestCode!==syncCode||!collabEnabled||cloudPublishingCollab)return false;
       try{
         const client=getCloudClient(requestCode),{data,error}=await lockRequest(client.rpc('ggz_replace_collab_state',{p_sync_code:requestCode,p_state:sentState,p_base_revision:collabRevision,p_author_name:editorName||'未命名'}),45000,'实时协作轻量整包同步');
         if(error)throw error;
-        const row=collabResultRow(data),prepared=await prepareRealtimeResponse(row,sentState,requestCode);
-        if(!commitRealtimeResponse(prepared,requestCode))return false;
-        if((row.out_conflicts||[]).length){recordLocalSnapshot('协作冲突后（未接受修改另行核对）',true);setCollabStatus('云端已有新版本，请核对未合并修改','warn');}
-        else setCollabStatus('实时协作已用轻量整包同步 · 版本 '+collabRevision,'ok');
-        return true;
+        const row=collabResultRow(data),prepared=await prepareRealtimeResponse(row,sentState,requestCode,collabBaseline||sentState);
+        return acceptRealtimeResult(prepared,requestCode);
       }catch(error){if(requestCode===syncCode&&lockFeatureMissing(error))setCollabStatus('同步未完成：实时协作整包接口尚不可用，本机数据保留','bad');return false;}
     }
     async function flushCollabChanges(){
@@ -3672,11 +3748,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!collabEnabled||applyingCollab)return true;
       if(collabSending||collabPolling){collabNeedsSend=true;return false;}
       const code=syncCode;collabSending=true;
-      let syncError=null,sentState=null,localSentState=null;
+      let syncError=null,sentState=null,localSentState=null,baseState=null;
       try{
         const captured=await stableRealtimeSnapshot(code);sentState=captured.cloud;localSentState=captured.local;
         if(!collabEnabled||code!==syncCode)return false;
-        const ops=collabDiff(collabBaseline||sentState,sentState);
+        baseState=deepClone(collabBaseline||sentState);const ops=collabDiff(baseState,sentState);
         if(!ops.length){
           if(captured.revision!==localRevision){collabNeedsSend=true;return false;}
           collabNeedsSend=false;collabPendingSheetNames.clear();setCollabStatus('实时协作已同步 · 版本 '+collabRevision,'ok');return true;
@@ -3688,14 +3764,13 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(code!==syncCode||!collabEnabled)return false;
         const row=collabResultRow(data),conflicts=Array.isArray(row?.out_conflicts)?row.out_conflicts:[];
         if(conflicts.length)recordLocalSnapshot('协作冲突前（本机修改）',true);
-        const prepared=await prepareRealtimeResponse(row,sentState,code);
-        if(!commitRealtimeResponse(prepared,code)){if(collabEnabled&&code===syncCode)collabNeedsSend=true;return false;}
+        const prepared=await prepareRealtimeResponse(row,sentState,code,baseState);
         if(conflicts.length){
           try{localStorage.setItem(COLLAB_CONFLICT_KEY_PREFIX+code,JSON.stringify({time:new Date().toISOString(),author:editorName,ops,conflicts}));}catch(_){}
-          setCollabStatus('有 '+conflicts.length+' 处同时修改，未接受的本机操作已另存冲突快照，请核对','warn');
-          alert('部分修改与其他人冲突，已保留冲突前本机快照，请核对后重新操作。');
-        }else setCollabStatus('实时协作已同步 · 版本 '+collabRevision,'ok');
-        return conflicts.length===0;
+        }
+        const accepted=acceptRealtimeResult(prepared,code);
+        if(!accepted&&collabEnabled&&code===syncCode)collabNeedsSend=true;
+        return accepted;
       }catch(error){
         syncError=error;if(code!==syncCode||!collabEnabled)return false;
         if(isCollabPermissionError(error)){disableCollabForPermissionError(error);return false;}
@@ -7936,6 +8011,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('cloudUploadBtn').addEventListener('click',()=>uploadCloud(false));
     $('cloudDownloadBtn').addEventListener('click',manualReadOrDownloadCloud);
     $('groupSnapshotInfoBtn').addEventListener('click',showLocalSnapshotInfo);
+    $('resolveRealtimeReviewBtn').addEventListener('click',resolveRealtimeReview);
     $('manualGroupSnapshotBtn').addEventListener('click',async()=>{const saved=recordLocalSnapshot('手动保存快照',true);await appAlert(saved?'已保存当前协作组的本机快照，包含全部排单及账目。它只在当前浏览器，请另导出 JSON 作为独立备份。':'快照未能保存，可能没有有效数据或浏览器空间不足。请先导出 JSON，勿清缓存。');});
 
     $('addColumnBtn').addEventListener('click',()=>{ addColumn('新角色'+(columns.length+1),[], 'avg',0,0); saveState(); renderColumnList(); recalc(); });
