@@ -425,9 +425,14 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div id="columnList"></div>
     <div class="toolbar">
       <button class="btn-ghost" id="addColumnBtn">+ 手动添加一列</button>
+      <button type="button" class="btn-ghost" id="batchDeleteColumnsBtn">批量删除谷子</button>
       <button class="btn-ghost" id="saveColumnsToCatalogBtn">保存到常用谷子</button>
       <button class="btn-ghost" id="toggleCatalogBtn">打开常用谷子库</button>
       <span class="hint">粘贴文字时，新名字会自动追加为列；也可以先建好列、设置别名合并、选择定价方式。</span>
+    </div>
+    <div id="batchDeleteColumnsPanel" hidden style="padding:12px;border:1px solid var(--line);border-radius:10px;margin:10px 0">
+      <div class="toolbar"><button type="button" class="btn-ghost" id="batchColumnsAllBtn">全选</button><button type="button" class="btn-ghost" id="batchColumnsNoneBtn">全不选</button><span id="batchColumnsCount" class="hint"></span><button type="button" class="btn-danger" id="batchColumnsConfirmBtn">删除选中</button><button type="button" class="btn-ghost" id="batchColumnsCancelBtn">取消</button></div>
+      <div id="batchColumnsChoices" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     </div>
     <div class="pricing-group-section">
       <div class="pricing-group-head"><div><strong>拼盒组合</strong><span>保存后按整组显示，组内单品隐藏。</span></div><button type="button" class="btn-primary btn-mini" id="openPricingGroupBtn">＋ 新建组合</button></div>
@@ -4883,14 +4888,45 @@ body.export-rendering .cart-count{ font-size:28px; }
       columns.splice(i+1,0,copy);
       saveState(); renderColumnList(); renderMatrix(); renderCart();
     };
-    ggz.removeColumn=async id=>{
-      if(!await appConfirm('确定删除这一列吗？该列已生成的配比数据也会一并清除。','删除谷子列','确认删除')) return;
+    function removeColumnData(id){
       columns=columns.filter(c=>c.id!==id); delete allocations[id]; pricingGroups.forEach(g=>{ g.memberIds=g.memberIds.filter(memberId=>memberId!==id); if(g.originalPricing) delete g.originalPricing[id]; }); pricingGroups=pricingGroups.filter(g=>g.memberIds.length>=2);
       [matrixBoughtCells,matrixIslandCells,matrixChinaCells,matrixBlindSubCells].forEach(store=>deleteMatrixCellStoreColumn(store,id));
       const pricedSheet=sheets.find(s=>s.id===activeSheetId);if(pricedSheet?.secondPriceCellPrices)deleteMatrixCellStoreColumn(pricedSheet.secondPriceCellPrices,id);
       coldCarryBundleColumnIds=coldCarryBundleColumnIds.filter(colId=>colId!==id);
+      if(pricedSheet)[pricedSheet.dispatchShippedCells,pricedSheet.dispatchInternationalExemptCells].filter(Boolean).forEach(store=>deleteMatrixCellStoreColumn(store,id));
+    }
+    ggz.removeColumn=async id=>{
+      const context=activeSheetId;
+      if(!await appConfirm('确定删除这一列吗？该列已生成的配比数据也会一并清除。','删除谷子列','确认删除')||context!==activeSheetId) return;
+      if(!recordLocalSnapshot('删除谷子列前',true)){await appAlert('删除前快照未能保存，请先导出 JSON 备份；本次没有删除。');return;}removeColumnData(id);
       saveState(); renderColdBundleConfiguration(); renderColumnList(); renderPricingGroups(); recalc();
     };
+    let batchColumnsContext=null;
+    function closeBatchColumns(){batchColumnsContext=null;$('batchDeleteColumnsPanel').hidden=true;}
+    function updateBatchColumnsCount(){const count=$('batchColumnsChoices').querySelectorAll('input:checked').length;$('batchColumnsCount').textContent='已选 '+count+' 列';$('batchColumnsConfirmBtn').disabled=!count;}
+    $('batchDeleteColumnsBtn').addEventListener('click',()=>{
+      batchColumnsContext={sheet:activeSheetId,code:syncCode,signature:JSON.stringify(columns)};
+      $('batchColumnsChoices').innerHTML=columns.map(c=>`<label style="display:flex;align-items:center;gap:6px;padding:8px;border:1px solid #e5ddea;border-radius:8px"><input type="checkbox" value="${c.id}">${escapeHtml(c.name)}${groupForColumn(c.id)?'（拼盒内）':''}</label>`).join('');
+      $('batchDeleteColumnsPanel').hidden=false;updateBatchColumnsCount();
+    });
+    $('batchColumnsChoices').addEventListener('change',updateBatchColumnsCount);
+    $('batchColumnsAllBtn').addEventListener('click',()=>{$('batchColumnsChoices').querySelectorAll('input').forEach(i=>i.checked=true);updateBatchColumnsCount();});
+    $('batchColumnsNoneBtn').addEventListener('click',()=>{$('batchColumnsChoices').querySelectorAll('input').forEach(i=>i.checked=false);updateBatchColumnsCount();});
+    $('batchColumnsCancelBtn').addEventListener('click',closeBatchColumns);
+    $('batchColumnsConfirmBtn').addEventListener('click',async()=>{
+      const context=batchColumnsContext,revision=localRevision,ids=[...$('batchColumnsChoices').querySelectorAll('input:checked')].map(i=>Number(i.value));
+      if(!context||!ids.length)return;
+      const valid=()=>context===batchColumnsContext&&context.sheet===activeSheetId&&context.code===syncCode&&context.signature===JSON.stringify(columns)&&revision===localRevision;
+      if(!valid()){closeBatchColumns();await appAlert('当前表已变化，请重新选择要删除的谷子。');return;}
+      const occupied=ids.reduce((n,id)=>n+(allocations[id]||[]).filter(Boolean).length,0);
+      if(!await appConfirm(`只删除当前表的 ${ids.length} 列谷子，涉及 ${occupied} 个排单位置。\n相应排单、到货、发货标记及拼盒关系会移除；收款汇总金额可能变化，已保存账单和历史存档不会自动清除。\n原表和其他表不受影响。删除前会保存本机快照。`,'批量删除谷子','确认删除'))return;
+      if(!valid()){closeBatchColumns();await appAlert('确认期间表格已变化，本次没有删除，请重新选择。');return;}
+      if(!recordLocalSnapshot('批量删除谷子前',true)){await appAlert('删除前快照未能保存，请先导出 JSON 备份；本次没有删除。');return;}
+      const before=deepClone(sheets);
+      ids.forEach(removeColumnData);closeBatchColumns();
+      if(!saveState({snapshotReason:'批量删除谷子后',forceSnapshot:true,flushCollabNow:true})){sheets=before;applySheet(sheets.find(s=>s.id===context.sheet));saveState({skipSnapshot:true});await appAlert('本机保存失败，已还原本次删除。');}
+      renderColdBundleConfiguration();renderColumnList();renderPricingGroups();recalc();
+    });
     ggz.updatePreview=(id,field,value)=>{ const r=previewRows.find(x=>x.id===id); if(r){ r[field]=value; refreshOrderMatrixPreview(); } };
     ggz.removePreviewRow=id=>{ previewRows=previewRows.filter(r=>r.id!==id); renderPreview(); refreshOrderMatrixPreview(); };
     $('openPricingGroupBtn')?.addEventListener('click',()=>openPricingGroup());
@@ -10898,20 +10934,25 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('showPaymentTotalBtn').addEventListener('click',()=>{ showPaymentTotal=!showPaymentTotal; saveState(); syncPaymentControls(); renderPaymentSummary(); });
     $('collectBoughtOnlyBtn').addEventListener('click',()=>{ paymentBoughtOnly=!paymentBoughtOnly; saveState(); syncPaymentControls(); renderPaymentSummary(); });
     $('includeShareInPaymentBtn').addEventListener('click',()=>{ paymentIncludeShare=!paymentIncludeShare; if(paymentIncludeShare) syncSharePaidFromExistingGoods(); saveState(); syncPaymentControls(); renderPaymentSummary(); renderSharePaymentSummary(); });
-    let paymentSearchTimer=null;
+    let paymentSearchTimer=null,paymentSearchCursor={query:'',key:''};
     function clearPaymentSearchHighlight(){ clearTimeout(paymentSearchTimer); $('paymentSummary').querySelectorAll('.payment-search-hit').forEach(row=>row.classList.remove('payment-search-hit')); }
     function findPaymentPerson(){
       const query=normalizeDispatchKey($('paymentSearchInput').value);
       if(!query){ $('paymentSearchInput').focus(); return; }
-      const names=[...$('paymentSummary').querySelectorAll('.payment-cn-name')], match=names.find(el=>normalizeDispatchKey(el.textContent).includes(query));
+      const names=[...$('paymentSummary').querySelectorAll('.payment-cn-name')], seen=new Set();
+      const matches=names.filter(el=>{const key=el.closest('[data-payment-person]')?.dataset.paymentPerson;if(!key||seen.has(key)||!normalizeDispatchKey(el.textContent).includes(query))return false;seen.add(key);return true;});
+      const previous=paymentSearchCursor.query===query?matches.findIndex(el=>el.closest('[data-payment-person]').dataset.paymentPerson===paymentSearchCursor.key):-1;
+      const index=(previous+1)%Math.max(1,matches.length),match=matches[index];
       clearPaymentSearchHighlight();
-      if(!match){ alert('当前收款统计范围里没有找到这个人'); return; }
+      if(!match){ $('paymentSearchBtn').textContent='查找';paymentSearchCursor={query:'',key:''};alert('当前收款统计范围里没有找到这个人'); return; }
       const key=match.closest('[data-payment-person]')?.dataset.paymentPerson||'';
+      paymentSearchCursor={query,key};$('paymentSearchBtn').textContent=matches.length>1?`下一个 ${index+1}/${matches.length}`:'找到 1/1';
       const rows=[...$('paymentSummary').querySelectorAll('[data-payment-person]')].filter(row=>row.dataset.paymentPerson===key);
       rows.forEach(row=>row.classList.add('payment-search-hit')); match.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});
       paymentSearchTimer=setTimeout(()=>rows.forEach(row=>row.classList.remove('payment-search-hit')),3000);
     }
     $('paymentSearchBtn').addEventListener('click',findPaymentPerson);
+    $('paymentSearchInput').addEventListener('input',()=>{paymentSearchCursor={query:'',key:''};$('paymentSearchBtn').textContent='查找';clearPaymentSearchHighlight();});
     $('paymentSearchInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); findPaymentPerson(); } });
     document.querySelector('.payment-tabs').addEventListener('click',e=>{
       const button=e.target.closest('[data-payment-tab]'); if(!button) return;
