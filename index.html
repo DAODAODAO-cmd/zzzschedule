@@ -6710,7 +6710,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         });
         cols.forEach(c=>(alloc[c.id]||[]).forEach((person,row)=>{
           const name=String(person||'').trim(), date=logisticsCellMark(c,row,name,china,alloc); if(!name||!date) return;
-          if(usesBoughtMark&&!sheetCellBought(c,row,name,bought,alloc,groups,Array.isArray(sheet.columns)?sheet.columns:[])) return;
+          // Purchase/arrival belongs to the physical queue position. Reassigning
+          // that arrived item to another CN must not remove it from the batch.
+          const physicalColumns=c.isPricingCombo?(c.comboMembers||[]):[c];
+          const positionBought=physicalColumns.length>0&&physicalColumns.every(member=>String(bought[matrixBoughtKey(member.id,row)]||'').trim());
+          if(usesBoughtMark&&!positionBought&&!sheetCellBought(c,row,name,bought,alloc,groups,Array.isArray(sheet.columns)?sheet.columns:[])) return;
           const id=`arrival:${date}`;
           if(!map.has(id)) map.set(id,{id,sheetId:0,sheetIds:[],sheet:'',sheets:new Set(),date,items:new Map(),people:new Map()});
           const batch=map.get(id), item=matrixItemDisplayName(c,row,sub), personKey=normalizeDispatchKey(name);
@@ -6854,7 +6858,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const mode=oldRows[0]?.splitMode||'weight';
       const oldBillableTotalWeight=oldRows.find(row=>num(row.batchTotalWeight)>0)?.batchTotalWeight||oldRows.reduce((sum,row)=>sum+num(row.chargeWeight),0);
       const factors=intlRecordFactors(oldRows);
-      const totalInput=await appPrompt(`修改“${batch.date} · ${batch.sheet}”的本批国际总价。\n如果只是改克重/总重，总价保持原数即可。`,fmtNum(oldTotal),'重算国际总价','继续');
+      const totalInput=await appPrompt(`修改“${batch.date} · ${batch.sheet}”的本批国际总价。\n如果只是调整 A/B 的归属件数，总价保持原数即可；会按当前排单人员和件数重新分摊。`,fmtNum(oldTotal),'重算国际总价','继续');
       if(totalInput===null) return;
       const total=Math.max(0,num(String(totalInput).trim()===''?oldTotal:totalInput));
       if(!total){ alert('本批国际总价必须大于 0'); return; }
@@ -6888,6 +6892,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(row.paid===true){ entry.paid=true; entry.paidAt=row.paidAt||entry.paidAt||''; }
       });
       const oldIds=new Set(oldRows.map(row=>row.id));
+      const reusableRows=new Map();oldRows.forEach(row=>{const key=normalizeDispatchKey(row.person);if(!reusableRows.has(key))reusableRows.set(key,row);});
       const now=new Date().toISOString(), previewMode=extraFeeViewMode==='merged'?'merged':'detail';
       let nextId=extraFeeIdSeed;
       const newPersonKeys=new Set();
@@ -6899,13 +6904,20 @@ body.export-rendering .cart-count{ font-size:28px; }
         const paidState=oldPaidByPerson.get(normalizeDispatchKey(r.person))||{};
         const diff=ceilMoneyValue(num(r.amount)-num(paidState.amount||0));
         const keepPaid=paidState.paid===true;
-        return {id:nextId++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:detailText,items:detailText,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:keepPaid,createdAt:now,paidAt:keepPaid?paidState.paidAt||now:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total};
+        const existing=reusableRows.get(normalizeDispatchKey(r.person));
+        return {id:existing?.id??nextId++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:detailText,items:detailText,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:keepPaid,createdAt:existing?.createdAt||now,paidAt:keepPaid?paidState.paidAt||now:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total};
       });
       const missingPaid=[...oldPaidByPerson.entries()].filter(([key,state])=>state.paid&&!newPersonKeys.has(key));
       if(missingPaid.length){await appAlert('重算后有已收款 CN 不再出现在本批中，不能直接移除收款记录。请先存档并单独核对退补：'+missingPaid.map(([,state])=>state.person).join('、'));return;}
       const changedPaid=newRows.filter(row=>row.paid&&Math.abs(num(row.amount)-num(oldPaidByPerson.get(normalizeDispatchKey(row.person))?.amount))>=0.01);
       if(changedPaid.length){await appAlert('本批有 '+changedPaid.length+' 位已收款 CN 的金额发生变化。为避免把原已收款误当成新金额，普通重算不会覆盖这些记录。\n请使用“从存档生成退补”单独处理，或先读取重算前的存档还原本批。');return;}
-      const ok=await appConfirm(`只重算“${batch.date} · ${batch.sheet}”的国际运费，覆盖原来的 ${oldRows.length} 笔国际记录。\n本批总价：${money(total)}\n不会新增退款或补款，也不会删除已有退补；已收标记保留。覆盖前自动备份本批。`,'仅重算国际','确认重算');
+      const ownershipPreview=built.rows.map(row=>{
+        const key=normalizeDispatchKey(row.person),previous=oldRows.filter(old=>normalizeDispatchKey(old.person)===key);
+        const oldQty=previous.reduce((n,old)=>n+(old.rawDetails||[]).reduce((s,d)=>s+num(d.qty),0),0);
+        const newQty=(row.detailRows||[]).reduce((n,d)=>n+num(d.qty),0);
+        return `${row.person}：${oldQty} → ${newQty} 件；${money(oldPaidByPerson.get(key)?.amount||0)} → ${money(row.amount)}`;
+      }).join('\n');
+      const ok=await appConfirm(`只重算“${batch.date} · ${batch.sheet}”的国际运费，更新原来的 ${oldRows.length} 笔国际记录，不重复新增。\n本批总价：${money(total)}\n${ownershipPreview}\n不会新增退款或补款，也不会删除已有退补；已收标记保留。更新前自动备份本批。`,'仅重算国际','确认重算');
       if(!ok)return;
       if(operationCode!==String(syncCode||'')||operationSignature!==JSON.stringify({extraFees,extraFeeArchives,sheets})){await appAlert('核对期间数据已变化，请重新重算。');return;}
       const beforeRecalcFees=extraFees,beforeArchives=extraFeeArchives,oldSeed=extraFeeIdSeed;
