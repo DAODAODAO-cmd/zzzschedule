@@ -328,7 +328,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <input id="editorNameInput" type="hidden">
     <span id="authAccountBadge" class="auth-account-badge">正在确认账户</span>
     <button id="authLogoutBtn" class="btn-ghost" type="button">退出登录</button>
-    <button id="startCollabBtn" class="btn-ghost" disabled style="display:none;">开启实时同步</button>
+    <button id="startCollabBtn" class="btn-ghost" type="button" disabled>重试连接</button>
     <button id="stopCollabBtn" class="btn-ghost" disabled style="display:none;">关闭实时同步</button>
     <button id="dataSaverBtn" class="btn-ghost" type="button" style="display:none;">省流量：开</button>
     <button id="cloudUploadBtn" class="btn-primary">上传云端</button>
@@ -2233,9 +2233,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       setCloudStatus(cloudDirty?'云端完整备份未更新':'云端完整备份已同步',cloudDirty?'warn':'');
       if(autoConnect&&!collabEnabled){
         const connected=await startCollab(true);
-        if(!connected) setTimeout(()=>autoReadLatestCloudOnOpen(next,switchingWorkspace),0);
-      }else{
-        setTimeout(()=>autoReadLatestCloudOnOpen(next,switchingWorkspace),0);
+        if(!connected) setCloudStatus('实时连接未完成；本机数据保留，不自动读取旧备份','warn');
+      }else if(!collabEnabled){
+        setCloudStatus('实时尚未连接；本机数据保留','warn');
       }
       return true;
     }
@@ -2763,7 +2763,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           scheduleCollabSync(); setCloudStatus('实时协作中 · 完整备份未更新','warn');
           if(options.flushCollabNow){ clearTimeout(collabSendTimer); collabSendTimer=setTimeout(flushCollabChanges,0); }
         }
-        else if(syncCode&&cloudIdleEnabled) scheduleIdleCloudUpload();
+        else if(syncCode&&cloudIdleEnabled){scheduleIdleCloudUpload();setCloudStatus('本机修改未同步；实时尚未连接，请查看连接状态','warn');}
         else setCloudStatus(syncCode?'云端完整备份未更新':'尚未加入协作组',syncCode?'warn':false);
       }
       return localSaved!=='failed';
@@ -3488,7 +3488,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function syncCompactCollabStatus(){
       const compact=$('collabCompactStatus'); if(!compact) return;
       const hasGroup=!!currentWorkspace();
-      compact.textContent=collabEnabled?`● ${$('collabStatus')?.textContent||'正在连接'}`:(hasGroup?'○ 打开后自动实时同步':'○ 尚未加入协作组');
+      compact.textContent=(collabEnabled?'● ':'○ ')+(hasGroup?($('collabStatus')?.textContent||'实时尚未连接'):'尚未加入协作组');
+      compact.title=$('collabStatus')?.title||compact.textContent;compact.style.cursor='pointer';compact.onclick=()=>{$('collabStatus')?.click();};
       compact.style.color=collabEnabled?'var(--ok)':'var(--warn)';
       compact.style.borderColor=collabEnabled?'#b9dfc5':'#ecd3aa';
       compact.style.background=collabEnabled?'#f0faf3':'#fff9ef';
@@ -3515,7 +3516,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function syncCollabUI(){
       const review=$('resolveRealtimeReviewBtn');if(review){review.hidden=!pendingRealtimeReview||pendingRealtimeReview.code!==syncCode;}
-      $('startCollabBtn').disabled=collabEnabled||!syncCode;
+      $('startCollabBtn').disabled=collabEnabled||collabConnecting||!syncCode;
+      $('startCollabBtn').hidden=collabEnabled;
       $('stopCollabBtn').disabled=!collabEnabled;
       const saver=$('dataSaverBtn'); if(saver){ saver.textContent=dataSaverMode?'省流量：开':'省流量：关'; saver.classList.toggle('active',dataSaverMode); saver.title=dataSaverMode?'减少实时轮询和在线名单刷新，节省 Supabase Egress':'更快看到协作变化，但会增加 Supabase Egress'; }
       $('collabActivityPanel').style.display=collabEnabled?'block':'none';
@@ -3611,14 +3613,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function isCollabPermissionError(error){
       const raw=String(error?.message||error?.details||error?.hint||error||'').toLowerCase();
-      return raw.includes('permission denied')&&raw.includes('ggz_collab_projects');
+      return /group_access_denied|not_group_member|permission denied|row-level security|jwt|session.*expired|invalid.*token/.test(raw);
     }
     function disableCollabForPermissionError(error){
-      collabEnabled=false; collabNeedsSend=false; clearTimeout(collabSendTimer); collabSendTimer=null; stopCollabPolling(); stopCollabPresence();
+      collabEnabled=false; collabNeedsSend=true; collabReconnectBlocked=syncCode;clearTimeout(collabReconnectTimer);collabReconnectTimer=null;clearTimeout(collabSendTimer); collabSendTimer=null; stopCollabPolling(); stopCollabPresence();
       if(syncCode) localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+syncCode,'0');
       syncCollabUI();
       setCollabStatus('实时协作权限未开放：'+readableSyncError(error),'bad');
-      setCloudStatus('本机已保存；实时协作权限缺失，请用“上传云端”保存完整备份','warn');
+      setCloudStatus('本机修改未同步；请先导出 JSON 备份，再核对账号和组权限','warn');
     }
     async function fetchCollabProjectState(client,code){
       const {data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:{},p_author_name:editorName||'未命名'}),45000,'实时协作读取更新');
@@ -3812,9 +3814,23 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(code===syncCode&&collabEnabled&&collabNeedsSend&&!collabSending&&!collabSendTimer)scheduleCollabSync();
       }
     }
+    let collabReconnectTimer=null,collabReconnectBlocked='',collabReconnectAttempts=0;
+    function scheduleCollabReconnect(){
+      clearTimeout(collabReconnectTimer);collabReconnectTimer=null;
+      if(collabEnabled||!syncCode||!authCurrentUser||collabReconnectBlocked===syncCode||restoredSnapshotPendingUpload||cloudPublishingCollab)return;
+      const code=syncCode,delay=Math.min(60000,3000*2**Math.min(collabReconnectAttempts++,5));
+      collabReconnectTimer=setTimeout(()=>{collabReconnectTimer=null;if(code===syncCode)resumeRealtimeConnection();},delay);
+    }
+    async function resumeRealtimeConnection(){
+      if(document.visibilityState==='hidden'||navigator.onLine===false||cloudBusy||cloudPublishingCollab)return;
+      if(collabEnabled){if(collabNeedsSend||collabSendTimer)await flushCollabChanges();else await pollCollabState();return;}
+      if(authCurrentUser&&syncCode&&collabReconnectBlocked!==syncCode&&!restoredSnapshotPendingUpload)await startCollab(true);
+    }
     async function startCollab(autoStart=false){
       if(collabConnecting)return false;
-      if(cloudPublishingCollab||restoredSnapshotPendingUpload||localStorage.getItem('ggzRestoredPendingPublish_v1:'+syncCode)==='1'){if(!autoStart)await appAlert('恢复或发布尚未完成，请先备份并使用“上传云端”核对发布；现在连接会读回旧协作数据。');return false;}
+      if(autoStart&&collabReconnectBlocked===syncCode)return false;
+      if(!autoStart){collabReconnectBlocked='';collabReconnectAttempts=0;}
+      if(cloudPublishingCollab||restoredSnapshotPendingUpload||localStorage.getItem('ggzRestoredPendingPublish_v1:'+syncCode)==='1'){setCollabStatus('自动连接已暂停：本机修改待核对，请先备份','warn');if(!autoStart)await appAlert('本机数据仍待核对，不能直接连接覆盖。请先导出 JSON 备份，再核对未同步修改或上传发布。');return false;}
       const code=normalizedSyncCode(); if(!code){ if(!autoStart) alert('请先加入或新建协作组'); return false; }
       const name=String($('editorNameInput').value||'').trim(); if(!name){ if(!autoStart){ alert('请先填写编辑者名字'); $('editorNameInput').focus(); } return false; }
       syncCode=code; editorName=name; localStorage.setItem('ggzEditorName',editorName); $('startCollabBtn').disabled=true; setCollabStatus('正在连接实时协作…','warn');
@@ -3823,6 +3839,15 @@ body.export-rendering .cart-count{ font-size:28px; }
         const captured=await stableRealtimeSnapshot(code),localInitialState=captured.local,initialState=captured.cloud,client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),60000,'实时协作连接');
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作状态为空');
+        if(!collabStatesEqual(row.out_state,initialState)&&(collabNeedsSend||cloudDirty)&&!isProbablyBlankProject(localInitialState)){
+          if(collabBaseline&&Array.isArray(collabBaseline.sheets)){
+            collabEnabled=true;
+            const prepared=await prepareRealtimeResponse(row,initialState,code,collabBaseline);
+            if(!acceptRealtimeResult(prepared,code)){if(collabEnabled){collabEnabled=false;setCollabStatus('重连核对期间数据有变化，本机保留，稍后重试','warn');scheduleCollabReconnect();}return false;}
+            localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1');startCollabPolling();startCollabPresence();syncCollabUI();if(collabNeedsSend)scheduleCollabSync();return true;
+          }
+          pauseRealtimeForSafety('本机与云端不同，且没有可核对的同步基线；已保留本机，请先导出 JSON 备份后核对，未自动覆盖');return false;
+        }
         if(!autoStart&&!collabStatesEqual(row.out_state,initialState)){
           const accepted=await appConfirm('协作云端已经有其他人的版本。开启后会先以协作云端为准，确定继续吗？','发现协作版本','继续开启');
           if(!accepted){ syncCollabUI(); return false; }
@@ -3831,15 +3856,17 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(captured.revision!==localRevision||isColumnListEditing()){pauseRealtimeForSafety('连接期间出现本机新编辑，已停止应用旧连接结果');return false;}
         const displayState=preserveMatchingLocalImages(row.out_state,localInitialState,initialState);
         collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=deepClone(row.out_state); installCollabState(displayState);
+        clearTimeout(collabReconnectTimer);collabReconnectTimer=null;collabReconnectAttempts=0;collabReconnectBlocked='';
         localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1'); clearIdleCloudUpload(); startCollabPolling(); syncCollabUI(); startCollabPresence(); setCollabStatus(`实时协作已连接 · 版本 ${collabRevision}`,'ok'); setCloudStatus('完整云端备份可手动上传'); return true;
       }catch(error){
         if(code!==syncCode)return false;
         collabEnabled=false; syncCollabUI();
+        if(isCollabPermissionError(error)){disableCollabForPermissionError(error);return false;}
         const reason=readableCollabError(error);
         if(lockFeatureMissing(error)&&!autoStart) alert('实时协作 SQL 尚未安装，请在 Supabase 执行最新的完整 supabase_setup.sql。');
         else if(!autoStart) alert('开启实时协作失败：'+reason);
-        setCollabStatus('实时协作尚未连接：'+reason,'bad'); return false;
-      }finally{collabConnecting=false;}
+        setCollabStatus('实时协作尚未连接：'+reason+'；网络恢复后自动重试','warn');scheduleCollabReconnect();return false;
+      }finally{collabConnecting=false;syncCollabUI();}
     }
     async function stopCollab(){
       if(!collabEnabled) return;
@@ -4090,7 +4117,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(!ok&&wasDirty){ cloudDirty=true; rememberCloudDirty(code,true); }
           return ok;
         }
-        setCloudStatus(cloudDirty?'本机有新修改 · 等待自动上传':'已是最新云端版本',cloudDirty?'warn':'');
+        setCloudStatus(cloudDirty?'本机有未同步修改，请检查实时连接状态':'完整备份无新版本',cloudDirty?'warn':'');
         return true;
       }catch(error){
         setCloudStatus('自动读取云端失败：'+(error.message||error),'warn');
@@ -6665,10 +6692,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       clearTimeout(intlSplitCalcTimer);
       intlSplitCalcTimer=setTimeout(()=>calculateIntlSplit(true),80);
     }
-    function internationalBatches(){
+    function internationalBatches(dispatchOnly=false){
       captureActiveSheet();
       const map=new Map();
       (sheets||[]).forEach(sheet=>{
+        if(dispatchOnly&&!sheetParticipatesInDispatch(sheet))return;
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
         const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, sub=sheet.matrixBlindSubCells||{};
         const cols=orderDisplayColumns(Array.isArray(sheet.columns)?sheet.columns:[],groups,alloc);
@@ -8877,14 +8905,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       let sheet=sheets.find(s=>String(s.id)===String(sheetId));if(!sheet)return;
       const code=String(syncCode||'');dispatchScopeSaving=true;
       try{
-        if(!enabled&&!await appConfirm(`将「${sheet.name||'未命名排单'}」设为仅算账？\n将不再出现在排发清单、排发统计和排发导出中。\n排单、收退款、国际费用、物流和原有发货记录都会保留，随时可以重新开启。`,'参与排发设置','设为仅算账'))return;
+        if(!enabled&&!await appConfirm(`将「${sheet.name||'未命名排单'}」设为仅算账？\n将不再出现在排发和物流的清单、统计、批量操作与导出中。\n排单、收退款、国际费用及原有到货、发货记录都会保留，随时可以重新开启。`,'参与排发设置','设为仅算账'))return;
         if(code!==String(syncCode||'')){await appAlert('已切换协作组，本次设置未应用，请在当前组重新操作。');return;}
         captureActiveSheet();sheet=sheets.find(s=>String(s.id)===String(sheetId));if(!sheet)return;
         const previous=sheet.dispatchEnabled;sheet.dispatchEnabled=enabled===true;
         let saved=false;try{saved=saveState();}catch(error){if(previous===undefined)delete sheet.dispatchEnabled;else sheet.dispatchEnabled=previous;throw error;}
         if(!saved){if(previous===undefined)delete sheet.dispatchEnabled;else sheet.dispatchEnabled=previous;await appAlert('设置未能保存，已保留原状态。请先备份数据并处理存储空间。','保存失败');}
       }catch(error){await appAlert('参与排发设置未完成：'+(error.message||error));}
-      finally{dispatchScopeSaving=false;syncCurrentSheetDispatchControl();renderDispatch();}
+      finally{dispatchScopeSaving=false;syncCurrentSheetDispatchControl();renderDispatch();renderLogistics();}
     }
     $('secondPricePanel').addEventListener('toggle',()=>{if($('secondPricePanel').open&&$('secondPricePanel').dataset.sheetId!==String(activeSheetId))renderSecondPriceSetup();});
     $('secondPricePanel').addEventListener('input',e=>{if(e.target.id!=='secondPriceColumnSearch')invalidateSecondPrice();});
@@ -8939,7 +8967,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         captureActiveSheet();const before=deepClone(sheets);
         for(const ref of chosen){const sheet=sheets.find(s=>s.id===ref.sheetId),name=String(sheet?.allocations?.[ref.colId]?.[ref.row]||'').trim();if(!sheet||name!==ref.person){await appAlert('排单已发生变化，请刷新清单再操作。','未修改');return;}}
         chosen.forEach(ref=>{const sheet=sheets.find(s=>s.id===ref.sheetId),key=`${ref.colId}:${ref.row}`;sheet.dispatchShippedCells=sheet.dispatchShippedCells||{};if(undo)delete sheet.dispatchShippedCells[key];else sheet.dispatchShippedCells[key]={person:ref.person,item:ref.item,at:new Date().toISOString()};});
-        if(!saveState()){sheets=before;await appAlert('发货标记未能保存，请先导出 JSON 备份并处理存储空间。','保存失败');}
+        if(!saveState({snapshotReason:undo?'撤销发货后':'标记发货后',forceSnapshot:true,flushCollabNow:true})){sheets=before;await appAlert('发货标记未能保存，请先导出 JSON 备份并处理存储空间。','保存失败');}
         renderDispatch();return;
       }
       const button=e.target.closest('[data-dispatch-rename]');if(!button)return;
@@ -8999,14 +9027,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function refreshLogisticsBatchOptions(){
       const select=$('logisticsDateFilter');if(!select)return;
-      const options=logisticsBatchOptions(internationalBatches());
+      const options=logisticsBatchOptions(internationalBatches(true));
       if(logisticsDateFilterVal&&!options.some(o=>o.value===logisticsDateFilterVal))logisticsDateFilterVal='';
       select.innerHTML='<option value="">全部批次</option>'+options.map(o=>`<option value="${escapeAttr(o.value)}">${escapeHtml(o.label)}</option>`).join('');
       select.value=logisticsDateFilterVal;
       $('logisticsDateClear').classList.toggle('is-on',!logisticsDateFilterVal);
     }
     const logisticsArrivalTargets=new Map();let logisticsArrivalEditing=null;
-    function logisticsArrivalSignature(sheet){return JSON.stringify({columns:sheet.columns||[],groups:sheet.pricingGroups||[],allocations:sheet.allocations||{},sub:sheet.matrixBlindSubCells||{},island:sheet.matrixIslandCells||{},china:sheet.matrixChinaCells||{}});}
+    function logisticsArrivalSignature(sheet){return JSON.stringify({participates:sheetParticipatesInDispatch(sheet),columns:sheet.columns||[],groups:sheet.pricingGroups||[],allocations:sheet.allocations||{},sub:sheet.matrixBlindSubCells||{},island:sheet.matrixIslandCells||{},china:sheet.matrixChinaCells||{}});}
     function buildLogisticsArrivalChanges(sheet,refs,stage,date,operation='mark'){
       if(!['island','china'].includes(stage)||!['mark','remove'].includes(operation))throw new Error('到货操作类型无效');
       if(operation==='mark'&&(!/^\d{4}-\d{2}-\d{2}$/.test(date)||new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date))throw new Error('请填写有效的到货日期');
@@ -9036,13 +9064,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function syncLogisticsArrivalSelection(){const count=$('logisticsArrivalChoices').querySelectorAll('input:checked:not(:disabled)').length;$('logisticsArrivalQty').value=String(count);$('logisticsArrivalSelectionCount').textContent=`已选 ${count} 件`;$('applyLogisticsArrivalBtn').disabled=!count;$('applyLogisticsArrivalBtn').textContent=($('logisticsArrivalOperation').value==='remove'?'确认撤销 ':'确认到货 ')+count+' 件';}
     function openLogisticsArrival(target){
-      captureActiveSheet();const sheet=sheets.find(s=>String(s.id)===String(target?.sheetId));if(!sheet)return;
+      captureActiveSheet();const sheet=sheets.find(s=>String(s.id)===String(target?.sheetId));if(!sheet||!sheetParticipatesInDispatch(sheet))return;
       logisticsArrivalEditing={...deepClone(target),signature:logisticsArrivalSignature(sheet),workspace:String(syncCode||'')};$('logisticsArrivalTitle').textContent=target.label;
       $('logisticsArrivalStage').value='china';$('logisticsArrivalOperation').value='mark';$('logisticsArrivalDate').value=todayISO();$('logisticsArrivalQty').value='0';$('logisticsArrivalPersonSearch').value='';renderLogisticsArrivalChoices();openInlineBatchEditor('logisticsArrivalDialog','logisticsWrap');
     }
     async function applyLogisticsArrival(){
       const edit=logisticsArrivalEditing;if(!edit)return;captureActiveSheet();const sheet=sheets.find(s=>String(s.id)===String(edit.sheetId));
-      if(!sheet||edit.workspace!==String(syncCode||'')||edit.signature!==logisticsArrivalSignature(sheet)){closeInlineBatchEditor('logisticsArrivalDialog');await appAlert('窗口打开期间排单或到货标记发生变化，本次未应用。请重新打开核对。');return;}
+      if(!sheet||!sheetParticipatesInDispatch(sheet)||edit.workspace!==String(syncCode||'')||edit.signature!==logisticsArrivalSignature(sheet)){closeInlineBatchEditor('logisticsArrivalDialog');await appAlert('窗口打开期间排单或到货标记发生变化，本次未应用。请重新打开核对。');return;}
       try{
         const refs=[...$('logisticsArrivalChoices').querySelectorAll('input:checked:not(:disabled)')].map(input=>edit.refs[Number(input.dataset.arrivalChoice)]),stage=$('logisticsArrivalStage').value,date=$('logisticsArrivalDate').value,operation=$('logisticsArrivalOperation').value;
         if(!refs.length)return;const plan=buildLogisticsArrivalChanges(sheet,refs,stage,date,operation),before=deepClone(sheet[plan.field]||{}),history=deepClone(sheet.logisticsArrivalHistory||[]);
@@ -9055,7 +9083,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }catch(error){closeInlineBatchEditor('logisticsArrivalDialog');await appAlert(error.message||'到货未保存');}
     }
     async function undoLogisticsArrival(){
-      captureActiveSheet();const latest=sheets.map(sheet=>({sheet,entry:sheet.logisticsArrivalHistory?.at(-1)})).filter(x=>x.entry).sort((a,b)=>b.entry.at-a.entry.at)[0];if(!latest){await appAlert('暂无可撤回的到货操作。');return;}
+      captureActiveSheet();const latest=sheets.filter(sheetParticipatesInDispatch).map(sheet=>({sheet,entry:sheet.logisticsArrivalHistory?.at(-1)})).filter(x=>x.entry).sort((a,b)=>b.entry.at-a.entry.at)[0];if(!latest){await appAlert('暂无可撤回的到货操作。');return;}
       const {sheet,entry}=latest,code=String(syncCode||''),signature=logisticsArrivalSignature(sheet);
       if(!await appConfirm(`撤回「${sheet.name}」最近一次到货操作，共 ${entry.changes.length} 件？\n只恢复该次到货标记，不恢复整张排单或钱账。`,'撤回到货','确认撤回'))return;
       if(code!==String(syncCode||'')||!sheets.includes(sheet)||signature!==logisticsArrivalSignature(sheet)||sheet.logisticsArrivalHistory?.at(-1)?.id!==entry.id){await appAlert('确认期间数据变化，请重新核对。');return;}
@@ -9090,7 +9118,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const draft=logisticsCardDraft;if(!draft||logisticsCardSaving)return;logisticsCardSaving=true;
       try{
         captureActiveSheet();let sheet=sheets.find(s=>String(s.id)===String(draft.sheetId));
-        const valid=()=>sheet&&draft===logisticsCardDraft&&draft.workspace===String(syncCode||'')&&draft.filter===logisticsDateFilterVal&&draft.signature===logisticsArrivalSignature(sheet);
+        const valid=()=>sheet&&sheetParticipatesInDispatch(sheet)&&draft===logisticsCardDraft&&draft.workspace===String(syncCode||'')&&draft.filter===logisticsDateFilterVal&&draft.signature===logisticsArrivalSignature(sheet);
         if(!valid())throw new Error('排单或到货状态已经变化，请重新选择数量');
         const refs=[];for(const [id,qty] of Object.entries(draft.quantities)){if(!qty)continue;const target=logisticsArrivalTargets.get(id);if(!target||String(target.sheetId)!==String(sheet.id))throw new Error('谷子范围发生变化');refs.push(...logisticsCardPickInOrder(sheet,target.refs,draft.stage,qty));}
         const plan=buildLogisticsArrivalChanges(sheet,refs,draft.stage,draft.date,'mark');
@@ -9116,6 +9144,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sheetGroups=[];
       let goodsCount=0,totalQty=0,chinaQty=0,overdueGoods=0;
       (sheets||[]).forEach(sheet=>{
+        if(!sheetParticipatesInDispatch(sheet))return;
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
         const alloc=sheet.allocations||{}, isl=sheet.matrixIslandCells||{}, chn=sheet.matrixChinaCells||{}, sub=sheet.matrixBlindSubCells||{};
         const cols=orderDisplayColumns(sheet.columns||[],groups,alloc);
@@ -9264,7 +9293,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     if(window.visualViewport){ window.visualViewport.addEventListener('resize',syncMobileVisualViewport); window.visualViewport.addEventListener('scroll',syncMobileVisualViewport); }
     window.addEventListener('resize',syncMobileVisualViewport); syncMobileVisualViewport();
-    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&collabEnabled&&(collabNeedsSend||collabSendTimer)) flushCollabChanges(); });
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){if(collabEnabled&&(collabNeedsSend||collabSendTimer))flushCollabChanges();}else resumeRealtimeConnection().catch(()=>scheduleCollabReconnect());});
+    window.addEventListener('online',()=>resumeRealtimeConnection().catch(()=>scheduleCollabReconnect()));
+    window.addEventListener('pageshow',()=>resumeRealtimeConnection().catch(()=>scheduleCollabReconnect()));
     window.addEventListener('beforeunload',e=>{
       if(!collabEnabled||(!collabNeedsSend&&!collabSending&&!collabSendTimer)) return;
       e.preventDefault(); e.returnValue='';
