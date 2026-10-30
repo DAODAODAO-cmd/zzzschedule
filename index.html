@@ -3839,7 +3839,9 @@ body.export-rendering .cart-count{ font-size:28px; }
         const captured=await stableRealtimeSnapshot(code),localInitialState=captured.local,initialState=captured.cloud,client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),60000,'实时协作连接');
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作状态为空');
-        if(!collabStatesEqual(row.out_state,initialState)&&(collabNeedsSend||cloudDirty)&&!isProbablyBlankProject(localInitialState)){
+        // cloudDirty describes the full backup, not pending realtime edits.
+        // A stale full backup must not block an otherwise normal realtime connection.
+        if(!collabStatesEqual(row.out_state,initialState)&&collabNeedsSend&&!isProbablyBlankProject(localInitialState)){
           if(collabBaseline&&Array.isArray(collabBaseline.sheets)){
             collabEnabled=true;
             const prepared=await prepareRealtimeResponse(row,initialState,code,collabBaseline);
