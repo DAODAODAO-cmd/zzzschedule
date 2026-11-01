@@ -604,6 +604,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button class="btn-ghost" id="regenBtn" data-mobile-label="刷新">刷新表格</button>
       <button class="btn-ghost" id="exportPngBtn" data-mobile-label="导出图片">导出配比图</button>
       <button class="btn-ghost" id="exportSingleQuantityBtn" data-mobile-label="单领数量">复制单领数量</button>
+      <button class="btn-ghost" id="exportQuantityJpyBtn" data-mobile-label="数量＋日元">复制数量＋日元</button>
       <button class="btn-ghost" id="exportBundleQuantityBtn" data-mobile-label="配比数量">复制配比数量</button>
       <button class="btn-ghost" id="copyBlindResultBtn" data-mobile-label="盲抽结果">复制盲抽结果</button>
       <button class="btn-ghost" id="undoLastApplyBtn" data-mobile-label="撤回" disabled>撤回上次应用</button>
@@ -6828,7 +6829,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     function intlRecordFactors(rows){
       const factors={};
       (rows||[]).forEach(row=>(row.rawDetails||[]).forEach(d=>{
-        if(d.item&&!factors[d.item]) factors[d.item]=num(d.unitValue)||num(d.weight)||1;
+        if(!d.item||Object.prototype.hasOwnProperty.call(factors,d.item))return;
+        const explicit=d.unitValue!==null&&d.unitValue!==undefined&&String(d.unitValue).trim()!==''?Number(d.unitValue):NaN;
+        const lineWeight=d.weight!==null&&d.weight!==undefined&&String(d.weight).trim()!==''?Number(d.weight):NaN;
+        factors[d.item]=Number.isFinite(explicit)?Math.max(0,explicit):(Number.isFinite(lineWeight)?Math.max(0,lineWeight)/Math.max(1,num(d.qty)):1);
       }));
       return factors;
     }
@@ -6873,7 +6877,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const shouldEditFactors=await appConfirm(`要逐项修改每个谷子的${label}吗？\n如果只是改总价/整箱总重，可以跳过。`,'修改分摊依据','逐项修改','跳过');
         if(shouldEditFactors){
           const items=[...batch.items.entries()].map(([name,qty])=>({name,qty})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'zh-CN'));
-          items.forEach(item=>{ if(!num(factors[item.name])) factors[item.name]=1; });
+          items.forEach(item=>{ if(!Object.prototype.hasOwnProperty.call(factors,item.name)) factors[item.name]=1; });
           const nextFactors=await appFactorTablePrompt(items,factors,{title:`修改${label}`,label});
           if(nextFactors===null) return;
           Object.assign(factors,nextFactors);
@@ -12005,6 +12009,32 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       return {rows:exportColumns.map(c=>[c.name,completeRows]),completeRows};
     }
+    function quantityOriginalJpy(c,seen=new Set()){
+      if(!c||seen.has(c.id))return null;seen.add(c.id);
+      if(c.isPricingCombo||c.mode==='wholeset'){
+        const members=c.isPricingCombo?(c.comboMembers||[]):columns.filter(x=>x.mode!=='wholeset');
+        const prices=members.map(member=>quantityOriginalJpy(member,new Set(seen)));
+        return prices.length&&prices.every(p=>p!==null)?prices.reduce((sum,p)=>sum+p,0):null;
+      }
+      if(num(c.sourceJpyPrice)>0)return num(c.sourceJpyPrice);
+      if(['fixed','deduct','single'].includes(c.mode))return null;
+      const price=averageOriginalJpy();return price>0?price:null;
+    }
+    function currentQuantityJpyText(){
+      const title=matrixTitle||sheets.find(s=>s.id===activeSheetId)?.name||'未命名项目';
+      const lines=[`${title}｜单领数量＋日元`];let total=0,qtyTotal=0,missing=0;
+      const format=value=>String(Math.round((value+Number.EPSILON)*100)/100);
+      orderDisplayColumns().forEach(c=>{
+        const qty=(allocations[c.id]||[]).filter(person=>String(person||'').trim()).length;if(!qty)return;
+        qtyTotal+=qty;const price=quantityOriginalJpy(c);
+        if(price===null){missing++;lines.push(`${c.name}×${qty}｜未填日元价`);return;}
+        const subtotal=Math.round((price*qty+Number.EPSILON)*100)/100;total+=subtotal;
+        lines.push(`${c.name}×${qty}｜${format(price)}×${qty}＝${format(subtotal)}日元`);
+      });
+      if(!qtyTotal)lines.push('暂无数量');
+      else lines.push(`共${qtyTotal}件｜${missing?'已知金额合计':'合计'}：${format(total)}日元${missing?`（另有${missing}款未填日元价，未计入）`:''}`);
+      return lines.join('\n');
+    }
     function copyTextWithFallback(text){
       if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
       const area=document.createElement('textarea'); area.value=text; area.style.position='fixed'; area.style.opacity='0'; document.body.appendChild(area); area.select();
@@ -12024,6 +12054,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     $('exportSingleQuantityBtn').addEventListener('click',()=>exportCurrentQuantity('single'));
     $('exportBundleQuantityBtn').addEventListener('click',()=>exportCurrentQuantity('bundle'));
+    $('exportQuantityJpyBtn').addEventListener('click',()=>{
+      const button=$('exportQuantityJpyBtn'),old=button.textContent;
+      copyTextWithFallback(currentQuantityJpyText()).then(()=>{button.textContent='已复制 ✓';setTimeout(()=>button.textContent=old,1500);}).catch(()=>alert('复制失败，请允许浏览器访问剪贴板后重试'));
+    });
     $('exportCurrentExcelBtn').addEventListener('click',()=>{
       if(typeof XLSX==='undefined'){ alert('Excel 组件尚未加载，请联网后重试'); return; }
       captureActiveSheet(); const sheet=sheets.find(s=>s.id===activeSheetId); if(!sheet||!sheet.columns.length){ alert('还没有排单数据'); return; }
