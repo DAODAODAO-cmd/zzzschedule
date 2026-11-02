@@ -283,6 +283,8 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   <div class="sheetbar">
     <div class="sheet-library-tools">
       <input id="sheetSearchInput" type="text" placeholder="搜索排单名称">
+      <select id="sheetTypeFilter" aria-label="按类型筛选排单" style="width:100%;margin-top:6px"></select>
+      <button type="button" class="btn-ghost" id="manageSheetTypesBtn" style="width:100%;margin-top:6px">分类／批量归类</button>
       <div class="sheet-status-tabs"><button type="button" data-sheet-status-filter="ongoing" class="active">进行中</button><button type="button" data-sheet-status-filter="completed">已完成</button><button type="button" data-sheet-status-filter="all">全部</button></div>
     </div>
     <div id="sheetTabs" class="sheet-tabs"></div>
@@ -361,6 +363,8 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <button type="button" class="btn-ghost" id="mobileCopySheetBtn">复制</button>
     <button type="button" class="btn-ghost" id="mobileDeleteSheetBtn">删除</button>
     <button type="button" class="btn-ghost" id="mobileSortSheetBtn">排序</button>
+    <select id="mobileSheetTypeFilter" aria-label="按类型筛选排单"></select>
+    <button type="button" class="btn-ghost" id="mobileManageSheetTypesBtn">分类</button>
   </div>
   <div class="mobile-sheet-sort-overlay" id="mobileSheetSortOverlay" hidden>
     <div class="mobile-sheet-sort-dialog" role="dialog" aria-modal="true" aria-labelledby="mobileSheetSortTitle">
@@ -370,6 +374,16 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
   </div>
 
+  <div class="mobile-sheet-sort-overlay" id="sheetTypesOverlay" hidden>
+    <div class="mobile-sheet-sort-dialog" role="dialog" aria-modal="true" aria-labelledby="sheetTypesTitle">
+      <div class="mobile-sheet-sort-head"><strong id="sheetTypesTitle">排单类型</strong><button type="button" class="btn-ghost" id="closeSheetTypesBtn">关闭</button></div>
+      <p class="hint">只整理列表，不改变排单、账单和物流。勾选多张表可一起归类。</p>
+      <input id="sheetTypesSearch" type="search" placeholder="搜索表名（保留已勾选项）">
+      <div class="toolbar"><button type="button" class="btn-ghost" id="sheetTypesSelectAllBtn">全选搜索结果</button><button type="button" class="btn-ghost" id="sheetTypesClearBtn">全不选</button><span class="hint" id="sheetTypesCount"></span></div>
+      <div id="sheetTypesList" style="overflow:auto;flex:1;min-height:100px;max-height:40vh"></div>
+      <div class="toolbar" style="margin-top:10px"><input id="sheetTypeName" list="sheetTypeSuggestions" maxlength="24" placeholder="选类型或输入新类型" style="flex:1;min-width:140px"><datalist id="sheetTypeSuggestions"></datalist><button type="button" class="btn-primary" id="applySheetTypesBtn">应用类型</button><button type="button" class="btn-ghost" id="clearSheetTypesBtn">移至未分类</button></div>
+    </div>
+  </div>
   <div class="panel desktop-setup" id="costPanel">
     <h2>价格</h2>
     <div class="grid price-grid">
@@ -2950,12 +2964,44 @@ body.export-rendering .cart-count{ font-size:28px; }
       const first=blankSheet('表1'); sheets=[first]; activeSheetId=first.id; applySheet(first);
     }
 
+    let sheetTypeFilter='',sheetTypesDraft=null;
+    function sheetTypeName(sheet){return String(sheet?.sheetType||'').trim();}
+    function sheetTypeNames(){return [...new Set(['扫街','通贩','国际','群内出物',...sheets.map(sheetTypeName).filter(Boolean)])];}
+    function sheetTypeMatches(sheet){return !sheetTypeFilter||(sheetTypeFilter==='__unclassified__'?!sheetTypeName(sheet):sheetTypeName(sheet)===sheetTypeFilter);}
+    function renderSheetTypeFilters(){
+      const names=sheetTypeNames();if(sheetTypeFilter&&sheetTypeFilter!=='__unclassified__'&&!names.includes(sheetTypeFilter))sheetTypeFilter='';
+      const options='<option value="">全部类型</option>'+names.map(name=>`<option value="${escapeAttr(name)}">${escapeHtml(name)} · ${sheets.filter(s=>sheetTypeName(s)===name).length}</option>`).join('')+`<option value="__unclassified__">未分类 · ${sheets.filter(s=>!sheetTypeName(s)).length}</option>`;
+      ['sheetTypeFilter','mobileSheetTypeFilter'].forEach(id=>{const el=$(id);el.innerHTML=options;el.value=sheetTypeFilter;});
+    }
+    function renderSheetTypesList(){
+      if(!sheetTypesDraft)return;
+      const query=$('sheetTypesSearch').value.trim().toLowerCase();
+      $('sheetTypesList').innerHTML=sheets.filter(s=>!query||String(s.name||'').toLowerCase().includes(query)).map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid #eee5f0"><input type="checkbox" data-sheet-type-id="${s.id}" ${sheetTypesDraft.selected.has(String(s.id))?'checked':''}><span style="flex:1;overflow-wrap:anywhere">${escapeHtml(s.name||'未命名排单')}</span><small>${escapeHtml(sheetTypeName(s)||'未分类')}</small></label>`).join('')||'<p class="hint">没有匹配的排单</p>';
+      $('sheetTypesCount').textContent='已选 '+sheetTypesDraft.selected.size+' 张';
+    }
+    function openSheetTypes(){
+      sheetTypesDraft={code:String(syncCode||''),selected:new Set([String(activeSheetId)])};$('sheetTypesSearch').value='';$('sheetTypeName').value=sheetTypeName(sheets.find(s=>s.id===activeSheetId));
+      $('sheetTypeSuggestions').innerHTML=sheetTypeNames().map(name=>`<option value="${escapeAttr(name)}"></option>`).join('');renderSheetTypesList();$('sheetTypesOverlay').hidden=false;$('sheetTypesOverlay').classList.add('is-open');
+    }
+    function closeSheetTypes(){sheetTypesDraft=null;$('sheetTypesOverlay').hidden=true;$('sheetTypesOverlay').classList.remove('is-open');}
+    async function applySheetTypes(clear=false){
+      const draft=sheetTypesDraft;if(!draft||!draft.selected.size)return;
+      const name=clear?'':$('sheetTypeName').value.trim().slice(0,24);if(!clear&&!name){await appAlert('请选择或输入一个类型。');return;}
+      if(name==='__unclassified__'){await appAlert('请换一个类型名称。');return;}
+      if(draft.code!==String(syncCode||'')){closeSheetTypes();await appAlert('已切换协作组，请重新选择。');return;}
+      const selected=sheets.filter(s=>draft.selected.has(String(s.id)));if(selected.length!==draft.selected.size){closeSheetTypes();await appAlert('表格列表已变化，请重新选择。');return;}
+      const before=selected.map(sheet=>({sheet,value:sheet.sheetType,had:Object.prototype.hasOwnProperty.call(sheet,'sheetType')}));
+      selected.forEach(s=>s.sheetType=name);
+      if(!saveState()){before.forEach(({sheet,value,had})=>{if(had)sheet.sheetType=value;else delete sheet.sheetType;});renderSheetTabs();await appAlert('分类保存失败，已保留原分类。');return;}
+      closeSheetTypes();renderSheetTabs();
+    }
     function isSheetCompleted(sheet){ return sheet?.completed===true; }
     function completedSheetsByRecent(){ return sheets.filter(isSheetCompleted); }
     function renderSheetTabs(){
+      renderSheetTypeFilters();
       const query=String($('sheetSearchInput')?.value||'').trim().toLowerCase();
       const ongoing=sheets.filter(sheet=>!isSheetCompleted(sheet)), completed=completedSheetsByRecent();
-      const matches=sheet=>!query||String(sheet.name||'').toLowerCase().includes(query);
+      const matches=sheet=>query?String(sheet.name||'').toLowerCase().includes(query):sheetTypeMatches(sheet);
       const groups=[];
       if(sheetStatusFilter!=='completed') groups.push({label:`进行中 · ${ongoing.length}`,items:ongoing.filter(matches),movable:true});
       if(sheetStatusFilter!=='ongoing') groups.push({label:`已完成 · ${completed.length}`,items:completed.filter(matches),movable:true});
@@ -2970,7 +3016,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function syncMobileSheetSelect(){
       const select=$('mobileSheetSelect'); if(!select) return;
-      const ongoing=sheets.filter(sheet=>!isSheetCompleted(sheet)),completed=completedSheetsByRecent();
+      const visible=sheets.filter(s=>sheetTypeMatches(s)||s.id===activeSheetId),ongoing=visible.filter(sheet=>!isSheetCompleted(sheet)),completed=visible.filter(isSheetCompleted);
       select.innerHTML=(ongoing.length?`<optgroup label="进行中">${ongoing.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('')}</optgroup>`:'')+(completed.length?`<optgroup label="已完成">${completed.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('')}</optgroup>`:'');
       select.value=String(activeSheetId);
       $('mobileDeleteSheetBtn').disabled=sheets.length<=1;
@@ -8277,6 +8323,17 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('toggleSheetCompletedBtn').addEventListener('click',toggleActiveSheetCompleted);
     $('mobileToggleSheetCompletedBtn').addEventListener('click',toggleActiveSheetCompleted);
     $('sheetSearchInput').addEventListener('input',renderSheetTabs);
+    ['sheetTypeFilter','mobileSheetTypeFilter'].forEach(id=>$(id).addEventListener('change',e=>{sheetTypeFilter=e.target.value;renderSheetTabs();}));
+    $('manageSheetTypesBtn').addEventListener('click',openSheetTypes);
+    $('mobileManageSheetTypesBtn').addEventListener('click',openSheetTypes);
+    $('closeSheetTypesBtn').addEventListener('click',closeSheetTypes);
+    $('sheetTypesOverlay').addEventListener('click',e=>{if(e.target===$('sheetTypesOverlay'))closeSheetTypes();});
+    $('sheetTypesSearch').addEventListener('input',renderSheetTypesList);
+    $('sheetTypesList').addEventListener('change',e=>{const input=e.target.closest('[data-sheet-type-id]');if(!input||!sheetTypesDraft)return;if(input.checked)sheetTypesDraft.selected.add(input.dataset.sheetTypeId);else sheetTypesDraft.selected.delete(input.dataset.sheetTypeId);$('sheetTypesCount').textContent='已选 '+sheetTypesDraft.selected.size+' 张';});
+    $('sheetTypesSelectAllBtn').addEventListener('click',()=>{if(!sheetTypesDraft)return;$('sheetTypesList').querySelectorAll('[data-sheet-type-id]').forEach(input=>sheetTypesDraft.selected.add(input.dataset.sheetTypeId));renderSheetTypesList();});
+    $('sheetTypesClearBtn').addEventListener('click',()=>{if(sheetTypesDraft){sheetTypesDraft.selected.clear();renderSheetTypesList();}});
+    $('applySheetTypesBtn').addEventListener('click',()=>applySheetTypes(false));
+    $('clearSheetTypesBtn').addEventListener('click',()=>applySheetTypes(true));
     document.querySelector('.sheet-status-tabs').addEventListener('click',e=>{
       const button=e.target.closest('[data-sheet-status-filter]'); if(!button) return;
       sheetStatusFilter=button.dataset.sheetStatusFilter||'ongoing'; localStorage.setItem(SHEET_STATUS_FILTER_KEY,sheetStatusFilter); renderSheetTabs();
