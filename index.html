@@ -380,7 +380,6 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <p class="hint">只整理列表，不改变排单、账单和物流。勾选多张表可一起归类。</p>
       <input id="sheetTypesSearch" type="search" placeholder="同时找多类表：hmv、FS、事后（任一匹配）">
       <div class="sheet-types-filters"><select id="sheetTypesExistingFilter" aria-label="筛选已有分类"></select><select id="sheetTypesStatusFilter" aria-label="筛选完成状态"><option value="all">全部状态</option><option value="ongoing">进行中</option><option value="completed">已完成</option></select><button type="button" class="btn-ghost" id="sheetTypesShowSelectedBtn" aria-pressed="false">只看已选</button></div>
-      <div id="sheetTypeFindShortcuts" class="sheet-type-quick-choices" aria-label="按表名快速找"></div>
       <div class="toolbar"><button type="button" class="btn-ghost" id="sheetTypesSelectAllBtn">全选匹配结果</button><button type="button" class="btn-ghost" id="sheetTypesClearBtn">全不选</button><span class="hint" id="sheetTypesCount"></span></div>
       <div id="sheetTypesList" style="overflow:auto;flex:1;min-height:100px;max-height:40vh"></div>
       <div class="sheet-types-footer">
@@ -3022,7 +3021,6 @@ body.export-rendering .cart-count{ font-size:28px; }
     function openSheetTypes(){
       sheetTypesDraft={code:String(syncCode||''),selected:new Set(),showSelected:false};$('sheetTypesSearch').value='';$('sheetTypeName').value='';
       $('sheetTypesExistingFilter').innerHTML='<option value="">全部已有类型</option><option value="__unclassified__">只看未分类</option>'+sheetTypeNames().map(name=>`<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join('');$('sheetTypesExistingFilter').value='';$('sheetTypesStatusFilter').value='all';$('sheetTypesShowSelectedBtn').setAttribute('aria-pressed','false');
-      $('sheetTypeFindShortcuts').innerHTML=['扫街','通贩','国际','hmv','余量','事后'].map(word=>`<button type="button" data-sheet-type-find="${escapeAttr(word)}">找${escapeHtml(word)}</button>`).join('');
       $('sheetTypeQuickChoices').innerHTML=sheetTypeNames().map(name=>`<button type="button" data-sheet-type-choice="${escapeAttr(name)}">${escapeHtml(name)}</button>`).join('');renderSheetTypesList();$('sheetTypesOverlay').hidden=false;$('sheetTypesOverlay').classList.add('is-open');document.body.classList.add('sheet-types-open');
     }
     function closeSheetTypes(){sheetTypesDraft=null;$('sheetTypesOverlay').hidden=true;$('sheetTypesOverlay').classList.remove('is-open');document.body.classList.remove('sheet-types-open');}
@@ -3030,12 +3028,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       const draft=sheetTypesDraft;if(!draft||!draft.selected.size)return;
       const name=clear?'':$('sheetTypeName').value.trim().slice(0,24);if(!clear&&!name){await appAlert('请选择或输入一个类型。');return;}
       if(name==='__unclassified__'){await appAlert('请换一个类型名称。');return;}
-      if(draft.code!==String(syncCode||'')){closeSheetTypes();await appAlert('已切换协作组，请重新选择。');return;}
-      const selected=sheets.filter(s=>draft.selected.has(String(s.id)));if(selected.length!==draft.selected.size){closeSheetTypes();await appAlert('表格列表已变化，请重新选择。');return;}
+      if(draft.code!==String(syncCode||'')){draft.selected.clear();draft.code=String(syncCode||'');renderSheetTypesList();await appAlert('已切换协作组，已清除旧勾选，请重新选择。');return;}
+      const selected=sheets.filter(s=>draft.selected.has(String(s.id)));if(selected.length!==draft.selected.size){draft.selected.clear();renderSheetTypesList();await appAlert('表格列表已变化，请重新选择。');return;}
       const before=selected.map(sheet=>({sheet,value:sheet.sheetType,had:Object.prototype.hasOwnProperty.call(sheet,'sheetType')}));
       selected.forEach(s=>s.sheetType=name);
       if(!saveState()){before.forEach(({sheet,value,had})=>{if(had)sheet.sheetType=value;else delete sheet.sheetType;});renderSheetTabs();await appAlert('分类保存失败，已保留原分类。');return;}
-      closeSheetTypes();renderSheetTabs();
+      draft.selected.clear();renderSheetTabs();renderSheetTypesList();$('sheetTypesMessage').textContent='已将 '+selected.length+' 张表'+(name?'归到「'+name+'」':'移至未分类')+'，可以继续选择。';
     }
     function isSheetCompleted(sheet){ return sheet?.completed===true; }
     function completedSheetsByRecent(){ return sheets.filter(isSheetCompleted); }
@@ -8369,15 +8367,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('manageSheetTypesBtn').addEventListener('click',openSheetTypes);
     $('mobileManageSheetTypesBtn').addEventListener('click',openSheetTypes);
     $('closeSheetTypesBtn').addEventListener('click',closeSheetTypes);
-    $('sheetTypesOverlay').addEventListener('click',e=>{if(e.target===$('sheetTypesOverlay'))closeSheetTypes();});
     $('sheetTypesSearch').addEventListener('input',renderSheetTypesList);
     ['sheetTypesExistingFilter','sheetTypesStatusFilter'].forEach(id=>$(id).addEventListener('change',renderSheetTypesList));
     $('sheetTypesShowSelectedBtn').addEventListener('click',e=>{if(!sheetTypesDraft)return;sheetTypesDraft.showSelected=!sheetTypesDraft.showSelected;e.currentTarget.setAttribute('aria-pressed',String(sheetTypesDraft.showSelected));renderSheetTypesList();});
-    $('sheetTypeFindShortcuts').addEventListener('click',e=>{const button=e.target.closest('[data-sheet-type-find]');if(button){$('sheetTypesSearch').value=button.dataset.sheetTypeFind;renderSheetTypesList();}});
       $('sheetTypesList').addEventListener('change',e=>{const input=e.target.closest('[data-sheet-type-id]');if(!input||!sheetTypesDraft)return;if(input.checked)sheetTypesDraft.selected.add(input.dataset.sheetTypeId);else sheetTypesDraft.selected.delete(input.dataset.sheetTypeId);syncSheetTypeActions();});
     $('sheetTypeName').addEventListener('input',syncSheetTypeActions);
     $('sheetTypeQuickChoices').addEventListener('click',e=>{const button=e.target.closest('[data-sheet-type-choice]');if(button){$('sheetTypeName').value=button.dataset.sheetTypeChoice;syncSheetTypeActions();}});
-    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('sheetTypesOverlay').hidden)closeSheetTypes();});
     $('sheetTypesSelectAllBtn').addEventListener('click',()=>{if(!sheetTypesDraft)return;sheetTypesMatchingSheets().forEach(sheet=>sheetTypesDraft.selected.add(String(sheet.id)));renderSheetTypesList();});
     $('sheetTypesClearBtn').addEventListener('click',()=>{if(sheetTypesDraft){sheetTypesDraft.selected.clear();renderSheetTypesList();}});
     $('applySheetTypesBtn').addEventListener('click',()=>applySheetTypes(false));
