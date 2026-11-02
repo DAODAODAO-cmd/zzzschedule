@@ -383,7 +383,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="toolbar"><button type="button" class="btn-ghost" id="sheetTypesSelectAllBtn">全选匹配结果</button><button type="button" class="btn-ghost" id="sheetTypesClearBtn">全不选</button><span class="hint" id="sheetTypesCount"></span></div>
       <div id="sheetTypesList" style="overflow:auto;flex:1;min-height:100px;max-height:40vh"></div>
       <div class="sheet-types-footer">
-        <select id="sheetTypeTargetSelect" aria-label="选择已有类型" style="width:100%;min-height:36px;padding:7px 10px;border:1px solid #ded5e3;border-radius:9px;background:#faf8fc;color:var(--text)"></select>
+        <div style="display:flex;gap:6px"><select id="sheetTypeTargetSelect" aria-label="选择已有类型" style="flex:1;min-width:0;min-height:36px;padding:7px 10px;border:1px solid #ded5e3;border-radius:9px;background:#faf8fc;color:var(--text)"></select><button type="button" class="btn-ghost" id="renameSheetTypeBtn">重命名分类</button></div>
         <div id="sheetTypeQuickChoices" class="sheet-type-quick-choices"></div>
         <label class="sheet-type-input-label">归到哪个类型？<input type="text" id="sheetTypeName" maxlength="24" placeholder="点上方类型，或输入自定义名称"></label>
         <div id="sheetTypesMessage" class="hint" role="status" aria-live="polite"></div>
@@ -3017,6 +3017,23 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('sheetTypeTargetSelect').innerHTML='<option value="">选择已有类型（也可在下方新建）</option>'+names.map(type=>`<option value="${escapeAttr(type)}">${escapeHtml(type)}</option>`).join('');
       $('sheetTypeTargetSelect').value=names.includes(name)?name:'';
       $('sheetTypeQuickChoices').innerHTML=names.map(type=>`<button type="button" data-sheet-type-choice="${escapeAttr(type)}">${escapeHtml(type)}</button>`).join('');
+    }
+    async function renameSheetType(){
+      const oldName=$('sheetTypeTargetSelect').value;if(!oldName){await appAlert('先选择要重命名的已有类型。');return;}
+      const code=String(syncCode||''),signature=JSON.stringify(sheets.map(s=>[s.id,sheetTypeName(s)]));
+      const answer=await appPrompt('将「'+oldName+'」改成什么？\n该分类下所有表会一起更新，只改分类名称。',oldName,'重命名分类','下一步');
+      if(answer===null)return;const name=String(answer).trim();if(!name||name===oldName)return;
+      if(name.length>24||name==='__unclassified__'){await appAlert('分类名称请填写 1～24 个字。');return;}
+      const merging=sheets.some(s=>sheetTypeName(s)===name),count=sheets.filter(s=>sheetTypeName(s)===oldName).length;
+      if(!count){await appAlert('这个预设类型还没有表。可以直接输入新类型给选中的表归类。');return;}
+      if(!await appConfirm('将「'+oldName+'」下的 '+count+' 张表统一改为「'+name+'」？'+(merging?'\n新名称已存在，确认后会合并为同一分类。':''),'确认分类名称','确认修改'))return;
+      if(code!==String(syncCode||'')||signature!==JSON.stringify(sheets.map(s=>[s.id,sheetTypeName(s)]))){await appAlert('确认期间分类或协作组发生变化，本次没有修改，请重新操作。');return;}
+      const selected=sheets.filter(s=>sheetTypeName(s)===oldName);selected.forEach(s=>s.sheetType=name);
+      let saved=false;try{saved=saveState();}catch(_){}
+      if(!saved){selected.forEach(s=>s.sheetType=oldName);await appAlert('保存失败，已保留原分类名称。');return;}
+      if(sheetTypeFilter===oldName)sheetTypeFilter=name;
+      if($('sheetTypesExistingFilter').value===oldName)$('sheetTypesExistingFilter').value='';
+      $('sheetTypeName').value=name;renderSheetTabs();refreshSheetTypeTargets();renderSheetTypesList();$('sheetTypesMessage').textContent='已将「'+oldName+'」改为「'+name+'」，共更新 '+count+' 张表。';
     }
     function syncSheetTypeActions(){
       const count=sheetTypesDraft?.selected.size||0,name=$('sheetTypeName').value.trim();
@@ -8381,6 +8398,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('sheetTypesList').addEventListener('change',e=>{const input=e.target.closest('[data-sheet-type-id]');if(!input||!sheetTypesDraft)return;if(input.checked)sheetTypesDraft.selected.add(input.dataset.sheetTypeId);else sheetTypesDraft.selected.delete(input.dataset.sheetTypeId);syncSheetTypeActions();});
     $('sheetTypeName').addEventListener('input',syncSheetTypeActions);
     $('sheetTypeTargetSelect').addEventListener('change',e=>{if(e.target.value){$('sheetTypeName').value=e.target.value;syncSheetTypeActions();}});
+    $('renameSheetTypeBtn').addEventListener('click',renameSheetType);
     $('sheetTypeQuickChoices').addEventListener('click',e=>{const button=e.target.closest('[data-sheet-type-choice]');if(button){$('sheetTypeName').value=button.dataset.sheetTypeChoice;syncSheetTypeActions();}});
     $('sheetTypesSelectAllBtn').addEventListener('click',()=>{if(!sheetTypesDraft)return;sheetTypesMatchingSheets().forEach(sheet=>sheetTypesDraft.selected.add(String(sheet.id)));renderSheetTypesList();});
     $('sheetTypesClearBtn').addEventListener('click',()=>{if(sheetTypesDraft){sheetTypesDraft.selected.clear();renderSheetTypesList();}});
