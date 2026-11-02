@@ -383,6 +383,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="toolbar"><button type="button" class="btn-ghost" id="sheetTypesSelectAllBtn">全选匹配结果</button><button type="button" class="btn-ghost" id="sheetTypesClearBtn">全不选</button><span class="hint" id="sheetTypesCount"></span></div>
       <div id="sheetTypesList" style="overflow:auto;flex:1;min-height:100px;max-height:40vh"></div>
       <div class="sheet-types-footer">
+        <select id="sheetTypeTargetSelect" aria-label="选择已有类型" style="width:100%;min-height:36px;padding:7px 10px;border:1px solid #ded5e3;border-radius:9px;background:#faf8fc;color:var(--text)"></select>
         <div id="sheetTypeQuickChoices" class="sheet-type-quick-choices"></div>
         <label class="sheet-type-input-label">归到哪个类型？<input type="text" id="sheetTypeName" maxlength="24" placeholder="点上方类型，或输入自定义名称"></label>
         <div id="sheetTypesMessage" class="hint" role="status" aria-live="polite"></div>
@@ -3011,17 +3012,24 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('sheetTypesList').innerHTML=sheetTypesMatchingSheets().map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid #eee5f0"><input type="checkbox" data-sheet-type-id="${s.id}" ${sheetTypesDraft.selected.has(String(s.id))?'checked':''}><span style="flex:1;overflow-wrap:anywhere">${escapeHtml(s.name||'未命名排单')}</span><small>${escapeHtml(sheetTypeName(s)||'未分类')}</small></label>`).join('')||'<p class="hint">没有匹配的排单，试试清空关键词或切换分类范围。</p>';
       syncSheetTypeActions();
     }
+    function refreshSheetTypeTargets(){
+      const names=sheetTypeNames(),name=$('sheetTypeName').value.trim();
+      $('sheetTypeTargetSelect').innerHTML='<option value="">选择已有类型（也可在下方新建）</option>'+names.map(type=>`<option value="${escapeAttr(type)}">${escapeHtml(type)}</option>`).join('');
+      $('sheetTypeTargetSelect').value=names.includes(name)?name:'';
+      $('sheetTypeQuickChoices').innerHTML=names.map(type=>`<button type="button" data-sheet-type-choice="${escapeAttr(type)}">${escapeHtml(type)}</button>`).join('');
+    }
     function syncSheetTypeActions(){
       const count=sheetTypesDraft?.selected.size||0,name=$('sheetTypeName').value.trim();
       const visible=sheetTypesMatchingSheets(),visibleSelected=visible.filter(s=>sheetTypesDraft?.selected.has(String(s.id))).length;
       $('sheetTypesCount').textContent='匹配 '+visible.length+' 张 · 已选 '+count+' 张'+(count>visibleSelected?'（其中 '+(count-visibleSelected)+' 张在其他搜索里）':'');$('applySheetTypesBtn').textContent='归类这 '+count+' 张表';$('applySheetTypesBtn').disabled=!count||!name;$('clearSheetTypesBtn').disabled=!count;
       $('sheetTypeQuickChoices').querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.sheetTypeChoice===name));
+      $('sheetTypeTargetSelect').value=sheetTypeNames().includes(name)?name:'';
       $('sheetTypesMessage').textContent=!count?'先勾选要归类的表':!name?'再点一个类型，或输入自定义名称':'将选中的 '+count+' 张表归到「'+name+'」';
     }
     function openSheetTypes(){
       sheetTypesDraft={code:String(syncCode||''),selected:new Set(),showSelected:false};$('sheetTypesSearch').value='';$('sheetTypeName').value='';
       $('sheetTypesExistingFilter').innerHTML='<option value="">全部已有类型</option><option value="__unclassified__">只看未分类</option>'+sheetTypeNames().map(name=>`<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join('');$('sheetTypesExistingFilter').value='';$('sheetTypesStatusFilter').value='all';$('sheetTypesShowSelectedBtn').setAttribute('aria-pressed','false');
-      $('sheetTypeQuickChoices').innerHTML=sheetTypeNames().map(name=>`<button type="button" data-sheet-type-choice="${escapeAttr(name)}">${escapeHtml(name)}</button>`).join('');renderSheetTypesList();$('sheetTypesOverlay').hidden=false;$('sheetTypesOverlay').classList.add('is-open');document.body.classList.add('sheet-types-open');
+      refreshSheetTypeTargets();renderSheetTypesList();$('sheetTypesOverlay').hidden=false;$('sheetTypesOverlay').classList.add('is-open');document.body.classList.add('sheet-types-open');
     }
     function closeSheetTypes(){sheetTypesDraft=null;$('sheetTypesOverlay').hidden=true;$('sheetTypesOverlay').classList.remove('is-open');document.body.classList.remove('sheet-types-open');}
     async function applySheetTypes(clear=false){
@@ -3033,7 +3041,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const before=selected.map(sheet=>({sheet,value:sheet.sheetType,had:Object.prototype.hasOwnProperty.call(sheet,'sheetType')}));
       selected.forEach(s=>s.sheetType=name);
       if(!saveState()){before.forEach(({sheet,value,had})=>{if(had)sheet.sheetType=value;else delete sheet.sheetType;});renderSheetTabs();await appAlert('分类保存失败，已保留原分类。');return;}
-      draft.selected.clear();renderSheetTabs();renderSheetTypesList();$('sheetTypesMessage').textContent='已将 '+selected.length+' 张表'+(name?'归到「'+name+'」':'移至未分类')+'，可以继续选择。';
+      draft.selected.clear();renderSheetTabs();refreshSheetTypeTargets();renderSheetTypesList();$('sheetTypesMessage').textContent='已将 '+selected.length+' 张表'+(name?'归到「'+name+'」':'移至未分类')+'，可以继续选择。';
     }
     function isSheetCompleted(sheet){ return sheet?.completed===true; }
     function completedSheetsByRecent(){ return sheets.filter(isSheetCompleted); }
@@ -8372,6 +8380,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('sheetTypesShowSelectedBtn').addEventListener('click',e=>{if(!sheetTypesDraft)return;sheetTypesDraft.showSelected=!sheetTypesDraft.showSelected;e.currentTarget.setAttribute('aria-pressed',String(sheetTypesDraft.showSelected));renderSheetTypesList();});
       $('sheetTypesList').addEventListener('change',e=>{const input=e.target.closest('[data-sheet-type-id]');if(!input||!sheetTypesDraft)return;if(input.checked)sheetTypesDraft.selected.add(input.dataset.sheetTypeId);else sheetTypesDraft.selected.delete(input.dataset.sheetTypeId);syncSheetTypeActions();});
     $('sheetTypeName').addEventListener('input',syncSheetTypeActions);
+    $('sheetTypeTargetSelect').addEventListener('change',e=>{if(e.target.value){$('sheetTypeName').value=e.target.value;syncSheetTypeActions();}});
     $('sheetTypeQuickChoices').addEventListener('click',e=>{const button=e.target.closest('[data-sheet-type-choice]');if(button){$('sheetTypeName').value=button.dataset.sheetTypeChoice;syncSheetTypeActions();}});
     $('sheetTypesSelectAllBtn').addEventListener('click',()=>{if(!sheetTypesDraft)return;sheetTypesMatchingSheets().forEach(sheet=>sheetTypesDraft.selected.add(String(sheet.id)));renderSheetTypesList();});
     $('sheetTypesClearBtn').addEventListener('click',()=>{if(sheetTypesDraft){sheetTypesDraft.selected.clear();renderSheetTypesList();}});
