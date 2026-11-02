@@ -383,7 +383,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="toolbar"><button type="button" class="btn-ghost" id="sheetTypesSelectAllBtn">全选匹配结果</button><button type="button" class="btn-ghost" id="sheetTypesClearBtn">全不选</button><span class="hint" id="sheetTypesCount"></span></div>
       <div id="sheetTypesList" style="overflow:auto;flex:1;min-height:100px;max-height:40vh"></div>
       <div class="sheet-types-footer">
-        <div style="display:flex;gap:6px"><select id="sheetTypeTargetSelect" aria-label="选择已有类型" style="flex:1;min-width:0;min-height:36px;padding:7px 10px;border:1px solid #ded5e3;border-radius:9px;background:#faf8fc;color:var(--text)"></select><button type="button" class="btn-ghost" id="renameSheetTypeBtn">重命名分类</button></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px"><select id="sheetTypeTargetSelect" aria-label="选择已有类型" style="flex:1;min-width:150px;min-height:36px;padding:7px 10px;border:1px solid #ded5e3;border-radius:9px;background:#faf8fc;color:var(--text)"></select><button type="button" class="btn-ghost" id="renameSheetTypeBtn">重命名分类</button><button type="button" class="btn-danger" id="deleteSheetTypeBtn">删除分类</button></div>
         <div id="sheetTypeQuickChoices" class="sheet-type-quick-choices"></div>
         <label class="sheet-type-input-label">归到哪个类型？<input type="text" id="sheetTypeName" maxlength="24" placeholder="点上方类型，或输入自定义名称"></label>
         <div id="sheetTypesMessage" class="hint" role="status" aria-live="polite"></div>
@@ -2990,7 +2990,7 @@ body.export-rendering .cart-count{ font-size:28px; }
 
     let sheetTypeFilter='',sheetTypesDraft=null;
     function sheetTypeName(sheet){return String(sheet?.sheetType||'').trim();}
-    function sheetTypeNames(){return [...new Set(['扫街','通贩','国际','群内出物',...sheets.map(sheetTypeName).filter(Boolean)])];}
+    function sheetTypeNames(){return [...new Set(sheets.map(sheetTypeName).filter(Boolean))];}
     function sheetTypeMatches(sheet){return !sheetTypeFilter||(sheetTypeFilter==='__unclassified__'?!sheetTypeName(sheet):sheetTypeName(sheet)===sheetTypeFilter);}
     function renderSheetTypeFilters(){
       const names=sheetTypeNames();if(sheetTypeFilter&&sheetTypeFilter!=='__unclassified__'&&!names.includes(sheetTypeFilter))sheetTypeFilter='';
@@ -3014,6 +3014,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function refreshSheetTypeTargets(){
       const names=sheetTypeNames(),name=$('sheetTypeName').value.trim();
+      const existingFilter=$('sheetTypesExistingFilter'),previous=existingFilter.value;
+      existingFilter.innerHTML='<option value="">全部已有类型</option><option value="__unclassified__">只看未分类</option>'+names.map(type=>`<option value="${escapeAttr(type)}">${escapeHtml(type)}</option>`).join('');existingFilter.value=previous==='__unclassified__'||names.includes(previous)?previous:'';
       $('sheetTypeTargetSelect').innerHTML='<option value="">选择已有类型（也可在下方新建）</option>'+names.map(type=>`<option value="${escapeAttr(type)}">${escapeHtml(type)}</option>`).join('');
       $('sheetTypeTargetSelect').value=names.includes(name)?name:'';
       $('sheetTypeQuickChoices').innerHTML=names.map(type=>`<button type="button" data-sheet-type-choice="${escapeAttr(type)}">${escapeHtml(type)}</button>`).join('');
@@ -3025,7 +3027,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(answer===null)return;const name=String(answer).trim();if(!name||name===oldName)return;
       if(name.length>24||name==='__unclassified__'){await appAlert('分类名称请填写 1～24 个字。');return;}
       const merging=sheets.some(s=>sheetTypeName(s)===name),count=sheets.filter(s=>sheetTypeName(s)===oldName).length;
-      if(!count){await appAlert('这个预设类型还没有表。可以直接输入新类型给选中的表归类。');return;}
+      if(!count){refreshSheetTypeTargets();await appAlert('这个分类已不存在，请重新选择。');return;}
       if(!await appConfirm('将「'+oldName+'」下的 '+count+' 张表统一改为「'+name+'」？'+(merging?'\n新名称已存在，确认后会合并为同一分类。':''),'确认分类名称','确认修改'))return;
       if(code!==String(syncCode||'')||signature!==JSON.stringify(sheets.map(s=>[s.id,sheetTypeName(s)]))){await appAlert('确认期间分类或协作组发生变化，本次没有修改，请重新操作。');return;}
       const selected=sheets.filter(s=>sheetTypeName(s)===oldName);selected.forEach(s=>s.sheetType=name);
@@ -3034,6 +3036,19 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(sheetTypeFilter===oldName)sheetTypeFilter=name;
       if($('sheetTypesExistingFilter').value===oldName)$('sheetTypesExistingFilter').value='';
       $('sheetTypeName').value=name;renderSheetTabs();refreshSheetTypeTargets();renderSheetTypesList();$('sheetTypesMessage').textContent='已将「'+oldName+'」改为「'+name+'」，共更新 '+count+' 张表。';
+    }
+    async function deleteSheetType(){
+      const name=$('sheetTypeTargetSelect').value;if(!name){await appAlert('先选择要删除的已有分类。');return;}
+      const code=String(syncCode||''),signature=JSON.stringify(sheets.map(s=>[s.id,sheetTypeName(s)]));
+      const selected=sheets.filter(s=>sheetTypeName(s)===name);if(!selected.length){refreshSheetTypeTargets();return;}
+      if(!await appConfirm('删除分类「'+name+'」？\n其中 '+selected.length+' 张表会移到“未分类”。\n不会删除任何排单、账单、到货或发货数据。','删除分类','只删除分类'))return;
+      if(code!==String(syncCode||'')||signature!==JSON.stringify(sheets.map(s=>[s.id,sheetTypeName(s)]))){await appAlert('确认期间分类或协作组发生变化，本次未删除，请重新操作。');return;}
+      const before=selected.map(sheet=>({sheet,value:sheet.sheetType}));selected.forEach(sheet=>sheet.sheetType='');
+      let saved=false;try{saved=saveState();}catch(_){}
+      if(!saved){before.forEach(({sheet,value})=>sheet.sheetType=value);await appAlert('保存失败，分类没有删除。');return;}
+      if(sheetTypeFilter===name)sheetTypeFilter='__unclassified__';
+      if($('sheetTypesExistingFilter').value===name)$('sheetTypesExistingFilter').value='__unclassified__';
+      $('sheetTypeName').value='';renderSheetTabs();refreshSheetTypeTargets();renderSheetTypesList();$('sheetTypesMessage').textContent='已删除「'+name+'」，'+selected.length+' 张表已移至未分类，数据均保留。';
     }
     function syncSheetTypeActions(){
       const count=sheetTypesDraft?.selected.size||0,name=$('sheetTypeName').value.trim();
@@ -8399,6 +8414,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('sheetTypeName').addEventListener('input',syncSheetTypeActions);
     $('sheetTypeTargetSelect').addEventListener('change',e=>{if(e.target.value){$('sheetTypeName').value=e.target.value;syncSheetTypeActions();}});
     $('renameSheetTypeBtn').addEventListener('click',renameSheetType);
+    $('deleteSheetTypeBtn').addEventListener('click',deleteSheetType);
     $('sheetTypeQuickChoices').addEventListener('click',e=>{const button=e.target.closest('[data-sheet-type-choice]');if(button){$('sheetTypeName').value=button.dataset.sheetTypeChoice;syncSheetTypeActions();}});
     $('sheetTypesSelectAllBtn').addEventListener('click',()=>{if(!sheetTypesDraft)return;sheetTypesMatchingSheets().forEach(sheet=>sheetTypesDraft.selected.add(String(sheet.id)));renderSheetTypesList();});
     $('sheetTypesClearBtn').addEventListener('click',()=>{if(sheetTypesDraft){sheetTypesDraft.selected.clear();renderSheetTypesList();}});
