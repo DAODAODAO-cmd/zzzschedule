@@ -378,10 +378,17 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="mobile-sheet-sort-dialog" role="dialog" aria-modal="true" aria-labelledby="sheetTypesTitle">
       <div class="mobile-sheet-sort-head"><strong id="sheetTypesTitle">排单类型</strong><button type="button" class="btn-ghost" id="closeSheetTypesBtn">关闭</button></div>
       <p class="hint">只整理列表，不改变排单、账单和物流。勾选多张表可一起归类。</p>
-      <input id="sheetTypesSearch" type="search" placeholder="搜索表名（保留已勾选项）">
-      <div class="toolbar"><button type="button" class="btn-ghost" id="sheetTypesSelectAllBtn">全选搜索结果</button><button type="button" class="btn-ghost" id="sheetTypesClearBtn">全不选</button><span class="hint" id="sheetTypesCount"></span></div>
+      <input id="sheetTypesSearch" type="search" placeholder="同时找多类表：hmv、FS、事后（任一匹配）">
+      <div class="sheet-types-filters"><select id="sheetTypesExistingFilter" aria-label="筛选已有分类"></select><select id="sheetTypesStatusFilter" aria-label="筛选完成状态"><option value="all">全部状态</option><option value="ongoing">进行中</option><option value="completed">已完成</option></select><button type="button" class="btn-ghost" id="sheetTypesShowSelectedBtn" aria-pressed="false">只看已选</button></div>
+      <div id="sheetTypeFindShortcuts" class="sheet-type-quick-choices" aria-label="按表名快速找"></div>
+      <div class="toolbar"><button type="button" class="btn-ghost" id="sheetTypesSelectAllBtn">全选匹配结果</button><button type="button" class="btn-ghost" id="sheetTypesClearBtn">全不选</button><span class="hint" id="sheetTypesCount"></span></div>
       <div id="sheetTypesList" style="overflow:auto;flex:1;min-height:100px;max-height:40vh"></div>
-      <div class="toolbar" style="margin-top:10px"><input id="sheetTypeName" list="sheetTypeSuggestions" maxlength="24" placeholder="选类型或输入新类型" style="flex:1;min-width:140px"><datalist id="sheetTypeSuggestions"></datalist><button type="button" class="btn-primary" id="applySheetTypesBtn">应用类型</button><button type="button" class="btn-ghost" id="clearSheetTypesBtn">移至未分类</button></div>
+      <div class="sheet-types-footer">
+        <div id="sheetTypeQuickChoices" class="sheet-type-quick-choices"></div>
+        <label class="sheet-type-input-label">归到哪个类型？<input type="text" id="sheetTypeName" maxlength="24" placeholder="点上方类型，或输入自定义名称"></label>
+        <div id="sheetTypesMessage" class="hint" role="status" aria-live="polite"></div>
+        <div class="sheet-types-actions"><button type="button" class="btn-ghost" id="clearSheetTypesBtn">移至未分类</button><button type="button" class="btn-primary" id="applySheetTypesBtn">应用类型</button></div>
+      </div>
     </div>
   </div>
   <div class="panel desktop-setup" id="costPanel">
@@ -1023,6 +1030,23 @@ html{ scrollbar-gutter:stable; }
 .mobile-sheet-sort-overlay{ position:fixed; inset:0; z-index:170; display:none; align-items:flex-end; justify-content:center; padding:18px 12px 0; background:rgba(37,29,43,.32); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); }
 .mobile-sheet-sort-overlay.is-open:not([hidden]){ display:flex; }
 .mobile-sheet-sort-overlay[hidden]{ display:none!important; }
+#sheetTypesOverlay{align-items:center;padding:16px;box-sizing:border-box;}
+#sheetTypesOverlay .mobile-sheet-sort-dialog{width:min(620px,100%);height:min(86vh,760px);height:min(86dvh,760px);max-height:100%;box-sizing:border-box;border:1px solid #e2d9e6;border-radius:16px;padding:16px;gap:8px;overflow:hidden;}
+#sheetTypesOverlay .mobile-sheet-sort-head,#sheetTypesOverlay .toolbar,#sheetTypesOverlay p,#sheetTypesSearch,.sheet-types-footer{flex-shrink:0;}
+#sheetTypesOverlay p{margin:0;}
+#sheetTypesSearch,#sheetTypeName{width:100%;box-sizing:border-box;min-height:38px;padding:8px 10px;border:1px solid #ded5e3;border-radius:9px;background:#faf8fc;font:inherit;color:var(--text);}
+#sheetTypesList{min-height:0!important;max-height:none!important;overscroll-behavior:contain;touch-action:pan-y;}
+.sheet-types-footer{display:grid;gap:8px;padding-top:10px;border-top:1px solid #e9e1ec;background:#fff;}
+.sheet-type-quick-choices{display:flex;flex-wrap:wrap;gap:6px;}
+.sheet-type-quick-choices button{padding:7px 12px;border:1px solid #e4d9e6;border-radius:18px;background:#faf7fc;color:#64586a;cursor:pointer;}
+.sheet-type-quick-choices button.active{border-color:#d1466a;background:#fff0f5;color:#bd365b;}
+.sheet-type-input-label{display:grid;gap:5px;font-size:11px;color:var(--muted);}
+.sheet-types-actions{display:flex;justify-content:space-between;gap:10px;}
+.sheet-types-actions button{min-height:38px;}
+.sheet-types-filters{display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0;}.sheet-types-filters select{flex:1;min-width:100px;min-height:36px;border:1px solid #ded5e3;border-radius:8px;background:#faf8fc;padding:6px;color:var(--text);}.sheet-types-filters button[aria-pressed="true"]{color:#bd365b;background:#fff0f5;border-color:#d1466a;}#sheetTypeFindShortcuts{flex-shrink:0;}#sheetTypeFindShortcuts button{padding:4px 9px;font-size:10px;}
+@media(max-height:650px){#sheetTypesOverlay .mobile-sheet-sort-dialog{height:calc(100dvh - 16px);gap:4px;padding:10px;}#sheetTypesOverlay p,#sheetTypeFindShortcuts{display:none;}#sheetTypesOverlay .toolbar{margin:0;gap:5px;}#sheetTypesOverlay .sheet-types-footer{gap:4px;padding-top:6px;}#sheetTypesOverlay .sheet-type-quick-choices button{padding:4px 9px;min-height:28px;}#sheetTypesOverlay #sheetTypeName,#sheetTypesOverlay #sheetTypesSearch{min-height:32px;padding:5px 8px;}#sheetTypesCount{font-size:10px;}}
+body.sheet-types-open{overflow:hidden;}
+@media(max-width:760px){#sheetTypesOverlay{padding:8px;align-items:center;}#sheetTypesOverlay .mobile-sheet-sort-dialog{height:calc(var(--app-visible-height,100dvh) - 16px);max-height:calc(100dvh - 16px);padding:12px;}#sheetTypesSearch,#sheetTypeName{font-size:16px;min-height:42px;}.sheet-types-actions button,.sheet-type-quick-choices button{min-height:40px;}#sheetTypesOverlay .toolbar{margin:0;}}
 .mobile-sheet-sort-dialog{ width:min(520px,100%); max-height:min(74vh,620px); max-height:min(74dvh,620px); display:flex; flex-direction:column; padding:12px 12px calc(12px + env(safe-area-inset-bottom)); border:1px solid #e2d9e6; border-bottom:0; border-radius:18px 18px 0 0; background:#fff; box-shadow:0 -12px 40px rgba(48,31,57,.18); }
 .mobile-sheet-sort-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .mobile-sheet-sort-head strong{ color:#3c3441; font-size:14px; }
@@ -2973,17 +2997,35 @@ body.export-rendering .cart-count{ font-size:28px; }
       const options='<option value="">全部类型</option>'+names.map(name=>`<option value="${escapeAttr(name)}">${escapeHtml(name)} · ${sheets.filter(s=>sheetTypeName(s)===name).length}</option>`).join('')+`<option value="__unclassified__">未分类 · ${sheets.filter(s=>!sheetTypeName(s)).length}</option>`;
       ['sheetTypeFilter','mobileSheetTypeFilter'].forEach(id=>{const el=$(id);el.innerHTML=options;el.value=sheetTypeFilter;});
     }
+    function sheetTypesMatchingSheets(){
+      const keywords=String($('sheetTypesSearch').value||'').normalize('NFKC').toLowerCase().split(/[\s,，、;；\n]+/).filter(Boolean);
+      const type=$('sheetTypesExistingFilter').value,status=$('sheetTypesStatusFilter').value;
+      return sheets.filter(sheet=>{
+        if(sheetTypesDraft?.showSelected&&!sheetTypesDraft.selected.has(String(sheet.id)))return false;
+        if(type==='__unclassified__'?!!sheetTypeName(sheet):type&&sheetTypeName(sheet)!==type)return false;
+        if(status==='ongoing'&&isSheetCompleted(sheet)||status==='completed'&&!isSheetCompleted(sheet))return false;
+        const name=String(sheet.name||'').normalize('NFKC').toLowerCase();return !keywords.length||keywords.some(keyword=>name.includes(keyword));
+      });
+    }
     function renderSheetTypesList(){
       if(!sheetTypesDraft)return;
-      const query=$('sheetTypesSearch').value.trim().toLowerCase();
-      $('sheetTypesList').innerHTML=sheets.filter(s=>!query||String(s.name||'').toLowerCase().includes(query)).map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid #eee5f0"><input type="checkbox" data-sheet-type-id="${s.id}" ${sheetTypesDraft.selected.has(String(s.id))?'checked':''}><span style="flex:1;overflow-wrap:anywhere">${escapeHtml(s.name||'未命名排单')}</span><small>${escapeHtml(sheetTypeName(s)||'未分类')}</small></label>`).join('')||'<p class="hint">没有匹配的排单</p>';
-      $('sheetTypesCount').textContent='已选 '+sheetTypesDraft.selected.size+' 张';
+      $('sheetTypesList').innerHTML=sheetTypesMatchingSheets().map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid #eee5f0"><input type="checkbox" data-sheet-type-id="${s.id}" ${sheetTypesDraft.selected.has(String(s.id))?'checked':''}><span style="flex:1;overflow-wrap:anywhere">${escapeHtml(s.name||'未命名排单')}</span><small>${escapeHtml(sheetTypeName(s)||'未分类')}</small></label>`).join('')||'<p class="hint">没有匹配的排单，试试清空关键词或切换分类范围。</p>';
+      syncSheetTypeActions();
+    }
+    function syncSheetTypeActions(){
+      const count=sheetTypesDraft?.selected.size||0,name=$('sheetTypeName').value.trim();
+      const visible=sheetTypesMatchingSheets(),visibleSelected=visible.filter(s=>sheetTypesDraft?.selected.has(String(s.id))).length;
+      $('sheetTypesCount').textContent='匹配 '+visible.length+' 张 · 已选 '+count+' 张'+(count>visibleSelected?'（其中 '+(count-visibleSelected)+' 张在其他搜索里）':'');$('applySheetTypesBtn').textContent='归类这 '+count+' 张表';$('applySheetTypesBtn').disabled=!count||!name;$('clearSheetTypesBtn').disabled=!count;
+      $('sheetTypeQuickChoices').querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.sheetTypeChoice===name));
+      $('sheetTypesMessage').textContent=!count?'先勾选要归类的表':!name?'再点一个类型，或输入自定义名称':'将选中的 '+count+' 张表归到「'+name+'」';
     }
     function openSheetTypes(){
-      sheetTypesDraft={code:String(syncCode||''),selected:new Set([String(activeSheetId)])};$('sheetTypesSearch').value='';$('sheetTypeName').value=sheetTypeName(sheets.find(s=>s.id===activeSheetId));
-      $('sheetTypeSuggestions').innerHTML=sheetTypeNames().map(name=>`<option value="${escapeAttr(name)}"></option>`).join('');renderSheetTypesList();$('sheetTypesOverlay').hidden=false;$('sheetTypesOverlay').classList.add('is-open');
+      sheetTypesDraft={code:String(syncCode||''),selected:new Set(),showSelected:false};$('sheetTypesSearch').value='';$('sheetTypeName').value='';
+      $('sheetTypesExistingFilter').innerHTML='<option value="">全部已有类型</option><option value="__unclassified__">只看未分类</option>'+sheetTypeNames().map(name=>`<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join('');$('sheetTypesExistingFilter').value='';$('sheetTypesStatusFilter').value='all';$('sheetTypesShowSelectedBtn').setAttribute('aria-pressed','false');
+      $('sheetTypeFindShortcuts').innerHTML=['扫街','通贩','国际','hmv','余量','事后'].map(word=>`<button type="button" data-sheet-type-find="${escapeAttr(word)}">找${escapeHtml(word)}</button>`).join('');
+      $('sheetTypeQuickChoices').innerHTML=sheetTypeNames().map(name=>`<button type="button" data-sheet-type-choice="${escapeAttr(name)}">${escapeHtml(name)}</button>`).join('');renderSheetTypesList();$('sheetTypesOverlay').hidden=false;$('sheetTypesOverlay').classList.add('is-open');document.body.classList.add('sheet-types-open');
     }
-    function closeSheetTypes(){sheetTypesDraft=null;$('sheetTypesOverlay').hidden=true;$('sheetTypesOverlay').classList.remove('is-open');}
+    function closeSheetTypes(){sheetTypesDraft=null;$('sheetTypesOverlay').hidden=true;$('sheetTypesOverlay').classList.remove('is-open');document.body.classList.remove('sheet-types-open');}
     async function applySheetTypes(clear=false){
       const draft=sheetTypesDraft;if(!draft||!draft.selected.size)return;
       const name=clear?'':$('sheetTypeName').value.trim().slice(0,24);if(!clear&&!name){await appAlert('请选择或输入一个类型。');return;}
@@ -8329,8 +8371,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('closeSheetTypesBtn').addEventListener('click',closeSheetTypes);
     $('sheetTypesOverlay').addEventListener('click',e=>{if(e.target===$('sheetTypesOverlay'))closeSheetTypes();});
     $('sheetTypesSearch').addEventListener('input',renderSheetTypesList);
-    $('sheetTypesList').addEventListener('change',e=>{const input=e.target.closest('[data-sheet-type-id]');if(!input||!sheetTypesDraft)return;if(input.checked)sheetTypesDraft.selected.add(input.dataset.sheetTypeId);else sheetTypesDraft.selected.delete(input.dataset.sheetTypeId);$('sheetTypesCount').textContent='已选 '+sheetTypesDraft.selected.size+' 张';});
-    $('sheetTypesSelectAllBtn').addEventListener('click',()=>{if(!sheetTypesDraft)return;$('sheetTypesList').querySelectorAll('[data-sheet-type-id]').forEach(input=>sheetTypesDraft.selected.add(input.dataset.sheetTypeId));renderSheetTypesList();});
+    ['sheetTypesExistingFilter','sheetTypesStatusFilter'].forEach(id=>$(id).addEventListener('change',renderSheetTypesList));
+    $('sheetTypesShowSelectedBtn').addEventListener('click',e=>{if(!sheetTypesDraft)return;sheetTypesDraft.showSelected=!sheetTypesDraft.showSelected;e.currentTarget.setAttribute('aria-pressed',String(sheetTypesDraft.showSelected));renderSheetTypesList();});
+    $('sheetTypeFindShortcuts').addEventListener('click',e=>{const button=e.target.closest('[data-sheet-type-find]');if(button){$('sheetTypesSearch').value=button.dataset.sheetTypeFind;renderSheetTypesList();}});
+      $('sheetTypesList').addEventListener('change',e=>{const input=e.target.closest('[data-sheet-type-id]');if(!input||!sheetTypesDraft)return;if(input.checked)sheetTypesDraft.selected.add(input.dataset.sheetTypeId);else sheetTypesDraft.selected.delete(input.dataset.sheetTypeId);syncSheetTypeActions();});
+    $('sheetTypeName').addEventListener('input',syncSheetTypeActions);
+    $('sheetTypeQuickChoices').addEventListener('click',e=>{const button=e.target.closest('[data-sheet-type-choice]');if(button){$('sheetTypeName').value=button.dataset.sheetTypeChoice;syncSheetTypeActions();}});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('sheetTypesOverlay').hidden)closeSheetTypes();});
+    $('sheetTypesSelectAllBtn').addEventListener('click',()=>{if(!sheetTypesDraft)return;sheetTypesMatchingSheets().forEach(sheet=>sheetTypesDraft.selected.add(String(sheet.id)));renderSheetTypesList();});
     $('sheetTypesClearBtn').addEventListener('click',()=>{if(sheetTypesDraft){sheetTypesDraft.selected.clear();renderSheetTypesList();}});
     $('applySheetTypesBtn').addEventListener('click',()=>applySheetTypes(false));
     $('clearSheetTypesBtn').addEventListener('click',()=>applySheetTypes(true));
