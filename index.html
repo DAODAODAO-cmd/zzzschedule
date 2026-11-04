@@ -560,11 +560,11 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="hint" style="margin-bottom:7px;">格式：一行一个人「小明：A1 B1 D1」，也支持一抽一行「小明 A」。整段要挂到同一列时，可以在这里选一次。</div>
     <div class="toolbar" style="margin-bottom:7px;">
       <label>默认挂到 <select id="blindResultDefaultColumn"><option value="">自动/未选择</option></select></label>
-      <span class="hint">如果有多种盲抽制品，建议先选这里；个别行也可在表格里单独改。</span>
+      <span class="hint">可选择当前表任意谷子列，不要求名字带“盲抽”；个别行也可单独选择。</span>
     </div>
     <div class="table-scroll">
       <table id="blindResultPreviewTable">
-        <thead><tr><th>#</th><th>CN</th><th>挂到哪列</th><th>原盲抽数</th><th>结果数</th><th>结果</th><th>状态</th><th>操作</th></tr></thead>
+        <thead><tr><th>#</th><th>CN</th><th>挂到哪列</th><th>原占位数</th><th>结果数</th><th>结果</th><th>状态</th><th>操作</th></tr></thead>
         <tbody id="blindResultPreviewTableBody"></tbody>
       </table>
     </div>
@@ -5276,18 +5276,25 @@ body.export-rendering .cart-count{ font-size:28px; }
         return t&&(t===value||value===t.replace(/\s+/g,'')||value.includes(t+'盲抽')||value.includes(t+'抽'));
       }))||null;
     }
+    function findResultTargetColumn(text){
+      const value=String(text||'').normalize('NFKC').trim().toLowerCase();if(!value)return null;
+      const matches=columns.filter(c=>[c.name,...(c.aliases||[])].some(label=>String(label||'').normalize('NFKC').trim().toLowerCase()===value));
+      return matches.length===1?matches[0]:null;
+    }
     function blindColumnIdForRow(row){
-      const explicit=findBlindColumnByText(row.blindColumnName);
+      if(row.targetColumnId)return columns.find(c=>Number(c.id)===Number(row.targetColumnId))?.id||null;
+      const explicit=findResultTargetColumn(row.blindColumnName);
       if(explicit) return explicit.id;
+      if(String(row.blindColumnName||'').trim())return null;
       const selected=Number(($('blindResultDefaultColumn')||{}).value)||0;
-      if(selected&&blindColumns().some(c=>Number(c.id)===selected)) return selected;
-      const list=blindColumns();
+      if(selected&&columns.some(c=>Number(c.id)===selected)) return selected;
+      const list=columns;
       return list.length===1?list[0].id:null;
     }
     function syncBlindResultColumnSelect(){
       const select=$('blindResultDefaultColumn'); if(!select) return;
-      const current=select.dataset.keepValue==='1'?select.value:'', options=blindColumns();
-      select.innerHTML='<option value="">自动/未选择</option>'+options.map(c=>`<option value="${c.id}">${escapeHtml(c.name||'未命名')}</option>`).join('');
+      const current=select.dataset.keepValue==='1'?select.value:'', options=columns;
+      select.innerHTML='<option value="">请选择挂到哪列</option>'+options.map(c=>`<option value="${c.id}">${escapeHtml(c.name||'未命名')}（第${columns.indexOf(c)+1}列）</option>`).join('');
       if(options.some(c=>String(c.id)===String(current))) select.value=current;
       else if(options.length===1) select.value=String(options[0].id);
       else select.value='';
@@ -5305,7 +5312,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function personBlindPositions(sourceAllocations=allocations, onlyColId=null){
       const map=new Map();
-      columns.filter(isBlindColumn).forEach(col=>{
+      columns.filter(col=>onlyColId!==null?Number(col.id)===Number(onlyColId):isBlindColumn(col)).forEach(col=>{
         if(onlyColId!==null&&Number(col.id)!==Number(onlyColId)) return;
         (sourceAllocations[col.id]||[]).forEach((name,row)=>{
           const person=String(name||'').trim(); if(!person) return;
@@ -5404,23 +5411,24 @@ body.export-rendering .cart-count{ font-size:28px; }
       return results;
     }
     function renderBlindResultPreview(){
-      const blindList=blindColumns();
+      const blindList=columns;
       $('blindResultPreviewTableBody').innerHTML=blindResultPreviewRows.map((row,index)=>{
         const colId=blindColumnIdForRow(row), col=columns.find(c=>Number(c.id)===Number(colId));
         const blindMap=personBlindPositions(allocations,colId);
         const items=parseDemandText(row.itemsText), qty=blindItemCount(items), expected=Number(row.expectedDraw)||0, key=normalizeDispatchKey(row.person), blindQty=colId?blindMap.get(key)?.positions.length||0:0;
-        const needsColumn=blindList.length>1&&!colId, columnStatus=needsColumn?'请填写盲抽列名':'';
+        const needsColumn=!colId, columnStatus=needsColumn?'请选择目标列':'';
         const drawMismatch=expected>0&&qty!==expected;
-        const ok=!!row.person&&qty>0&&!drawMismatch&&colId&&blindQty===qty, status=columnStatus||(!row.person?'请填写 CN':(!qty?'没有识别到结果':(drawMismatch?`抽数不一致：抽了 ${expected}，结果 ${qty}`:(!blindQty?'这个人没有这个盲抽占位':(blindQty!==qty?`数量不一致：盲抽 ${blindQty}，结果 ${qty}`:'可挂结果')))));
-        const columnValue=row.blindColumnName||col?.name||'';
-        return `<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="person" value="${escapeAttr(row.person)}"></td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="blindColumnName" value="${escapeAttr(columnValue)}" placeholder="${blindList.length>1?'必填':'自动'}"></td><td>${blindQty}</td><td>${qty}</td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="itemsText" value="${escapeAttr(row.itemsText)}"></td><td class="${ok?'transfer-ok':'transfer-bad'}">${escapeHtml(status)}</td><td><button class="btn-danger btn-mini" data-remove-blind-result="${row.id}">删除</button></td></tr>`;
+        const ok=!!row.person&&qty>0&&!drawMismatch&&colId&&blindQty===qty, status=columnStatus||(!row.person?'请填写 CN':(!qty?'没有识别到结果':(drawMismatch?`抽数不一致：抽了 ${expected}，结果 ${qty}`:(!blindQty?'这个人在目标列没有占位':(blindQty!==qty?`数量不一致：占位 ${blindQty}，结果 ${qty}`:'可挂结果')))));
+        const explicitId=row.targetColumnId||findResultTargetColumn(row.blindColumnName)?.id||'';
+        const columnOptions='<option value="">沿用默认选择</option>'+blindList.map((c,i)=>`<option value="${c.id}" ${Number(explicitId)===Number(c.id)?'selected':''}>${escapeHtml(c.name)}（第${i+1}列）</option>`).join('');
+        return `<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="person" value="${escapeAttr(row.person)}"></td><td><select class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="targetColumnId">${columnOptions}</select></td><td>${blindQty}</td><td>${qty}</td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="itemsText" value="${escapeAttr(row.itemsText)}"></td><td class="${ok?'transfer-ok':'transfer-bad'}">${escapeHtml(status)}</td><td><button class="btn-danger btn-mini" data-remove-blind-result="${row.id}">删除</button></td></tr>`;
       }).join('');
       const bad=blindResultPreviewRows.some(row=>{
         const colId=blindColumnIdForRow(row), items=parseDemandText(row.itemsText), qty=blindItemCount(items), expected=Number(row.expectedDraw)||0, blindQty=colId?(personBlindPositions(allocations,colId).get(normalizeDispatchKey(row.person))?.positions.length||0):0;
         return !row.person||qty<=0||(expected>0&&qty!==expected)||!colId||blindQty!==qty;
       });
       $('confirmBlindResultBtn').disabled=!blindResultPreviewRows.length||bad;
-      $('blindResultPreviewStatus').textContent=blindResultPreviewRows.length?(bad?'有数量没有对上，先修正后再确认。':'数量都对上了，可以挂到盲抽格子。'):'先在上方粘贴抽奖结果。';
+      $('blindResultPreviewStatus').textContent=blindResultPreviewRows.length?(bad?'请先选择目标列，并核对占位和结果数量。':'数量都对上了，可以挂到选中的列。'):'先在上方粘贴抽奖结果。';
       $('blindResultPreviewStatus').style.color=bad?'var(--warn)':'var(--ok)';
     }
     function buildBlindResultMatrixPreview(){
@@ -9530,7 +9538,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('blindResultPreviewTableBody').addEventListener('change',e=>{
       const input=e.target.closest('[data-blind-result-id]'); if(!input) return;
       const row=blindResultPreviewRows.find(item=>item.id===parseInt(input.dataset.blindResultId,10)); if(!row) return;
-      if(input.dataset.blindResultField==='blindColumnName'){
+      if(input.dataset.blindResultField==='targetColumnId'){
+        row.targetColumnId=Number(input.value)||null;row.blindColumnName='';
+      }else if(input.dataset.blindResultField==='blindColumnName'){
         const matched=findBlindColumnByText(input.value);
         row.blindColumnName=matched?matched.name:String(input.value||'').trim();
       }else row[input.dataset.blindResultField]=input.value;
@@ -11848,8 +11858,18 @@ body.export-rendering .cart-count{ font-size:28px; }
         card.append(heading,scroll,actions);overlay.appendChild(card);document.body.appendChild(overlay);
       });
     }
-    async function saveCanvasImage(canvas,filename,preview=false){
-      const prepared=preview?await preparePaymentImage(canvas,filename):null;
+    async function prepareMatrixImage(canvas,filename){
+      // Keep the rendered text resolution; reduce bytes by choosing the encoder,
+      // not by forcing a wide order table into a narrow image.
+      const encode=(type,quality)=>new Promise(resolve=>canvas.toBlob(resolve,type,quality));
+      const png=await encode('image/png'),jpeg=await encode('image/jpeg',0.94);
+      const blob=jpeg&&(!png||jpeg.size<png.size*0.8)?jpeg:png;
+      if(!blob)throw new Error('图片生成失败');
+      return {blob,filename:filename.replace(/\.(png|jpe?g)$/i,'')+(blob.type==='image/jpeg'?'.jpg':'.png'),width:canvas.width,height:canvas.height};
+    }
+    function matrixExportScale(width,height){return Math.min(2,Math.sqrt(24000000/Math.max(1,width*height)),28000/Math.max(1,width),28000/Math.max(1,height));}
+    async function saveCanvasImage(canvas,filename,preview=false,preparedImage=null){
+      const prepared=preparedImage||(preview?await preparePaymentImage(canvas,filename):null);
       if(prepared)filename=prepared.filename;
       if(preview&&!await previewPaymentImage(canvas,filename,prepared)) return;
       const blob=prepared?prepared.blob:await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
@@ -11910,6 +11930,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       tableClone.querySelectorAll('thead,th,td,.seq-col,thead td:first-child,thead th:first-child').forEach(el=>{
         el.style.position='static'; el.style.left='auto'; el.style.right='auto'; el.style.top='auto'; el.style.zIndex='auto';
       });
+      tableClone.querySelectorAll('th,td').forEach(cell=>{cell.style.padding='5px 7px';cell.style.minWidth=cell.classList.contains('seq-col')?'32px':'76px';});
+      tableClone.querySelectorAll('th:first-child,td:first-child').forEach(cell=>cell.style.minWidth='38px');
+      tableClone.querySelectorAll('.bought-cell').forEach(cell=>cell.style.paddingRight='25px');
       tableClone.style.position='static'; tableClone.style.maxWidth='none';
       clean.appendChild(titleClone);
       clean.appendChild(tableClone);
@@ -11924,8 +11947,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         clean.style.width=(exportWidth+12)+'px';
         host.style.width=(exportWidth+12)+'px';
         await new Promise(resolve=>requestAnimationFrame(resolve));
-        const canvas=await renderExportCanvas(clean,{backgroundColor:'#ffffff',scale:2,width:clean.scrollWidth,height:clean.scrollHeight,windowWidth:clean.scrollWidth+40,windowHeight:clean.scrollHeight+40});
-        await saveCanvasImage(canvas,name+'.png');
+        const width=clean.scrollWidth,height=clean.scrollHeight,scale=matrixExportScale(width,height);
+        if(scale<1&&!await appConfirm('这张排单很大，单张导出需要缩小，文字清晰度会受影响。仍要继续吗？\n可以取消后缩小排单范围再导出。','排单图片较大','继续导出'))return;
+        const canvas=await renderExportCanvas(clean,{backgroundColor:'#ffffff',scale,width,height,windowWidth:width+40,windowHeight:height+40});
+        const prepared=await prepareMatrixImage(canvas,name+'.png');
+        await saveCanvasImage(canvas,name+'.png',true,prepared);
       }catch(_){
         alert('导出失败，请重试');
       }finally{
