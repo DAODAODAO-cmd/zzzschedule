@@ -511,6 +511,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-primary" id="confirmTransferBtn">核对款项并转单</button>
+      <button type="button" class="btn-ghost" id="restoreTransferAutoBtn">检查手动金额／恢复自动计算</button>
       <button class="btn-ghost" id="cancelTransferPreviewBtn">取消预览</button>
       <span class="hint" id="transferPreviewStatus">会从原 CN 最后一单开始向上修改。</span>
     </div>
@@ -9813,6 +9814,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         return `<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="source" value="${escapeAttr(row.source)}"></td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="itemText" value="${escapeAttr(itemValue)}"></td><td><input type="text" inputmode="numeric" pattern="[0-9]*" class="action-preview-input action-preview-qty" data-transfer-id="${row.id}" data-transfer-field="qty" value="${row.qty}"></td><td><input type="text" class="action-preview-input" data-transfer-id="${row.id}" data-transfer-field="target" value="${escapeAttr(row.target)}"></td><td class="${check.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(check.text)}</td><td><button class="btn-danger btn-mini" data-remove-transfer="${row.id}">删除</button></td></tr>`;
       }).join('');
       $('confirmTransferBtn').disabled=!transferPreviewRows.length||transferPreviewRows.some(row=>!transferRowCheck(row).ok);
+      $('restoreTransferAutoBtn').disabled=!transferPreviewRows.length;
     }
     function buildTransferMatrixPreview(){
       const preview=deepClone(allocations);
@@ -9870,6 +9872,41 @@ body.export-rendering .cart-count{ font-size:28px; }
       transferPreviewRows=transferPreviewRows.filter(row=>row.id!==parseInt(button.dataset.removeTransfer,10)); renderTransferPreview();
       if(transferPreviewRows.length) showTransferMatrixPreview(); else clearMatrixPreview();
     });
+    function buildTransferAutoCalculationPlan(sourceSheet,entries){
+      const sheet=deepClone(sourceSheet),people=new Map(),items=[];
+      for(const {row} of entries||[]){if(row?.mode==='swap')continue;for(const value of [row?.source,row?.target]){const name=String(value||'').trim(),key=normalizeDispatchKey(name);if(key&&!people.has(key))people.set(key,name);}}
+      const labels={paymentRefund:'手动待退款',paymentSupplement:'手动待补款',sharePaymentRefund:'手动均摊待退款',sharePaymentSupplement:'手动均摊待补款'};
+      for(const [field,label] of Object.entries(labels)){
+        for(const key of Object.keys(sheet[field]||{})){const normalized=normalizeDispatchKey(key);if(!people.has(normalized))continue;items.push({person:people.get(normalized),field,key,label,value:deepClone(sheet[field][key])});delete sheet[field][key];}
+      }
+      for(const key of Object.keys(sheet.paymentEdits||{})){
+        const prefix=['alipay:','__settlement_base__:','__settlement_override_at__:','__auto_base__:alipay:'].find(prefix=>key.startsWith(prefix));if(!prefix)continue;
+        const normalized=normalizeDispatchKey(key.slice(prefix.length));if(!people.has(normalized))continue;
+        if(prefix==='alipay:'||prefix==='__settlement_base__:')items.push({person:people.get(normalized),field:'paymentEdits',key,label:prefix==='alipay:'?'手动谷款应收':'手动退补基准',value:deepClone(sheet.paymentEdits[key])});
+        delete sheet.paymentEdits[key];
+      }
+      return {sheet,items,people:[...people.values()]};
+    }
+    async function restoreTransferAutoCalculation(entries=null){
+      const checks=entries||transferPreviewRows.map(row=>({row,check:transferRowCheck(row)}));
+      if(!checks.length||checks.some(({row})=>row.mode!=='swap'&&(!String(row.source||'').trim()||!String(row.target||'').trim()))){await appAlert('先在转单预览中填写转出和接单 CN。');return false;}
+      captureActiveSheet();const id=activeSheetId,code=String(syncCode||''),original=sheets.find(sheet=>sheet.id===id);if(!original)return false;
+      const signature=JSON.stringify(original),plan=buildTransferAutoCalculationPlan(original,checks);
+      if(!plan.items.length){await appAlert('本次转单双方没有需要清除的手动金额覆盖。若仍有提示，请核对收退补流水。');return false;}
+      const autoRecords=recordsForSheet(plan.sheet),keys=new Set(plan.people.map(normalizeDispatchKey));
+      if(autoRecords.some(record=>keys.has(record.key)&&record.historyUnknown)){await appAlert('转单双方还有金额不明确的旧收退补记录，请先在收退补流水核对；本次没有清除任何值。');return false;}
+      const details=plan.items.map(item=>item.person+' · '+item.label+'：'+String(item.value)).join('\n');
+      const after=autoRecords.filter(record=>keys.has(record.key)).map(record=>(record.name||record.key)+'：自动应收 '+money(record.g?.expected||0)+'；待退 '+money(record.refund||0)+'；待补 '+money(record.due||0)).join('\n');
+      if(!await appConfirm('以下手动值正在影响转单：\n'+details+'\n\n恢复后：\n'+after+'\n\n只清除本次转单双方的手动应收、待退补覆盖；已收款、已退款、已补款和历史转账不动。先保存快照，再恢复。恢复后仍需重新核对转单，不会自动转出。','核对手动金额','备份并恢复自动计算'))return false;
+      captureActiveSheet();if(code!==String(syncCode||'')||id!==activeSheetId||signature!==JSON.stringify(sheets.find(sheet=>sheet.id===id))){await appAlert('确认期间表格或账目发生变化，本次未恢复，请重新核对。');return false;}
+      if(!recordLocalSnapshot('恢复转单自动计算前',true)){await appAlert('恢复前快照未能保存，本次没有修改，请先导出 JSON 备份。');return false;}
+      const before=deepClone(original);plan.sheet.paymentManualResetHistory=[...(original.paymentManualResetHistory||[]),{at:new Date().toISOString(),people:plan.people,removed:deepClone(plan.items)}].slice(-20);
+      sheets[sheets.findIndex(sheet=>sheet.id===id)]=plan.sheet;applySheet(plan.sheet);
+      let saved=false;try{saved=saveState();}catch(_){}
+      if(!saved){sheets[sheets.findIndex(sheet=>sheet.id===id)]=before;applySheet(before);await appAlert('保存失败，已还原本次手动金额，未执行转单。');return false;}
+      transferPreviewSignature=actionPreviewDataSignature();renderTransferPreview();showTransferMatrixPreview('转单模拟（已恢复自动计算，尚未转单）');$('transferPreviewStatus').textContent='已恢复本次双方的自动计算，原收退补记录保留。请重新点“核对款项并转单”。';$('transferPreviewStatus').style.color='var(--ok)';return true;
+    }
+    $('restoreTransferAutoBtn').addEventListener('click',()=>restoreTransferAutoCalculation());
     function buildPaidOrderTransferPlan(sourceSheet,entries){
       const sheet=deepClone(sourceSheet),operations=[];
       sheet.paymentEdits=sheet.paymentEdits||{};sheet.paymentCashHistory=sheet.paymentCashHistory||[];
@@ -9888,7 +9925,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(positions.some(index=>dispatchShipmentFor(sheet,col,index,from,matrixItemDisplayName(col,index,sheet.matrixBlindSubCells||{}))))throw new Error('要转的谷子已经标记发货，请先核对并撤销发货标记');
         const records=recordsForSheet(sheet),source=records.find(r=>r.key===fromKey),target=records.find(r=>r.key===toKey);
         if(source?.historyUnknown||target?.historyUnknown)throw new Error('转单双方有只保存完成标记的旧收退补记录，请先在“收退补流水”核对历史金额');
-        if(source?.manual||target?.manual||[from,to,fromKey,toKey].some(name=>Object.prototype.hasOwnProperty.call(sheet.paymentEdits,'alipay:'+name)))throw new Error('转单双方有手动应收或手动退补金额，请先恢复自动计算后再转单，避免原整人金额留在转出方');
+        if(source?.manual||target?.manual||[from,to,fromKey,toKey].some(name=>Object.prototype.hasOwnProperty.call(sheet.paymentEdits,'alipay:'+name))){const error=new Error('转单双方有手动应收或手动退补金额，需要先核对手动值。');error.code='TRANSFER_MANUAL_OVERRIDE';throw error;}
         const start=Math.max(0,(parseInt(sheet.paymentStartRow,10)||1)-1),end=Number.isFinite(parseInt(sheet.paymentEndRow,10))?parseInt(sheet.paymentEndRow,10):Infinity;
         if(positions.some(index=>index<start||index>=end))throw new Error('本次转单有不在收款统计范围内的谷子，请先将当前表的收款统计设为第 1 行至最后，以免转错钱');
         const prices=sheetDisplayPriceInfo(sheet),priceCol=prices.cols.find(c=>Number(c.id)===Number(col.id))||col;
@@ -9933,7 +9970,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         plan=buildPaidOrderTransferPlan(original,checks);
         const lines=plan.operations.map(op=>`${op.from} → ${op.to}：${op.item} ×${op.qty}，随转已付款 ${money(op.amount)}`).join('\n');
         if(!await appConfirm((lines||'本次为换赏，不移动已付款')+'\n\n原收款、已退款和已补款保留；只记对应谷款的转入转出，均摊、国际不动。','转单与款项预览','确认应用'))return;
-      }catch(error){await appAlert(error.message||'转单核对失败，未修改数据','未应用');return;}
+      }catch(error){if(error.code==='TRANSFER_MANUAL_OVERRIDE'){await restoreTransferAutoCalculation(checks);return;}await appAlert(error.message||'转单核对失败，未修改数据','未应用');return;}
       captureActiveSheet();if(activeSheetId!==originalId||JSON.stringify(sheets.find(s=>s.id===originalId))!==signature){await appAlert('确认期间排单或账目发生变化，请重新预览。','未应用');return;}
       if(!pushUndoSnapshot('transfer-apply','确认转单前')) return;
       const before=deepClone(original),changedTotal=plan.operations.reduce((sum,op)=>sum+op.qty,0);
