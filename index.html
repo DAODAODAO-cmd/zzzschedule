@@ -9265,7 +9265,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,`排发清单_${suffix}.png`)).catch(()=>alert('导出失败，请重试'));
     });
     let logisticsDateFilterVal='';
-    let publicArrivalConfig=null,publicArrivalConfigCode='',publicArrivalRenderedCode='',publicArrivalTimer=null,publicArrivalBusy=false,publicArrivalPublishedKey='';
+    let publicArrivalConfig=null,publicArrivalConfigCode='',publicArrivalRenderedCode='',publicArrivalTimer=null,publicArrivalBusy=false,publicArrivalPublishedKey='',publicArrivalFreeDaysCode='';
     const publicArrivalMissingCodes=new Set();
     function publicArrivalMessage(text){if($('publicArrivalStatus'))$('publicArrivalStatus').textContent=text;}
     function publicArrivalUrl(config){
@@ -9293,13 +9293,20 @@ body.export-rendering .cart-count{ font-size:28px; }
       for(const person of records||[])for(const item of person.items||[]){
         if(!allowed.has(String(item.sheetId))||item.ready!==true||item.shipped||!item.chinaDate||item.internationalPaid!==true||item.goodsPaidState!=='full')continue;
         const ref=JSON.stringify([String(item.sheetId),String(item.colId),Number(item.row)]);if(seen.has(ref))continue;seen.add(ref);
-        rows.push({sheet_id:String(item.sheetId),col_id:String(item.colId),row_index:Number(item.row),cn:String(item.person||person.name||''),name:String(item.item||''),arrival_date:String(item.chinaDate)});
+        rows.push({sheet_id:String(item.sheetId),col_id:String(item.colId),row_index:Number(item.row),cn:String(item.person||person.name||''),name:String(item.item||''),arrival_date:String(item.chinaDate),free_days:logisticsFreeDays()});
       }
       return rows;
+    }
+    function applyPublicArrivalFreeDays(config){
+      const code=String(syncCode||''),input=$('logisticsFreeMonths');
+      if(publicArrivalFreeDaysCode&&publicArrivalFreeDaysCode!==code)input.value='';
+      publicArrivalFreeDaysCode=code;
+      if(!String(input.value||'').trim()&&Number.isInteger(config?.free_days)&&config.free_days>=0)input.value=String(config.free_days/30);
     }
     function renderPublicArrivalSettings(config){
       publicArrivalRenderedCode=String(syncCode||'');
       $('publicArrivalEnabled').checked=config?.enabled===true;
+      applyPublicArrivalFreeDays(config);
       $('publicArrivalScope').textContent='自动范围：'+publicArrivalParticipatingIds().length+' 张参与排发的表。不参与排发的表不展示，无需另外勾选。';
       renderPublicArrivalLink(config);
     }
@@ -9319,7 +9326,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       try{
         const config=await loadPublicArrivalSettings(false);if(!config?.enabled){if(manual)publicArrivalMessage('查询未开启。');return false;}
         if(config.scope!=='dispatch')throw new Error('ARRIVAL_SCOPE_SQL_OLD');
-        const key=JSON.stringify([code,config.source_revision,config.source_updated_at,config.settings_updated_at]);if(!manual&&key===publicArrivalPublishedKey)return true;
+        applyPublicArrivalFreeDays(config);
+        const key=JSON.stringify([code,config.source_revision,config.source_updated_at,config.settings_updated_at,logisticsFreeDays()]);if(!manual&&key===publicArrivalPublishedKey)return true;
         const localAt=localRevision,snapshot=await stableRealtimeSnapshot(code);
         if(code!==String(syncCode||'')||!collabEnabled||collabNeedsSend||snapshot.revision!==localRevision||!collabBaseline||!collabStatesEqual(snapshot.cloud,collabBaseline))throw new Error('本机还有未核对的修改，暂不公开，等待同步后再更新。');
         const source=deepClone(collabBaseline),revision=collabRevision,rows=publicArrivalProjection(buildDispatchRecords(),publicArrivalParticipatingIds(source.sheets));
@@ -9584,7 +9592,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('undoLogisticsArrivalBtn').addEventListener('click',undoLogisticsArrival);
     $('logisticsDateFilter').addEventListener('change',()=>{ logisticsDateFilterVal=$('logisticsDateFilter').value||''; $('logisticsDateClear').classList.toggle('is-on',!logisticsDateFilterVal); renderLogistics(); });
     $('logisticsDateClear').addEventListener('click',()=>{ logisticsDateFilterVal=''; $('logisticsDateFilter').value=''; $('logisticsDateClear').classList.add('is-on'); renderLogistics(); });
-    $('logisticsFreeMonths').addEventListener('input',renderLogistics);
+    $('logisticsFreeMonths').addEventListener('input',()=>{renderLogistics();schedulePublicArrivalSync();});
     $('logisticsHoldRate').addEventListener('input',renderLogistics);
     $('logisticsExportBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
