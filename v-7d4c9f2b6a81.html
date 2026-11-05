@@ -30,7 +30,7 @@ async function requestArrivals(cn,signal){
   if(!response.ok)throw new Error('暂时无法查询，请稍后重试或联系团长。');
   const data=await response.json();if(data?.status==='unavailable')throw new Error('查询暂未开放，或链接已停用。');if(data?.status==='updating')throw new Error('到货信息正在更新，请稍后再查。');if(data?.status!=='ok')throw new Error('请填写完整 CN 后再查。');
   if(!Array.isArray(data.items))throw new Error('查询结果暂不可用。');
-  return data.items.filter(r=>typeof r.name==='string'&&Number.isInteger(Number(r.qty))&&Number(r.qty)>0&&/^\d{4}-\d{2}-\d{2}$/.test(r.arrival_date||'')&&Number.isInteger(Number(r.holding_days))&&Number(r.holding_days)>=0).map(r=>({name:r.name,qty:Number(r.qty),arrival_date:r.arrival_date,holding_days:Number(r.holding_days)}));
+  return data.items.filter(r=>typeof r.name==='string'&&Number.isInteger(Number(r.qty))&&Number(r.qty)>0&&/^\d{4}-\d{2}-\d{2}$/.test(r.arrival_date||'')&&Number.isInteger(Number(r.holding_days))&&Number(r.holding_days)>=0).map(r=>({name:r.name,qty:Number(r.qty),arrival_date:r.arrival_date,sheet_name:typeof r.sheet_name==='string'?r.sheet_name:'',holding_days:Number(r.holding_days)}));
 }
 function node(tag,className,text){const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;}
 function showResults(cn,rows){
@@ -39,6 +39,7 @@ function showResults(cn,rows){
   if(!rows.length){$('items').append(node('div','empty','暂没有符合条件的可排发到货记录，请确认 CN 是否一致。'));return;}
   for(const row of rows){
     const card=node('article','item'),head=node('div','item-head'),name=node('div','goods-name',row.name);name.append(node('span','qty','× '+row.qty));head.append(name,node('span','status','可排发'));card.append(head);
+    if(row.sheet_name){const source=node('div','',row.sheet_name);source.style.cssText='margin-top:5px;font-size:11px;color:var(--muted);overflow-wrap:anywhere';card.append(source);}
     const dates=node('div','dates');
     const line=node('span','','国内到货');line.append(node('b','',row.arrival_date));dates.append(line);const hold=node('span','hold','已囤货 ');hold.append(node('span','',String(row.holding_days)),document.createTextNode(' 天'));dates.append(hold);
     card.append(dates);$('items').append(card);
