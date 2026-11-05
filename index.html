@@ -596,9 +596,9 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="payment-heading-tools matrix-heading-tools">
       <input id="matrixTitleInput" type="text" placeholder="填写项目名称">
       <label>标题颜色 <input id="matrixColorInput" type="color" value="#d1466a"></label>
-      <button type="button" class="sheet-dispatch-option" id="currentSheetDispatchEnabled" aria-pressed="true">参与排发 · 点击停用</button>
+      <label class="sheet-dispatch-option">模式 <select id="currentSheetDispatchEnabled" aria-label="当前排单模式"><option value="required">需国际</option><option value="exempt">免国际</option><option value="accounting">仅算账</option></select></label>
     </div>
-    <div class="hint" id="currentSheetDispatchHint">当前表参与排发；仅用于算账时可取消勾选。</div>
+    <div class="hint" id="currentSheetDispatchHint">需国际：参与物流、排发，国际交齐后才可排发。</div>
     <div class="matrix-options">
       <button type="button" class="matrix-toggle" id="showPricingRow" data-mobile-label="调价">隐藏调价</button>
       <button type="button" class="matrix-toggle" id="showUnitPriceRow" data-mobile-label="单价">隐藏单价</button>
@@ -837,7 +837,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   <div class="panel" id="dispatchPanel">
     <h2>CN 购买与排发</h2>
     <div class="hint">按 CN 查看购买、到货、待发和已发货状态。每款谷子可单独标记发货，不影响收款记录。</div>
-    <details id="dispatchScopeDetails" class="dispatch-scope"><summary id="dispatchScopeSummary">管理参与排发的表</summary><div class="hint">只算账、不用发货的表取消勾选即可。不会删除排单、账目或原有发货记录。</div><div id="dispatchScopeList" class="dispatch-scope-list"></div></details>
+    <details id="dispatchScopeDetails" class="dispatch-scope"><summary id="dispatchScopeSummary">管理排单模式</summary><div class="hint">需国际／免国际都参与物流和排发；仅算账不参与。切换不删除排单、账目或原有发货记录。</div><div id="dispatchScopeList" class="dispatch-scope-list"></div></details>
     <div class="dispatch-state-tabs" role="tablist" aria-label="排发状态筛选">
       <button type="button" class="active" data-dispatch-state="all">全部购买</button>
       <button type="button" data-dispatch-state="china">已到国内</button>
@@ -1391,6 +1391,7 @@ body.sheet-types-open{overflow:hidden;}
 .dispatch-scope-row small{font-size:10px;color:var(--muted);white-space:nowrap;}
 .sheet-dispatch-option{display:inline-flex!important;align-items:center;gap:6px;white-space:nowrap;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);font-size:12px;cursor:pointer;}
 .sheet-dispatch-option input{width:16px!important;min-width:16px!important;height:16px;margin:0;accent-color:#d1466a;}
+.sheet-dispatch-option select,.dispatch-scope-row select{min-width:88px;max-width:100%;min-height:32px;padding:4px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);font-size:12px;color:inherit;}
 .sheet-dispatch-option[aria-pressed=true]{color:#248155;border-color:#bddcc9;background:#eff9f2;}
 .sheet-dispatch-option[aria-pressed=false]{color:#ac365b;border-color:#e5b6c6;background:#fff1f6;}
 .dispatch-scope-row>button{display:inline-flex!important;align-items:center;justify-content:center;min-width:100px;width:auto!important;min-height:34px;margin:0!important;padding:7px 10px!important;box-sizing:border-box;border:1px solid #bddcc9;border-radius:999px;cursor:pointer;font-family:inherit;font-size:11px!important;font-weight:650;line-height:1.4;white-space:nowrap;color:#248155;background:#eff9f2;}
@@ -6920,6 +6921,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const map=new Map();
       (sheets||[]).forEach(sheet=>{
         if(dispatchOnly&&!sheetParticipatesInDispatch(sheet))return;
+        if(!dispatchOnly&&sheetFulfillmentMode(sheet)!=='required')return;
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
         const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, sub=sheet.matrixBlindSubCells||{};
         const cols=orderDisplayColumns(Array.isArray(sheet.columns)?sheet.columns:[],groups,alloc);
@@ -8841,7 +8843,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {china:'已到国内',ready:'可排发',unshipped:'未发货',shipped:'已发货'}[dispatchStateFilter]||'全部购买';
     }
     function dispatchInternationalState(sheet,date,key,c,row,name,item,fees,archives){
-      if(!date)return {generated:false,paid:false,confirmed:false,missing:false};
+      const exempt=sheetFulfillmentMode(sheet)==='exempt';
+      if(!date)return {generated:false,paid:false,confirmed:false,missing:false,exempt};
+      if(exempt)return {generated:false,paid:true,confirmed:false,missing:false,pending:false,exempt:true};
       const batch=normalizeArrivalBatchId('',date);
       const matches=f=>['international','international_supplement','international_refund'].includes(f.feeType)&&normalizeDispatchKey(f.person)===key&&extraFeeArrivalBatchId(f)===batch;
       const current=(fees||[]).filter(matches);
@@ -8861,17 +8865,18 @@ body.export-rendering .cart-count{ font-size:28px; }
       const confirmed=(!generated||carried)&&!!exemption&&normalizeDispatchKey(exemption.person)===normalizeDispatchKey(name)&&exemption.item===item&&exemption.date===date;
       return {generated,paid:paid||confirmed,confirmed,missing:!generated&&!confirmed,pending:generated&&!paid};
     }
+    function sheetFulfillmentMode(sheet){return sheet?.dispatchEnabled===false?'accounting':sheet?.dispatchInternationalExempt===true?'exempt':'required';}
     function sheetParticipatesInDispatch(sheet){ return sheet?.dispatchEnabled!==false; }
     function syncCurrentSheetDispatchControl(){
       const sheet=sheets.find(s=>s.id===activeSheetId),input=$('currentSheetDispatchEnabled');
-      if(!input)return;const enabled=sheetParticipatesInDispatch(sheet);input.setAttribute('aria-pressed',String(enabled));input.textContent=enabled?'参与排发 · 点击停用':'仅算账 · 点击参与排发';input.disabled=!sheet;
-      if($('currentSheetDispatchHint'))$('currentSheetDispatchHint').textContent=enabled?'当前表参与排发；仅用于算账时可点击停用。':'当前表仅算账。点击上方“参与排发”即可重新开启；排单、账目和发货记录仍保留。';
+      if(!input)return;const mode=sheetFulfillmentMode(sheet);input.value=mode;input.disabled=!sheet;
+      if($('currentSheetDispatchHint'))$('currentSheetDispatchHint').textContent=mode==='accounting'?'仅算账：不进入物流、排发和团员查询；账目与原有记录保留。':mode==='exempt'?'免国际：参与物流、排发；到国内且谷款齐即可排发。已有国际账单不变，请另行核对。':'需国际：参与物流、排发，国际交齐后才可排发。';
     }
     function renderDispatchScope(){
       const list=$('dispatchScopeList');if(!list)return;
       const included=sheets.filter(sheetParticipatesInDispatch).length;
       $('dispatchScopeSummary').textContent=`管理参与排发的表 · ${included}/${sheets.length} 张参与`;
-      list.innerHTML=sheets.map(sheet=>`<div class="dispatch-scope-row"><span>${escapeHtml(sheet.name||'未命名排单')}</span><button type="button" data-dispatch-scope="${escapeAttr(sheet.id)}" data-dispatch-next="${sheetParticipatesInDispatch(sheet)?'off':'on'}" aria-pressed="${sheetParticipatesInDispatch(sheet)}">${sheetParticipatesInDispatch(sheet)?'已参与 · 停用':'重新参与排发'}</button></div>`).join('');
+      list.innerHTML=sheets.map(sheet=>`<div class="dispatch-scope-row"><span>${escapeHtml(sheet.name||'未命名排单')}</span><select aria-label="${escapeAttr(sheet.name||'排单')}模式" data-sheet-fulfillment="${escapeAttr(sheet.id)}">${[['required','需国际'],['exempt','免国际'],['accounting','仅算账']].map(([mode,label])=>`<option value="${mode}"${sheetFulfillmentMode(sheet)===mode?' selected':''}>${label}</option>`).join('')}</select></div>`).join('');
     }
     function buildDispatchRecords(){
       captureActiveSheet();
@@ -8909,7 +8914,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             const intl=dispatchInternationalState(sheet,chinaDate,key,c,r,name,itemName,extraFees,extraFeeArchives);
             const internationalGenerated=intl.generated||intl.confirmed,internationalPaid=intl.paid;
             people.get(key).items.push({
-              item:itemName,sheetId:sheet.id,colId:c.id,row:r,person:name,shipped:!!shipment,shippedAt:shipment?.at||'',internationalMissing:intl.missing,internationalConfirmed:intl.confirmed,
+              item:itemName,sheetId:sheet.id,colId:c.id,row:r,person:name,shipped:!!shipment,shippedAt:shipment?.at||'',internationalMissing:intl.missing,internationalConfirmed:intl.confirmed,internationalExempt:intl.exempt===true,
               sheet:String(sheet.name||'').trim(),
               boughtTracked:usesBoughtMark,
               chinaDate,
@@ -8933,8 +8938,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function dispatchItemGroups(items){
       const map=new Map();
       items.forEach(it=>{
-        const k=[it.item,it.sheetId,it.shipped?'shipped':'pending',it.internationalMissing?'missing':it.internationalConfirmed?'confirmed':'normal'].join('\u0000');
-        if(!map.has(k)) map.set(k,{item:it.item,sheet:it.sheet,n:0,shipped:!!it.shipped,internationalMissing:!!it.internationalMissing,internationalConfirmed:!!it.internationalConfirmed,shipmentRefs:[],boughtTracked:false,chinaCount:0,chinaDates:[],goodsPaidCount:0,goodsPartialCount:0,internationalGeneratedCount:0,internationalPaidCount:0,readyCount:0});
+        const k=[it.item,it.sheetId,it.shipped?'shipped':'pending',it.internationalExempt?'exempt':it.internationalMissing?'missing':it.internationalConfirmed?'confirmed':'normal'].join('\u0000');
+        if(!map.has(k)) map.set(k,{item:it.item,sheet:it.sheet,n:0,shipped:!!it.shipped,internationalMissing:!!it.internationalMissing,internationalConfirmed:!!it.internationalConfirmed,internationalExempt:!!it.internationalExempt,shipmentRefs:[],boughtTracked:false,chinaCount:0,chinaDates:[],goodsPaidCount:0,goodsPartialCount:0,internationalGeneratedCount:0,internationalPaidCount:0,readyCount:0});
         const group=map.get(k);
         group.shipmentRefs.push({sheetId:it.sheetId,colId:it.colId,row:it.row,person:it.person,item:it.item,ready:it.ready,chinaDate:it.chinaDate});
         group.n++;
@@ -8952,7 +8957,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const map=new Map();
       groups.forEach(g=>{
         const sheet=String(g.sheet||'未命名排单').trim()||'未命名排单';
-        if(!map.has(sheet)) map.set(sheet,{sheet,items:[],qty:0,readyQty:0,chinaQty:0,dates:[],goodsPaidQty:0,goodsPartialQty:0,intlNeededQty:0,intlPaidQty:0});
+        if(!map.has(sheet)) map.set(sheet,{sheet,items:[],qty:0,readyQty:0,chinaQty:0,dates:[],goodsPaidQty:0,goodsPartialQty:0,intlNeededQty:0,intlPaidQty:0,intlExemptQty:0});
         const row=map.get(sheet);
         row.items.push(g);
         row.qty+=g.n;
@@ -8961,7 +8966,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         row.goodsPaidQty+=g.goodsPaidCount;
         row.goodsPartialQty+=g.goodsPartialCount;
         row.intlNeededQty+=g.internationalGeneratedCount;
-        row.intlPaidQty+=g.internationalPaidCount;
+        if(g.internationalExempt)row.intlExemptQty+=g.n;else row.intlPaidQty+=g.internationalPaidCount;
         row.dates.push(...(g.chinaDates||[]));
       });
       return [...map.values()];
@@ -8975,6 +8980,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!g.shipped&&!g.chinaCount) bits.push('未到国内');
       if(!g.shipped&&g.internationalMissing) bits.push('未匹配国际费');
       if(g.internationalConfirmed) bits.push('国际已另行确认');
+      if(g.internationalExempt) bits.push('免国际');
       if(g.n>1) bits.push(`×${g.n}`);
       if(g.chinaCount&&g.chinaCount<g.n) bits.push(`国内${g.chinaCount}/${g.n}`);
       if(g.goodsPaidCount<g.n) bits.push(g.goodsPartialCount?`谷款部分${g.goodsPaidCount}/${g.n}`:(g.goodsPaidCount?`谷款${g.goodsPaidCount}/${g.n}`:'未谷款'));
@@ -9005,7 +9011,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const shown=group.items.map(dispatchItemChip).join('')||'<span class="dispatch-chip has-unpaid">未命名谷子</span>';
           const status=[
             group.goodsPaidQty===group.qty?`谷款已收`:(group.goodsPartialQty?`谷款部分 ${group.goodsPaidQty}/${group.qty}`:`谷款 ${group.goodsPaidQty}/${group.qty}`),
-            group.intlNeededQty?(group.intlPaidQty===group.intlNeededQty?`国际已收`:`国际 ${group.intlPaidQty}/${group.intlNeededQty}`):'',
+            group.intlExemptQty===group.qty?'免国际':group.intlNeededQty?(group.intlPaidQty===group.intlNeededQty?`国际已收`:`国际 ${group.intlPaidQty}/${group.intlNeededQty}`):'',
             group.chinaQty===group.qty?'国内已到':(group.chinaQty?`国内 ${group.chinaQty}/${group.qty}`:'未到国内'),
             holdDays==null?'':(holdDays>30?`超期 ${holdDays-30}天`:`屯货 ${holdDays}天`),
             group.readyQty===group.qty?'可排发':(group.readyQty?`可发 ${group.readyQty}/${group.qty}`:'')
@@ -9140,7 +9146,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const china=g.chinaCount===g.n?(dates.length?`国内${dates.join('/')}`:'国内已到'):(g.chinaCount>0?`国内${g.chinaCount}/${g.n}`:'未到国内');
           const hold=holdDays==null?'':(holdDays>30?`超期${holdDays-30}天`:`屯货${holdDays}天`);
           const goods=g.goodsPaidCount===g.n?'谷款已收':(g.goodsPartialCount?`谷款部分${g.goodsPaidCount}/${g.n}`:(g.goodsPaidCount>0?`谷款${g.goodsPaidCount}/${g.n}`:'谷款未收'));
-          const intl=!g.chinaCount?'':(g.internationalPaidCount===g.n?'国际已收':(g.internationalGeneratedCount>0?`国际${g.internationalPaidCount}/${g.internationalGeneratedCount}`:'待国际'));
+          const intl=g.internationalExempt?'免国际':!g.chinaCount?'':(g.internationalPaidCount===g.n?'国际已收':(g.internationalGeneratedCount>0?`国际${g.internationalPaidCount}/${g.internationalGeneratedCount}`:'待国际'));
           const ready=g.shipped?'已发货':(g.readyCount?`可发${g.readyCount}/${g.n}`:'未发货');
           return `${g.item}${g.n>1?`×${g.n}`:''}${g.sheet?`(${g.sheet})`:''}[${[g.boughtTracked?'已买齐':'已购买',china,hold,goods,intl,ready].filter(Boolean).join('；')}]`;
         }).join('、');
@@ -9156,18 +9162,22 @@ body.export-rendering .cart-count{ font-size:28px; }
       else alert('当前筛选中没有找到这个 CN');
     }
     let dispatchScopeSaving=false;
-    async function setSheetDispatchEnabled(sheetId,enabled){
-      if(dispatchScopeSaving)return;
-      let sheet=sheets.find(s=>String(s.id)===String(sheetId));if(!sheet)return;
-      const code=String(syncCode||'');dispatchScopeSaving=true;
+    async function setSheetFulfillmentMode(sheetId,mode){
+      if(dispatchScopeSaving||!['required','exempt','accounting'].includes(mode))return;
+      captureActiveSheet();let sheet=sheets.find(s=>String(s.id)===String(sheetId));if(!sheet)return;
+      if(sheetFulfillmentMode(sheet)===mode){syncCurrentSheetDispatchControl();return;}
+      const code=String(syncCode||''),before={dispatchEnabled:sheet.dispatchEnabled,dispatchInternationalExempt:sheet.dispatchInternationalExempt};dispatchScopeSaving=true;
+      const restore=()=>Object.entries(before).forEach(([key,value])=>{if(value===undefined)delete sheet[key];else sheet[key]=value;});
       try{
-        if(!enabled&&!await appConfirm(`将「${sheet.name||'未命名排单'}」设为仅算账？\n将不再出现在排发和物流的清单、统计、批量操作与导出中。\n排单、收退款、国际费用及原有到货、发货记录都会保留，随时可以重新开启。`,'参与排发设置','设为仅算账'))return;
-        if(code!==String(syncCode||'')){await appAlert('已切换协作组，本次设置未应用，请在当前组重新操作。');return;}
-        captureActiveSheet();sheet=sheets.find(s=>String(s.id)===String(sheetId));if(!sheet)return;
-        const previous=sheet.dispatchEnabled;sheet.dispatchEnabled=enabled===true;
-        let saved=false;try{saved=saveState();}catch(error){if(previous===undefined)delete sheet.dispatchEnabled;else sheet.dispatchEnabled=previous;throw error;}
-        if(!saved){if(previous===undefined)delete sheet.dispatchEnabled;else sheet.dispatchEnabled=previous;await appAlert('设置未能保存，已保留原状态。请先备份数据并处理存储空间。','保存失败');}
-      }catch(error){await appAlert('参与排发设置未完成：'+(error.message||error));}
+        if(mode!=='required'&&!await appConfirm(mode==='exempt'?`将「${sheet.name||'未命名排单'}」设为免国际？\n到国内、谷款齐即可排发，团员查询按相同规则展示。\n已有国际应收、已收和退补记录不变，不会标成已付款；已有账单请另行核对。`:`将「${sheet.name||'未命名排单'}」设为仅算账？\n不进入物流、排发、团员查询或新国际分摊；原排单、账目和到货发货记录全部保留。`,'排单模式',mode==='exempt'?'确认免国际':'设为仅算账'))return;
+        captureActiveSheet();sheet=sheets.find(s=>String(s.id)===String(sheetId));
+        if(code!==String(syncCode||'')||!sheet||Object.keys(before).some(key=>sheet[key]!==before[key])){await appAlert('协作组或排单模式已变化，本次未修改，请重新选择。');return;}
+        sheet.dispatchEnabled=mode!=='accounting';sheet.dispatchInternationalExempt=mode==='exempt';
+        let saved=false;try{saved=saveState();}catch(error){restore();throw error;}
+        if(!saved){restore();await appAlert('模式未能保存，已保留原状态。请先备份并处理存储空间。','保存失败');return;}
+        intlSplitPreviewRows=[];if($('intlSplitPreview'))$('intlSplitPreview').innerHTML='<div class="hint">排单模式已变化，请重新试算国际费用。</div>';
+        renderIntlBatchSelect();schedulePublicArrivalSync();
+      }catch(error){await appAlert('排单模式未完成：'+(error.message||error));}
       finally{dispatchScopeSaving=false;syncCurrentSheetDispatchControl();renderDispatch();renderLogistics();}
     }
     $('secondPricePanel').addEventListener('toggle',()=>{if($('secondPricePanel').open&&$('secondPricePanel').dataset.sheetId!==String(activeSheetId))renderSecondPriceSetup();});
@@ -9191,9 +9201,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('secondPriceAppendList').addEventListener('click',e=>{const button=e.target.closest('[data-second-append-remove]');if(button){secondPricePendingAdditions.splice(Number(button.dataset.secondAppendRemove),1);renderSecondPriceAppendList();invalidateSecondPrice();}});
     $('secondPriceApplyBtn').addEventListener('click',applySecondPrice);
     $('secondPriceSaveBtn').addEventListener('click',async()=>{const preview=secondPricePreview;if(!preview)return;captureActiveSheet();const sheet=sheets.find(s=>s.id===activeSheetId);if(preview.sheetId!==activeSheetId||JSON.stringify(sheet)!==preview.signature){invalidateSecondPrice();await appAlert('当前表有变化，请重新试算。','未保存');return;}const old=deepClone(sheet.secondPriceCalculations||[]);saveSecondPriceConfiguration(sheet,preview.plan);if(!saveState()){sheet.secondPriceCalculations=old;await appAlert('试算未能保存，请先备份并处理存储空间。','保存失败');return;}preview.signature=JSON.stringify(sheet);const select=$('secondPriceSavedSelect');if(![...select.options].some(option=>option.value===preview.plan.calculationId)){const option=document.createElement('option');option.value=preview.plan.calculationId;option.textContent=preview.plan.config.name+' · 已保存试算';select.appendChild(option);}select.value=preview.plan.calculationId;await appAlert('已保存本组试算。还没有修改谷子价格；需要时再点“核对后应用到本表”。','试算已保存');});
-    $('currentSheetDispatchEnabled').addEventListener('click',()=>{const sheet=sheets.find(s=>s.id===activeSheetId);if(sheet)setSheetDispatchEnabled(sheet.id,!sheetParticipatesInDispatch(sheet));});
-    $('dispatchScopeList').addEventListener('click',e=>{
-      const input=e.target.closest('[data-dispatch-scope]');if(input)setSheetDispatchEnabled(input.dataset.dispatchScope,input.dataset.dispatchNext==='on');
+    $('currentSheetDispatchEnabled').addEventListener('change',()=>{setSheetFulfillmentMode(activeSheetId,$('currentSheetDispatchEnabled').value);});
+    $('dispatchScopeList').addEventListener('change',e=>{
+      const input=e.target.closest('[data-sheet-fulfillment]');if(input)setSheetFulfillmentMode(input.dataset.sheetFulfillment,input.value);
     });
     document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.addEventListener('click',()=>{ dispatchStateFilter=button.dataset.dispatchState||'all'; renderDispatch(); }));
     $('dispatchRefreshBtn').addEventListener('click',renderDispatch);
@@ -10021,7 +10031,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         positions.forEach(index=>[col,...(col.comboMembers||[])].forEach(member=>{
           if(String(sheet.allocations[member.id]?.[index]||'').trim()!==from)return;
           const item=matrixItemDisplayName(member,index,sheet.matrixBlindSubCells||{}),date=String(logisticsCellMark(member,index,from,sheet.matrixChinaCells||{},sheet.allocations)||'');
-          const intl=dispatchInternationalState(sheet,date,fromKey,member,index,from,item,extraFees,extraFeeArchives);
+          const intl=dispatchInternationalState({...sheet,dispatchInternationalExempt:false},date,fromKey,member,index,from,item,extraFees,extraFeeArchives);
           if(intl.paid)internationalCarry.set(matrixBoughtKey(member.id,index),{person:to,item,date,at:new Date().toISOString(),transferVerified:true,transferStatus:intl.confirmed?'exempt':'paid',transferredFrom:from});
         }));
         positions.forEach(index=>{

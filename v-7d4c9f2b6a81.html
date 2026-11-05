@@ -25,10 +25,40 @@ const API_KEY='sb_publishable_yU4Q1T2RuQfgwOW9Idtf9w__YssVHYe';
 const $=id=>document.getElementById(id);
 function normalizeCN(value){return String(value||'').normalize('NFKC').trim().replace(/\s+/g,'').toLowerCase();}
 function queryLink(){return new URLSearchParams(location.hash.slice(1)).get('link')||'';}
-async function requestArrivals(cn,signal){
+async function fetchArrivalResponse(link,cn,signal,onProgress){
+  if(typeof navigator!=='undefined'&&navigator.onLine===false)throw new Error('当前设备未联网，请恢复网络后再查询（QRY-OFFLINE）。');
+  const params={p_link:link,p_cn:normalizeCN(cn)},methods=['GET','POST','GET'];let lastResponse=null;
+  for(let attempt=0;attempt<methods.length;attempt++){
+    if(signal?.aborted){const error=new Error('查询已取消');error.name='AbortError';throw error;}
+    onProgress?.(attempt+1,methods.length);
+    const controller=new AbortController(),cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});
+    const timer=setTimeout(cancel,6000);let response;
+    try{
+      const method=methods[attempt],url=method==='GET'?API+'?'+new URLSearchParams({...params,apikey:API_KEY}):API;
+      response=await fetch(url,{method,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',signal:controller.signal,...(method==='POST'?{headers:{apikey:API_KEY,'Content-Type':'application/json'},body:JSON.stringify(params)}:{})});
+      if(response.ok){
+        let data;try{data=await response.json();}catch(error){if(error.name==='SyntaxError')throw new Error('查询服务返回格式异常，请联系团长（QRY-DATA）。');throw error;}
+        return {ok:true,status:response.status,json:async()=>data};
+      }
+      if(![408,425,429,500,502,503,504].includes(response.status))return response;
+      lastResponse=response;
+    }catch(error){
+      if(signal?.aborted){const cancelled=new Error('查询已取消');cancelled.name='AbortError';throw cancelled;}
+      if(error.name!=='AbortError'&&!(error instanceof TypeError))throw error;
+    }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
+  }
+  if(lastResponse)return lastResponse;
+  throw new Error('查询服务连接失败，已尝试备用请求（QRY-NET）。不是 CN 或到货记录被删除；若换网络仍失败，请把此提示发给团长排查接口线路。');
+}
+async function requestArrivals(cn,signal,onProgress){
   const link=queryLink();if(!/^[0-9a-f-]{36}$/i.test(link))throw new Error('链接不完整，请使用团长发来的完整查询链接。');
-  const response=await fetch(API,{method:'POST',headers:{'apikey':API_KEY,'Content-Type':'application/json'},body:JSON.stringify({p_link:link,p_cn:normalizeCN(cn)}),signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
-  if(!response.ok)throw new Error('暂时无法查询，请稍后重试或联系团长。');
+  const response=await fetchArrivalResponse(link,cn,signal,onProgress);
+  if(!response.ok){
+    if(response.status===401||response.status===403)throw new Error('查询接口权限配置异常，请联系团长处理（QRY-AUTH）；不是你的 CN 有误。');
+    if(response.status===404)throw new Error('查询接口尚未正确配置，请联系团长处理（QRY-API）。');
+    if(response.status===429)throw new Error('查询服务暂时繁忙，请稍后再试（QRY-LIMIT）。');
+    throw new Error('查询服务暂时异常，请稍后再试（QRY-HTTP-'+response.status+'）。');
+  }
   const data=await response.json();if(data?.status==='unavailable')throw new Error('查询暂未开放，或链接已停用。');if(data?.status==='updating')throw new Error('到货信息正在更新，请稍后再查。');if(data?.status!=='ok')throw new Error('请填写完整 CN 后再查。');
   if(!Array.isArray(data.items))throw new Error('查询结果暂不可用。');
   return data.items.filter(r=>typeof r.name==='string'&&Number.isInteger(Number(r.qty))&&Number(r.qty)>0&&/^\d{4}-\d{2}-\d{2}$/.test(r.arrival_date||'')&&Number.isInteger(Number(r.holding_days))&&Number(r.holding_days)>=0).map(r=>({name:r.name,qty:Number(r.qty),arrival_date:r.arrival_date,sheet_name:typeof r.sheet_name==='string'?r.sheet_name:'',holding_days:Number(r.holding_days),free_days:r.free_days!==null&&r.free_days!==undefined&&Number.isInteger(Number(r.free_days))&&Number(r.free_days)>=0&&Number(r.free_days)<=36500?Number(r.free_days):null}));
@@ -93,7 +123,7 @@ $('queryForm').addEventListener('submit',async event=>{
   event.preventDefault();const cn=$('cnInput').value.trim();if(!normalizeCN(cn)){$('error').textContent='请先填写 CN。';$('results').hidden=true;return;}
   const id=++requestId;activeController?.abort();const controller=new AbortController();activeController=controller;
   currentArrivalResult=null;$('exportArrivalBtn').disabled=true;$('results').hidden=true;$('items').replaceChildren();$('error').textContent='';$('queryBtn').disabled=true;$('queryBtn').textContent='查询中…';const timer=setTimeout(()=>controller.abort(),20000);
-  try{const rows=await requestArrivals(cn,controller.signal);if(id===requestId)showResults(cn,rows);}catch(error){if(id===requestId)$('error').textContent=error.name==='AbortError'?'查询超时，请再试一次。':error.message;}finally{clearTimeout(timer);if(id===requestId){$('queryBtn').disabled=false;$('queryBtn').textContent='查询';}}
+  try{const rows=await requestArrivals(cn,controller.signal,(attempt,total)=>{if(id===requestId)$('queryBtn').textContent=attempt===1?'查询中…':'重连 '+attempt+'/'+total;});if(id===requestId)showResults(cn,rows);}catch(error){if(id===requestId)$('error').textContent=error.name==='AbortError'?'查询超时，请再试一次。':error.message;}finally{clearTimeout(timer);if(id===requestId){$('queryBtn').disabled=false;$('queryBtn').textContent='查询';}}
 });
 $('cnInput').addEventListener('input',()=>{requestId++;activeController?.abort();currentArrivalResult=null;$('exportArrivalBtn').disabled=true;$('results').hidden=true;$('items').replaceChildren();$('queryBtn').disabled=false;$('queryBtn').textContent='查询';$('error').textContent='';});
 if(!queryLink())$('error').textContent='请使用团长发来的完整查询链接。';
