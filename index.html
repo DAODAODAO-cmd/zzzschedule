@@ -5746,9 +5746,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(stored===true) return total;
       return Math.max(0,paymentMoneyValue(stored));
     }
+    function paymentViewReceivedAmount(paidMap,key,fullAmount){
+      const original=paidAmountValue(paidMap,key,fullAmount);
+      if(typeof paymentPaid==='undefined'||paidMap!==paymentPaid||!settlementCredit(paymentEdits,key))return original;
+      return Math.max(0,Math.round((original+settlementCredit(paymentEdits,key)+settlementTransferAmount(paymentSupplementDone[key])-settlementTransferAmount(paymentRefundDone[key]))*100)/100);
+    }
     function paidState(paidMap,key,fullAmount){
-      if(paidMap&&paidMap[key]===true) return 'full';
-      const total=Math.max(0,paymentMoneyValue(fullAmount)), received=paidAmountValue(paidMap,key,total);
+      if(paidMap&&paidMap[key]===true&&!(typeof paymentPaid!=='undefined'&&paidMap===paymentPaid&&settlementCredit(paymentEdits,key))) return 'full';
+      const total=Math.max(0,paymentMoneyValue(fullAmount)), received=paymentViewReceivedAmount(paidMap,key,total);
       if(total>0&&received>=total-0.005) return 'full';
       if(received>0) return 'partial';
       return 'unpaid';
@@ -5943,7 +5948,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function paymentProgressText(records,paidMap,refundMap,supplementMap,amountGetter){
       let paidPeople=0,partialPeople=0,unpaidPeople=0,paidAmount=0,partialAmount=0,partialDue=0,unpaidAmount=0;
       records.forEach(record=>{
-        const amount=Math.max(0,paymentMoneyValue(amountGetter(record))), received=paidAmountValue(paidMap,record.key,amount), state=paidState(paidMap,record.key,amount);
+        const amount=Math.max(0,paymentMoneyValue(amountGetter(record))), received=paymentViewReceivedAmount(paidMap,record.key,amount), state=paidState(paidMap,record.key,amount);
         if(state==='full'){ paidPeople++; paidAmount+=Math.min(received,amount); }
         else if(state==='partial'){ partialPeople++; partialAmount+=received; partialDue+=Math.max(0,amount-received); }
         else{ unpaidPeople++; unpaidAmount+=amount; }
@@ -6631,6 +6636,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {actual:total.actual/100,refund:total.refund/100,due:total.due/100};
     }
     function renderPaymentSummary(){
+      // Display transferred receipts without rewriting the original cash ledger.
+      const paidAmountValue=paymentViewReceivedAmount;
       syncCashLedgerAccess();
       computeAverage();
       const people=new Map();
@@ -8850,7 +8857,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const charges=rows.filter(f=>f.feeType!=='international_refund');
       const paid=generated&&charges.every(f=>f.paid===true);
       const exemption=sheet.dispatchInternationalExemptCells?.[`${c.id}:${row}`];
-      const confirmed=!generated&&!!exemption&&normalizeDispatchKey(exemption.person)===normalizeDispatchKey(name)&&exemption.item===item&&exemption.date===date;
+      const carried=exemption?.transferVerified===true&&['paid','exempt'].includes(exemption.transferStatus);
+      const confirmed=(!generated||carried)&&!!exemption&&normalizeDispatchKey(exemption.person)===normalizeDispatchKey(name)&&exemption.item===item&&exemption.date===date;
       return {generated,paid:paid||confirmed,confirmed,missing:!generated&&!confirmed,pending:generated&&!paid};
     }
     function sheetParticipatesInDispatch(sheet){ return sheet?.dispatchEnabled!==false; }
@@ -10001,12 +10009,19 @@ body.export-rendering .cart-count{ font-size:28px; }
         const operation={from,to,fromKey,toKey,item:check.sub?`${col.name}-${check.sub}`:col.name,qty,positions,colId:col.id,amount,available,proposed};
         sheet.paymentEdits['__transfer_credit__:'+fromKey]=Math.round((settlementCredit(sheet.paymentEdits,fromKey)-amount)*100)/100;
         sheet.paymentEdits['__transfer_credit__:'+toKey]=Math.round((settlementCredit(sheet.paymentEdits,toKey)+amount)*100)/100;
+        const internationalCarry=new Map();
+        positions.forEach(index=>[col,...(col.comboMembers||[])].forEach(member=>{
+          if(String(sheet.allocations[member.id]?.[index]||'').trim()!==from)return;
+          const item=matrixItemDisplayName(member,index,sheet.matrixBlindSubCells||{}),date=String(logisticsCellMark(member,index,from,sheet.matrixChinaCells||{},sheet.allocations)||'');
+          const intl=dispatchInternationalState(sheet,date,fromKey,member,index,from,item,extraFees,extraFeeArchives);
+          if(intl.paid)internationalCarry.set(matrixBoughtKey(member.id,index),{person:to,item,date,at:new Date().toISOString(),transferVerified:true,transferStatus:intl.confirmed?'exempt':'paid',transferredFrom:from});
+        }));
         positions.forEach(index=>{
           arr[index]=to;
           const columns=[col,...(col.comboMembers||[])];
           columns.forEach(member=>{const key=matrixBoughtKey(member.id,index);if(member.id!==col.id&&String(sheet.allocations[member.id]?.[index]||'').trim()===from)sheet.allocations[member.id][index]=to;if(normalizeDispatchKey(sheet.matrixBoughtCells?.[key])===fromKey)sheet.matrixBoughtCells[key]=to;if(normalizeDispatchKey(sheet.secondPriceCellPrices?.[key]?.person)===fromKey)sheet.secondPriceCellPrices[key].person=to;});
-          // Per-person international confirmations are not silently given to the new owner.
-          if(sheet.dispatchInternationalExemptCells)delete sheet.dispatchInternationalExemptCells[matrixBoughtKey(col.id,index)];
+          // Carry only verified paid/no-fee status for these exact pieces; financial bills stay unchanged.
+          columns.forEach(member=>{const key=matrixBoughtKey(member.id,index),carry=internationalCarry.get(key);if(carry){sheet.dispatchInternationalExemptCells=sheet.dispatchInternationalExemptCells||{};sheet.dispatchInternationalExemptCells[key]=carry;}else if(sheet.dispatchInternationalExemptCells)delete sheet.dispatchInternationalExemptCells[key];});
         });
         sheet.paymentCashHistory.push({id:'transfer_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),type:'transfer',at:new Date().toISOString(),...operation});operations.push(operation);
       }
@@ -10028,12 +10043,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         plan=buildPaidOrderTransferPlan(original,checks);
         let operationIndex=0;
         for(const entry of checks){if(entry.row.mode==='swap')continue;const op=plan.operations[operationIndex++];
-          const answer=await appPrompt(`${op.from} → ${op.to}\n${op.item} ×${op.qty}\n建议随转已付款：${money(op.amount)}（按谷款余额与转出占比分配）\n可转谷款余额：${money(op.available)}\n请核对实际随转金额；填 0 表示只转谷子。均摊和国际不自动转。`,fmtNum(op.amount),'确认随转已付款');if(answer===null)return;
+          const answer=await appPrompt(`${op.from} → ${op.to}\n${op.item} ×${op.qty}\n建议随转已付款：${money(op.amount)}（按谷款余额与转出占比分配）\n可转谷款余额：${money(op.available)}\n请核对实际随转金额；填 0 表示只转谷子。已交或已确认免国际的排发状态随件保留；国际账目不挪动。`,fmtNum(op.amount),'确认随转已付款');if(answer===null)return;
           const amount=Number(String(answer).trim());if(!String(answer).trim()||!Number.isFinite(amount)||amount<0)throw new Error('随转金额必须是明确的非负数字');entry.cashAmount=amount;
         }
         plan=buildPaidOrderTransferPlan(original,checks);
         const lines=plan.operations.map(op=>`${op.from} → ${op.to}：${op.item} ×${op.qty}，随转已付款 ${money(op.amount)}`).join('\n');
-        if(!await appConfirm((lines||'本次为换赏，不移动已付款')+'\n\n原收款、已退款和已补款保留；只记对应谷款的转入转出，均摊、国际不动。','转单与款项预览','确认应用'))return;
+        if(!await appConfirm((lines||'本次为换赏，不移动已付款')+'\n\n原收款、已退款和已补款保留；只记对应谷款的转入转出，均摊、国际账目不动。已交或已确认免国际的排发状态随件保留；未交的不放行。','转单与款项预览','确认应用'))return;
       }catch(error){if(error.code==='TRANSFER_MANUAL_OVERRIDE'){await restoreTransferAutoCalculation(checks);return;}await appAlert(error.message||'转单核对失败，未修改数据','未应用');return;}
       captureActiveSheet();if(activeSheetId!==originalId||JSON.stringify(sheets.find(s=>s.id===originalId))!==signature){await appAlert('确认期间排单或账目发生变化，请重新预览。','未应用');return;}
       if(!pushUndoSnapshot('transfer-apply','确认转单前')) return;
@@ -11610,7 +11625,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const allButton=e.target.closest('[data-payment-paid-all]');
       if(allButton){
         e.preventDefault(); e.stopPropagation();
-        if(showBoughtSettlement){await appAlert('退补模式请逐人确认本次退款或补款，原收款不会被批量覆盖。','保留原账');return;}
+        if(showBoughtSettlement||Object.keys(paymentEdits).some(key=>key.startsWith('__transfer_credit__:')&&num(paymentEdits[key]))){await appAlert('当前表包含退补或转单款项，请逐人确认差额，原收款与转单流水不会被批量覆盖。','保留原账');return;}
         const buttons=[...$('paymentSummary').querySelectorAll('[data-payment-paid]')], allFull=buttons.length>0&&buttons.every(button=>button.getAttribute('aria-pressed')==='true');
         const before=paymentActionState(buttons.map(button=>decodeURIComponent(button.dataset.paymentPaid||'')).filter(Boolean));
         const shareMap=paymentIncludeShare?shareRecordMapForAutoPaid():null;
@@ -11636,7 +11651,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const checkbox=e.target.closest('[data-payment-paid]'); if(!checkbox) return;
       e.preventDefault(); e.stopPropagation();
       const key=decodeURIComponent(checkbox.dataset.paymentPaid||''); if(!key) return;
-      if(showBoughtSettlement){
+      if(showBoughtSettlement||settlementCredit(paymentEdits,key)){
         const record=combinedSettlementRecords().find(r=>r.key===key);if(!record)return;
         if(record.historyUnknown){openCashLedger(key);return;}
         const type=record.refund>0.005?'refund':'supplement',amount=type==='refund'?record.refund:record.due;
