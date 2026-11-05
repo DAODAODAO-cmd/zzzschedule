@@ -684,7 +684,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <div class="payment-search-tools"><input id="paymentSearchInput" type="text" placeholder="输入 CN 名字的一部分"><button type="button" class="btn-ghost" id="paymentSearchBtn">查找</button><span class="payment-unpaid-count" id="paymentUnpaidCount">已收齐：0人 / ¥0.00；未收：0人 / ¥0.00</span></div>
       <div class="extra-fee-filter payment-status-filter" data-payment-status-filter="goods"><button type="button" class="active" data-payment-filter="all">全部</button><button type="button" data-payment-filter="refund">退款</button><button type="button" data-payment-filter="unpaid">未收</button><button type="button" data-payment-filter="paid">已收</button></div>
       <div id="paymentSummary" class="payment-summary"></div>
-      <details id="cashLedgerAdminTools" class="cash-ledger-admin-tools" hidden><summary>账务管理 <small>仅管理员</small></summary><div><button type="button" class="btn-ghost" id="openCashLedgerBtn">查看收退补流水</button><span class="hint">当前表的收款、退款、补款和转单记录</span></div></details>
+      <details id="cashLedgerAdminTools" class="cash-ledger-admin-tools" hidden><summary>账务管理 <small>仅管理员</small></summary><div><button type="button" class="btn-ghost" id="openCashLedgerBtn">查看收退补流水</button><button type="button" class="btn-ghost" id="openLegacyCashBatchBtn">批量补齐旧金额</button><span class="hint">当前表的收款、退款、补款和转单记录</span></div></details>
       <div class="toolbar"><button type="button" class="btn-ghost settlement-mode-toggle" id="toggleBoughtSettlementBtn" data-mobile-label="结算中心" aria-pressed="false" title="仅在缺货、砍单或需要退补款时开启；开启后同时显示差额与结算中心">开启结算中心</button><button type="button" class="btn-ghost payment-calc-toggle" id="collectBoughtOnlyBtn" data-mobile-label="买到" aria-pressed="false" title="收款表只显示并计算已标记买到的谷子，没买到的自动隐藏">只收买到：未开启</button><button type="button" class="btn-ghost payment-calc-toggle" id="includeShareInPaymentBtn" data-mobile-label="均摊" aria-pressed="false" title="打开后，谷子收款金额会自动加上均摊">加入均摊：未开启</button><button type="button" class="btn-ghost" id="showPaymentTotalBtn" data-mobile-label="总价">隐藏总价</button><button class="btn-ghost" id="exportPaymentBtn" data-mobile-label="导出图片">导出收款图</button><button class="btn-ghost" id="exportRefundPaymentBtn" data-mobile-label="退款图">导出退款图</button><button class="btn-ghost" id="exportUnpaidPaymentBtn" data-mobile-label="未肾">导出未肾图</button><button class="btn-ghost" id="exportPaymentExcelBtn" data-mobile-label="Excel">导出 Excel</button><button class="btn-ghost" id="copyPaymentBtn" data-mobile-label="复制">复制表格</button></div><div id="settlementDashboard" class="settlement-dashboard" hidden></div>
     </div>
     <div id="extraPaymentView" style="display:none;">
@@ -929,7 +929,14 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <footer>数据会自动保存在这个浏览器里。换设备或清理浏览器前，记得先导出备份。</footer>
-  <dialog id="cashLedgerDialog" class="cash-ledger-dialog"><div class="cash-ledger-head"><strong>收退补流水</strong><button type="button" class="btn-ghost" id="closeCashLedgerBtn">关闭</button></div><input id="cashLedgerSearch" type="search" placeholder="搜索 CN 名字"><div id="cashLedgerContent" class="cash-ledger-content"></div></dialog>
+  <dialog id="cashLedgerDialog" class="cash-ledger-dialog"><div class="cash-ledger-head"><strong>收退补流水</strong><div style="display:flex;gap:6px"><button type="button" class="btn-ghost" id="openLegacyCashFromLedgerBtn">批量补齐旧金额</button><button type="button" class="btn-ghost" id="closeCashLedgerBtn">关闭</button></div></div><input id="cashLedgerSearch" type="search" placeholder="搜索 CN 名字"><div id="cashLedgerContent" class="cash-ledger-content"></div>
+    <section id="legacyCashBatchPanel" hidden style="min-height:0;display:flex;flex-direction:column;gap:9px">
+      <p class="hint" style="margin:0">这些人不是“正在核对”，而是旧记录只存了完成标记，没有金额。只填写缺失的历史累计金额；留空不会保存，填 0 表示你确认实际没有发生。不要填当前应退补差额。</p>
+      <div class="toolbar"><button type="button" class="btn-ghost" id="useLegacyCashReferencesBtn">带入明确流水参考</button><button type="button" class="btn-ghost" id="closeLegacyCashBatchBtn">返回流水</button></div>
+      <div id="legacyCashBatchList" style="overflow:auto;min-height:0;max-height:48dvh"></div>
+      <div id="legacyCashBatchStatus" class="hint" role="status"></div><button type="button" class="btn-primary" id="saveLegacyCashBatchBtn">备份并保存已填完整的人</button>
+    </section>
+  </dialog>
   </main>
 
   <nav class="mobile-bottom-nav" aria-label="手机功能导航">
@@ -1436,7 +1443,8 @@ body.sheet-types-open{overflow:hidden;}
 .extra-bills-visibility[open]>summary::after{content:'收起账单 ▴';}
 @media(max-width:620px){.extra-bills-visibility{padding:9px;}.extra-bills-visibility>summary{flex-wrap:wrap;gap:5px;}.extra-bills-visibility>summary span{flex-basis:100%;order:3;}}
 body.export-rendering .payment-share-note,body.export-rendering .extra-intl-total-line{display:none!important;}
-.cash-ledger-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;flex-shrink:0;}
+.cash-ledger-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:0;flex-shrink:0;}
+#cashLedgerDialog #cashLedgerSearch[hidden],#cashLedgerContent[hidden],#legacyCashBatchPanel[hidden]{display:none!important;}
 .cash-ledger-head strong{font-size:17px;line-height:1.5;}
 #cashLedgerDialog .cash-ledger-head button{height:40px;min-height:40px;margin:0;padding:8px 16px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;}
 #cashLedgerDialog #cashLedgerSearch{display:block;flex-shrink:0;width:100%!important;max-width:none!important;height:42px!important;min-height:42px!important;box-sizing:border-box;margin:0!important;padding:10px 12px!important;border:1px solid #e2dbe6!important;border-radius:9px!important;background:#faf8fb!important;color:var(--text);font-family:inherit;font-size:13px!important;line-height:20px;outline:none;}
@@ -6479,7 +6487,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       let pendingRefund=0,pendingDue=0,pendingRefundPeople=0,pendingDuePeople=0,completedPeople=0;
       const prepared=records.map(r=>{
         let type='complete',done=true,action='';
-        if(r.historyUnknown){type='unknown';done=false;action=`<button type="button" class="settlement-status-btn" data-cash-ledger="${encodeURIComponent(r.key)}">历史待核对</button>`;
+        if(r.historyUnknown){type='unknown';done=false;action=`<button type="button" class="settlement-status-btn" data-open-legacy-cash="${encodeURIComponent(r.key)}">缺历史金额 · 补齐</button>`;
         }else if(r.refund>0.005){
           type='refund'; done=false;
           if(done){ completedPeople++; action=`<button type="button" class="settlement-status-btn settlement-status-refund-done" data-settlement-status="refund" data-settlement-key="${encodeURIComponent(r.key)}">✓ 已退款</button>`; }
@@ -6546,6 +6554,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function openCashLedger(key=''){
       if(!canViewCashLedger()){appAlert('收退补流水仅协作组管理员（组主）可查看。','仅管理员');return;}
+      closeLegacyCashBatch();
       captureActiveSheet();$('cashLedgerDialog').dataset.sheetId=String(activeSheetId);$('cashLedgerSearch').value=key;renderCashLedger();if(!$('cashLedgerDialog').open)$('cashLedgerDialog').showModal();
     }
     async function confirmLegacyCash(key){
@@ -6559,6 +6568,61 @@ body.export-rendering .cart-count{ font-size:28px; }
       rememberPaymentAction(before,'人工核对历史金额');
       if(!saveState()){fields.forEach(([,map],index)=>{Object.keys(map).forEach(k=>delete map[k]);Object.assign(map,oldMaps[index]);});sheet.paymentCashHistory=oldHistory;captureActiveSheet();await appAlert('历史核对未能保存，已保留原记录。请先备份并处理存储空间。','保存失败');return false;}
       renderPaymentSummary();if($('cashLedgerDialog').open)renderCashLedger();return true;
+    }
+    let legacyCashBatchDraft=null,legacyCashBatchSaving=false;
+    function legacyCashUnknownRows(sheet){
+      const fields=[['paymentPaid','原累计谷款（含当时合并均摊）'],['sharePaymentPaid','单独均摊累计收款'],['paymentRefundDone','历史累计已退款'],['paymentSupplementDone','历史累计已补款']],rows=new Map();
+      for(const [field,label] of fields)for(const [key,value] of Object.entries(sheet[field]||{})){
+        if(value!==true)continue;if(!rows.has(key))rows.set(key,{key,cells:[]});
+        const latest=(sheet.paymentCashHistory||[]).filter(e=>e.type==='receipt'&&e.account===field&&e.key===key).at(-1);
+        const suggestion=latest&&typeof latest.after==='number'&&Number.isFinite(latest.after)&&latest.after>=0?latest.after:null;
+        rows.get(key).cells.push({field,label,suggestion});
+      }
+      return [...rows.values()];
+    }
+    function buildLegacyCashBatchPlan(source,values,at=new Date().toISOString()){
+      const sheet=deepClone(source),changed=[],completed=[];
+      for(const row of legacyCashUnknownRows(source)){
+        const supplied=values[row.key]||{};let complete=true;
+        for(const cell of row.cells){const text=String(supplied[cell.field]??'').trim();if(!text){complete=false;continue;}if(!/^\d+(?:\.\d{1,2})?$/.test(text)||!Number.isFinite(Number(text)))throw new Error(row.key+' 的'+cell.label+'需要填写非负金额，最多两位小数。');}
+        if(!complete)continue;
+        for(const cell of row.cells){const amount=Math.round(Number(supplied[cell.field])*100)/100;
+          sheet[cell.field][row.key]=cell.field.endsWith('Done')?{amount,events:[{amount,at,legacy:true,confirmed:true}]}:amount;
+          changed.push({key:row.key,field:cell.field,label:cell.label,amount});
+          if(!cell.field.endsWith('Done')){sheet.paymentCashHistory=sheet.paymentCashHistory||[];sheet.paymentCashHistory.push({id:'legacy_cash_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),key:row.key,person:row.key,type:'receipt',account:cell.field,at,before:null,after:amount,note:'批量核对历史累计金额（非新增收款）'});}
+        }
+        completed.push(row.key);
+      }
+      return {sheet,changed,completed,remaining:legacyCashUnknownRows(sheet).length};
+    }
+    function renderLegacyCashBatch(){
+      const draft=legacyCashBatchDraft;if(!draft)return;
+      $('legacyCashBatchList').innerHTML=draft.rows.map(row=>`<section style="padding:12px;margin-bottom:8px;border:1px solid var(--line);border-radius:10px;background:#faf8fb"><strong>${escapeHtml(row.key)}</strong><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px">${row.cells.map(cell=>`<label style="font-size:11px;min-width:0">${escapeHtml(cell.label)}<input type="text" inputmode="decimal" data-legacy-cash-key="${escapeAttr(encodeURIComponent(row.key))}" data-legacy-cash-field="${cell.field}" value="${escapeAttr(draft.values[row.key]?.[cell.field]||'')}" placeholder="填真实累计金额" style="display:block;width:100%;min-width:0;box-sizing:border-box;margin-top:4px;padding:8px;border:1px solid var(--line);border-radius:7px">${cell.suggestion!==null?`<small style="display:block;color:var(--muted)">明确流水参考：${money(cell.suggestion)}，需确认</small>`:''}</label>`).join('')}</div></section>`).join('')||'<p class="hint">当前表没有缺失历史金额的人，不需要再核对。</p>';
+      $('legacyCashBatchStatus').textContent='当前表共 '+draft.rows.length+' 人缺金额。只保存本次已填完整的人，其余保留待补。';$('saveLegacyCashBatchBtn').disabled=!draft.rows.length||legacyCashBatchSaving;
+    }
+    function openLegacyCashBatch(){
+      if(!canViewCashLedger()){appAlert('请由协作组管理员批量补齐历史金额。');return;}
+      if(legacyCashBatchDraft&&legacyCashBatchDraft.sheetId===activeSheetId&&legacyCashBatchDraft.code===String(syncCode||'')&&!$('legacyCashBatchPanel').hidden)return;
+      openCashLedger();captureActiveSheet();const sheet=sheets.find(s=>s.id===activeSheetId);if(!sheet)return;
+      legacyCashBatchDraft={code:String(syncCode||''),sheetId:activeSheetId,signature:JSON.stringify(sheet),rows:legacyCashUnknownRows(sheet),values:{}};
+      $('cashLedgerSearch').hidden=true;$('cashLedgerContent').hidden=true;$('legacyCashBatchPanel').hidden=false;renderLegacyCashBatch();
+    }
+    function closeLegacyCashBatch(){legacyCashBatchDraft=null;if($('legacyCashBatchPanel')){$('legacyCashBatchPanel').hidden=true;$('cashLedgerSearch').hidden=false;$('cashLedgerContent').hidden=false;}}
+    async function saveLegacyCashBatch(){
+      const draft=legacyCashBatchDraft;if(!draft||legacyCashBatchSaving||!canViewCashLedger())return;legacyCashBatchSaving=true;$('saveLegacyCashBatchBtn').disabled=true;
+      try{
+        captureActiveSheet();const original=sheets.find(s=>s.id===draft.sheetId);
+        const valid=()=>draft===legacyCashBatchDraft&&draft.code===String(syncCode||'')&&draft.sheetId===activeSheetId&&draft.signature===JSON.stringify(sheets.find(s=>s.id===draft.sheetId));
+        if(!valid())throw new Error('表格或账目已变化，请返回流水后重新打开批量补齐，未修改记录。');
+        const plan=buildLegacyCashBatchPlan(original,draft.values);if(!plan.completed.length)throw new Error('还没有填完整的人。请填齐一个人的所有缺失项目再保存，其他人可以暂时留空。');
+        if(!await appConfirm('本次补齐 '+plan.completed.length+' 人、'+plan.changed.length+' 项历史累计金额：\n'+plan.changed.map(x=>x.key+' · '+x.label+' '+money(x.amount)).join('\n')+'\n\n这些是历史金额确认，不是新增收款或再次退款。未填完整的 '+plan.remaining+' 人保持不变。请确认来自实际流水；保存前先留快照。','批量补齐历史金额','备份并保存'))return;
+        captureActiveSheet();if(!valid()||!canViewCashLedger())throw new Error('确认期间账目或权限变化，未保存，请重新打开核对。');
+        if(!recordLocalSnapshot('批量补齐历史金额前',true))throw new Error('快照保存失败，未修改记录；请先导出 JSON 备份。');
+        const before=deepClone(original);sheets[sheets.findIndex(s=>s.id===draft.sheetId)]=plan.sheet;applySheet(plan.sheet);let saved=false;try{saved=saveState();}catch(_){}
+        if(!saved){sheets[sheets.findIndex(s=>s.id===draft.sheetId)]=before;applySheet(before);throw new Error('保存失败，已还原原记录。');}
+        draft.signature=JSON.stringify(sheets.find(s=>s.id===draft.sheetId));draft.rows=legacyCashUnknownRows(plan.sheet);plan.completed.forEach(key=>delete draft.values[key]);renderPaymentSummary();renderLegacyCashBatch();$('legacyCashBatchStatus').textContent='已补齐 '+plan.completed.length+' 人，剩 '+plan.remaining+' 人；已补齐的人不会再因缺历史金额被拦住。';
+      }catch(error){$('legacyCashBatchStatus').textContent=error.message||'未保存。';}
+      finally{legacyCashBatchSaving=false;$('saveLegacyCashBatchBtn').disabled=!legacyCashBatchDraft?.rows.length;}
     }
     function settlementSummaryTotals(records){
       const cents=value=>Math.round(num(value)*100);
@@ -9894,7 +9958,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const signature=JSON.stringify(original),plan=buildTransferAutoCalculationPlan(original,checks);
       if(!plan.items.length){await appAlert('本次转单双方没有需要清除的手动金额覆盖。若仍有提示，请核对收退补流水。');return false;}
       const autoRecords=recordsForSheet(plan.sheet),keys=new Set(plan.people.map(normalizeDispatchKey));
-      if(autoRecords.some(record=>keys.has(record.key)&&record.historyUnknown)){await appAlert('转单双方还有金额不明确的旧收退补记录，请先在收退补流水核对；本次没有清除任何值。');return false;}
+      if(autoRecords.some(record=>keys.has(record.key)&&record.historyUnknown)){if(await appConfirm('转单双方缺少明确的历史金额。本次未修改任何值。可以打开整张表的缺金额清单，一次补齐已知的实际金额。','缺少历史金额','打开批量补齐'))openLegacyCashBatch();return false;}
       const details=plan.items.map(item=>item.person+' · '+item.label+'：'+String(item.value)).join('\n');
       const after=autoRecords.filter(record=>keys.has(record.key)).map(record=>(record.name||record.key)+'：自动应收 '+money(record.g?.expected||0)+'；待退 '+money(record.refund||0)+'；待补 '+money(record.due||0)).join('\n');
       if(!await appConfirm('以下手动值正在影响转单：\n'+details+'\n\n恢复后：\n'+after+'\n\n只清除本次转单双方的手动应收、待退补覆盖；已收款、已退款、已补款和历史转账不动。先保存快照，再恢复。恢复后仍需重新核对转单，不会自动转出。','核对手动金额','备份并恢复自动计算'))return false;
@@ -11523,6 +11587,21 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     $('openCashLedgerBtn').addEventListener('click',()=>openCashLedger());
     $('closeCashLedgerBtn').addEventListener('click',()=>$('cashLedgerDialog').close());
+    $('openLegacyCashBatchBtn').addEventListener('click',openLegacyCashBatch);
+    $('openLegacyCashFromLedgerBtn').addEventListener('click',openLegacyCashBatch);
+    $('closeLegacyCashBatchBtn').addEventListener('click',()=>{closeLegacyCashBatch();renderCashLedger();});
+    $('saveLegacyCashBatchBtn').addEventListener('click',saveLegacyCashBatch);
+    $('legacyCashBatchList').addEventListener('input',e=>{
+      const input=e.target.closest('[data-legacy-cash-field]'),draft=legacyCashBatchDraft;if(!input||!draft)return;
+      const key=decodeURIComponent(input.dataset.legacyCashKey||''),field=input.dataset.legacyCashField;
+      if(!draft.rows.some(row=>row.key===key&&row.cells.some(cell=>cell.field===field)))return;
+      (draft.values[key]||(draft.values[key]={}))[field]=input.value;
+    });
+    $('useLegacyCashReferencesBtn').addEventListener('click',()=>{
+      const draft=legacyCashBatchDraft;if(!draft)return;let count=0;
+      for(const row of draft.rows)for(const cell of row.cells){const values=draft.values[row.key]||(draft.values[row.key]={});if(cell.suggestion!==null&&!String(values[cell.field]??'').trim()){values[cell.field]=String(cell.suggestion);count++;}}
+      renderLegacyCashBatch();$('legacyCashBatchStatus').textContent='已带入 '+count+' 项明确流水参考，请按实际流水确认后再保存；未找到金额的项目仍留空。';
+    });
     $('cashLedgerSearch').addEventListener('input',renderCashLedger);
     $('cashLedgerContent').addEventListener('click',async e=>{const button=e.target.closest('[data-confirm-cash-history]'),dialog=$('cashLedgerDialog');if(button&&String(activeSheetId)===dialog.dataset.sheetId){dialog.close();try{await confirmLegacyCash(decodeURIComponent(button.dataset.confirmCashHistory));}finally{renderCashLedger();if(!dialog.open)dialog.showModal();}}});
     document.addEventListener('click',e=>{const button=e.target.closest('[data-cash-ledger]');if(button){e.preventDefault();e.stopPropagation();openCashLedger(decodeURIComponent(button.dataset.cashLedger));}});
@@ -11787,6 +11866,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderSettlementDashboard();
     });
     $('settlementDashboard').addEventListener('click',async e=>{
+      if(e.target.closest('[data-open-legacy-cash]')){openLegacyCashBatch();return;}
       const undo=e.target.closest('[data-settlement-undo]');
       if(undo){
         const key=decodeURIComponent(undo.dataset.settlementUndo), before=paymentActionState([key]);

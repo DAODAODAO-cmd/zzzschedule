@@ -7,6 +7,7 @@
 <meta name="description" content="输入 CN，查看谷子到货日期与囤货天数。">
 <style>
 :root{color-scheme:light;--rose:#cd496d;--ink:#352d38;--muted:#8d8192;--line:#ece5ef;--paper:#fff;--green:#3f8267}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#faf8fb;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.6}button,input{font:inherit}button{cursor:pointer}header{max-width:880px;margin:auto;display:flex;align-items:center;justify-content:space-between;padding:28px 30px 14px}.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:1px}.brand-icon{display:grid;place-items:center;width:35px;height:35px;background:#f8e7ee;color:var(--rose);border-radius:11px}.preview{color:#958799;font-size:11px;background:#f0ebf3;border-radius:20px;padding:4px 10px;white-space:nowrap}main{width:min(100% - 40px,700px);margin:34px auto 0;padding-bottom:40px}.intro{margin-bottom:24px}.eyebrow{font-size:10px;letter-spacing:2px;color:var(--rose);font-weight:750;margin:0 0 9px}.intro h1{font-size:30px;letter-spacing:1px;line-height:1.3;margin:0 0 10px;font-weight:760}.intro p{margin:0;color:var(--muted);font-size:13px}.search-card{padding:20px;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:0 5px 20px #49345604}.search-card label{font-size:12px;font-weight:700;display:block;margin:0 0 8px}.search-row{display:flex;gap:8px}.input-wrap{flex:1;min-width:0;display:flex;align-items:center;border:1px solid #e4dbe8;border-radius:10px;padding-left:12px;background:#fcfafc}.input-wrap:focus-within{border-color:var(--rose);box-shadow:0 0 0 3px #cd496d12}.input-wrap svg{color:#a795ac;flex-shrink:0}input{border:0;outline:0;background:transparent;width:100%;min-height:46px;padding:10px;color:var(--ink);font-size:16px}input::placeholder{color:#baaebf;font-size:13px}.query-btn{border:0;background:var(--rose);color:#fff;border-radius:10px;padding:0 24px;font-weight:650;min-height:46px;white-space:nowrap}.query-btn:hover{background:#ba3f61}.tip{font-size:11px;color:#a394a9;margin:10px 0 0}.result-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:28px 2px 12px}.result-head h2{font-size:15px;margin:0}.result-head span{font-size:11px;color:var(--muted)}.items{display:grid;gap:10px}.item{background:#fff;border:1px solid var(--line);border-radius:13px;padding:17px 19px}.item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.goods-name{font-size:14px;font-weight:650;line-height:1.6}.qty{display:inline-block;color:var(--muted);font-weight:500;margin-left:8px;font-size:12px;white-space:nowrap}.status{display:inline-flex;align-items:center;gap:5px;font-size:10px;white-space:nowrap;padding:3px 8px;border-radius:6px;background:#edf7f1;color:var(--green);margin-top:1px}.status::before{content:"";width:4px;height:4px;border-radius:50%;background:currentColor}.status.island{background:#fff4e5;color:#ae8443}.status.pending{background:#f2eef6;color:#94829f}.dates{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:11px;color:var(--muted);padding-top:11px;border-top:1px solid #f3eef5}.dates b{color:#6b5d73;font-weight:500;margin-left:6px}.hold{margin-left:auto;color:var(--green);font-size:11px;font-weight:650}.hold span{font-size:15px;margin:0 3px}.empty{border:1px dashed #ded3e4;border-radius:14px;padding:35px 18px;text-align:center;background:#fff;color:var(--muted);font-size:13px}.error{color:#c34b68;font-size:12px;margin:10px 0 0;min-height:0}.error:empty{display:none}footer{text-align:center;margin-top:26px;color:#b0a3b5;font-size:10px}.demo-note{margin-top:20px;border-radius:10px;background:#f3edf5;padding:12px 14px;font-size:11px;color:#928097}.demo-note strong{font-weight:600;color:#75667e}.hidden,[hidden]{display:none!important}button:focus-visible{outline:3px solid #df9fb5;outline-offset:3px}@media(max-width:540px){header{padding:18px 20px 5px}.brand{font-size:12px}.preview{font-size:9px}main{margin-top:28px;width:calc(100% - 32px)}.intro h1{font-size:26px}.search-card{padding:16px}.query-btn{padding:0 18px}.item{padding:15px}.goods-name{font-size:13px}.dates{gap:8px 16px}.hold{margin-left:0;flex-basis:100%}.result-head{margin-top:24px}.intro p{font-size:12px}}
+.sheet-group{display:grid;gap:8px;margin-bottom:10px}.sheet-heading{display:flex;justify-content:space-between;gap:12px;padding:12px 15px;background:#f3edf5;border:1px solid #e7dfea;border-radius:11px;color:#65546e;font-size:13px}.sheet-heading strong{overflow-wrap:anywhere}.sheet-heading span{white-space:nowrap;color:#9a87a4;font-size:11px}.export-btn{border:1px solid #d9cddd;border-radius:9px;padding:8px 12px;background:#fff;color:#8b5978;font-size:12px;min-height:38px}.export-btn:disabled{opacity:.5;cursor:default}.result-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.export-note{font-size:11px;color:#97849e;margin-top:8px}
 </style>
 </head>
 <body>
@@ -14,7 +15,7 @@
 <main>
 <section class="intro"><p class="eyebrow">ARRIVAL LOOKUP</p><h1>我的到货清单</h1><p>输入 CN，查看已到国内、可排发的谷子。</p></section>
 <section class="search-card" aria-label="按 CN 查询"><form id="queryForm"><label for="cnInput">你的 CN</label><div class="search-row"><div class="input-wrap"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><input id="cnInput" type="text" maxlength="80" placeholder="填写完整 CN" autocomplete="off" enterkeyhint="search" spellcheck="false"></div><button class="query-btn" id="queryBtn" type="submit">查询</button></div><p class="tip">请填写完整名字，不需要登录。</p><p class="error" id="error" role="alert"></p></form></section>
-<section id="results" aria-live="polite" hidden><div class="result-head"><h2 id="resultTitle"></h2><span id="resultCount"></span></div><div class="items" id="items"></div></section>
+<section id="results" aria-live="polite" hidden><div class="result-head"><h2 id="resultTitle"></h2><div class="result-tools"><span id="resultCount"></span><button type="button" class="export-btn" id="exportArrivalBtn" disabled>一键导出图片</button></div></div><div class="items" id="items"></div><div class="export-note" id="exportStatus" role="status"></div></section>
 <footer>仅展示已到国内且可排发的商品。</footer>
 </main>
 <script>
@@ -33,26 +34,63 @@ async function requestArrivals(cn,signal){
   return data.items.filter(r=>typeof r.name==='string'&&Number.isInteger(Number(r.qty))&&Number(r.qty)>0&&/^\d{4}-\d{2}-\d{2}$/.test(r.arrival_date||'')&&Number.isInteger(Number(r.holding_days))&&Number(r.holding_days)>=0).map(r=>({name:r.name,qty:Number(r.qty),arrival_date:r.arrival_date,sheet_name:typeof r.sheet_name==='string'?r.sheet_name:'',holding_days:Number(r.holding_days)}));
 }
 function node(tag,className,text){const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;}
+let currentArrivalResult=null;
+function groupArrivalRows(rows){
+  const groups=new Map();for(const row of rows){const name=String(row.sheet_name||'未标注排单');if(!groups.has(name))groups.set(name,{name,rows:[],qty:0});const group=groups.get(name);group.rows.push(row);group.qty+=Number(row.qty)||0;}return [...groups.values()];
+}
 function showResults(cn,rows){
+  currentArrivalResult={cn:String(cn).trim(),rows:rows.map(row=>({...row}))};$('exportArrivalBtn').disabled=!rows.length;$('exportStatus').textContent='';
   $('error').textContent='';$('items').replaceChildren();
   $('results').hidden=false;$('resultTitle').textContent=String(cn).trim()+' 的到货记录';$('resultCount').textContent=rows.length?rows.reduce((sum,row)=>sum+row.qty,0)+' 件谷子':'';
   if(!rows.length){$('items').append(node('div','empty','暂没有符合条件的可排发到货记录，请确认 CN 是否一致。'));return;}
-  for(const row of rows){
+  for(const group of groupArrivalRows(rows)){
+    const section=node('section','sheet-group'),heading=node('div','sheet-heading');heading.append(node('strong','',group.name),node('span','',group.qty+' 件'));section.append(heading);
+    for(const row of group.rows){
     const card=node('article','item'),head=node('div','item-head'),name=node('div','goods-name',row.name);name.append(node('span','qty','× '+row.qty));head.append(name,node('span','status','可排发'));card.append(head);
-    if(row.sheet_name){const source=node('div','',row.sheet_name);source.style.cssText='margin-top:5px;font-size:11px;color:var(--muted);overflow-wrap:anywhere';card.append(source);}
     const dates=node('div','dates');
     const line=node('span','','国内到货');line.append(node('b','',row.arrival_date));dates.append(line);const hold=node('span','hold','已囤货 ');hold.append(node('span','',String(row.holding_days)),document.createTextNode(' 天'));dates.append(hold);
-    card.append(dates);$('items').append(card);
+    card.append(dates);section.append(card);
+    }
+    $('items').append(section);
   }
 }
+function wrapImageText(ctx,text,width){
+  const lines=[];let line='';for(const char of String(text)){if(char==='\n'){lines.push(line);line='';continue;}if(line&&ctx.measureText(line+char).width>width){lines.push(line);line=char;}else line+=char;}if(line||!lines.length)lines.push(line);return lines;
+}
+async function buildArrivalImage(cn,rows){
+  if(document.fonts?.ready)await document.fonts.ready;
+  const width=760,canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');if(!ctx)throw new Error('当前浏览器暂不支持图片导出。');
+  const font=(size,bold=false)=>`${bold?'700':'400'} ${size}px "Microsoft YaHei",sans-serif`;
+  ctx.font=font(24,true);const title=wrapImageText(ctx,cn+'｜到货可排发清单',696);let y=28+title.length*34+28;
+  const blocks=groupArrivalRows(rows).map(group=>{ctx.font=font(18,true);const names=wrapImageText(ctx,group.name,600),headHeight=names.length*25+24;const start=y;y+=headHeight+34;const entries=group.rows.map(row=>{ctx.font=font(16);const lines=wrapImageText(ctx,row.name,332),height=Math.max(48,lines.length*24+18),top=y;y+=height;return {row,lines,height,top};});y+=20;return {group,names,headHeight,start,entries};});
+  const height=Math.ceil(y+12),scale=Math.min(2,Math.sqrt(20000000/(width*height)),28000/height);
+  if(scale<1)throw new Error('记录过多，单张图片会不清晰，暂未导出。请联系团长分批整理。');
+  canvas.width=Math.round(width*scale);canvas.height=Math.ceil(height*scale);ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.textBaseline='top';ctx.fillStyle='#352d38';ctx.font=font(24,true);title.forEach((line,i)=>ctx.fillText(line,32,28+i*34));
+  for(const block of blocks){const {group,names,headHeight,start,entries}=block;ctx.fillStyle='#f3edf5';ctx.fillRect(24,start,712,headHeight);ctx.fillStyle='#65546e';ctx.font=font(18,true);names.forEach((line,i)=>ctx.fillText(line,38,start+12+i*25));ctx.font=font(14);ctx.textAlign='right';ctx.fillText(group.qty+'件',720,start+15);ctx.textAlign='left';
+    const headingY=start+headHeight;ctx.fillStyle='#fbf9fc';ctx.fillRect(24,headingY,712,34);ctx.fillStyle='#97859e';ctx.font=font(13);ctx.fillText('谷子',38,headingY+9);ctx.fillText('数量',404,headingY+9);ctx.fillText('国内到货日期',484,headingY+9);ctx.fillText('囤货天数',650,headingY+9);
+    for(const {row,lines,height:rowHeight,top} of entries){ctx.fillStyle='#352d38';ctx.font=font(16);lines.forEach((line,i)=>ctx.fillText(line,38,top+12+i*24));ctx.fillText('×'+row.qty,404,top+15);ctx.font=font(14);ctx.fillStyle='#796b81';ctx.fillText(row.arrival_date,484,top+16);ctx.fillStyle='#3f8267';ctx.fillText(row.holding_days+' 天',650,top+16);ctx.strokeStyle='#ece5ef';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(24,top+rowHeight);ctx.lineTo(736,top+rowHeight);ctx.stroke();}
+  }
+  return canvas;
+}
+async function exportArrivalImage(){
+  const result=currentArrivalResult;if(!result?.rows.length)return;const button=$('exportArrivalBtn');button.disabled=true;$('exportStatus').textContent='正在生成完整清单图片…';
+  try{const canvas=await buildArrivalImage(result.cn,result.rows);if(currentArrivalResult!==result)throw new Error('查询已变化，请按当前结果重新导出。');const encode=(type,quality)=>new Promise(resolve=>canvas.toBlob(resolve,type,quality));const png=await encode('image/png'),jpg=await encode('image/jpeg',0.94),blob=jpg&&(!png||jpg.size<png.size*.8)?jpg:png;if(!blob)throw new Error('图片生成失败，请重试。');
+    if(currentArrivalResult!==result)throw new Error('查询已变化，请按当前结果重新导出。');
+    const filename=result.cn.replace(/[\\/:*?"<>|]/g,' ')+'-到货清单'+(blob.type==='image/jpeg'?'.jpg':'.png');let shared=false;
+    if(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent||'')&&navigator.share&&typeof File!=='undefined'){const file=new File([blob],filename,{type:blob.type});try{if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file]});shared=true;}}catch(error){if(error.name==='AbortError'){$('exportStatus').textContent='已取消保存。';return;}}}
+    if(!shared){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;link.style.display='none';document.body.append(link);link.click();setTimeout(()=>{link.remove();URL.revokeObjectURL(url);},1500);}
+    $('exportStatus').textContent='图片已生成，仅包含当前 CN 的到货清单。';
+  }catch(error){$('exportStatus').textContent=error.message||'导出失败，请重试。';}finally{button.disabled=!currentArrivalResult?.rows.length;}
+}
+$('exportArrivalBtn').addEventListener('click',exportArrivalImage);
 let requestId=0,activeController=null;
 $('queryForm').addEventListener('submit',async event=>{
   event.preventDefault();const cn=$('cnInput').value.trim();if(!normalizeCN(cn)){$('error').textContent='请先填写 CN。';$('results').hidden=true;return;}
   const id=++requestId;activeController?.abort();const controller=new AbortController();activeController=controller;
-  $('results').hidden=true;$('items').replaceChildren();$('error').textContent='';$('queryBtn').disabled=true;$('queryBtn').textContent='查询中…';const timer=setTimeout(()=>controller.abort(),20000);
+  currentArrivalResult=null;$('exportArrivalBtn').disabled=true;$('results').hidden=true;$('items').replaceChildren();$('error').textContent='';$('queryBtn').disabled=true;$('queryBtn').textContent='查询中…';const timer=setTimeout(()=>controller.abort(),20000);
   try{const rows=await requestArrivals(cn,controller.signal);if(id===requestId)showResults(cn,rows);}catch(error){if(id===requestId)$('error').textContent=error.name==='AbortError'?'查询超时，请再试一次。':error.message;}finally{clearTimeout(timer);if(id===requestId){$('queryBtn').disabled=false;$('queryBtn').textContent='查询';}}
 });
-$('cnInput').addEventListener('input',()=>{requestId++;activeController?.abort();$('results').hidden=true;$('items').replaceChildren();$('queryBtn').disabled=false;$('queryBtn').textContent='查询';$('error').textContent='';});
+$('cnInput').addEventListener('input',()=>{requestId++;activeController?.abort();currentArrivalResult=null;$('exportArrivalBtn').disabled=true;$('results').hidden=true;$('items').replaceChildren();$('queryBtn').disabled=false;$('queryBtn').textContent='查询';$('error').textContent='';});
 if(!queryLink())$('error').textContent='请使用团长发来的完整查询链接。';
 </script>
 </body>
