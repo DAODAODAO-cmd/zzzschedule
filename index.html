@@ -872,6 +872,14 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   <div class="panel" id="logisticsPanel">
     <h2>物流 · 到货与囤货</h2>
     <div class="hint">按排单查看每款谷子的到货与囤货状态。</div>
+    <details id="publicArrivalPanel" style="margin:10px 0;padding:12px;border:1px solid var(--line);border-radius:12px" data-html2canvas-ignore="true">
+      <summary style="cursor:pointer;font-weight:700">对外到货查询 · 开关与链接</summary>
+      <p class="hint">默认不公开。仅展示所选表中“已到国内、国际已交、可排发且未发货”的谷子、数量、国内到货日期和囤货天数。知道 CN 的人可查对应名字；不展示金额、收款、备注或完整排单。</p>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="publicArrivalEnabled">允许通过独立链接查询到货</label>
+      <div id="publicArrivalSheets" style="max-height:240px;overflow:auto;margin:10px 0"></div>
+      <div class="toolbar"><button type="button" class="btn-primary" id="savePublicArrivalBtn">保存查询设置</button><button type="button" class="btn-ghost" id="refreshPublicArrivalBtn">更新查询信息</button><button type="button" class="btn-ghost" id="copyPublicArrivalLinkBtn" disabled>复制查询链接</button><button type="button" class="btn-danger" id="disablePublicArrivalBtn">立即关闭查询</button></div>
+      <div id="publicArrivalStatus" class="hint" role="status">首次使用需要执行配套 SQL，并将 v-7d4c9f2b6a81.html 上传到主网页旁边。</div>
+    </details>
     <div class="logi-filters">
       <label class="mark-date-label logi-date-filter-label">已有到货批次<select id="logisticsDateFilter" style="max-width:560px;width:360px"><option value="">全部批次</option></select></label>
       <button type="button" class="logi-filter is-on" id="logisticsDateClear">全部</button>
@@ -3632,6 +3640,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       el.style.color=tone==='bad'?'var(--bad)':(tone==='warn'?'var(--warn)':(tone==='ok'?'var(--ok)':'var(--muted)'));
       syncCompactCollabStatus();
       const compact=$('collabCompactStatus'); if(compact&&collabEnabled){compact.textContent='● '+label;compact.style.color=el.style.color;}
+      if(collabEnabled&&!collabNeedsSend&&/已同步|已连接|刚刚更新/.test(detail))schedulePublicArrivalSync();
     }
     function readableCollabError(error){
       const raw=String(error?.message||error||'');
@@ -9178,6 +9187,76 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,`排发清单_${suffix}.png`)).catch(()=>alert('导出失败，请重试'));
     });
     let logisticsDateFilterVal='';
+    let publicArrivalConfig=null,publicArrivalConfigCode='',publicArrivalRenderedCode='',publicArrivalTimer=null,publicArrivalBusy=false,publicArrivalPublishedKey='';
+    const publicArrivalMissingCodes=new Set();
+    function publicArrivalMessage(text){if($('publicArrivalStatus'))$('publicArrivalStatus').textContent=text;}
+    function publicArrivalProjection(records,allowedIds){
+      const allowed=new Set((allowedIds||[]).map(String)),seen=new Set(),rows=[];
+      for(const person of records||[])for(const item of person.items||[]){
+        if(!allowed.has(String(item.sheetId))||item.ready!==true||item.shipped||!item.chinaDate||item.internationalPaid!==true||item.goodsPaidState!=='full')continue;
+        const ref=JSON.stringify([String(item.sheetId),String(item.colId),Number(item.row)]);if(seen.has(ref))continue;seen.add(ref);
+        rows.push({sheet_id:String(item.sheetId),col_id:String(item.colId),row_index:Number(item.row),cn:String(item.person||person.name||''),name:String(item.item||''),arrival_date:String(item.chinaDate)});
+      }
+      return rows;
+    }
+    function renderPublicArrivalSettings(config){
+      publicArrivalRenderedCode=String(syncCode||'');
+      $('publicArrivalEnabled').checked=config?.enabled===true;
+      const selected=new Set((config?.sheet_ids||[]).map(String));
+      $('publicArrivalSheets').innerHTML=sheets.map(sheet=>`<label style="display:flex;align-items:center;gap:8px;min-height:36px;padding:5px 0"><input type="checkbox" data-public-arrival-sheet="${escapeAttr(sheet.id)}" ${selected.has(String(sheet.id))?'checked':''} ${!sheetParticipatesInDispatch(sheet)?'disabled':''}><span>${escapeHtml(sheet.name||'未命名排单')}${!sheetParticipatesInDispatch(sheet)?'（不参与排发，不会公开）':''}</span></label>`).join('');
+      $('copyPublicArrivalLinkBtn').disabled=!config?.enabled||!config?.token;
+    }
+    async function loadPublicArrivalSettings(render=false){
+      const code=String(syncCode||'');if(!code||!authCurrentUser)throw new Error('请先登录并选择协作组');
+      const {data,error}=await lockRequest(getCloudClient(code).rpc('ggz_arrival_share_settings',{p_group_id:code}),20000,'读取到货查询设置');if(error){if(error.code==='PGRST202')publicArrivalMissingCodes.add(code);throw error;}
+      if(code!==String(syncCode||''))throw new Error('协作组已切换');
+      publicArrivalMissingCodes.delete(code);publicArrivalConfig=data;publicArrivalConfigCode=code;if(render)renderPublicArrivalSettings(data);return data;
+    }
+    function publicArrivalError(error){const raw=String(error?.message||error||'');return /PGRST202|could not find|does not exist|ggz_arrival_share_settings/i.test(raw)?'到货查询接口未安装，请先执行 supabase_public_arrivals.sql；原有同步不受影响。':raw;}
+    function schedulePublicArrivalSync(){clearTimeout(publicArrivalTimer);publicArrivalTimer=setTimeout(()=>publishPublicArrivals(false),1200);}
+    async function publishPublicArrivals(manual=false){
+      if(publicArrivalBusy)return false;
+      if(!manual&&publicArrivalMissingCodes.has(String(syncCode||'')))return false;
+      if(!collabEnabled||collabNeedsSend||collabSending||collabPolling||cloudBusy||cloudPublishingCollab||collabAcknowledgedState){if(manual)publicArrivalMessage('请先等待实时同步成功，未同步的本机修改不会公开。');return false;}
+      publicArrivalBusy=true;const code=String(syncCode||'');
+      try{
+        const config=await loadPublicArrivalSettings(false);if(!config?.enabled){if(manual)publicArrivalMessage('查询未开启。');return false;}
+        const key=JSON.stringify([code,config.source_revision,config.source_updated_at,config.settings_updated_at]);if(!manual&&key===publicArrivalPublishedKey)return true;
+        const localAt=localRevision,snapshot=await stableRealtimeSnapshot(code);
+        if(code!==String(syncCode||'')||!collabEnabled||collabNeedsSend||snapshot.revision!==localRevision||!collabBaseline||!collabStatesEqual(snapshot.cloud,collabBaseline))throw new Error('本机还有未核对的修改，暂不公开，等待同步后再更新。');
+        const source=deepClone(collabBaseline),revision=collabRevision,rows=publicArrivalProjection(buildDispatchRecords(),config.sheet_ids);
+        if(localAt!==localRevision||code!==String(syncCode||''))throw new Error('到货数据正在变化，稍后自动重试。');
+        const {data,error}=await lockRequest(getCloudClient(code).rpc('ggz_publish_arrival_share',{p_group_id:code,p_revision:revision,p_source_state:source,p_rows:rows}),45000,'更新到货查询');if(error)throw error;
+        if(code!==String(syncCode||''))return false;
+        publicArrivalPublishedKey=key;publicArrivalMessage('查询信息已更新 · '+Number(data?.count||0)+' 件符合可排发条件。仅公开到货信息。');return true;
+      }catch(error){if(code===String(syncCode||''))publicArrivalMessage(/ARRIVAL_SOURCE_CHANGED/.test(String(error?.message))?'云端数据已变化，查询暂不展示旧信息，等待下一次同步更新。':publicArrivalError(error));return false;}
+      finally{publicArrivalBusy=false;}
+    }
+    async function savePublicArrivalSettings(disable=false){
+      const code=String(syncCode||'');if(!code||!authCurrentUser){publicArrivalMessage('请先登录并选择协作组。');return;}
+      if(publicArrivalRenderedCode!==code){try{await loadPublicArrivalSettings(true);publicArrivalMessage('协作组已变化，已刷新设置，请重新选择后保存。');}catch(error){publicArrivalMessage(publicArrivalError(error));}return;}
+      const enabled=!disable&&$('publicArrivalEnabled').checked;
+      const ids=[...$('publicArrivalSheets').querySelectorAll('[data-public-arrival-sheet]:checked:not(:disabled)')].map(input=>input.dataset.publicArrivalSheet);
+      if(enabled&&!ids.length){publicArrivalMessage('请先勾选允许查询的表。');return;}
+      if(enabled&&!await appConfirm('开启后，持有查询链接的人可输入 CN 查看对应的可排发商品、数量、国内到货日期和囤货天数。\n不会返回金额、收款、备注和完整排单。确认开启所选 '+ids.length+' 张表？','开启到货查询','确认开启'))return;
+      if(code!==String(syncCode||'')){publicArrivalMessage('已切换协作组，请重新操作。');return;}
+      $('savePublicArrivalBtn').disabled=true;$('disablePublicArrivalBtn').disabled=true;
+      try{
+        const {data,error}=await lockRequest(getCloudClient(code).rpc('ggz_configure_arrival_share',{p_group_id:code,p_enabled:enabled,p_sheet_ids:ids}),20000,'保存到货查询设置');if(error)throw error;if(code!==String(syncCode||''))return;
+        publicArrivalConfig=data;publicArrivalConfigCode=code;publicArrivalPublishedKey='';renderPublicArrivalSettings(data);
+        if(!enabled){publicArrivalMessage('到货查询已关闭，原链接不再返回记录。');return;}
+        publicArrivalMessage('查询已开启，正在准备可公开信息…');await publishPublicArrivals(true);
+      }catch(error){publicArrivalMessage(publicArrivalError(error));}
+      finally{$('savePublicArrivalBtn').disabled=false;$('disablePublicArrivalBtn').disabled=false;}
+    }
+    $('publicArrivalPanel').addEventListener('toggle',async()=>{if(!$('publicArrivalPanel').open)return;try{const config=await loadPublicArrivalSettings(true);publicArrivalMessage(config?.enabled?'已开启到货查询。未同步状态不会公开。':'查询关闭中。先勾选表、开启开关，再保存设置。');}catch(error){publicArrivalMessage(publicArrivalError(error));}});
+    $('savePublicArrivalBtn').addEventListener('click',()=>savePublicArrivalSettings(false));
+    $('disablePublicArrivalBtn').addEventListener('click',()=>savePublicArrivalSettings(true));
+    $('refreshPublicArrivalBtn').addEventListener('click',()=>publishPublicArrivals(true));
+    $('copyPublicArrivalLinkBtn').addEventListener('click',async()=>{
+      try{const config=await loadPublicArrivalSettings(false);if(!config?.enabled||!config.token)throw new Error('请先开启查询。');if(!/^https?:$/.test(location.protocol))throw new Error('请将管理页和查询 HTML 上传到同一个网站后，再复制可分享的网址。');const url=new URL('v-7d4c9f2b6a81.html',location.href);url.hash='link='+encodeURIComponent(config.token);await copyTextWithFallback(url.href);publicArrivalMessage('团员查询链接已复制。只发送这条链接，不要发送管理页网址。');}catch(error){publicArrivalMessage(publicArrivalError(error));}
+    });
+    setInterval(()=>{if(document.visibilityState==='visible'&&authCurrentUser&&collabEnabled)schedulePublicArrivalSync();},45000);
     const HOLD_FREE_DAYS=30;
     function logisticsFreeDays(){ const months=Math.max(0,num(($('logisticsFreeMonths')||{}).value)||1); return Math.round(months*30); }
     function logiDaysSince(dateStr){ if(!dateStr) return null; const t=new Date(dateStr+'T00:00:00').getTime(); if(isNaN(t)) return null; return Math.max(0,Math.floor((Date.now()-t)/86400000)); }
