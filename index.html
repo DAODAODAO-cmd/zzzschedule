@@ -476,18 +476,21 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <div class="panel mobile-core" id="commentPanel">
-    <h2>批量粘贴 / 排单 / 转单 / 撤单</h2>
-    <textarea id="commentInput" placeholder="直接把文字整段粘贴进来"></textarea>
-    <div class="toolbar">
-      <button class="btn-primary" id="parseBtn">排单预览</button>
-      <button class="btn-ghost" id="transferPreviewBtn">转单预览</button>
-      <button class="btn-ghost" id="cancelPreviewBtn">撤单预览</button>
-      <button class="btn-ghost" id="blindResultPreviewBtn">抽奖结果导入</button>
-      <button class="btn-ghost" id="coldPromotionPreviewBtn">带冷提配预览</button>
-      <button class="btn-ghost" id="clearCommentBtn">清空文字</button>
-      <span class="hint">先预览，确认后再写入表格。</span>
+    <h2>排单与批量操作</h2>
+    <textarea id="commentInput" aria-label="批量操作内容" placeholder="粘贴内容后选择操作；也可以留空，直接点下方按钮手动填写。"></textarea>
+    <div class="toolbar comment-entry-toolbar">
+      <div class="comment-entry-actions">
+        <button type="button" class="btn-primary" id="parseBtn">排单</button>
+        <button type="button" class="btn-ghost" id="transferPreviewBtn">转单</button>
+        <button type="button" class="btn-ghost" id="cancelPreviewBtn">撤单</button>
+        <button type="button" class="btn-ghost" id="blindResultPreviewBtn">抽奖结果</button>
+      </div>
+      <button type="button" class="btn-ghost" id="clearCommentBtn">清空</button>
     </div>
+    <div class="hint">有文字就解析，留空就手动录入。先预览，确认后才写入正式排单。</div>
+    <details class="comment-format-help"><summary>查看填写示例</summary><div>排单：小明 徽章2，立牌1<br>转单：小明 徽章1 转 小红<br>撤单：小明 撤 徽章1<br>抽奖结果：小明：A1 B1</div></details>
     <div class="cold-bundle-bar">
+      <button type="button" class="btn-ghost btn-mini" id="coldPromotionPreviewBtn">带冷提配</button>
       <button type="button" class="btn-ghost btn-mini" id="selectColdBundleBtn">捆位设置</button>
       <span id="coldBundleSummary">未选捆位：仅按普通提配移动</span>
     </div>
@@ -589,6 +592,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-primary" id="generateBtn">确认排单</button>
+      <button type="button" class="btn-ghost" id="addManualOrderRowBtn">＋ 手动加一行</button>
       <button class="btn-ghost" id="cancelOrderPreviewBtn">取消预览</button>
       <span class="hint" id="orderPreviewStatus">当前只显示模拟结果；确认追加后才会写入正式排单。</span>
     </div>
@@ -1394,6 +1398,7 @@ body.sheet-types-open{overflow:hidden;}
 .dispatch-scope-row small{font-size:10px;color:var(--muted);white-space:nowrap;}
 .sheet-dispatch-option{display:inline-flex!important;align-items:center;gap:6px;white-space:nowrap;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);font-size:12px;cursor:pointer;}
 .sheet-dispatch-option input{width:16px!important;min-width:16px!important;height:16px;margin:0;accent-color:#d1466a;}
+.comment-entry-toolbar{justify-content:space-between;gap:10px;align-items:center;}.comment-entry-actions{display:flex;flex-wrap:wrap;gap:7px;}.comment-entry-actions button{min-height:36px;min-width:58px;}.comment-format-help{margin-top:9px;color:var(--muted);font-size:11px;}.comment-format-help summary{cursor:pointer;width:fit-content;}.comment-format-help>div{padding:9px 0;line-height:1.9;}@media(max-width:560px){.comment-entry-toolbar{align-items:stretch;}.comment-entry-actions{flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}.comment-entry-actions button{width:100%;min-height:40px;}.comment-entry-toolbar>#clearCommentBtn{align-self:flex-end;min-height:40px;}}
 .sheet-dispatch-option select,.dispatch-scope-row select{min-width:88px;max-width:100%;min-height:32px;padding:4px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);font-size:12px;color:inherit;}
 .sheet-dispatch-option[aria-pressed=true]{color:#248155;border-color:#bddcc9;background:#eff9f2;}
 .sheet-dispatch-option[aria-pressed=false]{color:#ac365b;border-color:#e5b6c6;background:#fff1f6;}
@@ -5110,7 +5115,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!saveState({snapshotReason:'批量删除谷子后',forceSnapshot:true,flushCollabNow:true})){sheets=before;applySheet(sheets.find(s=>s.id===context.sheet));saveState({skipSnapshot:true});await appAlert('本机保存失败，已还原本次删除。');}
       renderColdBundleConfiguration();renderColumnList();renderPricingGroups();recalc();
     });
-    ggz.updatePreview=(id,field,value)=>{ const r=previewRows.find(x=>x.id===id); if(r){ r[field]=value; refreshOrderMatrixPreview(); } };
+    ggz.updatePreview=(id,field,value)=>{ const r=previewRows.find(x=>x.id===id); if(r){ r[field]=String(value||'').trim(); refreshOrderMatrixPreview(); syncOrderPreviewValidation(); } };
     ggz.removePreviewRow=id=>{ previewRows=previewRows.filter(r=>r.id!==id); renderPreview(); refreshOrderMatrixPreview(); };
     $('openPricingGroupBtn')?.addEventListener('click',()=>openPricingGroup());
     $('closePricingGroupBtn')?.addEventListener('click',closePricingGroup);
@@ -5256,15 +5261,22 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(drawRows.length) return drawRows.map(row=>({person:row.person,demandText:row.itemsText}));
       return splitComments(raw);
     }
+    function orderPreviewRowsValid(){return previewRows.length>0&&previewRows.every(row=>String(row.person||'').trim()&&parseDemandText(row.itemsText).length>0);}
+    function syncOrderPreviewValidation(){
+      $('generateBtn').disabled=!orderPreviewRowsValid();
+      if(previewRows.length&&!orderPreviewRowsValid()){$('orderPreviewStatus').textContent='请填齐每行 CN 和谷子数量，例如：徽章2，立牌1。空白行可删除。';$('orderPreviewStatus').style.color='var(--warn)';}
+      else{$('orderPreviewStatus').textContent='当前只显示模拟结果；确认追加后才会写入正式排单。';$('orderPreviewStatus').style.color='';}
+    }
     function renderPreview(){
       const tbody=$('previewTableBody');
       tbody.innerHTML=previewRows.map((r,i)=>`
         <tr>
           <td>${i+1}</td>
-          <td><input type="text" value="${escapeAttr(r.person)}" onchange="ggz.updatePreview(${r.id},'person',this.value)" style="width:110px;"></td>
-          <td><input type="text" value="${escapeAttr(r.itemsText)}" onchange="ggz.updatePreview(${r.id},'itemsText',this.value)" style="width:100%;"></td>
+          <td><input type="text" data-order-preview-id="${r.id}" placeholder="填写 CN" aria-label="CN" value="${escapeAttr(r.person)}" onchange="ggz.updatePreview(${r.id},'person',this.value)" style="width:110px;"></td>
+          <td><input type="text" placeholder="例如：徽章2，立牌1" aria-label="谷子和数量" value="${escapeAttr(r.itemsText)}" onchange="ggz.updatePreview(${r.id},'itemsText',this.value)" style="width:100%;"></td>
           <td><button class="btn-danger btn-mini" onclick="ggz.removePreviewRow(${r.id})">删除</button></td>
         </tr>`).join('');
+      syncOrderPreviewValidation();
     }
     function buildOrderMatrixPreview(){
       const previewColumns=deepClone(columns), previewGroups=deepClone(pricingGroups), previewAllocations=deepClone(allocations);
@@ -9690,9 +9702,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
 
     function addManualActionRow(kind){
-      if(!['transfer','cancel','blind'].includes(kind))return;
+      if(!['order','transfer','cancel','blind'].includes(kind))return;
       const id=rowIdSeed++,signature=actionPreviewDataSignature();let panel,selector;
-      if(kind==='transfer'){
+      if(kind==='order'){
+        if(!previewRows.length)orderPreviewSignature=signature;
+        previewRows.push({id,person:'',itemsText:''});panel='previewPanel';selector=`[data-order-preview-id="${id}"]`;
+      }else if(kind==='transfer'){
         if(!transferPreviewRows.length)transferPreviewSignature=signature;
         transferPreviewRows.push({id,source:'',target:'',itemText:'',qty:1,sub:'',mode:'transfer',raw:''});panel='transferPreviewPanel';selector=`[data-transfer-id="${id}"][data-transfer-field="source"]`;
       }else if(kind==='cancel'){
@@ -9703,15 +9718,18 @@ body.export-rendering .cart-count{ font-size:28px; }
         blindResultPreviewRows.push({id,person:'',itemsText:'',blindColumnName:'',targetColumnId:Number($('blindResultDefaultColumn').value)||null,expectedDraw:0});panel='blindResultPreviewPanel';selector=`[data-blind-result-id="${id}"][data-blind-result-field="person"]`;
       }
       for(const name of ['previewPanel','transferPreviewPanel','cancelPreviewPanel','blindResultPreviewPanel','coldPromotionPreviewPanel'])$(name).style.display=name===panel?'block':'none';
-      if(kind==='transfer'){renderTransferPreview();showTransferMatrixPreview('手动转单预览（尚未写入）');}
+      if(kind==='order'){renderPreview();refreshOrderMatrixPreview('手动排单预览（尚未写入）');}
+      else if(kind==='transfer'){renderTransferPreview();showTransferMatrixPreview('手动转单预览（尚未写入）');}
       else if(kind==='cancel'){renderCancelPreview();showCancelMatrixPreview('手动撤单预览（尚未写入）');}
       else{renderBlindResultPreview();showBlindResultMatrixPreview();}
       requestAnimationFrame(()=>document.querySelector(selector)?.focus());
     }
+    $('addManualOrderRowBtn').addEventListener('click',()=>addManualActionRow('order'));
     $('addManualTransferRowBtn').addEventListener('click',()=>addManualActionRow('transfer'));
     $('addManualCancelRowBtn').addEventListener('click',()=>addManualActionRow('cancel'));
     $('addManualBlindResultRowBtn').addEventListener('click',()=>addManualActionRow('blind'));
     $('parseBtn').addEventListener('click',()=>{
+      if(!$('commentInput').value.trim()){addManualActionRow('order');return;}
       clearMatrixPreview();
       const raw=$('commentInput').value;
       if(!raw.trim()){ alert('请先在上面的文字框粘贴排单内容。\n\n普通格式例子：\n阿崩 冲击1 超梦2\n\n抽奖格式例子：\n阿崩\n抽了 1 次\n冲击 × 1\n\n如果是“抽奖结果导入”，可以点抽奖结果导入后在“默认挂到”里选盲抽列。'); return; }
@@ -9737,7 +9755,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
 
     $('generateBtn').addEventListener('click',()=>{
-      if(!previewRows.length) return;
+      if(!orderPreviewRowsValid()){syncOrderPreviewValidation();return;}
       const currentSignature=actionPreviewDataSignature();
       if(orderPreviewSignature&&orderPreviewSignature!==currentSignature){
         orderPreviewSignature=currentSignature; refreshOrderMatrixPreview('排单追加模拟结果（已刷新）');
@@ -9745,6 +9763,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         $('orderPreviewStatus').style.color='var(--warn)'; return;
       }
       if(!pushUndoSnapshot('order-append','追加排单前')) return;
+      captureActiveSheet();const originalSheet=deepClone(sheets.find(s=>s.id===activeSheetId)),originalOrderRows=deepClone(previewRows);
       columns.forEach(c=>{ if(!Array.isArray(allocations[c.id])) allocations[c.id]=[]; });
       previewRows.forEach(row=>{
         const items=parseDemandText(row.itemsText);
@@ -9754,7 +9773,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           for(let i=0;i<item.qty;i++) allocations[col.id].push(row.person);
         });
       });
-      saveState(); clearMatrixPreview(false); renderColumnList(); recalc();
+      let saved=false;try{saved=saveState();}catch(_){}if(!saved){sheets[sheets.findIndex(s=>s.id===originalSheet.id)]=originalSheet;applySheet(originalSheet);previewRows=originalOrderRows;orderPreviewSignature=actionPreviewDataSignature();$('previewPanel').style.display='block';renderPreview();appAlert('排单保存失败，已恢复原表，手动预览仍保留。','未保存');return;}
+      clearMatrixPreview(false); renderColumnList(); recalc();
       previewRows=[]; orderPreviewSignature=''; renderPreview(); $('previewPanel').style.display='none';
     });
     $('cancelOrderPreviewBtn').addEventListener('click',()=>{
