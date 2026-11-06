@@ -484,24 +484,12 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <button type="button" class="btn-ghost" id="transferPreviewBtn">转单</button>
         <button type="button" class="btn-ghost" id="cancelPreviewBtn">撤单</button>
         <button type="button" class="btn-ghost" id="blindResultPreviewBtn">抽奖结果</button>
+        <button type="button" class="btn-ghost" id="coldPromotionPreviewBtn">带冷提</button>
       </div>
       <button type="button" class="btn-ghost" id="clearCommentBtn">清空</button>
     </div>
-    <div class="hint">有文字就解析，留空就手动录入。先预览，确认后才写入正式排单。</div>
+    <div class="hint">粘贴内容后选择操作；排单、转单、撤单和抽奖也可留空手动填写。确认前不会写入正式排单。</div>
     <details class="comment-format-help"><summary>查看填写示例</summary><div>排单：小明 徽章2，立牌1<br>转单：小明 徽章1 转 小红<br>撤单：小明 撤 徽章1<br>抽奖结果：小明：A1 B1</div></details>
-    <div class="cold-bundle-bar">
-      <button type="button" class="btn-ghost btn-mini" id="coldPromotionPreviewBtn">带冷提配</button>
-      <button type="button" class="btn-ghost btn-mini" id="selectColdBundleBtn">捆位设置</button>
-      <span id="coldBundleSummary">未选捆位：仅按普通提配移动</span>
-    </div>
-    <div class="cold-bundle-chooser" id="coldBundleChooser" style="display:none;">
-      <strong>捆位设置（可不选）</strong>
-      <div class="cold-bundle-list" id="coldBundleList"></div>
-      <div class="toolbar">
-        <button type="button" class="btn-primary btn-mini" id="saveColdBundleBtn">保存</button>
-        <button type="button" class="btn-ghost btn-mini" id="cancelColdBundleBtn">取消</button>
-      </div>
-    </div>
   </div>
 
   <div class="panel mobile-core" id="transferPreviewPanel" style="display:none;">
@@ -539,6 +527,19 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 
   <div class="panel mobile-core" id="coldPromotionPreviewPanel" style="display:none;">
     <h2>带冷提配预览</h2>
+    <div class="cold-bundle-bar">
+      <button type="button" class="btn-ghost btn-mini" id="selectColdBundleBtn">配套冷门设置（可选）</button>
+      <span id="coldBundleSummary">未设置配套冷门：按普通提配移动</span>
+    </div>
+    <div class="hint" style="margin:7px 0">需要指定哪些冷门一起判断成配时再设置；不设置也能使用带冷提。不影响收款、国际或物流。</div>
+    <div class="cold-bundle-chooser" id="coldBundleChooser" style="display:none;">
+      <strong>配套冷门设置（可选）</strong>
+      <div class="cold-bundle-list" id="coldBundleList"></div>
+      <div class="toolbar">
+        <button type="button" class="btn-primary btn-mini" id="saveColdBundleBtn">保存设置</button>
+        <button type="button" class="btn-ghost btn-mini" id="cancelColdBundleBtn">取消</button>
+      </div>
+    </div>
     <div class="hint" style="margin-bottom:7px;">已保存的带冷提内容（可继续追加、修改或删除）</div>
     <div class="table-scroll">
       <table id="coldPromotionDraftTable">
@@ -1747,7 +1748,8 @@ body.export-rendering .payment-partial-row .payment-export-due-amount{ display:b
 #matrixTable.is-preview .preview-transfer-name{ display:inline-block; padding:2px 5px; border:1px solid #e8a24f; border-radius:6px; color:#a85f10; background:#fffaf1; font-weight:850; }
 #matrixTable.is-preview .preview-transfer-arrow{ display:inline-block; margin:0 4px; color:#c47b28; font-weight:900; }
 #matrixTable.is-preview tbody tr.preview-cancel-row>td{ background:#eaf6ff!important; color:#356f99!important; box-shadow:inset 0 1px 0 #c8e5f8,inset 0 -1px 0 #c8e5f8; }
-.cold-bundle-bar{ display:flex; align-items:center; gap:8px; margin-top:9px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--muted); font-size:12.5px; }
+.cold-bundle-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:9px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--muted); font-size:12.5px; }
+@media(max-width:560px){.comment-entry-actions #coldPromotionPreviewBtn{grid-column:1/-1;}}
 .cold-bundle-chooser{ margin-top:8px; padding:10px; border:1px solid #efcad5; border-radius:10px; background:#fff8fb; }
 .cold-bundle-list{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:7px; margin-top:9px; }
 .cold-bundle-list label{ display:flex; align-items:center; gap:6px; padding:6px 8px; border:1px solid var(--line); border-radius:7px; background:#fff; }
@@ -3312,8 +3314,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function renderColdBundleConfiguration(){
       coldCarryBundleColumnIds=activeBundleColumns().map(c=>c.id);
       const selected=activeBundleColumns();
-      if($('coldBundleSummary')) $('coldBundleSummary').textContent=selected.length?`捆位：${selected.map(c=>c.name).join('、')}`:'未选捆位：仅按普通提配移动';
-      if($('selectColdBundleBtn')) $('selectColdBundleBtn').textContent=selected.length?'修改捆位':'捆位设置';
+      if($('coldBundleSummary')) $('coldBundleSummary').textContent=selected.length?`配套冷门：${selected.map(c=>c.name).join('、')}`:'未设置配套冷门：按普通提配移动';
+      if($('selectColdBundleBtn')) $('selectColdBundleBtn').textContent=selected.length?'修改配套冷门':'配套冷门设置（可选）';
       if($('coldBundleChooser')&&$('coldBundleChooser').style.display!=='none') renderColdBundleList();
     }
     function renderColdBundleList(){
@@ -3328,7 +3330,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function openColdBundleChooser(pendingPreview){
       coldPromotionPendingBundlePreview=!!pendingPreview;
       renderColdBundleList(); $('coldBundleChooser').style.display='block';
-      if(pendingPreview) $('coldBundleSummary').textContent='可选择捆位用于判断成配；不选也可以直接预览普通提配。';
+      if(pendingPreview) $('coldBundleSummary').textContent='可选配套冷门用于判断成配；不设置也可以预览普通提配。';
     }
     function renderMatrixHeading(){
       syncCurrentSheetDispatchControl();
@@ -10713,7 +10715,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(!coldPromotionDraftRows.length&&!coldPromotionDraftBaseAllocations) coldPromotionDraftBaseAllocations=deepClone(allocations);
         parsePromotionCandidates(raw).forEach(appendColdPromotionCandidate);
         $('commentInput').value=''; saveState();
-      }else if(!coldPromotionDraftRows.length){ alert('请先在上面的文字框粘贴带冷提文字。\n\n格式例子：\n阿崩 冲击1 带 超梦1\n小明 秩序2 提 等离子1\n小红 午夜1 带 冲击1 超梦1\n\n可以不选捆位；不选时仅按普通提配移动。'); return; }
+      }else if(!coldPromotionDraftRows.length){
+        for(const panel of ['previewPanel','transferPreviewPanel','cancelPreviewPanel','blindResultPreviewPanel'])$(panel).style.display='none';
+        coldPromotionPreviewRows=[];coldPromotionPreviewAllocations=null;renderColdBundleConfiguration();renderColdPromotionPreview();$('coldPromotionPreviewPanel').style.display='block';clearMatrixPreview();
+        $('coldPromotionPreviewStatus').textContent='可先查看配套冷门设置；录入示例：小明 徽章1 带 立牌1。粘贴到上方后再点“带冷提”预览。';$('coldPromotionPreviewStatus').style.color='';scrollColdPromotionPreviewIntoView();return;
+      }
       if(coldPromotionDraftApplied){
         coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='block'; clearMatrixPreview();
         $('coldPromotionPreviewStatus').textContent='这份带冷提已经应用，内容仍会保留；可以导出正式排单，清除后再开始下一份。'; $('coldPromotionPreviewStatus').style.color='var(--ok)';
