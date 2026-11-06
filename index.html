@@ -540,7 +540,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
         <button type="button" class="btn-ghost btn-mini" id="cancelColdBundleBtn">取消</button>
       </div>
     </div>
-    <div class="hint" style="margin-bottom:7px;">已保存的带冷提内容（可继续追加、修改或删除）</div>
+    <div class="toolbar" style="margin:9px 0"><button type="button" class="btn-ghost" id="addManualColdPromotionRowBtn">＋ 手动加一行</button><span class="hint">填写 CN、原来已有的谷子、本次带的谷子；先预览，确认后才改变排单。</span></div>
     <div class="table-scroll">
       <table id="coldPromotionDraftTable">
         <thead><tr><th>#</th><th>CN</th><th>原谷子</th><th>带了什么</th><th>操作</th></tr></thead>
@@ -3657,7 +3657,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     let collabPendingSheetNames=new Set();
     function setCollabStatus(text,tone){
       const el=$('collabStatus'), detail=String(text||'');
-      const label=tone==='bad'?'同步失败 · 本机修改已保留':(/已同步|整包同步 ·/.test(detail)?'已同步':(/新修改|正在同步/.test(detail)?'有修改未同步':detail));
+      const displayDetail=detail.replace(/\s*·\s*版本\s+\d+/g,'').trim();
+      const label=tone==='bad'?'同步失败 · 本机修改已保留':(/已同步|整包同步 ·/.test(detail)?'已同步':(/新修改|正在同步/.test(detail)?'有修改未同步':displayDetail));
       const pending=[...collabPendingSheetNames].filter(Boolean);
       el.textContent=label+(label!=='已同步'&&pending.length?` · ${pending.join('、')}`:'');
       el.title=detail; el.style.cursor='pointer';
@@ -10355,7 +10356,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function coldDemandShape(text){ return parseDemandText(text).map(item=>String(item.name||'').replace(/\s+/g,'').toLowerCase()).filter(Boolean).sort().join('|'); }
     function appendColdPromotionCandidate(candidate){
       const person=String(candidate.person||'').trim(), leftShape=coldDemandShape(candidate.leftText);
-      const existing=coldPromotionDraftRows.find(row=>String(row.person||'').trim()===person&&coldDemandShape(row.leftText)===leftShape);
+      const complete=person&&leftShape&&String(candidate.rightText||'').trim();
+      const existing=complete&&coldPromotionDraftRows.find(row=>String(row.rightText||'').trim()&&String(row.person||'').trim()===person&&coldDemandShape(row.leftText)===leftShape);
       if(existing){ existing.leftText=mergeColdDemandText(existing.leftText,candidate.leftText,true); existing.rightText=mergeColdDemandText(existing.rightText,candidate.rightText); return existing; }
       const suppliedId=Number(candidate.id), row={id:Number.isFinite(suppliedId)&&suppliedId>0?suppliedId:rowIdSeed++,person,leftText:candidate.leftText,rightText:candidate.rightText}; coldPromotionDraftRows.push(row); return row;
     }
@@ -10683,14 +10685,26 @@ body.export-rendering .cart-count{ font-size:28px; }
       planColumns.forEach(c=>{ const arr=(sim[c.id]||[]).map(token=>token?token.name:''); trimTail(arr); finalAllocations[c.id]=arr; });
       return {rows,allocations:rows.some(row=>row.ok)||fixedApplied>0?finalAllocations:null,candidateCount:candidates.length,fixedApplied};
     }
+    function coldPromotionDraftComplete(){return coldPromotionDraftRows.length>0&&coldPromotionDraftRows.every(row=>String(row.person||'').trim()&&String(row.leftText||'').trim()&&String(row.rightText||'').trim());}
+    function addManualColdPromotionRow(){
+      if(coldPromotionDraftApplied){$('coldPromotionPreviewStatus').textContent='这份带冷提已经应用，不能重复修改；清除旧内容后再开始新一份。';return;}
+      if(!coldPromotionDraftRows.length&&!coldPromotionDraftBaseAllocations)coldPromotionDraftBaseAllocations=deepClone(allocations);
+      const id=rowIdSeed++;coldPromotionDraftRows.push({id,person:'',leftText:'',rightText:''});
+      coldPromotionPreviewRows=[];coldPromotionPreviewAllocations=null;coldPromotionPlanRevision=-1;coldPromotionPlanSignature='';
+      let saved=false;try{saved=saveState();}catch(_){}
+      renderColdPromotionPreview();$('coldPromotionPreviewPanel').style.display='block';clearMatrixPreview();
+      $('coldPromotionPreviewStatus').textContent=(saved?'':'草稿尚未保存，请先备份并检查存储空间。')+'请填齐 CN、原谷子、带了什么；例如：小明 / 徽章1 / 立牌1。';$('coldPromotionPreviewStatus').style.color=saved?'':'var(--warn)';
+      requestAnimationFrame(()=>document.querySelector(`[data-cold-draft-id="${id}"][data-cold-draft-field="person"]`)?.focus());
+    }
     function renderColdPromotionDraft(){
       const locked=coldPromotionDraftApplied?' readonly tabindex="-1"':'';
-      $('coldPromotionDraftTableBody').innerHTML=coldPromotionDraftRows.map((row,index)=>`<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-cold-draft-id="${row.id}" data-cold-draft-field="person" value="${escapeAttr(row.person)}"${locked}></td><td><input type="text" class="action-preview-input" data-cold-draft-id="${row.id}" data-cold-draft-field="leftText" value="${escapeAttr(row.leftText)}"${locked}></td><td><input type="text" class="action-preview-input" data-cold-draft-id="${row.id}" data-cold-draft-field="rightText" value="${escapeAttr(row.rightText)}"${locked}></td><td><button class="btn-danger btn-mini" data-remove-cold-draft="${row.id}"${coldPromotionDraftApplied?' disabled':''}>删除</button></td></tr>`).join('');
+      $('addManualColdPromotionRowBtn').disabled=coldPromotionDraftApplied;
+      $('coldPromotionDraftTableBody').innerHTML=coldPromotionDraftRows.map((row,index)=>`<tr><td>${index+1}</td><td><input type="text" placeholder="填写 CN" class="action-preview-input" data-cold-draft-id="${row.id}" data-cold-draft-field="person" value="${escapeAttr(row.person)}"${locked}></td><td><input type="text" placeholder="例如：徽章1" class="action-preview-input" data-cold-draft-id="${row.id}" data-cold-draft-field="leftText" value="${escapeAttr(row.leftText)}"${locked}></td><td><input type="text" placeholder="例如：立牌1" class="action-preview-input" data-cold-draft-id="${row.id}" data-cold-draft-field="rightText" value="${escapeAttr(row.rightText)}"${locked}></td><td><button class="btn-danger btn-mini" data-remove-cold-draft="${row.id}"${coldPromotionDraftApplied?' disabled':''}>删除</button></td></tr>`).join('');
     }
     function renderColdPromotionPreview(){
       renderColdPromotionDraft();
       $('coldPromotionPreviewTableBody').innerHTML=coldPromotionPreviewRows.map(row=>`<tr><td>${escapeHtml(row.person)}</td><td class="promotion-score">${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.move)}</td><td>${escapeHtml(row.added)}</td><td class="${row.ok?'transfer-ok':'transfer-bad'}">${escapeHtml(row.result)}</td></tr>`).join('');
-      $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations||coldPromotionDraftApplied;
+      $('confirmColdPromotionBtn').disabled=!coldPromotionPreviewAllocations||coldPromotionDraftApplied||!coldPromotionDraftComplete();
     }
     function recalculateColdPromotionPreview(statusText,options={}){
       const preserveViewport=options.preserveViewport!==false;
@@ -10717,8 +10731,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         $('commentInput').value=''; saveState();
       }else if(!coldPromotionDraftRows.length){
         for(const panel of ['previewPanel','transferPreviewPanel','cancelPreviewPanel','blindResultPreviewPanel'])$(panel).style.display='none';
-        coldPromotionPreviewRows=[];coldPromotionPreviewAllocations=null;renderColdBundleConfiguration();renderColdPromotionPreview();$('coldPromotionPreviewPanel').style.display='block';clearMatrixPreview();
-        $('coldPromotionPreviewStatus').textContent='可先查看配套冷门设置；录入示例：小明 徽章1 带 立牌1。粘贴到上方后再点“带冷提”预览。';$('coldPromotionPreviewStatus').style.color='';scrollColdPromotionPreviewIntoView();return;
+        renderColdBundleConfiguration();addManualColdPromotionRow();scrollColdPromotionPreviewIntoView();return;
       }
       if(coldPromotionDraftApplied){
         coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; renderColdPromotionPreview(); $('coldPromotionPreviewPanel').style.display='block'; clearMatrixPreview();
@@ -10734,6 +10747,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       scrollColdPromotionPreviewIntoView();
     }
     $('coldPromotionPreviewBtn').addEventListener('click',startColdPromotionPreview);
+    $('addManualColdPromotionRowBtn').addEventListener('click',addManualColdPromotionRow);
     $('exportColdPromotionPreviewBtn').addEventListener('click',()=>{
       if(!coldPromotionDraftRows.length){ alert('还没有带冷提内容'); return; }
       if(!coldPromotionDraftApplied){
@@ -10746,7 +10760,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const input=e.target.closest('[data-cold-draft-id]'); if(!input||coldPromotionDraftApplied) return;
       const row=coldPromotionDraftRows.find(item=>item.id===parseInt(input.dataset.coldDraftId,10)); if(!row) return;
       const keep=captureViewportKeep(), field=input.dataset.coldDraftField, id=parseInt(input.dataset.coldDraftId,10), start=input.selectionStart, end=input.selectionEnd;
-      row[field]=input.value.trim(); consolidateColdPromotionDraftRows(); saveState(); recalculateColdPromotionPreview();
+      row[field]=input.value.trim(); consolidateColdPromotionDraftRows();let saved=false;try{saved=saveState();}catch(_){}
+      recalculateColdPromotionPreview(!saved?'草稿尚未保存，请先备份并检查存储空间。':!coldPromotionDraftComplete()?'请填齐每行 CN、原谷子和带了什么；空白行可以删除。':null);
       requestAnimationFrame(()=>{
         restoreViewportKeep(keep);
         const next=$(`coldPromotionDraftTableBody`).querySelector(`[data-cold-draft-id="${id}"][data-cold-draft-field="${field}"]`);
@@ -10760,6 +10775,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(coldPromotionDraftRows.length) recalculateColdPromotionPreview(); else{ coldPromotionPreviewRows=[]; coldPromotionPreviewAllocations=null; renderColdPromotionPreview(); clearMatrixPreview(); }
     });
     $('confirmColdPromotionBtn').addEventListener('click',()=>{
+      if(!coldPromotionDraftComplete()){$('coldPromotionPreviewStatus').textContent='请先填齐每行 CN、原谷子和带了什么；不要的空白行可以删除。';return;}
       if(coldPromotionDraftApplied){ alert('这份带冷提已经应用过了；如需开始新一轮，请先清除带冷提内容。'); return; }
       if(!coldPromotionPreviewAllocations){ alert('当前带冷提草稿没有可以前移的项目'); return; }
       if(coldPromotionPlanSignature!==coldPreviewDataSignature()){
