@@ -511,6 +511,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-primary" id="confirmTransferBtn">核对款项并转单</button>
+      <button type="button" class="btn-ghost" id="addManualTransferRowBtn">＋ 手动加一行</button>
       <button type="button" class="btn-ghost" id="restoreTransferAutoBtn">检查手动金额／恢复自动计算</button>
       <button class="btn-ghost" id="cancelTransferPreviewBtn">取消预览</button>
       <span class="hint" id="transferPreviewStatus">会从原 CN 最后一单开始向上修改。</span>
@@ -527,6 +528,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-primary" id="confirmCancelBtn">确认撤单</button>
+      <button type="button" class="btn-ghost" id="addManualCancelRowBtn">＋ 手动加一行</button>
       <button class="btn-ghost" id="cancelCancelPreviewBtn">取消预览</button>
       <span class="hint" id="cancelPreviewStatus">会从这个人在对应谷子的最后一单开始向前删除。</span>
     </div>
@@ -571,6 +573,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-primary" id="confirmBlindResultBtn">确认挂结果</button>
+      <button type="button" class="btn-ghost" id="addManualBlindResultRowBtn">＋ 手动加一行</button>
       <button class="btn-ghost" id="cancelBlindResultPreviewBtn">取消预览</button>
       <span class="hint" id="blindResultPreviewStatus">先预览，数量对上后再挂到正式排单。</span>
     </div>
@@ -5434,22 +5437,26 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       return results;
     }
+    function blindResultHasDuplicate(row){
+      const key=normalizeDispatchKey(row.person),colId=blindColumnIdForRow(row);if(!key||!colId)return false;
+      return blindResultPreviewRows.some(other=>other.id!==row.id&&normalizeDispatchKey(other.person)===key&&Number(blindColumnIdForRow(other))===Number(colId));
+    }
     function renderBlindResultPreview(){
       const blindList=columns;
       $('blindResultPreviewTableBody').innerHTML=blindResultPreviewRows.map((row,index)=>{
         const colId=blindColumnIdForRow(row), col=columns.find(c=>Number(c.id)===Number(colId));
         const blindMap=personBlindPositions(allocations,colId);
         const items=parseDemandText(row.itemsText), qty=blindItemCount(items), expected=Number(row.expectedDraw)||0, key=normalizeDispatchKey(row.person), blindQty=colId?blindMap.get(key)?.positions.length||0:0;
-        const needsColumn=!colId, columnStatus=needsColumn?'请选择目标列':'';
+        const duplicate=blindResultHasDuplicate(row),needsColumn=!colId, columnStatus=duplicate?'同一 CN 和目标列重复，请合并到一行':needsColumn?'请选择目标列':'';
         const drawMismatch=expected>0&&qty!==expected;
-        const ok=!!row.person&&qty>0&&!drawMismatch&&colId&&blindQty===qty, status=columnStatus||(!row.person?'请填写 CN':(!qty?'没有识别到结果':(drawMismatch?`抽数不一致：抽了 ${expected}，结果 ${qty}`:(!blindQty?'这个人在目标列没有占位':(blindQty!==qty?`数量不一致：占位 ${blindQty}，结果 ${qty}`:'可挂结果')))));
+        const ok=!duplicate&&!!row.person&&qty>0&&!drawMismatch&&colId&&blindQty===qty, status=columnStatus||(!row.person?'请填写 CN':(!qty?'没有识别到结果':(drawMismatch?`抽数不一致：抽了 ${expected}，结果 ${qty}`:(!blindQty?'这个人在目标列没有占位':(blindQty!==qty?`数量不一致：占位 ${blindQty}，结果 ${qty}`:'可挂结果')))));
         const explicitId=row.targetColumnId||findResultTargetColumn(row.blindColumnName)?.id||'';
         const columnOptions='<option value="">沿用默认选择</option>'+blindList.map((c,i)=>`<option value="${c.id}" ${Number(explicitId)===Number(c.id)?'selected':''}>${escapeHtml(c.name)}（第${i+1}列）</option>`).join('');
         return `<tr><td>${index+1}</td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="person" value="${escapeAttr(row.person)}"></td><td><select class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="targetColumnId">${columnOptions}</select></td><td>${blindQty}</td><td>${qty}</td><td><input type="text" class="action-preview-input" data-blind-result-id="${row.id}" data-blind-result-field="itemsText" value="${escapeAttr(row.itemsText)}"></td><td class="${ok?'transfer-ok':'transfer-bad'}">${escapeHtml(status)}</td><td><button class="btn-danger btn-mini" data-remove-blind-result="${row.id}">删除</button></td></tr>`;
       }).join('');
       const bad=blindResultPreviewRows.some(row=>{
         const colId=blindColumnIdForRow(row), items=parseDemandText(row.itemsText), qty=blindItemCount(items), expected=Number(row.expectedDraw)||0, blindQty=colId?(personBlindPositions(allocations,colId).get(normalizeDispatchKey(row.person))?.positions.length||0):0;
-        return !row.person||qty<=0||(expected>0&&qty!==expected)||!colId||blindQty!==qty;
+        return blindResultHasDuplicate(row)||!row.person||qty<=0||(expected>0&&qty!==expected)||!colId||blindQty!==qty;
       });
       $('confirmBlindResultBtn').disabled=!blindResultPreviewRows.length||bad;
       $('blindResultPreviewStatus').textContent=blindResultPreviewRows.length?(bad?'请先选择目标列，并核对占位和结果数量。':'数量都对上了，可以挂到选中的列。'):'先在上方粘贴抽奖结果。';
@@ -5749,8 +5756,17 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function paymentViewReceivedAmount(paidMap,key,fullAmount){
       const original=paidAmountValue(paidMap,key,fullAmount);
-      if(typeof paymentPaid==='undefined'||paidMap!==paymentPaid||!settlementCredit(paymentEdits,key))return original;
-      return Math.max(0,Math.round((original+settlementCredit(paymentEdits,key)+settlementTransferAmount(paymentSupplementDone[key])-settlementTransferAmount(paymentRefundDone[key]))*100)/100);
+      if(typeof sharePaymentPaid!=='undefined'&&paidMap===sharePaymentPaid){
+        if(settlementShareCredit(paymentEdits,key)){
+          const record=combinedSettlementRecords().find(r=>r.key===key);
+          const direct=paymentIncludeShare?0:original+settlementShareCredit(paymentEdits,key);
+          if(record)return Math.max(0,Math.min(num(record.sh?.expected),Math.max(direct,Math.round((settlementCurrentCash(record)-num(record.g?.actual))*100)/100)));
+        }
+        return Math.max(0,Math.round((original+settlementShareCredit(paymentEdits,key))*100)/100);
+      }
+      if(typeof paymentPaid==='undefined'||paidMap!==paymentPaid||!settlementCredit(paymentEdits,key)&&!settlementShareCredit(paymentEdits,key))return original;
+      const credit=settlementCredit(paymentEdits,key)-(paymentIncludeShare?0:settlementShareCredit(paymentEdits,key));
+      return Math.max(0,Math.round((original+credit+settlementTransferAmount(paymentSupplementDone[key])-settlementTransferAmount(paymentRefundDone[key]))*100)/100);
     }
     function paidState(paidMap,key,fullAmount){
       if(paidMap&&paidMap[key]===true&&!(typeof paymentPaid!=='undefined'&&paidMap===paymentPaid&&settlementCredit(paymentEdits,key))) return 'full';
@@ -6071,6 +6087,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       return entry&&typeof entry==='object'?Math.max(0,num(entry.amount)):typeof entry==='number'?Math.max(0,num(entry)):0;
     }
     function settlementCredit(edits,key){return Math.round(num(edits?.['__transfer_credit__:'+key])*100)/100;}
+    function settlementShareCredit(edits,key){return Math.round(num(edits?.['__transfer_share_credit__:'+key])*100)/100;}
+    function settlementIsHistoricalTransferOnly(record){
+      const hasGoods=num(record.g?.planned)>0.005||[...(record.g?.items?.values?.()||[])].some(n=>num(n)>0);
+      return !hasGoods&&(record.transferredOut||record.transferCredit<-0.005)&&!record.historyUnknown&&!record.manual&&Math.abs(num(record.sh?.expected))<=0.005&&record.refund<=0.005&&record.due<=0.005&&Math.abs(settlementCurrentCash(record))<=0.005;
+    }
     function settlementCurrentCash(record){return Math.round((num(record.g?.received)+num(record.sh?.received)+num(record.transferCredit)+num(record.supplemented)-num(record.refunded))*100)/100;}
     function settlementManualAllowed(edits,refundMap,dueMap,key){
       if(!settlementTransferAmount(refundMap[key])&&!settlementTransferAmount(dueMap[key]))return true;
@@ -6108,7 +6129,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         const manual=allowManual&&(hasOverride||manualRefund>0.005||manualDue>0.005);
         const refund=hasOverride?Math.max(0,-num(paymentEdits[overrideKey])):(manual?manualRefund:autoRefund), due=hasOverride?Math.max(0,num(paymentEdits[overrideKey])):(manual?manualDue:autoDue);
         const balance=settlementBalance(refund,due,paymentRefundDone,paymentSupplementDone,key);balance.historyUnknown=balance.historyUnknown||paymentPaid[key]===true||sharePaymentPaid[key]===true;
-        return {key,name:g.name||sh.name||key,g,sh,net,autoRefund,autoDue,manual,transferCredit,...balance};
+        const transferredOut=typeof sheets!=='undefined'&&(sheets.find(s=>s.id===activeSheetId)?.paymentCashHistory||[]).some(e=>e.type==='transfer'&&e.fromKey===key);
+        return {key,name:g.name||sh.name||key,g,sh,net,autoRefund,autoDue,manual,transferCredit,transferredOut,...balance};
       });
     }
     function cashHistoryReady(records){
@@ -6258,7 +6280,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         const transferCredit=settlementCredit(ctx.settings.paymentEdits,key),net=(g.actual-g.received)+(sh.expected-sh.received)-transferCredit, autoRefund=Math.max(0,-net), autoDue=Math.max(0,net), manualRefund=Math.max(0,num(ctx.settings.paymentRefund[key]||ctx.settings.sharePaymentRefund[key]||0)), manualDue=Math.max(0,num(ctx.settings.paymentSupplement[key]||ctx.settings.sharePaymentSupplement[key]||0)), manual=settlementManualAllowed(ctx.settings.paymentEdits,ctx.settings.paymentRefundDone,ctx.settings.paymentSupplementDone,key)&&(manualRefund>0.005||manualDue>0.005);
         const overrideKey='__settlement_base__:'+key, hasOverride=settlementManualAllowed(ctx.settings.paymentEdits,ctx.settings.paymentRefundDone,ctx.settings.paymentSupplementDone,key)&&Object.prototype.hasOwnProperty.call(ctx.settings.paymentEdits,overrideKey), base=num(ctx.settings.paymentEdits[overrideKey]);
         const balance=settlementBalance(hasOverride?Math.max(0,-base):(manual?manualRefund:autoRefund),hasOverride?Math.max(0,base):(manual?manualDue:autoDue),ctx.settings.paymentRefundDone,ctx.settings.paymentSupplementDone,key);balance.historyUnknown=balance.historyUnknown||ctx.settings.paymentPaid[key]===true||ctx.settings.sharePaymentPaid[key]===true;
-        return {key,name:g.name||sh.name||key,sheetName:String(sourceSheet.name||'未命名表'),g,sh,transferCredit,manual:manual||hasOverride,...balance};
+        const transferredOut=(sourceSheet.paymentCashHistory||[]).some(e=>e.type==='transfer'&&e.fromKey===key);
+        return {key,name:g.name||sh.name||key,sheetName:String(sourceSheet.name||'未命名表'),g,sh,transferCredit,transferredOut,manual:manual||hasOverride,...balance};
       });
     }
     function formatCountMap(map){
@@ -6489,7 +6512,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       root.hidden=!enabled;
       root.classList.toggle('is-closed',!enabled);
       if(!enabled){ root.innerHTML=''; return; }
-      const records=combinedSettlementRecords();
+      const records=combinedSettlementRecords().filter(r=>!settlementIsHistoricalTransferOnly(r));
       let pendingRefund=0,pendingDue=0,pendingRefundPeople=0,pendingDuePeople=0,completedPeople=0;
       const prepared=records.map(r=>{
         let type='complete',done=true,action='';
@@ -6550,7 +6573,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const date=event.at?new Date(event.at).toLocaleString('zh-CN'):'原时间未保存';
           let text=event.note||event.type;
           if(event.type==='receipt')text=`${event.note||'累计收款更正'}：${event.before===null?'旧金额未记录':money(event.before)} → ${event.after===null?'旧金额未记录':money(event.after)}`;
-          else if(event.type==='transfer')text=`${event.fromKey===r.key?'转出给 '+event.to:'从 '+event.from+' 转入'} ${event.item}×${event.qty}，已付款 ${money(event.amount)}`;
+          else if(event.type==='transfer')text=`${event.fromKey===r.key?'转出给 '+event.to:'从 '+event.from+' 转入'} ${event.item}×${event.qty}，已付款 ${money(event.amount)}${typeof event.shareAmount==='number'?`（谷款 ${money(event.goodsAmount)}＋均摊 ${money(event.shareAmount)}）`:''}`;
           else if(event.amount!==undefined)text=`${event.type} ${money(event.amount)}${event.note?' · '+event.note:''}`;
           return `<li><small>${escapeHtml(date)}</small><br>${escapeHtml(text)}</li>`;
         }).join('');
@@ -6729,6 +6752,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody>${totalHtml}</table>${qrHtml}</div>`;
     }
     function renderSharePaymentSummary(){
+      const paidAmountValue=paymentViewReceivedAmount;
       const el=$('sharePaymentSummary'), sharedText=String($('sharedFee').value||'').trim(), sharedTotal=Math.max(0,num(sharedText));
       if(!sharedText||sharedTotal<=0){ el.innerHTML='<div class="empty">没有填写均摊金额，这里暂时不用计算</div>'; $('sharePaymentUnpaidCount').textContent='已收齐：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
       const people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow), displayColumns=orderDisplayColumns();
@@ -8667,6 +8691,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         };
         sheet.paymentEdits=migrateEdits(oldEdits);sheet.sharePaymentEdits=migrateEdits(oldShareEdits);
         const mergedCredit=keys.reduce((sum,key)=>sum+num(oldEdits['__transfer_credit__:'+key]),0);keys.forEach(key=>delete sheet.paymentEdits['__transfer_credit__:'+key]);if(Math.abs(mergedCredit)>0.005)sheet.paymentEdits['__transfer_credit__:'+targetKey]=round(mergedCredit);
+        const mergedShareCredit=keys.reduce((sum,key)=>sum+num(oldEdits['__transfer_share_credit__:'+key]),0);keys.forEach(key=>delete sheet.paymentEdits['__transfer_share_credit__:'+key]);if(Math.abs(mergedShareCredit)>0.005)sheet.paymentEdits['__transfer_share_credit__:'+targetKey]=round(mergedShareCredit);
         (sheet.paymentCashHistory||[]).forEach(event=>{['key','fromKey','toKey'].forEach(field=>{if(keys.includes(event[field]))event[field]=targetKey;});});
         const selectedEdits=edits=>Object.fromEntries(Object.entries(edits).filter(([key])=>
           ['cn:','alipay:','wechat:','merged-items:','merged-qty:','__goods_snapshot__:','__settlement_base__:'].some(prefix=>key.startsWith(prefix)&&matches(key.slice(prefix.length)))||
@@ -9664,6 +9689,28 @@ body.export-rendering .cart-count{ font-size:28px; }
       e.preventDefault(); e.returnValue='';
     });
 
+    function addManualActionRow(kind){
+      if(!['transfer','cancel','blind'].includes(kind))return;
+      const id=rowIdSeed++,signature=actionPreviewDataSignature();let panel,selector;
+      if(kind==='transfer'){
+        if(!transferPreviewRows.length)transferPreviewSignature=signature;
+        transferPreviewRows.push({id,source:'',target:'',itemText:'',qty:1,sub:'',mode:'transfer',raw:''});panel='transferPreviewPanel';selector=`[data-transfer-id="${id}"][data-transfer-field="source"]`;
+      }else if(kind==='cancel'){
+        if(!cancelPreviewRows.length)cancelPreviewSignature=signature;
+        cancelPreviewRows.push({id,person:'',itemText:'',qty:1});panel='cancelPreviewPanel';selector=`[data-cancel-id="${id}"][data-cancel-field="person"]`;
+      }else{
+        syncBlindResultColumnSelect();if(!blindResultPreviewRows.length)blindResultPreviewSignature=signature;
+        blindResultPreviewRows.push({id,person:'',itemsText:'',blindColumnName:'',targetColumnId:Number($('blindResultDefaultColumn').value)||null,expectedDraw:0});panel='blindResultPreviewPanel';selector=`[data-blind-result-id="${id}"][data-blind-result-field="person"]`;
+      }
+      for(const name of ['previewPanel','transferPreviewPanel','cancelPreviewPanel','blindResultPreviewPanel','coldPromotionPreviewPanel'])$(name).style.display=name===panel?'block':'none';
+      if(kind==='transfer'){renderTransferPreview();showTransferMatrixPreview('手动转单预览（尚未写入）');}
+      else if(kind==='cancel'){renderCancelPreview();showCancelMatrixPreview('手动撤单预览（尚未写入）');}
+      else{renderBlindResultPreview();showBlindResultMatrixPreview();}
+      requestAnimationFrame(()=>document.querySelector(selector)?.focus());
+    }
+    $('addManualTransferRowBtn').addEventListener('click',()=>addManualActionRow('transfer'));
+    $('addManualCancelRowBtn').addEventListener('click',()=>addManualActionRow('cancel'));
+    $('addManualBlindResultRowBtn').addEventListener('click',()=>addManualActionRow('blind'));
     $('parseBtn').addEventListener('click',()=>{
       clearMatrixPreview();
       const raw=$('commentInput').value;
@@ -9714,6 +9761,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       previewRows=[]; orderPreviewSignature=''; renderPreview(); $('previewPanel').style.display='none'; clearMatrixPreview();
     });
     $('blindResultPreviewBtn').addEventListener('click',()=>{
+      if(!$('commentInput').value.trim()){addManualActionRow('blind');return;}
       clearMatrixPreview();
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先在上面的文字框粘贴抽奖结果。\n\n支持格式：\n小明：A1 B1 D1\n\n也支持一抽一行：\n小明 A\n小明 B\n\n也支持抽奖工具格式：\n小明\n抽了 2 次\nA × 1\nB × 1\n\n如果有多种盲抽制品，打开预览后在“默认挂到”里选一次就行。'); return; }
       if($('blindResultDefaultColumn')) $('blindResultDefaultColumn').dataset.keepValue='0';
@@ -9756,6 +9804,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderBlindResultPreview();
       if($('confirmBlindResultBtn').disabled) return;
       if(!pushUndoSnapshot('blind-result','抽奖结果导入前')) return;
+      const previousSubCells=deepClone(matrixBlindSubCells);
       const blindMap=personBlindPositions();
       blindResultPreviewRows.forEach(row=>{
         const colId=blindColumnIdForRow(row), blindMap=personBlindPositions(allocations,colId);
@@ -9763,7 +9812,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         const subs=expandBlindSubItems(parseDemandText(row.itemsText));
         entry.positions.forEach((pos,index)=>{ const sub=subs[index]||'', key=matrixBoughtKey(pos.colId,pos.row); if(sub) matrixBlindSubCells[key]=sub; else delete matrixBlindSubCells[key]; });
       });
-      saveState(); clearMatrixPreview(false); renderColumnList(); recalc();
+      let saved=false;try{saved=saveState();}catch(_){}if(!saved){matrixBlindSubCells=previousSubCells;captureActiveSheet();appAlert('抽奖结果保存失败，已恢复原结果，手动预览仍保留。','未保存');return;}
+      clearMatrixPreview(false); renderColumnList(); recalc();
       blindResultPreviewRows=[]; blindResultPreviewSignature=''; renderBlindResultPreview(); $('blindResultPreviewPanel').style.display='none'; $('commentInput').value='';
     });
     $('cancelBlindResultPreviewBtn').addEventListener('click',()=>{
@@ -9933,6 +9983,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const preview=buildTransferMatrixPreview(); showMatrixPreview(preview.allocations,label,preview.highlights);
     }
     $('transferPreviewBtn').addEventListener('click',()=>{
+      if(!$('commentInput').value.trim()){addManualActionRow('transfer');return;}
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先在上面的文字框粘贴转单文字。\n\n普通转单格式：\n阿崩 冲击1 转 小明\n阿崩 超梦2 给 小红\n\n抽奖结果转单格式：\n傻白白 轻梦 转 壹\n傻白白 轻梦 给 壹\n\n换赏格式：\n阿崩 冲击 换 小明 超梦'); return; }
       transferPreviewRows=actionContentLines(raw).filter(line=>/(?:转给|出给|转|出|给|到|->|→|➡)/.test(line)).map(parseTransferLine).filter(Boolean);
       transferPreviewSignature=actionPreviewDataSignature();
@@ -10020,13 +10071,11 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(positions.some(index=>index<start||index>=end))throw new Error('本次转单有不在收款统计范围内的谷子，请先将当前表的收款统计设为第 1 行至最后，以免转错钱');
         const prices=sheetDisplayPriceInfo(sheet),priceCol=prices.cols.find(c=>Number(c.id)===Number(col.id))||col;
         const selectedValue=positions.reduce((sum,index)=>sum+Math.max(0,prices.price(priceCol,index)),0),totalValue=Math.max(selectedValue,num(source?.g?.planned)||num(source?.g?.expected));
-        const available=Math.max(0,Math.round((settlementCurrentCash(source||{g:{},sh:{}})-Math.min(Math.max(0,num(source?.sh?.expected)),Math.max(0,num(source?.sh?.received))))*100)/100);
-        const proposed=totalValue>0?Math.min(available,Math.round(available*selectedValue/totalValue*100)/100):0;
-        const amount=cashAmount===undefined?proposed:Math.round(Number(cashAmount)*100)/100;
-        if(!Number.isFinite(amount)||amount<0||amount>available+0.005)throw new Error(`${from} 可随转的谷款余额只有 ${available.toFixed(2)}，不能转出更多`);
-        const operation={from,to,fromKey,toKey,item:check.sub?`${col.name}-${check.sub}`:col.name,qty,positions,colId:col.id,amount,available,proposed};
-        sheet.paymentEdits['__transfer_credit__:'+fromKey]=Math.round((settlementCredit(sheet.paymentEdits,fromKey)-amount)*100)/100;
-        sheet.paymentEdits['__transfer_credit__:'+toKey]=Math.round((settlementCredit(sheet.paymentEdits,toKey)+amount)*100)/100;
+        const shareExpected=Math.max(0,num(source?.sh?.expected)),cashAvailable=Math.max(0,settlementCurrentCash(source||{g:{},sh:{}}));
+        const shareReceiptAvailable=sheet.paymentIncludeShare===true?cashAvailable-Math.max(0,num(source?.g?.actual)):num(source?.sh?.received)+settlementShareCredit(sheet.paymentEdits,fromKey);
+        const paidShare=Math.min(shareExpected,cashAvailable,Math.max(0,shareReceiptAvailable));
+        const goodsAvailable=Math.max(0,Math.round((cashAvailable-paidShare)*100)/100);
+        const proposedGoods=totalValue>0?Math.min(goodsAvailable,Math.round(goodsAvailable*selectedValue/totalValue*100)/100):0;
         const internationalCarry=new Map();
         positions.forEach(index=>[col,...(col.comboMembers||[])].forEach(member=>{
           if(String(sheet.allocations[member.id]?.[index]||'').trim()!==from)return;
@@ -10041,6 +10090,17 @@ body.export-rendering .cart-count{ font-size:28px; }
           // Carry only verified paid/no-fee status for these exact pieces; financial bills stay unchanged.
           columns.forEach(member=>{const key=matrixBoughtKey(member.id,index),carry=internationalCarry.get(key);if(carry){sheet.dispatchInternationalExemptCells=sheet.dispatchInternationalExemptCells||{};sheet.dispatchInternationalExemptCells[key]=carry;}else if(sheet.dispatchInternationalExemptCells)delete sheet.dispatchInternationalExemptCells[key];});
         });
+        const afterSource=recordsForSheet(sheet).find(r=>r.key===fromKey),selectedShare=Math.max(0,shareExpected-num(afterSource?.sh?.expected));
+        const proposedShare=shareExpected>0?Math.min(paidShare,Math.round(paidShare*Math.min(1,selectedShare/shareExpected)*100)/100):0;
+        const available=Math.round((goodsAvailable+proposedShare)*100)/100,proposed=Math.round((proposedGoods+proposedShare)*100)/100;
+        const amount=cashAmount===undefined?proposed:Math.round(Number(cashAmount)*100)/100;
+        if(!Number.isFinite(amount)||amount<0||amount>available+0.005)throw new Error(`${from} 可随转的谷款及对应均摊余额只有 ${available.toFixed(2)}，不能转出更多`);
+        const shareAmount=Math.min(proposedShare,amount),goodsAmount=Math.round((amount-shareAmount)*100)/100;
+        const operation={from,to,fromKey,toKey,item:check.sub?`${col.name}-${check.sub}`:col.name,qty,positions,colId:col.id,amount,goodsAmount,shareAmount,available,proposed};
+        for(const [key,sign] of [[fromKey,-1],[toKey,1]]){
+          sheet.paymentEdits['__transfer_credit__:'+key]=Math.round((settlementCredit(sheet.paymentEdits,key)+sign*amount)*100)/100;
+          if(shareAmount)sheet.paymentEdits['__transfer_share_credit__:'+key]=Math.round((settlementShareCredit(sheet.paymentEdits,key)+sign*shareAmount)*100)/100;
+        }
         sheet.paymentCashHistory.push({id:'transfer_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),type:'transfer',at:new Date().toISOString(),...operation});operations.push(operation);
       }
       return {sheet,operations};
@@ -10061,12 +10121,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         plan=buildPaidOrderTransferPlan(original,checks);
         let operationIndex=0;
         for(const entry of checks){if(entry.row.mode==='swap')continue;const op=plan.operations[operationIndex++];
-          const answer=await appPrompt(`${op.from} → ${op.to}\n${op.item} ×${op.qty}\n建议随转已付款：${money(op.amount)}（按谷款余额与转出占比分配）\n可转谷款余额：${money(op.available)}\n请核对实际随转金额；填 0 表示只转谷子。已交或已确认免国际的排发状态随件保留；国际账目不挪动。`,fmtNum(op.amount),'确认随转已付款');if(answer===null)return;
+          const answer=await appPrompt(`${op.from} → ${op.to}\n${op.item} ×${op.qty}\n建议随转已付款：${money(op.amount)}（谷款 ${money(op.goodsAmount)}＋已付均摊 ${money(op.shareAmount)}）\n可随转余额：${money(op.available)}\n请核对实际随转总金额；填 0 表示只转谷子、不转钱。已交或已确认免国际的排发状态随件保留；国际账目不挪动。`,fmtNum(op.amount),'确认随转已付款');if(answer===null)return;
           const amount=Number(String(answer).trim());if(!String(answer).trim()||!Number.isFinite(amount)||amount<0)throw new Error('随转金额必须是明确的非负数字');entry.cashAmount=amount;
         }
         plan=buildPaidOrderTransferPlan(original,checks);
-        const lines=plan.operations.map(op=>`${op.from} → ${op.to}：${op.item} ×${op.qty}，随转已付款 ${money(op.amount)}`).join('\n');
-        if(!await appConfirm((lines||'本次为换赏，不移动已付款')+'\n\n原收款、已退款和已补款保留；只记对应谷款的转入转出，均摊、国际账目不动。已交或已确认免国际的排发状态随件保留；未交的不放行。','转单与款项预览','确认应用'))return;
+        const lines=plan.operations.map(op=>`${op.from} → ${op.to}：${op.item} ×${op.qty}，随转 ${money(op.amount)}（谷款 ${money(op.goodsAmount)}＋均摊 ${money(op.shareAmount)}）`).join('\n');
+        if(!await appConfirm((lines||'本次为换赏，不移动已付款')+'\n\n原收款、已退款和已补款保留；对应谷款和已付均摊记入转入转出，不制造退款或重复收款，国际账目不动。已交或已确认免国际的排发状态随件保留；未交的不放行。','转单与款项预览','确认应用'))return;
       }catch(error){if(error.code==='TRANSFER_MANUAL_OVERRIDE'){await restoreTransferAutoCalculation(checks);return;}await appAlert(error.message||'转单核对失败，未修改数据','未应用');return;}
       captureActiveSheet();if(activeSheetId!==originalId||JSON.stringify(sheets.find(s=>s.id===originalId))!==signature){await appAlert('确认期间排单或账目发生变化，请重新预览。','未应用');return;}
       if(!pushUndoSnapshot('transfer-apply','确认转单前')) return;
@@ -10100,8 +10160,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function cancelPositionsForColumn(col,person,qty,reserved=0,sourceAllocations=allocations){
       const positions=(sourceAllocations[col.id]||[]).map((value,row)=>String(value||'').trim()===person?row:-1).filter(row=>row>=0);
-      const protectedPositions=positions.filter(row=>isMatrixCellBought(col.id,row,person));
-      const removablePositions=positions.filter(row=>!isMatrixCellBought(col.id,row,person));
+      const sheet=sheets.find(s=>s.id===activeSheetId),protectedAt=row=>isMatrixCellBought(col.id,row,person)||normalizeDispatchKey(sheet?.dispatchShippedCells?.[matrixBoughtKey(col.id,row)]?.person)===normalizeDispatchKey(person);
+      const protectedPositions=positions.filter(protectedAt);
+      const removablePositions=positions.filter(row=>!protectedAt(row));
       const remaining=Math.max(0,removablePositions.length-reserved);
       const availablePositions=removablePositions.slice(0,Math.max(0,removablePositions.length-reserved));
       const affectedRows=availablePositions.slice(-qty);
@@ -10123,11 +10184,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       const protectedPositions=base.protectedPositions;
       if(!totalAvailable) return {ok:false,text:`没有找到 ${person}`};
       if(remaining<qty){
-        const protectedText=protectedPositions.length?`，另有 ${protectedPositions.length} 个已买齐已保护`:'';
+        const protectedText=protectedPositions.length?`，另有 ${protectedPositions.length} 个已买齐／已发货，已保护`:'';
         return {ok:false,text:`只剩 ${remaining} 个可撤${protectedText}`};
       }
       const affectedRows=base.affectedRows.length?base.affectedRows:(memberPlans[0]?.affectedRows||[]);
-      const affected=affectedRows.map(row=>row+1), protectedText=protectedPositions.length?`（跳过已买齐 ${protectedPositions.length} 个）`:'';
+      const affected=affectedRows.map(row=>row+1), protectedText=protectedPositions.length?`（跳过已买齐／已发货 ${protectedPositions.length} 个）`:'';
       return {ok:true,text:`将删除第${affected.join('、')}行${col.isPricingCombo?'（同步拼盒成员）':''}${protectedText}`,col,qty,person,positions:affected,positionIndexes:affectedRows,memberPlans,protectedCount:protectedPositions.length};
     }
     function renderCancelPreview(){
@@ -10165,6 +10226,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const preview=buildCancelMatrixPreview(); showMatrixPreview(preview.allocations,label,preview.highlights);
     }
     $('cancelPreviewBtn').addEventListener('click',()=>{
+      if(!$('commentInput').value.trim()){addManualActionRow('cancel');return;}
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先在上面的文字框粘贴撤单文字。\n\n格式例子：\n阿崩 撤 冲击1\n小明 取消 超梦2\n小红 不要 秩序1\n\n会从这个人在对应谷子的最后一单开始撤。'); return; }
       cancelPreviewRows=parseCancelRows(raw);
       cancelPreviewSignature=actionPreviewDataSignature();
@@ -10198,6 +10260,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const checks=cancelPreviewRows.map((row,index)=>({row,check:cancelRowCheck(row,index)}));
       if(!checks.length||checks.some(item=>!item.check.ok)){ alert('还有没识别清楚的撤单，请先在预览里修改'); return; }
       if(!pushUndoSnapshot('cancel-apply','确认撤单前')) return;
+      captureActiveSheet();const originalSheet=deepClone(sheets.find(s=>s.id===activeSheetId)),originalCancelRows=deepClone(cancelPreviewRows);
       let removedTotal=0;
       const removalsByCol=new Map();
       const addRemoval=(colId,position)=>{
@@ -10212,7 +10275,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       removalsByCol.forEach((positions,colId)=>{
         [...new Set(positions)].sort((a,b)=>b-a).forEach(position=>{ removeAllocationAt(colId,position); removedTotal++; });
       });
-      saveState(); clearMatrixPreview(false); renderMatrix(); $('commentInput').value=''; cancelPreviewRows=[]; cancelPreviewSignature=''; renderCancelPreview();
+      let saved=false;try{saved=saveState();}catch(_){}if(!saved){sheets[sheets.findIndex(s=>s.id===originalSheet.id)]=originalSheet;applySheet(originalSheet);cancelPreviewRows=originalCancelRows;cancelPreviewSignature=actionPreviewDataSignature();$('cancelPreviewPanel').style.display='block';renderCancelPreview();appAlert('撤单保存失败，已恢复原排单，预览仍保留。','未保存');return;}
+      clearMatrixPreview(false); renderMatrix(); $('commentInput').value=''; cancelPreviewRows=[]; cancelPreviewSignature=''; renderCancelPreview();
       $('cancelPreviewStatus').textContent=`已撤掉 ${removedTotal} 个；已买齐的格子会自动跳过，不会被撤。`;
       $('cancelPreviewStatus').style.color='var(--ok)';
     });
@@ -11719,6 +11783,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const allButton=e.target.closest('[data-share-payment-paid-all]');
       if(allButton){
         e.preventDefault(); e.stopPropagation();
+        if(Object.keys(paymentEdits).some(key=>key.startsWith('__transfer_share_credit__:')&&num(paymentEdits[key]))){await appAlert('当前表包含随转均摊，请逐人只补差额，不能批量覆盖原收款。','保留原账');return;}
         const buttons=[...$('sharePaymentSummary').querySelectorAll('[data-share-payment-paid]')], allFull=buttons.length>0&&buttons.every(button=>button.getAttribute('aria-pressed')==='true');
         const before=paymentActionState(buttons.map(button=>decodeURIComponent(button.dataset.sharePaymentPaid||'')).filter(Boolean));
         buttons.forEach(button=>{ const key=decodeURIComponent(button.dataset.sharePaymentPaid||''); if(!key) return; if(allFull) delete sharePaymentPaid[key]; else { const amount=Math.max(0,num(button.dataset.paymentAmount)); sharePaymentPaid[key]=amount>0?amount:true; } });
@@ -11742,6 +11807,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       const checkbox=e.target.closest('[data-share-payment-paid]'); if(!checkbox) return;
       e.preventDefault(); e.stopPropagation(); const key=decodeURIComponent(checkbox.dataset.sharePaymentPaid||''); if(!key) return;
+      if(settlementShareCredit(paymentEdits,key)){
+        if(paymentIncludeShare){openCashLedger(key);await appAlert('已付均摊已随转计入。当前采用谷款合并收款，请在谷款收款按钮核对并只补剩余差额，不要重复标记均摊。');return;}
+        captureActiveSheet();const expected=Math.max(0,num(checkbox.dataset.paymentAmount)),current=paymentViewReceivedAmount(sharePaymentPaid,key,expected),due=Math.max(0,Math.round((expected-current)*100)/100),code=String(syncCode||''),id=activeSheetId,signature=JSON.stringify(sheets.find(s=>s.id===id));
+        if(due<=0.005){openCashLedger(key);return;}
+        if(!await appConfirm(`已继承随转均摊，确认本次实际收到剩余 ${money(due)}？\n只追加这次差额，不覆盖原收款。`,'补齐均摊差额','已实际收到'))return;
+        captureActiveSheet();if(code!==String(syncCode||'')||id!==activeSheetId||signature!==JSON.stringify(sheets.find(s=>s.id===id))){await appAlert('确认期间账目已变化，请重新核对。');return;}
+        const sheet=sheets.find(s=>s.id===id),history=deepClone(sheet.paymentCashHistory||[]),previous=sharePaymentPaid[key],had=Object.prototype.hasOwnProperty.call(sharePaymentPaid,key),before=paymentActionState([key]);sharePaymentPaid[key]=Math.round((paidAmountValue(sharePaymentPaid,key,expected)+due)*100)/100;rememberPaymentAction(before,'补齐随转均摊差额');let saved=false;try{saved=saveState();}catch(_){}
+        if(!saved){if(had)sharePaymentPaid[key]=previous;else delete sharePaymentPaid[key];sheet.paymentCashHistory=history;paymentUndoStack.pop();captureActiveSheet();await appAlert('均摊差额保存失败，已恢复原记录。','未保存');}
+        rerenderPaymentInPlace('sharePaymentSummary',renderSharePaymentSummary);renderPaymentSummary();return;
+      }
       const before=paymentActionState([key]);
       if(await updateReceivedAmount(sharePaymentPaid,key,checkbox)){ rememberPaymentAction(before,'已更新均摊收款'); saveState(); rerenderPaymentInPlace('sharePaymentSummary',renderSharePaymentSummary); renderPaymentSummary(); }
     });
