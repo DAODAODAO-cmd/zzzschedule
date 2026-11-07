@@ -1158,6 +1158,7 @@ body.sheet-types-open{overflow:hidden;}
 .sheet-tab:hover{ background:#faf6fa; color:var(--text); }
 .sheet-tab.active{ color:var(--accent); background:#fff0f4; border-color:#efcad5; font-weight:700; }
 .sheet-tab-name{ min-width:0; max-width:130px; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.sheet-payment-badge{flex:0 0 auto;font-size:9px;line-height:1.5;padding:1px 4px;border-radius:5px;white-space:nowrap;font-weight:500;background:#fff0f3;color:#bc4966;}.sheet-payment-badge.is-unknown{background:#fff6e7;color:#a37c3e;}
 .sheet-drag-handle{ position:relative; display:none; width:13px; height:22px; min-width:13px; cursor:grab; opacity:.55; }
 .sheet-drag-handle::before{ content:""; position:absolute; left:3px; top:5px; width:8px; height:12px; background:radial-gradient(circle,#9e91a2 1.15px,transparent 1.3px) 0 0/4px 4px; }
 .sheet-tab:hover .sheet-drag-handle,.sheet-tab.active .sheet-drag-handle{ display:block; }
@@ -2133,6 +2134,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let coldPromotionDraftRows=[], coldPromotionDraftApplied=false, coldPromotionDraftBaseAllocations=null, coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
     let coldCarryBundleColumnIds=[];
     let colIdSeed=1, rowIdSeed=1;
+    const sheetCollectionBadgeCache=new WeakMap();let sheetCollectionBadgeTimer=null;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartExportHidePrice=true, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
     let matrixTitle='', matrixColor='#d1466a', matrixBoughtCells={}, matrixIslandCells={}, matrixChinaCells={}, matrixBlindSubCells={}, matrixMarkMode='', matrixMarkDate='';
     let quantityTitle='';
@@ -2838,6 +2840,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         else if(syncCode&&cloudIdleEnabled){scheduleIdleCloudUpload();setCloudStatus('本机修改未同步；实时尚未连接，请查看连接状态','warn');}
         else setCloudStatus(syncCode?'云端完整备份未更新':'尚未加入协作组',syncCode?'warn':false);
       }
+      if(typeof scheduleSheetCollectionBadges==='function')scheduleSheetCollectionBadges();
       return localSaved!=='failed';
     }
     const deepClone=value=>JSON.parse(JSON.stringify(value));
@@ -3110,6 +3113,32 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function isSheetCompleted(sheet){ return sheet?.completed===true; }
     function completedSheetsByRecent(){ return sheets.filter(isSheetCompleted); }
+    function sheetCollectionIndicator(sheet){
+      if(!sheet)return null;
+      const signature=JSON.stringify(sheet,(key,value)=>key==='img'?undefined:value),cached=sheetCollectionBadgeCache.get(sheet);
+      if(cached?.signature===signature)return cached.result;
+      let result=null;
+      try{
+        const records=recordsForSheet({...sheet,paymentStartRow:1,paymentEndRow:null}),unpaid=records.filter(r=>!r.historyUnknown&&r.due>0.005),uncertain=records.filter(r=>r.historyUnknown&&(r.due>0.005||sheet.paymentRefundDone?.[r.key]===true||sheet.paymentSupplementDone?.[r.key]===true));
+        if(unpaid.length)result={kind:'unpaid',label:'未收齐',title:'整张排单的谷款／均摊还有 '+unpaid.length+' 人未收齐，不含国际费用'};
+        else if(uncertain.length)result={kind:'unknown',label:'待核对',title:'有旧金额需要核对，暂不判断是否收齐'};
+      }catch(_){result={kind:'unknown',label:'待核对',title:'这张表的收款状态暂时无法核对，请打开收款页查看'};}
+      sheetCollectionBadgeCache.set(sheet,{signature,result});return result;
+    }
+    function sheetCollectionBadgeHtml(sheet){
+      const indicator=sheetCollectionIndicator(sheet);return indicator?`<span class="sheet-payment-badge is-${indicator.kind}" title="${escapeAttr(indicator.title)}">${indicator.label}</span>`:'';
+    }
+    function scheduleSheetCollectionBadges(){
+      clearTimeout(sheetCollectionBadgeTimer);sheetCollectionBadgeTimer=setTimeout(()=>{
+        document.querySelectorAll('.sheet-tab[data-sheet]').forEach(tab=>{
+          const sheet=sheets.find(s=>String(s.id)===tab.dataset.sheet),indicator=sheetCollectionIndicator(sheet);let badge=tab.querySelector('.sheet-payment-badge');
+          if(!indicator){badge?.remove();return;}
+          if(!badge){badge=document.createElement('span');tab.querySelector('.sheet-tab-name')?.after(badge);}
+          badge.className='sheet-payment-badge is-'+indicator.kind;badge.textContent=indicator.label;badge.title=indicator.title;
+        });
+        const select=$('mobileSheetSelect');if(select)for(const option of select.options){const sheet=sheets.find(s=>String(s.id)===option.value);if(sheet){const indicator=sheetCollectionIndicator(sheet);option.textContent=(sheet.name||`表${sheet.id}`)+(indicator?' · '+indicator.label:'');}}
+      },180);
+    }
     function renderSheetTabs(){
       renderSheetTypeFilters();
       const query=String($('sheetSearchInput')?.value||'').trim().toLowerCase();
@@ -3119,7 +3148,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(sheetStatusFilter!=='completed') groups.push({label:`进行中 · ${ongoing.length}`,items:ongoing.filter(matches),movable:true});
       if(sheetStatusFilter!=='ongoing') groups.push({label:`已完成 · ${completed.length}`,items:completed.filter(matches),movable:true});
       const tabHtml=(sheet,movable)=>{
-        return `<div class="sheet-tab ${sheet.id===activeSheetId?'active':''}${isSheetCompleted(sheet)?' is-completed':''}" data-sheet="${sheet.id}" title="双击改名"><span class="sheet-tab-name">${escapeHtml(sheet.name)}</span>${movable?'<span class="sheet-drag-handle" draggable="true" title="拖动排序" aria-label="拖动排序"></span>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`;
+        return `<div class="sheet-tab ${sheet.id===activeSheetId?'active':''}${isSheetCompleted(sheet)?' is-completed':''}" data-sheet="${sheet.id}" title="双击改名"><span class="sheet-tab-name">${escapeHtml(sheet.name)}</span>${sheetCollectionBadgeHtml(sheet)}${movable?'<span class="sheet-drag-handle" draggable="true" title="拖动排序" aria-label="拖动排序"></span>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`;
       };
       $('sheetTabs').innerHTML=groups.map(group=>`<div class="sheet-group-label">${group.label}</div>${group.items.map(sheet=>tabHtml(sheet,group.movable)).join('')}`).join('')||'<div class="sheet-list-empty">没有符合条件的排单</div>';
       document.querySelectorAll('[data-sheet-status-filter]').forEach(button=>button.classList.toggle('active',button.dataset.sheetStatusFilter===sheetStatusFilter));
@@ -3130,7 +3159,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function syncMobileSheetSelect(){
       const select=$('mobileSheetSelect'); if(!select) return;
       const visible=sheets.filter(s=>sheetTypeMatches(s)||s.id===activeSheetId),ongoing=visible.filter(sheet=>!isSheetCompleted(sheet)),completed=visible.filter(isSheetCompleted);
-      select.innerHTML=(ongoing.length?`<optgroup label="进行中">${ongoing.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('')}</optgroup>`:'')+(completed.length?`<optgroup label="已完成">${completed.map(sheet=>`<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}</option>`).join('')}</optgroup>`:'');
+      const optionHtml=sheet=>{const indicator=sheetCollectionIndicator(sheet);return `<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}${indicator?' · '+indicator.label:''}</option>`;};
+      select.innerHTML=(ongoing.length?`<optgroup label="进行中">${ongoing.map(optionHtml).join('')}</optgroup>`:'')+(completed.length?`<optgroup label="已完成">${completed.map(optionHtml).join('')}</optgroup>`:'');
       select.value=String(activeSheetId);
       $('mobileDeleteSheetBtn').disabled=sheets.length<=1;
     }
