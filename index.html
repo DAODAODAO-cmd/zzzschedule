@@ -8905,9 +8905,17 @@ body.export-rendering .cart-count{ font-size:28px; }
       }).filter(value=>value!==null);
       return memberMatches.length>0&&memberMatches.every(Boolean);
     }
+    function dispatchMarkedItemMatches(entry,c,item){
+      if(!entry)return false;
+      const stored=String(entry.item||''),current=String(item||''),base=String(c?.name||'').trim();
+      if(stored===current)return true;
+      // A draw result refines the label of the same column/row; it is not a new physical piece.
+      if(base)return (stored===base||stored.startsWith(base+'-'))&&(current===base||current.startsWith(base+'-'));
+      return !!stored&&current.startsWith(stored+'-');
+    }
     function dispatchShipmentFor(sheet,c,row,name,item){
       const entry=sheet.dispatchShippedCells?.[`${c.id}:${row}`];
-      return entry&&normalizeDispatchKey(entry.person)===normalizeDispatchKey(name)&&entry.item===item?entry:null;
+      return entry&&normalizeDispatchKey(entry.person)===normalizeDispatchKey(name)&&dispatchMarkedItemMatches(entry,c,item)?entry:null;
     }
     function dispatchFilterLabel(){
       return {china:'已到国内',ready:'可排发',unshipped:'未发货',shipped:'已发货'}[dispatchStateFilter]||'全部购买';
@@ -8932,7 +8940,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const paid=generated&&charges.every(f=>f.paid===true);
       const exemption=sheet.dispatchInternationalExemptCells?.[`${c.id}:${row}`];
       const carried=exemption?.transferVerified===true&&['paid','exempt'].includes(exemption.transferStatus);
-      const confirmed=(!generated||carried)&&!!exemption&&normalizeDispatchKey(exemption.person)===normalizeDispatchKey(name)&&exemption.item===item&&exemption.date===date;
+      const confirmed=(!generated||carried)&&!!exemption&&normalizeDispatchKey(exemption.person)===normalizeDispatchKey(name)&&dispatchMarkedItemMatches(exemption,c,item)&&exemption.date===date;
       return {generated,paid:paid||confirmed,confirmed,missing:!generated&&!confirmed,pending:generated&&!paid};
     }
     function sheetFulfillmentMode(sheet){return sheet?.dispatchEnabled===false?'accounting':sheet?.dispatchInternationalExempt===true?'exempt':'required';}
@@ -9145,6 +9153,15 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     let dispatchBatchShipDraft=null,dispatchBatchShipSaving=false;
     function dispatchShipmentRefKey(ref){return JSON.stringify([String(ref.sheetId),String(ref.colId),Number(ref.row),String(ref.person),String(ref.item)]);}
+    function validateDispatchShipmentToggle(refs,currentItems,undo=false){
+      const current=new Map(currentItems.map(item=>[dispatchShipmentRefKey(item),item]));
+      for(const ref of refs){const item=current.get(dispatchShipmentRefKey(ref));
+        if(!item)throw new Error('谷子明细、归属或排单位置已变化，请刷新清单再操作。');
+        if(!undo&&item.shipped)throw new Error('这件谷子已经标记发货，不会重复记录，也不会覆盖原发货时间。');
+        if(undo&&!item.shipped)throw new Error('这件谷子的发货状态已经变化，未重复撤销，请刷新清单。');
+      }
+      return true;
+    }
     function buildDispatchBatchShipmentPlan(selected,currentItems){
       if(!selected.length)throw new Error('请先勾选要标记发货的谷子。');
       const current=new Map();for(const item of currentItems){const key=dispatchShipmentRefKey(item);if(current.has(key))throw new Error('排发记录存在重复标识，请刷新核对');current.set(key,item);}
@@ -9301,7 +9318,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const chosen=refs.slice(0,count),warn=!undo&&chosen.some(ref=>!ref.ready)?'\n部分谷子尚未满足国内到货、谷款及国际收齐条件，请确认实际已经发出。':'';
         if(!await appConfirm(`确定${undo?'撤销':'记录'} ${chosen[0]?.person||''} 的 ${chosen[0]?.item||''} ×${count} ${undo?'发货标记':'已发货'}吗？${warn}\n不会修改排单归属或收退款金额。`,undo?'撤销发货':'确认已发货','确认'))return;
         captureActiveSheet();const before=deepClone(sheets);
-        for(const ref of chosen){const sheet=sheets.find(s=>s.id===ref.sheetId),name=String(sheet?.allocations?.[ref.colId]?.[ref.row]||'').trim();if(!sheet||name!==ref.person){await appAlert('排单已发生变化，请刷新清单再操作。','未修改');return;}}
+        try{validateDispatchShipmentToggle(chosen,buildDispatchRecords().flatMap(person=>person.items),undo);}catch(error){renderDispatch();await appAlert(error.message,'未修改发货记录');return;}
         chosen.forEach(ref=>{const sheet=sheets.find(s=>s.id===ref.sheetId),key=`${ref.colId}:${ref.row}`;sheet.dispatchShippedCells=sheet.dispatchShippedCells||{};if(undo)delete sheet.dispatchShippedCells[key];else sheet.dispatchShippedCells[key]={person:ref.person,item:ref.item,at:new Date().toISOString()};});
         if(!saveState({snapshotReason:undo?'撤销发货后':'标记发货后',forceSnapshot:true,flushCollabNow:true})){sheets=before;await appAlert('发货标记未能保存，请先导出 JSON 备份并处理存储空间。','保存失败');}
         renderDispatch();return;
@@ -11142,6 +11159,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
     });
     mbody.addEventListener('copy',e=>{
+      if(isTypingTarget(e.target)||isTypingTarget(document.activeElement))return;
       if(matrixSelectionSize()<1||hasRealTextSelection()) return;
       const text=matrixSelectionText();
       if(!text) return;
@@ -11186,6 +11204,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     document.addEventListener('copy',e=>{
       if(e.defaultPrevented) return;
+      if(isTypingTarget(e.target)||isTypingTarget(document.activeElement))return;
       if(matrixMarkMode||matrixSelectionSize()<1||hasRealTextSelection()) return;
       const text=matrixSelectionText();
       if(!text) return;
