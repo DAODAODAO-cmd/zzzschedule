@@ -2827,12 +2827,12 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function saveState(options={}){
       if(isLoadingSheet) return true;
-      if(!applyingCloud&&!applyingCollab)cancelPendingCollabInstallForLocalEdit();
+      if(!applyingCloud&&!applyingCollab&&options.initializing!==true)cancelPendingCollabInstallForLocalEdit();
       captureActiveSheet();
       const localSaved=persistLocalState();
       if(localSaved!=='failed'&&!options.skipSnapshot) recordLocalSnapshot(options.snapshotReason||'自动保存',options.forceSnapshot===true);
       if($('localStatus')){ $('localStatus').textContent=localSaved==='full'?'本机已保存':(localSaved==='light'?'本机已轻量保存':'本机保存失败'); $('localStatus').style.color=localSaved==='failed'?'var(--bad)':(localSaved==='light'?'var(--warn)':'var(--ok)'); }
-      if(!applyingCloud&&!applyingCollab){
+      if(!applyingCloud&&!applyingCollab&&options.initializing!==true){
         if(syncCode){collabNeedsSend=true;if(typeof rememberRealtimePending==='function')rememberRealtimePending(syncCode,true);}
         localRevision++; cloudDirty=true; rememberCloudDirty(syncCode,true);
         if(collabEnabled){
@@ -5056,7 +5056,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
 
-    function recalc(){ rememberPaidGoodsSnapshotsBeforePriceChange(); readCost(); computeAverage(); renderMatrix(); renderPricingGroups(); renderCart(); saveState(); }
+    function recalc(options={}){ rememberPaidGoodsSnapshotsBeforePriceChange(); readCost(); computeAverage(); renderMatrix(); renderPricingGroups(); renderCart(); saveState(options.initializing===true?{initializing:true}:{}); }
 
     // ---------- window-exposed handlers ----------
     const ggz={};
@@ -12879,7 +12879,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     setAppSection(activeAppSection,false);
     renderColumnList();
     renderColdBundleConfiguration(); syncUndoButton();
-    recalc();
+    // Rendering an existing project on startup is not a new user edit.
+    // Preserve an existing unsent marker, but never create one just by opening.
+    recalc({initializing:true});
     cloudIdleEnabled=true; syncEditLockUI(); renderWorkspaceUI(); syncCollabUI();
     initAuthGate();
   }
