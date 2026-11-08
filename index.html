@@ -2303,6 +2303,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(switchingWorkspace&&!(await disconnectCurrentWorkspace())) return false;
       activeWorkspaceId=next; syncCode=next; localStorage.setItem(WORKSPACE_STORAGE_KEY,next); localStorage.setItem('ggzSyncCode',next);
       lastCloudUpdatedAt=localStorage.getItem(CLOUD_VERSION_KEY_PREFIX+next)||'';restoredSnapshotPendingUpload=localStorage.getItem('ggzRestoredPendingPublish_v1:'+next)==='1';cloudConflictPaused=restoredSnapshotPendingUpload;cloudDirty=restoredSnapshotPendingUpload||rememberedCloudDirty(next,lastCloudUpdatedAt);
+      collabNeedsSend=localStorage.getItem('ggzPendingRealtimeEdits_v1:'+next)==='1';
       $('syncCodeInput').value=next; renderWorkspaceUI(); setWorkspaceStatus(`已进入「${currentWorkspace()?.name||'协作组'}」`,'ok');
       setCloudStatus(cloudDirty?'云端完整备份未更新':'云端完整备份已同步',cloudDirty?'warn':'');
       if(autoConnect&&!collabEnabled){
@@ -2832,6 +2833,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(localSaved!=='failed'&&!options.skipSnapshot) recordLocalSnapshot(options.snapshotReason||'自动保存',options.forceSnapshot===true);
       if($('localStatus')){ $('localStatus').textContent=localSaved==='full'?'本机已保存':(localSaved==='light'?'本机已轻量保存':'本机保存失败'); $('localStatus').style.color=localSaved==='failed'?'var(--bad)':(localSaved==='light'?'var(--warn)':'var(--ok)'); }
       if(!applyingCloud&&!applyingCollab){
+        if(syncCode){collabNeedsSend=true;if(typeof rememberRealtimePending==='function')rememberRealtimePending(syncCode,true);}
         localRevision++; cloudDirty=true; rememberCloudDirty(syncCode,true);
         if(collabEnabled){
           scheduleCollabSync(); setCloudStatus('实时协作中 · 完整备份未更新','warn');
@@ -3401,6 +3403,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     function rememberCloudVersion(code,updatedAt){ lastCloudUpdatedAt=updatedAt||''; if(code&&updatedAt) localStorage.setItem(CLOUD_VERSION_KEY_PREFIX+code,updatedAt); }
     function rememberedCloudDirty(code,knownVersion){ const stored=code?localStorage.getItem(CLOUD_DIRTY_KEY_PREFIX+code):null; return stored===null?!knownVersion:stored==='1'; }
     function rememberCloudDirty(code,dirty){ if(code) localStorage.setItem(CLOUD_DIRTY_KEY_PREFIX+code,dirty?'1':'0'); }
+    function rememberRealtimePending(code,pending){
+      if(!code)return;try{if(pending)localStorage.setItem('ggzPendingRealtimeEdits_v1:'+code,'1');else localStorage.removeItem('ggzPendingRealtimeEdits_v1:'+code);}catch(error){console.warn('未同步修改标记无法持久保存，请导出备份',error);}
+    }
     function cloudVersionIsNewer(remote,known){ return !!remote&&(!known||new Date(remote)>new Date(known)); }
     function pauseForCloudConflict(){
       cloudConflictPaused=true; clearIdleCloudUpload();
@@ -3710,6 +3715,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const review=$('resolveRealtimeReviewBtn');if(review){review.hidden=!pendingRealtimeReview||pendingRealtimeReview.code!==syncCode;}
       $('startCollabBtn').disabled=collabEnabled||collabConnecting||!syncCode;
       $('startCollabBtn').hidden=collabEnabled;
+      $('startCollabBtn').textContent=restoredSnapshotPendingUpload?'核对并恢复同步':'重试连接';
       $('stopCollabBtn').disabled=!collabEnabled;
       const saver=$('dataSaverBtn'); if(saver){ saver.textContent=dataSaverMode?'省流量：开':'省流量：关'; saver.classList.toggle('active',dataSaverMode); saver.title=dataSaverMode?'减少实时轮询和在线名单刷新，节省 Supabase Egress':'更快看到协作变化，但会增加 Supabase Egress'; }
       $('collabActivityPanel').style.display=collabEnabled?'block':'none';
@@ -3925,6 +3931,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         collabAcknowledgedState=null;
       }
       collabBaseline=prepared.server;collabRevision=prepared.version;collabNeedsSend=prepared.laterOps.length>0;
+      if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,collabNeedsSend);
       if(!collabNeedsSend)collabPendingSheetNames.clear();
       return true;
     }
@@ -3954,7 +3961,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         baseState=deepClone(collabBaseline||sentState);const ops=collabDiff(baseState,sentState);
         if(!ops.length){
           if(captured.revision!==localRevision){collabNeedsSend=true;return false;}
-          collabNeedsSend=false;collabPendingSheetNames.clear();setCollabStatus('实时协作已同步 · 版本 '+collabRevision,'ok');return true;
+          collabNeedsSend=false;collabPendingSheetNames.clear();if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,false);setCollabStatus('实时协作已同步 · 版本 '+collabRevision,'ok');return true;
         }
         ops.forEach(op=>{const path=op.path||[];if(String(path[0])==='sheets'){const index=Number(path[1]);op.sheet_name=String(sentState.sheets?.[index]?.name||collabBaseline?.sheets?.[index]?.name||'');}});
         collabPendingSheetNames=new Set(ops.map(op=>op.sheet_name||'项目设置'));collabNeedsSend=false;
@@ -4022,8 +4029,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(collabConnecting)return false;
       if(autoStart&&collabReconnectBlocked===syncCode)return false;
       if(!autoStart){collabReconnectBlocked='';collabReconnectAttempts=0;}
-      if(cloudPublishingCollab||restoredSnapshotPendingUpload||localStorage.getItem('ggzRestoredPendingPublish_v1:'+syncCode)==='1'){setCollabStatus('自动连接已暂停：本机修改待核对，请先备份','warn');if(!autoStart)await appAlert('本机数据仍待核对，不能直接连接覆盖。请先导出 JSON 备份，再核对未同步修改或上传发布。');return false;}
+      if(cloudPublishingCollab)return false;
+      if(restoredSnapshotPendingUpload||localStorage.getItem('ggzRestoredPendingPublish_v1:'+syncCode)==='1'){
+        setCollabStatus('同步保护已暂停，点“核对并恢复同步”选择如何处理；本机修改保留','warn');
+        if(!autoStart)await manualReadOrDownloadCloud({resumeRealtime:true});return false;
+      }
       const code=normalizedSyncCode(); if(!code){ if(!autoStart) alert('请先加入或新建协作组'); return false; }
+      if(localStorage.getItem('ggzPendingRealtimeEdits_v1:'+code)==='1')collabNeedsSend=true;
       const name=String($('editorNameInput').value||'').trim(); if(!name){ if(!autoStart){ alert('请先填写编辑者名字'); $('editorNameInput').focus(); } return false; }
       syncCode=code; editorName=name; localStorage.setItem('ggzEditorName',editorName); $('startCollabBtn').disabled=true; setCollabStatus('正在连接实时协作…','warn');
       collabConnecting=true;
@@ -4047,9 +4059,11 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(!accepted){ syncCollabUI(); return false; }
         }
         if(code!==syncCode)return false;
-        if(captured.revision!==localRevision||isColumnListEditing()){pauseRealtimeForSafety('连接期间出现本机新编辑，已停止应用旧连接结果');return false;}
+        if(captured.revision!==localRevision){pauseRealtimeForSafety('连接期间出现本机新编辑，已停止应用旧连接结果');return false;}
+        if(isColumnListEditing()){collabEnabled=false;setCollabStatus('输入框正在编辑，连接稍后自动重试；本机内容保留','warn');scheduleCollabReconnect();return false;}
         const displayState=preserveMatchingLocalImages(row.out_state,localInitialState,initialState);
-        collabEnabled=true; collabRevision=Number(row.out_revision)||0; collabBaseline=deepClone(row.out_state); installCollabState(displayState);
+        collabEnabled=true;if(!installCollabState(displayState)){collabEnabled=false;setCollabStatus('本机正在编辑，未应用连接结果，稍后重试','warn');scheduleCollabReconnect();return false;}
+        collabRevision=Number(row.out_revision)||0;collabBaseline=deepClone(row.out_state);collabNeedsSend=false;if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,false);
         clearTimeout(collabReconnectTimer);collabReconnectTimer=null;collabReconnectAttempts=0;collabReconnectBlocked='';
         localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1'); clearIdleCloudUpload(); startCollabPolling(); syncCollabUI(); startCollabPresence(); setCollabStatus(`实时协作已连接 · 版本 ${collabRevision}`,'ok'); setCloudStatus('完整云端备份可手动上传'); return true;
       }catch(error){
@@ -4210,6 +4224,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const published=await publishAndVerifyCollab(client,code,publicationState,publicationPlan);
           collabBaseline=published.state;collabRevision=published.revision;
           collabNeedsSend=localRevision!==uploadRevision;collabPendingSheetNames.clear();
+          if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,collabNeedsSend);
           setCollabStatus(`实时协作发布已核验 · ${publicationState.sheets.length} 张表 · 版本 ${collabRevision}`,'ok');
           restoredSnapshotPendingUpload=false;localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);
         }
@@ -4231,13 +4246,20 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       finally{cloudBusy=false;cloudPublishingCollab=false;if(collabEnabled&&collabNeedsSend)scheduleCollabSync();}
     }
-    async function manualReadOrDownloadCloud(){
+    function cloudReadDifferenceSummary(local,remote){
+      const a=new Map((local.sheets||[]).map(s=>[String(s.id),s])),b=new Map((remote.sheets||[]).map(s=>[String(s.id),s])),onlyLocal=[],onlyCloud=[],changed=[];
+      for(const [id,sheet]of a){if(!b.has(id))onlyLocal.push(sheet.name||id);else if(!collabStatesEqual(sheet,b.get(id)))changed.push(sheet.name||id);}
+      for(const [id,sheet]of b)if(!a.has(id))onlyCloud.push(sheet.name||id);
+      const list=(label,values)=>values.length?label+' '+values.length+' 张：'+values.slice(0,6).join('、')+(values.length>6?'等':''):'';
+      return [list('仅本机有',onlyLocal),list('仅云端有',onlyCloud),list('内容不同',changed)].filter(Boolean).join('\n')||'排单内容一致；其他项目设置仍以所选来源为准。';
+    }
+    async function manualReadOrDownloadCloud(options={}){
       const code=normalizedSyncCode();if(!code){await appAlert('请先选择协作组。');return;}
       if(cloudBusy||cloudPublishingCollab||collabSending||collabPolling){await appAlert('正在同步，请等顶部同步结束后再读取。');return;}
       const answer=await appPrompt('请选择操作序号：\n1. 手动读取云端最新版（与实时同步为同一份数据）\n2. 下载云端最新版 JSON（与实时同步为同一份数据，不改当前页面）\n\n读取会替换本机整个协作组；下载只保存文件。历史备份请走独立的快照／恢复入口，不作为日常读取来源。','1','手动读取／下载云端','继续');
       if(answer===null)return;const choice=Number(answer);if(!Number.isInteger(choice)||choice<1||choice>2){await appAlert('请输入 1 或 2。');return;}
       if(code!==syncCode||cloudBusy||collabSending||collabPolling){await appAlert('协作组或同步状态已变化，请重试。');return;}
-      const downloadOnly=choice===2,wasEnabled=collabEnabled;
+      const downloadOnly=choice===2,wasEnabled=collabEnabled||options?.resumeRealtime===true;
       cloudBusy=true;cloudPublishingCollab=true;clearTimeout(collabSendTimer);collabSendTimer=null;
       let before=null,applying=false;
       try{
@@ -4247,15 +4269,18 @@ body.export-rendering .cart-count{ font-size:28px; }
         const label=`云端最新版 · 版本 ${revision}`;
         if(downloadOnly){downloadBackup(payload,'云端最新版.json');await appAlert(`已发起下载：${label}，${payload.sheets.length} 张表。请检查浏览器下载结果；当前页面未修改。`);return;}
         captureActiveSheet();before=deepClone(localStatePayload());const localAtRead=localRevision;
-        if(!await appConfirm(`读取 ${label}，共 ${payload.sheets.length} 张表？\n将替换本机全部表和账目，未上传的修改可能不在云端。\n先下载当前本机完整备份。读取后继续原来的实时同步状态；手动读取与实时同步是同一份数据。`,'核对云端来源','备份并继续'))return;
+        const difference=cloudReadDifferenceSummary(before,payload);
+        if(!await appConfirm(`读取云端当前数据，共 ${payload.sheets.length} 张表？\n${difference}\n\n将替换本机全部表和账目，未上传的修改可能不在云端。\n先下载当前本机完整备份。不确定时请取消，先下载两边备份核对。${options?.resumeRealtime===true?'\n确认读取后会恢复实时同步；不会把手机旧数据上传覆盖云端。':'\n读取后继续原来的实时同步状态。'}`,'核对云端来源','备份并继续'))return;
         downloadBackup(before,'手动读取云端前-本机备份.json');
         if(!await appConfirm('请确认本机备份已下载成功；未成功请取消。','确认读取前备份','已下载，读取'))return;
+        const verified=await readCollabPublication(client,code);if(!verified?.state||Number(verified.revision)!==revision||!collabStatesEqual(verified.state,payload))throw new Error('确认期间云端有新修改，未替换本机，请重新核对');
         captureActiveSheet();if(code!==syncCode||localAtRead!==localRevision||JSON.stringify(localStatePayload())!==JSON.stringify(before))throw new Error('确认期间本机数据变化，未覆盖，请重新读取');
         recordLocalSnapshot('手动读取云端前',true);
         collabEnabled=false;stopCollabPolling();stopCollabPresence();pendingCollabInstallState=null;applying=true;
         applyProjectPayload({...payload,activeSheetId:before.activeSheetId},code,'');
         if(persistLocalState()==='failed')throw new Error('本机保存失败，未完成读取');
-          collabBaseline=deepClone(payload);collabRevision=revision;collabNeedsSend=false;collabPendingSheetNames.clear();restoredSnapshotPendingUpload=false;localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);
+          collabBaseline=deepClone(payload);collabRevision=revision;collabNeedsSend=false;collabPendingSheetNames.clear();restoredSnapshotPendingUpload=false;cloudConflictPaused=false;collabReconnectBlocked='';collabReconnectAttempts=0;localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);
+          if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,false);
           collabEnabled=wasEnabled;localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,wasEnabled?'1':'0');if(wasEnabled){startCollabPolling();startCollabPresence();}
           setCollabStatus(`手动读取已完成 · 版本 ${revision}${wasEnabled?' · 继续实时同步':' · 实时同步未开启'}`,'ok');
 
@@ -12463,7 +12488,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const jpyTotal=cost.priceType==='single'?raw*count:raw;
       const total=jpyTotal*rate;
       let fixedCount=0;
-      cols.forEach(c=>{ if(c.mode==='fixed'||c.mode==='deduct'||c.mode==='single') fixedCount++; });
+      cols.forEach(c=>{ if(c.mode==='fixed'||c.mode==='deduct'||c.mode==='single'||c.mode==='wholeset') fixedCount++; });
       const denom=(cols.length||count)-fixedCount;
       let fixedDeduction=0,deductionUnits=0;
       groups.forEach(group=>{
@@ -12486,7 +12511,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       const manualAdjustedAverage=Math.max(0,manualAverage-deductionPerUnit);
       const baseAverage=cost.priceType==='single'?raw*rate:(denom>0?total/denom:0);
       const average=raw>0&&rate>0?Math.max(0,baseAverage-deductionPerUnit):manualAdjustedAverage;
-      const price=c=>(c.mode==='fixed'||c.mode==='deduct')?num(c.fixedPrice):c.mode==='single'?Math.max(0,num(c.sourceJpyPrice))*rate:c.mode==='adjust'?average+num(c.priceAdj):(c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))?Math.max(0,Number(c.avgOverride)-deductionPerUnit):average);
+      const price=c=>{
+        if(c.mode==='wholeset'){
+          if(c.wholeSetPrice!=null&&c.wholeSetPrice!==''&&Number.isFinite(Number(c.wholeSetPrice)))return Math.max(0,Number(c.wholeSetPrice));
+          return cols.filter(member=>member.mode!=='wholeset').reduce((sum,member)=>sum+price(member),0);
+        }
+        return (c.mode==='fixed'||c.mode==='deduct')?num(c.fixedPrice):c.mode==='single'?Math.max(0,num(c.sourceJpyPrice))*rate:c.mode==='adjust'?average+num(c.priceAdj):(c.avgOverride!==null&&c.avgOverride!==''&&Number.isFinite(Number(c.avgOverride))?Math.max(0,Number(c.avgOverride)-deductionPerUnit):average);
+      };
       return {cols,price};
     }
     function sheetDisplayPriceInfo(sheet){

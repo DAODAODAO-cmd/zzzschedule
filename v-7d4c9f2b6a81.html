@@ -27,12 +27,14 @@ function normalizeCN(value){return String(value||'').normalize('NFKC').trim().re
 function queryLink(){return new URLSearchParams(location.hash.slice(1)).get('link')||'';}
 async function fetchArrivalResponse(link,cn,signal,onProgress){
   if(typeof navigator!=='undefined'&&navigator.onLine===false)throw new Error('当前设备未联网，请恢复网络后再查询（QRY-OFFLINE）。');
-  const params={p_link:link,p_cn:normalizeCN(cn)},methods=['GET','POST','GET'];let lastResponse=null;
+  // Mobile cold connections can take longer than six seconds. Keep retries
+  // bounded, but give the first simple request more time before aborting it.
+  const params={p_link:link,p_cn:normalizeCN(cn)},methods=['GET','POST','GET'],timeouts=[12000,10000,8000];let lastResponse=null,timeoutCount=0;
   for(let attempt=0;attempt<methods.length;attempt++){
     if(signal?.aborted){const error=new Error('查询已取消');error.name='AbortError';throw error;}
     onProgress?.(attempt+1,methods.length);
     const controller=new AbortController(),cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});
-    const timer=setTimeout(cancel,6000);let response;
+    let timedOut=false;const timer=setTimeout(()=>{timedOut=true;cancel();},timeouts[attempt]);let response;
     try{
       const method=methods[attempt],url=method==='GET'?API+'?'+new URLSearchParams({...params,apikey:API_KEY}):API;
       response=await fetch(url,{method,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store',signal:controller.signal,...(method==='POST'?{headers:{apikey:API_KEY,'Content-Type':'application/json'},body:JSON.stringify(params)}:{})});
@@ -44,10 +46,12 @@ async function fetchArrivalResponse(link,cn,signal,onProgress){
       lastResponse=response;
     }catch(error){
       if(signal?.aborted){const cancelled=new Error('查询已取消');cancelled.name='AbortError';throw cancelled;}
+      if(timedOut)timeoutCount++;
       if(error.name!=='AbortError'&&!(error instanceof TypeError))throw error;
     }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
   }
   if(lastResponse)return lastResponse;
+  if(timeoutCount===methods.length)throw new Error('查询接口连接超时，已重试（QRY-TIMEOUT）。请稍后再试；若持续出现，请将此提示发给团长。到货数据未因此删除。');
   throw new Error('查询服务连接失败，已尝试备用请求（QRY-NET）。不是 CN 或到货记录被删除；若换网络仍失败，请把此提示发给团长排查接口线路。');
 }
 async function requestArrivals(cn,signal,onProgress){
@@ -122,7 +126,7 @@ let requestId=0,activeController=null;
 $('queryForm').addEventListener('submit',async event=>{
   event.preventDefault();const cn=$('cnInput').value.trim();if(!normalizeCN(cn)){$('error').textContent='请先填写 CN。';$('results').hidden=true;return;}
   const id=++requestId;activeController?.abort();const controller=new AbortController();activeController=controller;
-  currentArrivalResult=null;$('exportArrivalBtn').disabled=true;$('results').hidden=true;$('items').replaceChildren();$('error').textContent='';$('queryBtn').disabled=true;$('queryBtn').textContent='查询中…';const timer=setTimeout(()=>controller.abort(),20000);
+  currentArrivalResult=null;$('exportArrivalBtn').disabled=true;$('results').hidden=true;$('items').replaceChildren();$('error').textContent='';$('queryBtn').disabled=true;$('queryBtn').textContent='查询中…';const timer=setTimeout(()=>controller.abort(),34000);
   try{const rows=await requestArrivals(cn,controller.signal,(attempt,total)=>{if(id===requestId)$('queryBtn').textContent=attempt===1?'查询中…':'重连 '+attempt+'/'+total;});if(id===requestId)showResults(cn,rows);}catch(error){if(id===requestId)$('error').textContent=error.name==='AbortError'?'查询超时，请再试一次。':error.message;}finally{clearTimeout(timer);if(id===requestId){$('queryBtn').disabled=false;$('queryBtn').textContent='查询';}}
 });
 $('cnInput').addEventListener('input',()=>{requestId++;activeController?.abort();currentArrivalResult=null;$('exportArrivalBtn').disabled=true;$('results').hidden=true;$('items').replaceChildren();$('queryBtn').disabled=false;$('queryBtn').textContent='查询';$('error').textContent='';});
