@@ -727,6 +727,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
           <label>本批国际运费<input type="text" inputmode="decimal" id="intlTotalAmount" placeholder="0.00"></label>
           <label>整箱总重<input type="text" inputmode="decimal" id="intlPackagingAmount" placeholder="商品+箱子，如 11000g"></label>
           <label>分摊方式<select id="intlSplitMode"><option value="weight">按重量</option><option value="points">按点数</option><option value="head">按人头</option></select></label>
+          <label id="intlPackagingSplitLabel">箱子重量分摊<select id="intlPackagingSplitMode"><option value="head">按本批人数均分</option><option value="weight">按商品重量占比</option></select></label>
           <label>显示方式<select id="intlPreviewMode"><option value="detail">分类</option><option value="merged">合并</option></select></label>
         </div>
         <div class="hint intl-split-tip" id="intlSplitTip">选择批次并填写分摊依据。</div>
@@ -6934,7 +6935,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         unitValue:num(d?.unitValue),
         lineBasis:num(d?.lineBasis)
       })).filter(d=>d.item):[];
-      return {sheetIds:Array.isArray(row.sheetIds)?[...new Set(row.sheetIds.map(String))]:[],allBatchDisplayTitle:String(row.allBatchDisplayTitle||''),batchDisplayTitle:String(row.batchDisplayTitle||''),adjustmentArchiveId:String(row.adjustmentArchiveId||''),adjustmentOperationId:String(row.adjustmentOperationId||''),adjustmentBaseAmount:num(row.adjustmentBaseAmount),adjustmentTargetAmount:num(row.adjustmentTargetAmount),id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
+      return {...(['head','weight'].includes(row.packagingSplitMode)?{packagingSplitMode:row.packagingSplitMode}:{}),sheetIds:Array.isArray(row.sheetIds)?[...new Set(row.sheetIds.map(String))]:[],allBatchDisplayTitle:String(row.allBatchDisplayTitle||''),batchDisplayTitle:String(row.batchDisplayTitle||''),adjustmentArchiveId:String(row.adjustmentArchiveId||''),adjustmentOperationId:String(row.adjustmentOperationId||''),adjustmentBaseAmount:num(row.adjustmentBaseAmount),adjustmentTargetAmount:num(row.adjustmentTargetAmount),id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
     }
     function normalizeExtraFeeArchive(row){
       if(!row||typeof row!=='object') return null;
@@ -6980,7 +6981,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const factors={};
       document.querySelectorAll('[data-intl-factor]').forEach(input=>{ factors[input.dataset.intlFactor]=input.value; });
       const drafts=readIntlDrafts();
-      drafts[key]={batchId:String($('intlBatchSelect').value||''),total:String($('intlTotalAmount')?.value||''),packaging:String($('intlPackagingAmount')?.value||''),mode:String($('intlSplitMode')?.value||'weight'),viewMode:String($('intlPreviewMode')?.value||'detail'),factors,updatedAt:new Date().toISOString()};
+      drafts[key]={batchId:String($('intlBatchSelect').value||''),total:String($('intlTotalAmount')?.value||''),packaging:String($('intlPackagingAmount')?.value||''),mode:String($('intlSplitMode')?.value||'weight'),packagingSplitMode:$('intlPackagingSplitMode')?.value==='head'?'head':'weight',viewMode:String($('intlPreviewMode')?.value||'detail'),factors,updatedAt:new Date().toISOString()};
       writeIntlDrafts(drafts);
     }
     function loadIntlDraft(batchId){
@@ -6999,15 +7000,18 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(draft){
         if($('intlTotalAmount')) $('intlTotalAmount').value=draft.total||'';
         if($('intlPackagingAmount')) $('intlPackagingAmount').value=draft.packaging||'';
+        if($('intlPackagingSplitMode')) $('intlPackagingSplitMode').value=draft.packagingSplitMode==='head'?'head':'weight';
         if($('intlSplitMode')&&['weight','points','head'].includes(draft.mode)) $('intlSplitMode').value=draft.mode;
         if($('intlPreviewMode')) $('intlPreviewMode').value=draft.viewMode==='merged'?'merged':'detail';
       }else{
         if($('intlTotalAmount')) $('intlTotalAmount').value='';
         if($('intlPackagingAmount')) $('intlPackagingAmount').value='';
+        if($('intlPackagingSplitMode')) $('intlPackagingSplitMode').value='head';
       }
     }
     function scheduleIntlSplitCalculation(){
       clearTimeout(intlSplitCalcTimer);
+      intlSplitPreviewRows=[];
       intlSplitCalcTimer=setTimeout(()=>calculateIntlSplit(true),80);
     }
     function internationalBatches(dispatchOnly=false){
@@ -7056,12 +7060,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function renderIntlFactors(){
       const batch=selectedIntlBatch(), mode=$('intlSplitMode').value, list=$('intlFactorList'); intlSplitPreviewRows=[]; $('intlSplitPreview').innerHTML='';
+      if($('intlPackagingSplitLabel')) $('intlPackagingSplitLabel').hidden=mode!=='weight';
       if(!batch){ list.innerHTML=''; $('intlSplitTip').textContent='选择批次并填写分摊依据。'; return; }
       if(mode==='head'){ list.innerHTML=''; $('intlSplitTip').textContent=`按人头平均：本批共 ${batch.people.size} 人。填写本批国际运费后，下方会自动生成收款表。`; scheduleIntlSplitCalculation(); return; }
       const unit=mode==='weight'?'每件重量':'每件点数';
       const draft=loadIntlDraft(batch.id);
       const draftFactors=draft&&draft.factors&&typeof draft.factors==='object'?draft.factors:{};
-      $('intlSplitTip').textContent=`填写${unit}后会自动生成下方收款表；相同谷子会自动乘以件数；按重量时用整箱总重计算，包装重量会按个人商品净重比例自然均进去。`;
+      $('intlSplitTip').textContent=`填写${unit}后会自动生成下方收款表；相同谷子会自动乘以件数。`+(mode==='weight'?'整箱总重减去商品净重就是箱子重量，可按本批人数均分或按商品重量占比分摊；商品重量仍各算各的。':'');
       list.innerHTML=[...batch.items.entries()].map(([item,qty])=>`<div class="intl-factor-row"><b>${escapeHtml(item)}</b><input type="text" inputmode="decimal" data-intl-factor="${escapeAttr(item)}" value="${escapeAttr(draftFactors[item]??'1')}"><small>${qty} 件 · ${unit}</small></div>`).join('');
       scheduleIntlSplitCalculation();
     }
@@ -7083,10 +7088,10 @@ body.export-rendering .cart-count{ font-size:28px; }
         const weightText=mode==='weight'?fmtNum(goodsWeight):(mode==='points'?fmtNum(details.reduce((sum,d)=>sum+num(d.point),0)):'');
         return `<tr><td class="payment-cn">${escapeHtml(r.person)}</td><td class="payment-item-name extra-fee-detail-cell">${goodsHtml}${chargeHint}</td><td class="extra-fee-count">${qty}</td><td class="extra-fee-count">${escapeHtml(weightText)}</td><td class="payment-money extra-fee-money"><input type="text" inputmode="decimal" data-intl-preview-person="${escapeAttr(r.key)}" value="${moneyText(r.amount)}"></td><td class="payment-money extra-fee-money">${moneyText(extraFeeWechatAmount(r.amount))}</td></tr>`;
       }).join('');
-      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}</div><div class="payment-table-wrap"><div class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(`${batch.date} 国际运费`)}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>CN</th><th>谷类</th><th>数量</th><th>${mode==='points'?'点数':'g重'}</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody></table></div><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认写入 ${rows.length} 笔国际运费</button></div>`;
+      $('intlSplitPreview').innerHTML=`<div class="intl-preview-total"><b>${escapeHtml(batch.date)} · ${escapeHtml(batch.sheet)}</b>　${modeText}　总国际 ${money(total)}</div>${weightSummary?`<p class="hint">${escapeHtml(weightSummary)}</p>`:''}<div class="payment-table-wrap"><div class="payment-project-title" style="background:${escapeAttr(color)}">${escapeHtml(`${batch.date} 国际运费`)}</div><table class="payment-table extra-fee-payment-table"><thead><tr><th>CN</th><th>谷类</th><th>数量</th><th>${mode==='points'?'点数':'g重'}</th><th>支付宝肾额</th><th>微信肾额</th></tr></thead><tbody>${body}</tbody></table></div><div class="intl-preview-actions"><button type="button" class="btn-primary" id="confirmIntlSplitBtn">确认写入 ${rows.length} 笔国际运费</button></div>`;
       $('confirmIntlSplitBtn').addEventListener('click',confirmIntlSplit);
     }
-    function buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors){
+    function buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors,packagingSplitMode='weight'){
       const rows=[...batch.people.values()].map(person=>{
         let basis=mode==='head'?1:0;
         const itemDetails=[], detailRows=[];
@@ -7101,9 +7106,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       const basisTotal=rows.reduce((sum,r)=>sum+r.basis,0);
       if(!basisTotal) return null;
       const chargeTotal=mode==='weight'&&billableTotalWeight>0?billableTotalWeight:basisTotal;
+      if(mode==='weight'&&packagingSplitMode==='head'&&chargeTotal<basisTotal-0.000001)return null;
+      const packagingWeight=mode==='weight'?Math.max(0,chargeTotal-basisTotal):0;
       rows.forEach(r=>{
-        const ratio=r.basis/basisTotal;
-        r.chargeWeight=mode==='weight'?chargeTotal*ratio:0;
+        r.chargeWeight=mode==='weight'?(packagingSplitMode==='head'?r.basis+packagingWeight/rows.length:chargeTotal*r.basis/basisTotal):0;
+        const ratio=mode==='weight'?r.chargeWeight/chargeTotal:r.basis/basisTotal;
+        r.packagingSplitMode=mode==='weight'&&packagingSplitMode==='head'?'head':'weight';
         r.goodsAmount=ceilMoneyValue(total*ratio);
         r.amount=r.goodsAmount;
         r.basisTotal=basisTotal;
@@ -7117,12 +7125,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!batch){ if(!silent) alert('请先选择国内到货批次'); return; } if(!total){ if(!silent) alert('请填写大于 0 的本批国际运费'); return; }
       if(intlBatchAlreadyGenerated(batch.id)){ if(!silent) alert('这个批次已经生成过国际运费。请在流水中修改或删除原记录，避免重复收费。'); else $('intlSplitPreview').innerHTML='<div class="hint">这个批次已经生成过国际运费。如需重算，请先在追加费用收款里修改或删除原记录。</div>'; return; }
       const factors={}; if(mode!=='head') document.querySelectorAll('[data-intl-factor]').forEach(input=>factors[input.dataset.intlFactor]=Math.max(0,num(input.value)));
-      const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors);
-      if(!built){ if(!silent) alert('重量或点数合计不能为 0'); return; }
+      const packagingSplitMode=$('intlPackagingSplitMode')?.value==='head'?'head':'weight';
+      const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors,packagingSplitMode);
+      if(!built){ const message='请核对：重量/点数合计须大于 0；箱子按人数均分时，整箱总重不能小于商品净重。';intlSplitPreviewRows=[];$('intlSplitPreview').textContent=message;if(!silent)alert(message);return; }
       const {rows,basisTotal,chargeTotal}=built;
       intlSplitPreviewRows=rows;
       const modeText=mode==='weight'?'按重量':mode==='points'?'按点数':'按人头', basisLabel=mode==='weight'?'克重':(mode==='points'?'点数':'份数'), totalLabel=mode==='weight'?'总重':(mode==='points'?'总点数':'总份数'), unit=mode==='weight'?'g':(mode==='points'?'点':'');
-      const weightSummary=mode==='weight'?`商品净重 ${fmtNum(basisTotal)}${unit}｜整箱总重 ${fmtNum(chargeTotal)}${unit}｜约 ¥${moneyText(total/Math.max(chargeTotal,1))}/g`:'';
+      const weightSummary=mode==='weight'?`商品净重 ${fmtNum(basisTotal)}${unit}｜箱子 ${fmtNum(Math.max(0,chargeTotal-basisTotal))}g · ${packagingSplitMode==='head'?`本批 ${rows.length} 人均分`:'按商品重量占比'}｜整箱总重 ${fmtNum(chargeTotal)}${unit}`:'';
       renderIntlSplitPreview(batch,rows,{modeText,total,weightSummary,mode});
     }
     function confirmIntlSplit(){
@@ -7136,7 +7145,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           ? (()=>{ const items=(r.detailRows||[]).map(d=>`${d.item}${d.qty>1?`×${d.qty}`:''}`).join('、'), points=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.point),0), weight=(r.detailRows||[]).reduce((sum,d)=>sum+num(d.weight),0); return mode==='weight'?`${items}｜克重${fmtNum(weight)}g`:(mode==='points'?`${items}｜点数${fmtNum(points)}`:items); })()
           : (r.detailRows||[]).map(d=>mode==='weight'?`${d.item}｜克重${fmtNum(d.weight)}g`:(mode==='points'?`${d.item}｜点数${fmtNum(d.point)}`:d.item)).join('、');
         const note=detailText;
-        extraFees.push({id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:r.totalAmount||0});
+        extraFees.push({packagingSplitMode:r.packagingSplitMode,id:extraFeeIdSeed++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note,items:note,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:false,createdAt:now,paidAt:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:r.totalAmount||0});
       });
       clearIntlDraft(batch.id);
       extraFeeBatchFilter=batch.id;
@@ -7176,6 +7185,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!batch){ alert('当前排单里找不到这批到货记录，无法重算。'); return; }
       const oldTotal=oldRows.find(row=>num(row.totalAmount)>0)?.totalAmount||oldRows.reduce((sum,row)=>sum+Math.max(0,num(row.amount)),0);
       const mode=oldRows[0]?.splitMode||'weight';
+      let packagingSplitMode=oldRows[0]?.packagingSplitMode==='head'?'head':'weight';
       const oldBillableTotalWeight=oldRows.find(row=>num(row.batchTotalWeight)>0)?.batchTotalWeight||oldRows.reduce((sum,row)=>sum+num(row.chargeWeight),0);
       const factors=intlRecordFactors(oldRows);
       const totalInput=await appPrompt(`修改“${batch.date} · ${batch.sheet}”的本批国际总价。\n如果只是调整 A/B 的归属件数，总价保持原数即可；会按当前排单人员和件数重新分摊。`,fmtNum(oldTotal),'重算国际总价','继续');
@@ -7184,9 +7194,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!total){ alert('本批国际总价必须大于 0'); return; }
       let billableTotalWeight=oldBillableTotalWeight;
       if(mode==='weight'){
-        const weightInput=await appPrompt('修改整箱总重 / 计费总重（g）。\n这里填的是整箱国际计费重量，不是商品净重；包装重量会按个人商品净重比例均进去。',fmtNum(oldBillableTotalWeight||0),'重算整箱总重','继续');
+        const weightInput=await appPrompt('修改整箱总重 / 计费总重（g）。\n这里填商品加箱子的总重量，下一步可选择箱子重量怎样分摊。',fmtNum(oldBillableTotalWeight||0),'重算整箱总重','继续');
         if(weightInput===null) return;
         billableTotalWeight=Math.max(0,num(String(weightInput).trim()===''?oldBillableTotalWeight:weightInput));
+        const packagingChoice=await appPrompt('箱子重量如何分摊？\n1. 按本批人数均分\n2. 按商品重量占比\n只影响箱子部分；商品重量仍各算各的。',packagingSplitMode==='head'?'1':'2','箱子重量分摊','继续');
+        if(packagingChoice===null)return;
+        if(!['1','2'].includes(String(packagingChoice).trim())){alert('请输入 1 或 2，未修改账单。');return;}
+        packagingSplitMode=String(packagingChoice).trim()==='1'?'head':'weight';
       }
       if(mode!=='head'){
         const label=mode==='weight'?'克重(g)':'点数';
@@ -7199,8 +7213,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           Object.assign(factors,nextFactors);
         }
       }
-      const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors);
-      if(!built){ alert('当前排单这批国际的重量/点数合计为 0，不能重算。'); return; }
+      const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors,packagingSplitMode);
+      if(!built){ alert('请核对重量/点数合计；箱子按人数均分时，整箱总重不能小于商品净重。未修改账单。'); return; }
       const oldPaidByPerson=new Map();
       oldRows.forEach(row=>{
         const key=normalizeDispatchKey(row.person);
@@ -7225,7 +7239,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const diff=ceilMoneyValue(num(r.amount)-num(paidState.amount||0));
         const keepPaid=paidState.paid===true;
         const existing=reusableRows.get(normalizeDispatchKey(r.person));
-        return {id:existing?.id??nextId++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:detailText,items:detailText,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:keepPaid,createdAt:existing?.createdAt||now,paidAt:keepPaid?paidState.paidAt||now:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total};
+        return {packagingSplitMode:r.packagingSplitMode,id:existing?.id??nextId++,person:r.person,name:`${batch.date} 国际运费`,amount:r.amount,source:`${batch.sheet} · ${batch.date}`,note:detailText,items:detailText,rawDetails:deepClone(r.detailRows||[]),period:batch.sheet,paid:keepPaid,createdAt:existing?.createdAt||now,paidAt:keepPaid?paidState.paidAt||now:'',feeType:'international',batchId:batch.id,splitMode:mode,batchDate:batch.date,sheetIds:[...(batch.sheetIds||[])],sheetId:batch.sheetId,displayMode:previewMode,chargeWeight:r.chargeWeight||0,goodsWeight:r.basis||0,batchGoodsWeight:r.basisTotal||0,batchTotalWeight:r.billableTotalWeight||0,totalAmount:total};
       });
       const missingPaid=[...oldPaidByPerson.entries()].filter(([key,state])=>state.paid&&!newPersonKeys.has(key));
       if(missingPaid.length){await appAlert('重算后有已收款 CN 不再出现在本批中，不能直接移除收款记录。请先存档并单独核对退补：'+missingPaid.map(([,state])=>state.person).join('、'));return;}
@@ -7310,7 +7324,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const mode=oldRows[0]?.splitMode||'weight';
       const billableTotalWeight=oldRows.find(row=>num(row.batchTotalWeight)>0)?.batchTotalWeight||oldRows.reduce((sum,row)=>sum+num(row.chargeWeight),0);
       const factors=intlRecordFactors(oldRows);
-      const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors);
+      const built=buildIntlSplitRows(batch,total,billableTotalWeight,mode,factors,oldRows[0]?.packagingSplitMode==='head'?'head':'weight');
       if(!built){ alert('当前排单这批国际的重量/点数合计为 0，不能计算退补。'); return; }
       const oldMap=internationalRowsAmountMap(oldRows);
       const newMap=internationalRowsAmountMap(built.rows.filter(r=>r.amount>0).map(r=>({person:r.person,amount:r.amount})));
@@ -11590,6 +11604,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('closeIntlSplitBtn').addEventListener('click',()=>{ saveIntlDraft(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; $('intlSplitPreview').innerHTML=''; });
     $('intlBatchSelect').addEventListener('change',()=>{ applyIntlDraftForSelectedBatch(); renderIntlFactors(); });
     $('intlSplitMode').addEventListener('change',()=>{ saveIntlDraft(); renderIntlFactors(); });
+    $('intlPackagingSplitMode').addEventListener('change',()=>{ saveIntlDraft(); scheduleIntlSplitCalculation(); });
     $('intlPreviewMode').addEventListener('change',()=>{ saveIntlDraft(); if(intlSplitPreviewRows.length) calculateIntlSplit(true); });
     $('intlSplitPanel').addEventListener('input',e=>{
       if(e.target.matches('#intlTotalAmount,#intlPackagingAmount,[data-intl-factor]')){ saveIntlDraft(); scheduleIntlSplitCalculation(); }
