@@ -2880,13 +2880,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       button.disabled=count===0;
       button.textContent=count?`撤回上次应用（${count}）`:'撤回上次应用';
     }
-    function pushUndoSnapshot(actionType,label){
+    function pushUndoSnapshot(actionType,label,relatedExtraFees=null){
       captureActiveSheet();
       const sheet=sheets.find(s=>s.id===activeSheetId); if(!sheet) return false;
       const history=currentUndoHistory(),beforeHistory=history.slice();
       const snapshotSheet=deepClone(sheet);
       (snapshotSheet.columns||[]).forEach(c=>{ delete c.img; });
-      history.push({id:`undo_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,projectId:activeSheetId,createdAt:Date.now(),actionType,label,sheet:snapshotSheet});
+      history.push({id:`undo_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,projectId:activeSheetId,createdAt:Date.now(),actionType,label,sheet:snapshotSheet,...(relatedExtraFees?{relatedExtraFees:deepClone(relatedExtraFees)}:{})});
       while(history.length>10) history.shift();
       if(!saveUndoHistory()){
         history.splice(0,history.length,...beforeHistory); syncUndoButton();
@@ -2901,13 +2901,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!await appConfirm('是否撤回上一次排单修改？\n当前排单表将恢复到应用前状态。','撤回排单修改','确认撤回')) return;
       const snapshot=history[history.length-1], index=sheets.findIndex(s=>s.id===activeSheetId);
       if(index<0||!snapshot.sheet){ alert('撤回记录已损坏，无法恢复'); return; }
+      if(snapshot.relatedExtraFees&&JSON.stringify(extraFees)!==JSON.stringify(snapshot.relatedExtraFees.after)){await appAlert('转单之后国际账目已发生其他变化，不能只撤回排单归属。请先核对流水，避免冲掉新的收款。');return;}
       captureActiveSheet(); const before=deepClone(sheets[index]);
+      const feesBeforeUndo=extraFees,seedBeforeUndo=extraFeeIdSeed;
       const restored=deepClone(snapshot.sheet); restored.id=activeSheetId;
       const currentImages=new Map((before.columns||[]).map(c=>[c.id,c.img||null]));
       (restored.columns||[]).forEach(c=>{ c.img=currentImages.get(c.id)||null; });
+      if(snapshot.relatedExtraFees){extraFees=deepClone(snapshot.relatedExtraFees.before);extraFeeIdSeed=Math.max(extraFeeIdSeed,snapshot.relatedExtraFees.seedBefore||1);}
       sheets[index]=restored; applySheet(restored);
       if(!saveState()){
-        sheets[index]=before; applySheet(before); saveState();
+        extraFees=feesBeforeUndo;extraFeeIdSeed=seedBeforeUndo;sheets[index]=before; applySheet(before); saveState();
         alert('撤回后的数据保存失败，已恢复撤回前状态。'); return;
       }
       history.pop(); saveUndoHistory(); syncUndoButton();
@@ -6644,7 +6647,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const date=event.at?new Date(event.at).toLocaleString('zh-CN'):'原时间未保存';
           let text=event.note||event.type;
           if(event.type==='receipt')text=`${event.note||'累计收款更正'}：${event.before===null?'旧金额未记录':money(event.before)} → ${event.after===null?'旧金额未记录':money(event.after)}`;
-          else if(event.type==='transfer')text=`${event.fromKey===r.key?'转出给 '+event.to:'从 '+event.from+' 转入'} ${event.item}×${event.qty}，已付款 ${money(event.amount)}${typeof event.shareAmount==='number'?`（谷款 ${money(event.goodsAmount)}＋均摊 ${money(event.shareAmount)}）`:''}`;
+          else if(event.type==='transfer')text=`${event.fromKey===r.key?'转出给 '+event.to:'从 '+event.from+' 转入'} ${event.item}×${event.qty}，谷款/均摊已付款 ${money(event.amount)}${typeof event.shareAmount==='number'?`（谷款 ${money(event.goodsAmount)}＋均摊 ${money(event.shareAmount)}）`:''}${(event.internationalMoves||[]).length?'；国际随单：'+event.internationalMoves.map(m=>money(m.amount)+(m.paid?' 已完成':' 未完成')+(m.paidAt?'，原日期 '+m.paidAt:'')).join('、'):''}`;
           else if(event.amount!==undefined)text=`${event.type} ${money(event.amount)}${event.note?' · '+event.note:''}`;
           return `<li><small>${escapeHtml(date)}</small><br>${escapeHtml(text)}</li>`;
         }).join('');
@@ -6926,7 +6929,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function normalizeExtraFee(row){
       if(!row||typeof row!=='object') return null;
       const person=String(row.person||'').trim(), name=String(row.name||'').trim(), amount=Math.max(0,num(row.amount));
-      if(!person||!name||!amount) return null;
+      if(!person||!name||(!amount&&!(row.feeType==='international'&&((Array.isArray(row.transferPieces)&&row.transferPieces.length)||(Array.isArray(row.rawDetails)&&row.rawDetails.length))))) return null;
       const rawDetails=Array.isArray(row.rawDetails)?row.rawDetails.map(d=>({
         item:String(d?.item||'').trim(),
         qty:Math.max(1,Number(d?.qty)||1),
@@ -6935,7 +6938,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         unitValue:num(d?.unitValue),
         lineBasis:num(d?.lineBasis)
       })).filter(d=>d.item):[];
-      return {...(['head','weight'].includes(row.packagingSplitMode)?{packagingSplitMode:row.packagingSplitMode}:{}),sheetIds:Array.isArray(row.sheetIds)?[...new Set(row.sheetIds.map(String))]:[],allBatchDisplayTitle:String(row.allBatchDisplayTitle||''),batchDisplayTitle:String(row.batchDisplayTitle||''),adjustmentArchiveId:String(row.adjustmentArchiveId||''),adjustmentOperationId:String(row.adjustmentOperationId||''),adjustmentBaseAmount:num(row.adjustmentBaseAmount),adjustmentTargetAmount:num(row.adjustmentTargetAmount),id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
+      return {...(['head','weight'].includes(row.packagingSplitMode)?{packagingSplitMode:row.packagingSplitMode}:{}),...(Array.isArray(row.transferPieces)?{transferPieces:deepClone(row.transferPieces),transferFrom:String(row.transferFrom||''),...(row.transferBaseAmount!==undefined?{transferBaseAmount:num(row.transferBaseAmount)}:{})}:{}),...(row.transferArchiveOriginId!==undefined?{transferArchiveOriginId:row.transferArchiveOriginId}:{}),sheetIds:Array.isArray(row.sheetIds)?[...new Set(row.sheetIds.map(String))]:[],allBatchDisplayTitle:String(row.allBatchDisplayTitle||''),batchDisplayTitle:String(row.batchDisplayTitle||''),adjustmentArchiveId:String(row.adjustmentArchiveId||''),adjustmentOperationId:String(row.adjustmentOperationId||''),adjustmentBaseAmount:num(row.adjustmentBaseAmount),adjustmentTargetAmount:num(row.adjustmentTargetAmount),id:Number(row.id)||0,person,name,amount,source:String(row.source||'').trim(),note:String(row.note||row.items||'').trim(),items:String(row.items||row.note||'').trim(),paid:row.paid===true,createdAt:String(row.createdAt||new Date().toISOString()),paidAt:String(row.paidAt||''),feeType:String(row.feeType||'manual'),batchId:String(row.batchId||''),splitMode:String(row.splitMode||''),batchDate:String(row.batchDate||''),sheetId:Number(row.sheetId)||0,rawDetails,displayMode:row.displayMode==='merged'?'merged':'detail',chargeWeight:num(row.chargeWeight),goodsWeight:num(row.goodsWeight),batchGoodsWeight:num(row.batchGoodsWeight),batchTotalWeight:num(row.batchTotalWeight),totalAmount:num(row.totalAmount)};
     }
     function normalizeExtraFeeArchive(row){
       if(!row||typeof row!=='object') return null;
@@ -7181,6 +7184,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         batchId=batches[index].id;
       }
       const oldRows=extraFees.filter(row=>row.feeType==='international'&&extraFeeArrivalBatchId(row)===batchId);
+      const paymentKinds=new Map();for(const row of oldRows){const key=normalizeDispatchKey(row.person);if(!paymentKinds.has(key))paymentKinds.set(key,new Set());paymentKinds.get(key).add(row.paid===true);}
+      if([...paymentKinds.values()].some(kinds=>kinds.size>1)){await appAlert('本批有同一 CN 的已收与未收分笔国际（可能来自转单），普通重算不能把它们合成同一个已收标记。请保留原记录，单独核对退补。');return;}
       const batch=internationalBatches().find(b=>b.id===batchId);
       if(!batch){ alert('当前排单里找不到这批到货记录，无法重算。'); return; }
       const oldTotal=oldRows.find(row=>num(row.totalAmount)>0)?.totalAmount||oldRows.reduce((sum,row)=>sum+Math.max(0,num(row.amount)),0);
@@ -8971,7 +8976,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       // If the base fee was archived, use the latest matching archive, not every historical copy.
       if(!current.some(f=>f.feeType==='international')){
         const history=[...(archives||[])].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
-        const archived=history.map(a=>(a.extraFees||[]).filter(matches)).find(list=>list.some(f=>f.feeType==='international'))||[];
+        const liveIds=new Set((fees||[]).flatMap(f=>[String(f.id??''),String(f.transferArchiveOriginId??'')]).filter(Boolean));
+        const archived=history.map(a=>(a.extraFees||[]).filter(f=>matches(f)&&!liveIds.has(String(f.id)))).find(list=>list.some(f=>f.feeType==='international'))||[];
         rows=[...archived,...current];
       }
       const generated=rows.some(f=>f.feeType==='international');
@@ -10157,8 +10163,98 @@ body.export-rendering .cart-count{ font-size:28px; }
       transferPreviewSignature=actionPreviewDataSignature();renderTransferPreview();showTransferMatrixPreview('转单模拟（已恢复自动计算，尚未转单）');$('transferPreviewStatus').textContent='已恢复本次双方的自动计算，原收退补记录保留。请重新点“核对款项并转单”。';$('transferPreviewStatus').style.color='var(--ok)';return true;
     }
     $('restoreTransferAutoBtn').addEventListener('click',()=>restoreTransferAutoCalculation());
+    function buildInternationalFeeTransfer(sheet,col,positions,from,to,fees,archives,nextId,allSheets=[]){
+      const result=deepClone(fees||[]),moves=[],clearance=new Map(),fromKey=normalizeDispatchKey(from);
+      const groups=new Map(),refKey=p=>`${p.sheetId}:${p.colId}:${p.row}`;
+      for(const row of positions){
+        const date=String(logisticsCellMark(col,row,from,sheet.matrixChinaCells||{},sheet.allocations)||'');if(!date)continue;
+        const batchId=normalizeArrivalBatchId('',date),piece={sheetId:sheet.id,colId:col.id,row,date,item:matrixItemDisplayName(col,row,sheet.matrixBlindSubCells||{})};
+        if(!groups.has(batchId))groups.set(batchId,[]);groups.get(batchId).push(piece);
+      }
+      for(const [batchId,pieces]of groups){
+        const matches=r=>['international','international_supplement','international_refund'].includes(r.feeType)&&normalizeDispatchKey(r.person)===fromKey&&extraFeeArrivalBatchId(r)===batchId;
+        let sourceRows=result.filter(matches);
+        if(!sourceRows.some(r=>r.feeType==='international')){
+          const knownIds=new Set(result.flatMap(r=>[String(r.id??''),String(r.transferArchiveOriginId??'')]).filter(Boolean));
+          const archived=[...(archives||[])].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).map(a=>(a.extraFees||[]).filter(r=>matches(r)&&!knownIds.has(String(r.id)))).find(rows=>rows.some(r=>r.feeType==='international'))||[];
+          for(const original of archived){const copy={...deepClone(original),id:nextId++,transferArchiveOriginId:original.id};result.push(copy);sourceRows.push(copy);}
+        }
+        const baseRows=sourceRows.filter(r=>r.feeType==='international'&&Number.isFinite(Number(r.amount))).sort((a,b)=>Number(Array.isArray(b.transferPieces))-Number(Array.isArray(a.transferPieces)));
+        if(!baseRows.length)continue;
+        const remaining=[...pieces],movedForBatch=[],baseTotal=baseRows.reduce((n,r)=>n+Math.round(num(r.amount)*100),0),untrackedBaseTotal=baseRows.filter(r=>!Array.isArray(r.transferPieces)).reduce((n,r)=>n+Math.round(num(r.amount)*100),0);
+        let movedBase=0,selectedQty=0,totalQty=0;
+        const matchingDetail=(d,p)=>d.item===p.item||dispatchMarkedItemMatches({item:d.item},col,p.item);
+        const splitRow=(row,ratio,details,leftDetails,selected)=>{
+          const cents=Math.round(num(row.amount)*100),part=Math.max(0,Math.min(cents,Math.round(cents*ratio))),full=ratio>=1-1e-9&&(row.feeType!=='international'||!leftDetails.length);
+          const original=deepClone(row),target={...deepClone(row),id:full?row.id:nextId++,person:to,amount:part/100,rawDetails:details,
+            chargeWeight:num(row.chargeWeight)*ratio,goodsWeight:num(row.goodsWeight)*ratio,transferPieces:deepClone(selected),
+            paid:part===0||row.paid===true,paidAt:row.paidAt||'',transferFrom:from};
+          if(row.feeType!=='international'){
+            const keys=new Set(selected.map(refKey));
+            target.transferBaseAmount=row.transferBaseAmount!==undefined?num(row.transferBaseAmount)*ratio:movedForBatch.filter(m=>m.feeType==='international'&&m.pieces.some(p=>keys.has(refKey(p)))).reduce((n,m)=>n+num(m.amount),0);
+          }
+          const describe=list=>list.map(d=>`${d.item}${num(d.qty)>1?'×'+d.qty:''}`).join('、');
+          target.note=target.items=describe(details)||row.note||row.items||'';
+          if(full){result[result.indexOf(row)]=target;}
+          else{
+            row.amount=(cents-part)/100;if(!row.amount)row.paid=true;row.rawDetails=leftDetails;row.note=row.items=describe(leftDetails)||row.note||row.items||'';
+            row.chargeWeight=num(row.chargeWeight)*(1-ratio);row.goodsWeight=num(row.goodsWeight)*(1-ratio);
+            if(row.transferBaseAmount!==undefined)row.transferBaseAmount=num(row.transferBaseAmount)*(1-ratio);
+            if(Array.isArray(row.transferPieces)){const selectedKeys=new Set(selected.map(refKey));row.transferPieces=row.transferPieces.filter(p=>!selectedKeys.has(refKey(p)));}
+            result.push(target);
+          }
+          const move={from,to,batchId,feeType:row.feeType,amount:part/100,paid:target.paid,paidAt:target.paidAt,sourceId:original.id,targetId:target.id,pieces:deepClone(selected),before:original};
+          moves.push(move);movedForBatch.push(move);return part;
+        };
+        for(const row of baseRows){
+          const originalDetails=deepClone(row.rawDetails||[]),selected=[],details=[],leftDetails=[];
+          if(!originalDetails.length){
+            // Old aggregate bills can be moved whole, but cannot safely be guessed
+            // into partial pieces. Count physical ownership across the whole batch.
+            const owned=[];
+            for(const s of (allSheets.length?allSheets:[sheet])){const view=String(s.id)===String(sheet.id)?sheet:s;
+              const display=typeof orderDisplayColumns==='function'?orderDisplayColumns(view.columns||[],view.pricingGroups||[],view.allocations||{}):(view.columns||[]);
+              for(const c of display)for(const [r,name]of (view.allocations?.[c.id]||[]).entries())if(normalizeDispatchKey(name)===fromKey&&normalizeArrivalBatchId('',logisticsCellMark(c,r,name,view.matrixChinaCells||{},view.allocations))===batchId)owned.push({sheetId:view.id,colId:c.id,row:r});
+            }
+            if(pieces.length!==owned.length||!owned.every(p=>pieces.some(q=>refKey(p)===refKey(q))))throw new Error('这笔旧国际账单没有商品明细，无法安全拆分部分金额；请先补齐或核对该批国际明细，原账未修改。');
+            selected.push(...pieces);remaining.splice(0);for(const p of selected)details.push({item:p.item,qty:1,weight:0,point:1});
+            totalQty+=selected.length;selectedQty+=selected.length;movedBase+=splitRow(row,1,details,[],selected);continue;
+          }
+          const tracked=Array.isArray(row.transferPieces)?new Set(row.transferPieces.map(refKey)):null;
+          for(const detail of originalDetails){
+            const qty=Math.max(1,num(detail.qty));totalQty+=qty;
+            const candidates=remaining.filter(p=>(!tracked||tracked.has(refKey(p)))&&matchingDetail(detail,p)).slice(0,qty),n=candidates.length;
+            if(n){const keys=new Set(candidates.map(refKey));for(let i=remaining.length-1;i>=0;i--)if(keys.has(refKey(remaining[i])))remaining.splice(i,1);selected.push(...candidates);details.push({...detail,qty:n,weight:num(detail.weight)*n/qty,point:num(detail.point)*n/qty,lineBasis:num(detail.lineBasis)*n/qty});}
+            if(qty>n)leftDetails.push({...detail,qty:qty-n,weight:num(detail.weight)*(qty-n)/qty,point:num(detail.point)*(qty-n)/qty,lineBasis:num(detail.lineBasis)*(qty-n)/qty});
+          }
+          if(!selected.length)continue;
+          const basis=d=>row.splitMode==='weight'?Math.max(0,num(d.weight)):row.splitMode==='points'?Math.max(0,num(d.lineBasis)||num(d.unitValue)*num(d.qty)):Math.max(0,num(d.qty));
+          const denominator=originalDetails.reduce((n,d)=>n+basis(d),0),numerator=details.reduce((n,d)=>n+basis(d),0);
+          const ratio=!leftDetails.length?1:denominator>0?numerator/denominator:selected.length/originalDetails.reduce((n,d)=>n+num(d.qty),0);
+          selectedQty+=selected.length;movedBase+=splitRow(row,ratio,details,leftDetails,selected);
+        }
+        if(remaining.length)throw new Error('本批国际明细与要转的谷子不一致，无法安全对应金额；原账未修改，请先核对国际明细。');
+        const ratio=baseTotal>0?movedBase/baseTotal:(totalQty?selectedQty/totalQty:0);
+        for(const row of sourceRows.filter(r=>r.feeType!=='international')){
+          let rowRatio=ratio,selected=pieces;
+          if(Array.isArray(row.transferPieces)){
+            const owned=new Set(row.transferPieces.map(refKey));selected=pieces.filter(p=>owned.has(refKey(p)));
+            const related=movedForBatch.filter(m=>m.feeType==='international'&&m.pieces.some(p=>owned.has(refKey(p)))).reduce((n,m)=>n+num(m.amount),0);
+            rowRatio=num(row.transferBaseAmount)>0?related/num(row.transferBaseAmount):selected.length/Math.max(1,row.transferPieces.length);
+          }else if(baseRows.some(r=>Array.isArray(r.transferPieces))){
+            const untracked=movedForBatch.filter(m=>m.feeType==='international'&&!Array.isArray(m.before.transferPieces));
+            rowRatio=untrackedBaseTotal?untracked.reduce((n,m)=>n+Math.round(num(m.amount)*100),0)/untrackedBaseTotal:0;
+            const keys=new Set(untracked.flatMap(m=>m.pieces.map(refKey)));selected=pieces.filter(p=>keys.has(refKey(p)));
+          }
+          if(rowRatio>0&&selected.length)splitRow(row,Math.min(1,rowRatio),[],[],selected);
+        }
+        for(const piece of pieces){const relevant=movedForBatch.filter(m=>m.pieces.some(p=>refKey(p)===refKey(piece)));clearance.set(matrixBoughtKey(piece.colId,piece.row),relevant.some(m=>m.feeType==='international')&&relevant.filter(m=>m.feeType!=='international_refund').every(m=>m.paid));}
+      }
+      return {fees:result,nextId,moves,clearance};
+    }
     function buildPaidOrderTransferPlan(sourceSheet,entries){
       const sheet=deepClone(sourceSheet),operations=[];
+      let transferFees=deepClone(extraFees||[]),transferFeeIdSeed=Math.max(typeof extraFeeIdSeed!=='undefined'?extraFeeIdSeed:1,...transferFees.map(r=>(Number(r.id)||0)+1));
       sheet.paymentEdits=sheet.paymentEdits||{};sheet.paymentCashHistory=sheet.paymentCashHistory||[];
       for(const {row,check,cashAmount} of entries){
         if(!check.ok)throw new Error('转单内容尚未核对清楚');
@@ -10185,18 +10281,21 @@ body.export-rendering .cart-count{ font-size:28px; }
         const paidShare=Math.min(shareExpected,cashAvailable,Math.max(0,shareReceiptAvailable));
         const goodsAvailable=Math.max(0,Math.round((cashAvailable-paidShare)*100)/100);
         const proposedGoods=totalValue>0?Math.min(goodsAvailable,Math.round(goodsAvailable*selectedValue/totalValue*100)/100):0;
+        const intlPlan=buildInternationalFeeTransfer(sheet,col,positions,from,to,transferFees,extraFeeArchives||[],transferFeeIdSeed,typeof sheets!=='undefined'?sheets:[sheet]);
+        transferFees=intlPlan.fees;transferFeeIdSeed=intlPlan.nextId;
         const internationalCarry=new Map();
         positions.forEach(index=>[col,...(col.comboMembers||[])].forEach(member=>{
           if(String(sheet.allocations[member.id]?.[index]||'').trim()!==from)return;
           const item=matrixItemDisplayName(member,index,sheet.matrixBlindSubCells||{}),date=String(logisticsCellMark(member,index,from,sheet.matrixChinaCells||{},sheet.allocations)||'');
           const intl=dispatchInternationalState({...sheet,dispatchInternationalExempt:false},date,fromKey,member,index,from,item,extraFees,extraFeeArchives);
-          if(intl.paid)internationalCarry.set(matrixBoughtKey(member.id,index),{person:to,item,date,at:new Date().toISOString(),transferVerified:true,transferStatus:intl.confirmed?'exempt':'paid',transferredFrom:from});
+          const movedPaid=intlPlan.clearance.get(matrixBoughtKey(col.id,index));
+          if(movedPaid===true||(movedPaid===undefined&&intl.paid))internationalCarry.set(matrixBoughtKey(member.id,index),{person:to,item,date,at:new Date().toISOString(),transferVerified:true,transferStatus:intl.confirmed?'exempt':'paid',transferredFrom:from});
         }));
         positions.forEach(index=>{
           arr[index]=to;
           const columns=[col,...(col.comboMembers||[])];
           columns.forEach(member=>{const key=matrixBoughtKey(member.id,index);if(member.id!==col.id&&String(sheet.allocations[member.id]?.[index]||'').trim()===from)sheet.allocations[member.id][index]=to;if(normalizeDispatchKey(sheet.matrixBoughtCells?.[key])===fromKey)sheet.matrixBoughtCells[key]=to;if(normalizeDispatchKey(sheet.secondPriceCellPrices?.[key]?.person)===fromKey)sheet.secondPriceCellPrices[key].person=to;});
-          // Carry only verified paid/no-fee status for these exact pieces; financial bills stay unchanged.
+          // Carry only verified payment/no-fee status for these exact pieces.
           columns.forEach(member=>{const key=matrixBoughtKey(member.id,index),carry=internationalCarry.get(key);if(carry){sheet.dispatchInternationalExemptCells=sheet.dispatchInternationalExemptCells||{};sheet.dispatchInternationalExemptCells[key]=carry;}else if(sheet.dispatchInternationalExemptCells)delete sheet.dispatchInternationalExemptCells[key];});
         });
         const afterSource=recordsForSheet(sheet).find(r=>r.key===fromKey),selectedShare=Math.max(0,shareExpected-num(afterSource?.sh?.expected));
@@ -10205,14 +10304,14 @@ body.export-rendering .cart-count{ font-size:28px; }
         const amount=cashAmount===undefined?proposed:Math.round(Number(cashAmount)*100)/100;
         if(!Number.isFinite(amount)||amount<0||amount>available+0.005)throw new Error(`${from} 可随转的谷款及对应均摊余额只有 ${available.toFixed(2)}，不能转出更多`);
         const shareAmount=Math.min(proposedShare,amount),goodsAmount=Math.round((amount-shareAmount)*100)/100;
-        const operation={from,to,fromKey,toKey,item:check.sub?`${col.name}-${check.sub}`:col.name,qty,positions,colId:col.id,amount,goodsAmount,shareAmount,available,proposed};
+        const operation={from,to,fromKey,toKey,item:check.sub?`${col.name}-${check.sub}`:col.name,qty,positions,colId:col.id,amount,goodsAmount,shareAmount,available,proposed,internationalMoves:intlPlan.moves};
         for(const [key,sign] of [[fromKey,-1],[toKey,1]]){
           sheet.paymentEdits['__transfer_credit__:'+key]=Math.round((settlementCredit(sheet.paymentEdits,key)+sign*amount)*100)/100;
           if(shareAmount)sheet.paymentEdits['__transfer_share_credit__:'+key]=Math.round((settlementShareCredit(sheet.paymentEdits,key)+sign*shareAmount)*100)/100;
         }
         sheet.paymentCashHistory.push({id:'transfer_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),type:'transfer',at:new Date().toISOString(),...operation});operations.push(operation);
       }
-      return {sheet,operations};
+      return {sheet,operations,extraFees:transferFees,extraFeeIdSeed:transferFeeIdSeed};
     }
     $('confirmTransferBtn').addEventListener('click',async()=>{
       const currentSignature=actionPreviewDataSignature();
@@ -10224,25 +10323,28 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       const checks=transferPreviewRows.map(row=>({row,check:transferRowCheck(row)}));
       if(!checks.length||checks.some(item=>!item.check.ok)){ alert('还有没识别清楚的转单，请先在预览里修改'); return; }
-      captureActiveSheet();const original=sheets.find(s=>s.id===activeSheetId),originalId=activeSheetId,signature=JSON.stringify(original);
+      captureActiveSheet();const original=sheets.find(s=>s.id===activeSheetId),originalId=activeSheetId,signature=JSON.stringify(original),transferContext=JSON.stringify({syncCode,extraFees,extraFeeArchives,extraFeeIdSeed});
       let plan;
       try{
         plan=buildPaidOrderTransferPlan(original,checks);
         let operationIndex=0;
         for(const entry of checks){if(entry.row.mode==='swap')continue;const op=plan.operations[operationIndex++];
-          const answer=await appPrompt(`${op.from} → ${op.to}\n${op.item} ×${op.qty}\n建议随转已付款：${money(op.amount)}（谷款 ${money(op.goodsAmount)}＋已付均摊 ${money(op.shareAmount)}）\n可随转余额：${money(op.available)}\n请核对实际随转总金额；填 0 表示只转谷子、不转钱。已交或已确认免国际的排发状态随件保留；国际账目不挪动。`,fmtNum(op.amount),'确认随转已付款');if(answer===null)return;
+          const intlText=(op.internationalMoves||[]).map(m=>`${m.feeType==='international'?'国际':m.feeType==='international_refund'?'原国际退款':'国际补款'} ${money(m.amount)}（${m.paid?'已完成随转':'未完成由新人承担'}）`).join('；');
+          const answer=await appPrompt(`${op.from} → ${op.to}\n${op.item} ×${op.qty}\n建议随转谷款及均摊：${money(op.amount)}（谷款 ${money(op.goodsAmount)}＋已付均摊 ${money(op.shareAmount)}）\n可随转余额：${money(op.available)}\n这里填写谷款及均摊金额；填 0 不影响下面的国际随单转移。\n${intlText||'这件暂无可对应的国际账单；原免国际/已交放行状态随件保留。'}`,fmtNum(op.amount),'确认随转已付款');if(answer===null)return;
           const amount=Number(String(answer).trim());if(!String(answer).trim()||!Number.isFinite(amount)||amount<0)throw new Error('随转金额必须是明确的非负数字');entry.cashAmount=amount;
         }
         plan=buildPaidOrderTransferPlan(original,checks);
-        const lines=plan.operations.map(op=>`${op.from} → ${op.to}：${op.item} ×${op.qty}，随转 ${money(op.amount)}（谷款 ${money(op.goodsAmount)}＋均摊 ${money(op.shareAmount)}）`).join('\n');
-        if(!await appConfirm((lines||'本次为换赏，不移动已付款')+'\n\n原收款、已退款和已补款保留；对应谷款和已付均摊记入转入转出，不制造退款或重复收款，国际账目不动。已交或已确认免国际的排发状态随件保留；未交的不放行。','转单与款项预览','确认应用'))return;
+        const lines=plan.operations.map(op=>`${op.from} → ${op.to}：${op.item} ×${op.qty}，谷款/均摊随转 ${money(op.amount)}\n国际随单：${(op.internationalMoves||[]).map(m=>money(m.amount)+(m.paid?' 已完成':' 未完成')).join('、')||'无对应账单'}`).join('\n');
+        if(!await appConfirm((lines||'本次为换赏，不移动已付款')+'\n\n对应国际账单和已收状态一起转给新人；未交部分由新人承担，不新增退款、不重复收款。部分转单只拆对应商品的金额，不重新按新人头数计算整批箱子。原付款人、原金额和日期保留在流水明细。','转单与款项预览','确认应用'))return;
       }catch(error){if(error.code==='TRANSFER_MANUAL_OVERRIDE'){await restoreTransferAutoCalculation(checks);return;}await appAlert(error.message||'转单核对失败，未修改数据','未应用');return;}
-      captureActiveSheet();if(activeSheetId!==originalId||JSON.stringify(sheets.find(s=>s.id===originalId))!==signature){await appAlert('确认期间排单或账目发生变化，请重新预览。','未应用');return;}
-      if(!pushUndoSnapshot('transfer-apply','确认转单前')) return;
-      const before=deepClone(original),changedTotal=plan.operations.reduce((sum,op)=>sum+op.qty,0);
+      captureActiveSheet();if(activeSheetId!==originalId||JSON.stringify(sheets.find(s=>s.id===originalId))!==signature||transferContext!==JSON.stringify({syncCode,extraFees,extraFeeArchives,extraFeeIdSeed})){await appAlert('确认期间排单或国际账目发生变化，请重新预览。','未应用');return;}
+      const relatedIntl=JSON.stringify(extraFees)!==JSON.stringify(plan.extraFees)?{before:extraFees,after:plan.extraFees,seedBefore:extraFeeIdSeed,seedAfter:plan.extraFeeIdSeed}:null;
+      if(!pushUndoSnapshot('transfer-apply','确认转单前',relatedIntl)) return;
+      const before=deepClone(original),beforeFees=extraFees,beforeSeed=extraFeeIdSeed,changedTotal=plan.operations.reduce((sum,op)=>sum+op.qty,0);
+      extraFees=plan.extraFees;extraFeeIdSeed=plan.extraFeeIdSeed;
       sheets[sheets.findIndex(s=>s.id===originalId)]=plan.sheet;applySheet(plan.sheet);
-      if(!saveState()){sheets[sheets.findIndex(s=>s.id===originalId)]=before;applySheet(before);await appAlert('转单保存失败，已保留原排单和原账。','未保存');return;}
-      clearMatrixPreview(false);renderMatrix();$('commentInput').value='';transferPreviewRows=[];transferPreviewSignature='';renderTransferPreview();$('transferPreviewStatus').textContent=`已完成 ${changedTotal} 件转单，对应谷款转入转出已记入流水。`;$('transferPreviewStatus').style.color='var(--ok)';return;
+      if(!saveState()){extraFees=beforeFees;extraFeeIdSeed=beforeSeed;sheets[sheets.findIndex(s=>s.id===originalId)]=before;applySheet(before);persistLocalState();await appAlert('转单保存失败，已保留原排单和原国际账。','未保存');return;}
+      clearMatrixPreview(false);renderMatrix();renderExtraFeesKeepScroll();renderDispatch();$('commentInput').value='';transferPreviewRows=[];transferPreviewSignature='';renderTransferPreview();$('transferPreviewStatus').textContent=`已完成 ${changedTotal} 件转单，谷款和对应国际随单转移，原付款记录保留在流水。`;$('transferPreviewStatus').style.color='var(--ok)';return;
     });
     $('cancelTransferPreviewBtn').addEventListener('click',()=>{
       transferPreviewRows=[]; transferPreviewSignature=''; renderTransferPreview();
