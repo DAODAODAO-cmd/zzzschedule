@@ -174,6 +174,12 @@ body.export-rendering .price-mark-tag .price-mark-remove,.price-mark-exporting .
 #combinedOrderTable{width:100%;border-collapse:collapse}#combinedOrderTable th{white-space:nowrap}#combinedOrderTable small{font-size:11px}
 #matrixPanel.is-combined-order > .toolbar:last-child > button:not(#regenBtn):not(#exportPngBtn){display:none!important}
 #matrixPanel.is-combined-order > .matrix-heading-tools,#matrixPanel.is-combined-order > .matrix-options,#matrixPanel.is-combined-order #currentSheetDispatchHint,#matrixPanel.is-combined-order #matrixTip{display:none!important}
+.order-merge-dialog{width:min(620px,calc(100vw - 28px));max-height:88dvh;margin:auto;border:1px solid var(--line,#e6e0ea);border-radius:16px;padding:20px;background:#fff;color:var(--text,#2a2731);box-shadow:0 20px 70px #35233930;font-family:inherit;overflow:auto}
+.order-merge-dialog::backdrop{background:#30243766;backdrop-filter:blur(3px)}
+.merge-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.merge-dialog-head strong{font-size:16px}.merge-dialog-fields{display:grid;gap:12px}.merge-dialog-fields label{display:grid;gap:6px}
+.wrap .order-merge-dialog input[type="search"],.wrap .order-merge-dialog input[type="text"]{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--panel-2);font:inherit;color:inherit;min-height:38px}
+.merge-dialog-footer{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}.merge-review-box{padding:13px;border:1px solid var(--line);background:var(--panel-2);border-radius:10px;white-space:pre-line;line-height:1.9}.merge-inline-message{color:var(--bad);white-space:pre-line}.merge-backup-list{display:grid;gap:8px}.merge-backup-list button{text-align:left;padding:12px!important;width:100%;white-space:normal}.merge-backup-table{overflow:auto;max-height:45vh;margin-top:12px}.merge-backup-table td{min-width:85px}.merge-backup-table th{white-space:nowrap}
+@media(max-width:600px){.order-merge-dialog{padding:15px}.merge-dialog-footer{flex-wrap:wrap}.merge-dialog-footer button{min-height:40px}}
 </style>
 </head>
 <body data-version="v14.11">
@@ -609,16 +615,15 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 
   <div class="panel mobile-core" id="matrixPanel">
     <h2>排单表</h2>
-    <div class="toolbar" data-html2canvas-ignore="true"><label>查看排单 <select id="combinedOrderSelect"><option value="">当前单表</option></select></label><button type="button" class="btn-ghost" id="combinedOrderManageBtn">合并排单</button><button type="button" class="btn-ghost" id="downloadMergedSourcesBtn" hidden>合并前原单备份</button><span class="hint">合成普通排单，原均摊和实收保留。</span></div>
-    <dialog id="combinedOrderDialog" style="width:min(620px,94vw);max-height:88vh;border:1px solid #e4dbe8;border-radius:14px;padding:18px;">
-      <div class="toolbar"><strong>合并排单</strong><button type="button" class="btn-ghost" id="combinedOrderCloseBtn">关闭</button></div>
-      <p class="hint">真正合成一张普通排单，同款放在一列。原均摊按各车已算金额保留，不重新均分；原两张放入合并前备份。</p>
-      <label>合并名称<input type="text" id="combinedOrderName" maxlength="80" placeholder="例如：同款一车＋二车"></label>
-      <input type="search" id="combinedOrderSearch" placeholder="搜索原排单名称">
-      <div id="combinedOrderChoices" style="max-height:42vh;overflow:auto;margin:10px 0;"></div>
-      <div class="toolbar"><button type="button" class="btn-primary" id="combinedOrderSaveBtn">核对并合成普通排单</button><button type="button" class="btn-danger" id="combinedOrderDeleteBtn" hidden>取消此合并</button></div>
-      <p class="hint">合并前逐人核对钱账并下载备份；合并后沿用正常排单、到货和国际流程，随原协作同步。</p>
+    <div class="toolbar" data-html2canvas-ignore="true"><label>查看排单 <select id="combinedOrderSelect"><option value="">当前单表</option></select></label><button type="button" class="btn-ghost" id="combinedOrderManageBtn">合并排单</button><button type="button" class="btn-ghost" id="downloadMergedSourcesBtn" hidden>原单备份</button><span class="hint">合成普通排单，原均摊和实收保留。</span></div>
+    <dialog id="combinedOrderDialog" class="order-merge-dialog">
+      <div class="merge-dialog-head"><strong id="combinedOrderDialogTitle">合并排单</strong><button type="button" class="btn-ghost" id="combinedOrderCloseBtn">关闭</button></div>
+      <div id="combinedOrderEditFields" class="merge-dialog-fields"><p class="hint">合成普通排单。原均摊和已收款保留，不重新均分。</p><label>合并名称<input type="text" id="combinedOrderName" maxlength="80" placeholder="例如：同款一车＋二车"></label><div><strong>合并顺序</strong><p class="hint">从上到下接入。同款按一车、二车、三车接在一起，每车内部顺序不变。</p><div id="combinedOrderSelectedOrder"></div></div><input type="search" id="combinedOrderSearch" placeholder="搜索并勾选原排单名称"><div id="combinedOrderChoices" style="max-height:30vh;overflow:auto;"></div></div>
+      <div id="combinedOrderReview" class="merge-review-box" hidden></div><p id="combinedOrderMessage" class="merge-inline-message" role="alert"></p>
+      <div class="merge-dialog-footer"><button type="button" class="btn-ghost" id="combinedOrderBackBtn" hidden>返回选择</button><button type="button" class="btn-primary" id="combinedOrderSaveBtn">核对账目</button><button type="button" class="btn-danger" id="combinedOrderDeleteBtn" hidden>取消此合并</button></div>
+      <p class="hint">原两张自动收进合并表上方的“原单备份”，不重复下载多份文件。</p>
     </dialog>
+    <dialog id="mergedSourcesDialog" class="order-merge-dialog"><div class="merge-dialog-head"><strong>合并前原单备份</strong><button type="button" class="btn-ghost" id="mergedSourcesCloseBtn">关闭</button></div><p id="mergedSourcesDate" class="hint"></p><div id="mergedSourcesList" class="merge-backup-list"></div><div id="mergedSourcesDetail"></div><div class="merge-dialog-footer"><button type="button" class="btn-ghost" id="mergedSourcesDownloadBtn">下载这两张原单</button></div><p class="hint">这里只查看和下载，不会恢复或覆盖当前排单。</p></dialog>
     <section id="combinedOrderView" hidden>
       <div class="toolbar" data-html2canvas-ignore="true"><label>到货阶段<select id="combinedOrderStage"><option value="china">国内到货</option><option value="island">岛内到货</option></select></label><input type="date" id="combinedOrderDate"><button type="button" class="btn-ghost" id="combinedOrderAllBtn">全选</button><button type="button" class="btn-ghost" id="combinedOrderNoneBtn">全不选</button><button type="button" class="btn-primary" id="combinedOrderMarkBtn">确认到货</button><button type="button" class="btn-ghost" id="combinedOrderRemoveBtn">撤销选中到货</button><span id="combinedOrderCount" class="hint"></span></div>
       <div id="combinedOrderExportWrap"><div id="combinedOrderTitle" class="matrix-project-title"></div><p id="combinedOrderSources" class="hint"></p><div class="table-scroll"><table id="combinedOrderTable"><thead></thead><tbody></tbody></table></div></div>
@@ -3006,6 +3011,10 @@ body.export-rendering .cart-count{ font-size:28px; }
             paymentTitle=resolvedSheetTitle(sheet,'paymentTitle'); paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
             paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
             showPaymentTotal=sheet.showPaymentTotal!==false;
+            showBoughtSettlement=sheet.showBoughtSettlement===true;paymentBoughtOnly=sheet.paymentBoughtOnly===true;paymentIncludeShare=sheet.paymentIncludeShare===true;
+            paymentRefundDone=sheet.paymentRefundDone&&typeof sheet.paymentRefundDone==='object'?sheet.paymentRefundDone:{};
+            paymentSupplementDone=sheet.paymentSupplementDone&&typeof sheet.paymentSupplementDone==='object'?sheet.paymentSupplementDone:{};
+            paymentNotes=sheet.paymentNotes&&typeof sheet.paymentNotes==='object'?sheet.paymentNotes:{};settlementDashboardOpen=sheet.settlementDashboardOpen===true;
             paymentEdits=sheet.paymentEdits||{};
       Object.keys(paymentEdits).forEach(k=>{ if(k.startsWith('wechat:')) delete paymentEdits[k]; });
             paymentPaid=sheet.paymentPaid&&typeof sheet.paymentPaid==='object'?sheet.paymentPaid:{};
@@ -5712,7 +5721,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return td&&td.dataset.editing==='true'?td:null;
     }
     function buildOrdinaryOrderMerge(project,ids,name,at=new Date().toISOString()){
-      const selected=new Set(ids.map(String)),sources=project.sheets.filter(s=>selected.has(String(s.id)));
+      const selected=new Set(ids.map(String)),sources=[...selected].map(id=>project.sheets.find(s=>String(s.id)===id)).filter(Boolean);
       if(sources.length<2||sources.length!==selected.size)throw new Error('请至少选择两张有效原排单');
       if(sources.some(s=>(s.pricingGroups||[]).length||s.mergedShareCells))throw new Error('这次先支持普通单列排单；组合列或已合过的表需要另行核对');
       const flags=['paymentIncludeShare','showBoughtSettlement','paymentBoughtOnly','shareDeductFixed','dispatchEnabled','dispatchInternationalExempt'];
@@ -5759,18 +5768,37 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(JSON.stringify([...expected].sort())!==JSON.stringify([...current].sort()))throw new Error('合表前后逐人账目不一致，已停止，未修改原表');
       return {payload,merged,mapping,report:{people:expected.size,pieces:Object.keys(merged.mergedCellSources).length,sources:sources.map(s=>({id:s.id,name:s.name,sharedFee:s.cost?.sharedFee})),moneyUnchanged:true}};
     }
+    let ordinaryMergeReview=null,ordinaryMergeSaving=false;
+    function resetOrdinaryMergeReview(){ordinaryMergeReview=null;$('combinedOrderEditFields').hidden=false;$('combinedOrderReview').hidden=true;$('combinedOrderBackBtn').hidden=true;$('combinedOrderDialogTitle').textContent='合并排单';$('combinedOrderSaveBtn').textContent='核对账目';$('combinedOrderMessage').textContent='';}
     async function applyOrdinaryOrderMerge(){
-      const name=$('combinedOrderName').value.trim();if(!name||combinedOrderDraftIds.size<2){await appAlert('请填写合并名称，至少勾选两张原表');return;}
-      captureActiveSheet();const before=deepClone(localStatePayload()),signature=JSON.stringify(before),code=String(syncCode||'');let plan;
-      try{plan=buildOrdinaryOrderMerge(before,[...combinedOrderDraftIds],name);}catch(error){await appAlert(error.message);return;}
-      if(!await appConfirm(`将这 ${plan.report.sources.length} 张原单真正合成一张普通排单？\n${plan.report.sources.map(s=>s.name).join('、')}\n${plan.report.pieces} 件，${plan.report.people} 人，逐人账目核对一致。\n原表从日常列表移除，完整保存在合并前备份中；原均摊按原金额保留，不重新均分。`,'真实合并排单','备份并合并'))return;
-      captureActiveSheet();if(code!==String(syncCode||'')||signature!==JSON.stringify(localStatePayload())){await appAlert('确认期间数据变化，请重新核对');return;}
-      downloadBackup(before,'真正合表前-完整备份.json');if(!await appConfirm('请确认完整备份已下载成功，未成功请取消。','合并前备份','已下载，合并'))return;
-      captureActiveSheet();if(code!==String(syncCode||'')||signature!==JSON.stringify(localStatePayload())){await appAlert('确认期间数据变化，未合并');return;}
-      if(!recordLocalSnapshot('真正合并排单前',true)){await appAlert('快照未保存，未合并');return;}
-      sheets=plan.payload.sheets;extraFees=plan.payload.extraFees;activeSheetId=plan.merged.id;applySheet(sheets.find(s=>s.id===activeSheetId));
-      if(!saveState({snapshotReason:'真正合并排单后',forceSnapshot:true,flushCollabNow:true})){sheets=before.sheets;extraFees=before.extraFees;activeSheetId=before.activeSheetId;applySheet(sheets.find(s=>s.id===activeSheetId));persistLocalState();await appAlert('保存失败，已还原原表和原账');return;}
-      $('combinedOrderDialog').close();renderSheetTabs();renderColumnList();renderMatrix();renderPaymentSummary();renderSharePaymentSummary();renderDispatch();await appAlert('已合成普通排单，原均摊及已收款逐人核对不变。请等顶部同步成功。');
+      if(ordinaryMergeSaving)return;$('combinedOrderMessage').textContent='';
+      if(!ordinaryMergeReview){
+        const name=$('combinedOrderName').value.trim();if(!name||combinedOrderDraftIds.size<2){$('combinedOrderMessage').textContent='填写合并名称，并至少勾选两张原表。';return;}
+        try{captureActiveSheet();const before=deepClone(localStatePayload()),plan=buildOrdinaryOrderMerge(before,[...combinedOrderDraftIds],name);
+          ordinaryMergeReview={before,plan,signature:JSON.stringify(before),code:String(syncCode||'')};
+          $('combinedOrderEditFields').hidden=true;$('combinedOrderReview').hidden=false;$('combinedOrderBackBtn').hidden=false;$('combinedOrderDialogTitle').textContent='确认合并';$('combinedOrderSaveBtn').textContent='确认合并';
+          $('combinedOrderReview').textContent=plan.report.sources.map(s=>s.name).join(' ＋ ')+'\n→ '+plan.merged.name+'\n\n'+plan.report.people+' 人 · '+plan.report.pieces+' 件\n✓ 逐人谷款、均摊和已收金额一致\n✓ 到货、发货等状态保留\n\n原两张收进合并表上方的「原单备份」，日常列表只保留一张。';
+        }catch(error){$('combinedOrderMessage').textContent=error.message;}return;
+      }
+      ordinaryMergeSaving=true;$('combinedOrderSaveBtn').disabled=true;
+      try{const {before,plan,signature,code}=ordinaryMergeReview;
+        captureActiveSheet();if(code!==String(syncCode||'')||signature!==JSON.stringify(localStatePayload()))throw new Error('核对期间数据发生变化，请返回选择后重新核对。');
+        if(!recordLocalSnapshot('真正合并排单前',true))throw new Error('合并前快照未保存，本次未修改。请先处理本机存储空间。');
+        sheets=plan.payload.sheets;extraFees=plan.payload.extraFees;activeSheetId=plan.merged.id;applySheet(sheets.find(s=>s.id===activeSheetId));
+        if(!saveState({skipSnapshot:true,flushCollabNow:true})){sheets=before.sheets;extraFees=before.extraFees;activeSheetId=before.activeSheetId;applySheet(sheets.find(s=>s.id===activeSheetId));persistLocalState();throw new Error('保存失败，已还原原表和原账。');}
+        $('combinedOrderDialog').close();resetOrdinaryMergeReview();renderSheetTabs();renderColumnList();renderMatrix();renderPaymentSummary();renderSharePaymentSummary();renderDispatch();
+      }catch(error){$('combinedOrderMessage').textContent=error.message;}finally{ordinaryMergeSaving=false;$('combinedOrderSaveBtn').disabled=false;}
+    }
+    function openMergedSourceBackups(){
+      const archive=sheets.find(s=>s.id===activeSheetId)?.mergeSourceBackups;if(!archive)return;
+      $('mergedSourcesDialog').dataset.sheetId=String(activeSheetId);$('mergedSourcesDate').textContent='合并时间：'+new Date(archive.at).toLocaleString('zh-CN')+' · '+archive.sheets.length+' 张原单（只读）';
+      $('mergedSourcesList').innerHTML=archive.sheets.map((s,i)=>`<button type="button" class="btn-ghost" data-merged-source="${i}">${escapeHtml(s.name)}　<span class="hint">查看旧单 →</span></button>`).join('');$('mergedSourcesDownloadBtn').textContent='下载全部 '+archive.sheets.length+' 张原单';$('mergedSourcesDetail').innerHTML='';$('mergedSourcesDialog').showModal();
+    }
+    function renderMergedSourceDetail(index){
+      const owner=sheets.find(s=>String(s.id)===$('mergedSourcesDialog').dataset.sheetId),source=owner?.mergeSourceBackups?.sheets?.[index];if(!source)return;
+      const view=deepClone(source),cols=orderDisplayColumns(view.columns||[],view.pricingGroups||[],view.allocations||{}),height=Math.max(0,...cols.map(c=>(view.allocations?.[c.id]||[]).length)),records=recordsForSheet(view);
+      const received=records.reduce((n,r)=>n+num(r.g.received)+num(r.sh.received),0),share=records.reduce((n,r)=>n+num(r.sh.expected),0);
+      $('mergedSourcesDetail').innerHTML=`<h3>${escapeHtml(source.name)}</h3><p class="hint">原谷款及均摊实收 ${money(received)} · 原均摊应收 ${money(share)} · 只读，不重新算当前账目</p><div class="merge-backup-table"><table><thead><tr><th>#</th>${cols.map(c=>`<th>${escapeHtml(c.name)}</th>`).join('')}</tr></thead><tbody>${Array.from({length:height},(_,row)=>`<tr><th>${row+1}</th>${cols.map(c=>{const name=String(view.allocations?.[c.id]?.[row]||'');const china=logisticsCellMark(c,row,name,view.matrixChinaCells||{},view.allocations||{});return `<td>${escapeHtml(name)}${china?`<small style="display:block;">国内 ${escapeHtml(china)}</small>`:''}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;
     }
     let combinedOrderDraftIds=new Set(),combinedOrderRefs=[],combinedOrderSelected=new Set(),combinedOrderSaving=false;
     function combinedOrderStorageKey(){return 'ggzCombinedOrderView_v1:'+(syncCode||'local');}
@@ -5814,7 +5842,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {sources,cols:[...map.values()].filter(c=>c.refs.length)};
     }
     function syncCombinedOrderSelect(){const input=$('combinedOrderSelect');if(!input)return;const state=readCombinedOrders();input.innerHTML='<option value="">当前单表</option>'+state.groups.map(g=>`<option value="${escapeAttr(g.id)}">${escapeHtml(g.name||'合并排单')}</option>`).join('');input.value=state.active;}
-    function renderCombinedOrderChoices(){const query=normalizeDispatchKey($('combinedOrderSearch').value);$('combinedOrderChoices').innerHTML=sheets.filter(s=>!query||normalizeDispatchKey(s.name).includes(query)).map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:9px;border-bottom:1px solid #eee;"><input type="checkbox" style="width:auto;" data-combined-sheet="${escapeAttr(s.id)}" ${combinedOrderDraftIds.has(String(s.id))?'checked':''}><span>${escapeHtml(s.name)}</span></label>`).join('');}
+    function renderCombinedOrderSelectionOrder(){const ids=[...combinedOrderDraftIds];$('combinedOrderSelectedOrder').innerHTML=ids.map((id,index)=>{const sheet=sheets.find(s=>String(s.id)===id);return `<div style="display:flex;gap:7px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);"><span class="hint">${index+1}</span><span style="flex:1;">${escapeHtml(sheet?.name||'原表已不存在')}</span><button type="button" class="btn-ghost" data-merge-order-move="${index}" data-merge-order-direction="-1" ${index===0?'disabled':''} aria-label="上移">↑</button><button type="button" class="btn-ghost" data-merge-order-move="${index}" data-merge-order-direction="1" ${index===ids.length-1?'disabled':''} aria-label="下移">↓</button></div>`;}).join('')||'<p class="hint">先在下方勾选原排单，勾选顺序就是初始合并顺序。</p>';}
+    function moveCombinedOrderSelection(index,direction){const ids=[...combinedOrderDraftIds],target=index+direction;if(index<0||index>=ids.length||target<0||target>=ids.length)return;[ids[index],ids[target]]=[ids[target],ids[index]];combinedOrderDraftIds=new Set(ids);renderCombinedOrderSelectionOrder();}
+    function renderCombinedOrderChoices(){const query=normalizeDispatchKey($('combinedOrderSearch').value);$('combinedOrderChoices').innerHTML=sheets.filter(s=>!query||normalizeDispatchKey(s.name).includes(query)).map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:9px;border-bottom:1px solid #eee;"><input type="checkbox" style="width:auto;" data-combined-sheet="${escapeAttr(s.id)}" ${combinedOrderDraftIds.has(String(s.id))?'checked':''}><span>${escapeHtml(s.name)}</span></label>`).join('');renderCombinedOrderSelectionOrder();}
     function renderCombinedOrderView(){
       const root=$('combinedOrderView');if(!root)return;syncCombinedOrderSelect();const group=null,on=false;
       $('combinedOrderSelect').closest('label').hidden=true;
@@ -5869,11 +5899,16 @@ body.export-rendering .cart-count{ font-size:28px; }
         const canvas=await renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale,width,height,windowWidth:width+40,windowHeight:height+40,cloneForExport:true});saveCanvasImage(canvas,(combinedOrderActive()?.name||'合并排单')+'.png');
       }catch(error){await appAlert(error.message||'导出失败');}
     }
-    $('combinedOrderManageBtn').addEventListener('click',()=>{captureActiveSheet();const group=combinedOrderActive();combinedOrderDraftIds=new Set((group?.sheetIds||[activeSheetId]).map(String));$('combinedOrderName').value=group?.name||'';$('combinedOrderSearch').value='';renderCombinedOrderChoices();$('combinedOrderDeleteBtn').hidden=true;$('combinedOrderDialog').showModal();});
+    $('combinedOrderManageBtn').addEventListener('click',()=>{captureActiveSheet();resetOrdinaryMergeReview();const group=combinedOrderActive();combinedOrderDraftIds=new Set((group?.sheetIds||[activeSheetId]).map(String));$('combinedOrderName').value=group?.name||'';$('combinedOrderSearch').value='';renderCombinedOrderChoices();$('combinedOrderDeleteBtn').hidden=true;$('combinedOrderDialog').showModal();});
     $('combinedOrderCloseBtn').addEventListener('click',()=>$('combinedOrderDialog').close());
-    $('downloadMergedSourcesBtn').addEventListener('click',()=>{const archive=sheets.find(s=>s.id===activeSheetId)?.mergeSourceBackups;if(archive)downloadBackup({sheets:deepClone(archive.sheets),mergedAt:archive.at},'合并前两车原单备份.json');});
+    $('combinedOrderBackBtn').addEventListener('click',resetOrdinaryMergeReview);
+    $('downloadMergedSourcesBtn').addEventListener('click',openMergedSourceBackups);
+    $('mergedSourcesCloseBtn').addEventListener('click',()=>$('mergedSourcesDialog').close());
+    $('mergedSourcesList').addEventListener('click',e=>{const button=e.target.closest('[data-merged-source]');if(button)renderMergedSourceDetail(Number(button.dataset.mergedSource));});
+    $('mergedSourcesDownloadBtn').addEventListener('click',()=>{const archive=sheets.find(s=>String(s.id)===$('mergedSourcesDialog').dataset.sheetId)?.mergeSourceBackups;if(archive)downloadBackup({sheets:deepClone(archive.sheets),mergedAt:archive.at},'合并前'+archive.sheets.length+'张原单备份.json');});
     $('combinedOrderSearch').addEventListener('input',renderCombinedOrderChoices);
-    $('combinedOrderChoices').addEventListener('change',e=>{const id=e.target.dataset.combinedSheet;if(id)e.target.checked?combinedOrderDraftIds.add(id):combinedOrderDraftIds.delete(id);});
+    $('combinedOrderChoices').addEventListener('change',e=>{const id=e.target.dataset.combinedSheet;if(id){e.target.checked?combinedOrderDraftIds.add(id):combinedOrderDraftIds.delete(id);renderCombinedOrderSelectionOrder();}});
+    $('combinedOrderSelectedOrder').addEventListener('click',e=>{const button=e.target.closest('[data-merge-order-move]');if(button)moveCombinedOrderSelection(Number(button.dataset.mergeOrderMove),Number(button.dataset.mergeOrderDirection));});
     $('combinedOrderSaveBtn').addEventListener('click',applyOrdinaryOrderMerge);
     $('combinedOrderDeleteBtn').addEventListener('click',async()=>{if(!await appConfirm('取消当前合并界面？原排单和所有账目都不会删除。','取消合并','确认'))return;const state=readCombinedOrders();state.groups=state.groups.filter(g=>g.id!==state.active);state.active='';writeCombinedOrders(state);$('combinedOrderDialog').close();renderMatrix();});
     $('combinedOrderSelect').addEventListener('change',e=>{const state=readCombinedOrders();state.active=e.target.value;writeCombinedOrders(state,false);combinedOrderSelected.clear();renderMatrix();});
