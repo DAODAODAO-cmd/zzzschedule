@@ -179,7 +179,7 @@ body.export-rendering .price-mark-tag .price-mark-remove,.price-mark-exporting .
 .merge-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.merge-dialog-head strong{font-size:16px}.merge-dialog-fields{display:grid;gap:12px}.merge-dialog-fields label{display:grid;gap:6px}
 .wrap .order-merge-dialog input[type="search"],.wrap .order-merge-dialog input[type="text"]{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--panel-2);font:inherit;color:inherit;min-height:38px}
 .merge-dialog-footer{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}.merge-review-box{padding:13px;border:1px solid var(--line);background:var(--panel-2);border-radius:10px;white-space:pre-line;line-height:1.9}.merge-inline-message{color:var(--bad);white-space:pre-line}.merge-backup-list{display:grid;gap:8px}.merge-backup-list button{text-align:left;padding:12px!important;width:100%;white-space:normal}.merge-backup-table{overflow:auto;max-height:45vh;margin-top:12px}.merge-backup-table td{min-width:85px}.merge-backup-table th{white-space:nowrap}
-#matrixTable td.cell.shipped-cell{background:#f1f2f5!important;color:#8c8b96!important}#matrixTable .matrix-shipped-badge{display:inline-block;margin-left:4px;padding:1px 5px;border-radius:5px;border:1px solid #d1d3da;background:#e6e8ed;color:#686c7b;font-size:10px;font-weight:700;white-space:nowrap}
+#matrixTable tbody td.cell.has-name.shipped-cell{background:#f1f2f5!important;color:#7a7d87!important}
 @media(max-width:600px){.order-merge-dialog{padding:15px}.merge-dialog-footer{flex-wrap:wrap}.merge-dialog-footer button{min-height:40px}}
 </style>
 </head>
@@ -6020,7 +6020,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const blindSub=nm?(blindSubStore[cellKey]||''):'';
           const blindSubBadge=blindSub?`<span class="matrix-blind-sub">${escapeHtml(blindSub)}</span>`:'';
           const shipment=!isPreview&&nm?dispatchShipmentFor(sheets.find(s=>s.id===activeSheetId)||{},c,r,nm,matrixItemDisplayName(c,r,blindSubStore)):null;
-          const shippedBadge=shipment?`<span class="matrix-shipped-badge" title="${escapeAttr('已发货'+(shipment.at?' · '+new Date(shipment.at).toLocaleString('zh-CN'):''))}">已发</span>`:'';
+          const shippedTitle=shipment?` title="${escapeAttr('已发货'+(shipment.at?' · '+new Date(shipment.at).toLocaleString('zh-CN'):''))}"`:'';
           const pendingName=nm&&pendingPreviewRows.get(r)===String(nm)&&!completePreviewRows.has(r);
           const key=`${c.id}:${r}`, isAdded=isPreview&&addedPreviewCells.has(key), transferChange=isPreview?transferPreviewCells.get(key):null;
           const personContent=transferChange?`<span class="preview-transfer-name">${escapeHtml(transferChange.from)}</span><span class="preview-transfer-arrow">→</span><span class="preview-transfer-name">${escapeHtml(transferChange.to)}</span>`:(nm?escapeHtml(nm):'');
@@ -6028,7 +6028,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const actualPrice=secondPrice!==null?secondPrice:nm?matrixRowPrices.price(c,r):unitPrice(c), rowDeduction=nm?Math.max(0,unitPrice(c)-actualPrice):0;
           const rowPriceNote=secondPrice!==null?`<small class="matrix-row-price">二调实价 ${money(actualPrice)}</small>`:rowDeduction>0.005?`<small class="matrix-row-price">${money(unitPrice(c))} − ${money(rowDeduction)} = ${money(actualPrice)}</small>`:'';
           const cellTabIndex=!isPreview?` tabindex="0"`:'';
-          return `<td class="cell${nm?' has-name':''}${bought?' bought-cell':''}${chinaDate?' china-cell':''}${!chinaDate&&islandDate?' island-cell':''}${shipment?' shipped-cell':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" data-bought="${bought?'true':'false'}" data-blind-sub="${blindSub?escapeAttr(blindSub):''}" contenteditable="false"${cellTabIndex} spellcheck="false" draggable="${!isPreview&&!matrixMarkMode&&nm?'true':'false'}">${personContent}${blindSubBadge}${arrivalBadge}${shippedBadge}${rowPriceNote}</td>`;
+          return `<td class="cell${nm?' has-name':''}${bought?' bought-cell':''}${chinaDate?' china-cell':''}${!chinaDate&&islandDate?' island-cell':''}${shipment?' shipped-cell':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" data-bought="${bought?'true':'false'}" data-blind-sub="${blindSub?escapeAttr(blindSub):''}"${shippedTitle} contenteditable="false"${cellTabIndex} spellcheck="false" draggable="${!isPreview&&!matrixMarkMode&&nm?'true':'false'}">${personContent}${blindSubBadge}${arrivalBadge}${rowPriceNote}</td>`;
         }).join('')+'</tr>';
       }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(displayColumns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
