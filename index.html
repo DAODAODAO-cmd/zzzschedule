@@ -179,6 +179,7 @@ body.export-rendering .price-mark-tag .price-mark-remove,.price-mark-exporting .
 .merge-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.merge-dialog-head strong{font-size:16px}.merge-dialog-fields{display:grid;gap:12px}.merge-dialog-fields label{display:grid;gap:6px}
 .wrap .order-merge-dialog input[type="search"],.wrap .order-merge-dialog input[type="text"]{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--panel-2);font:inherit;color:inherit;min-height:38px}
 .merge-dialog-footer{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}.merge-review-box{padding:13px;border:1px solid var(--line);background:var(--panel-2);border-radius:10px;white-space:pre-line;line-height:1.9}.merge-inline-message{color:var(--bad);white-space:pre-line}.merge-backup-list{display:grid;gap:8px}.merge-backup-list button{text-align:left;padding:12px!important;width:100%;white-space:normal}.merge-backup-table{overflow:auto;max-height:45vh;margin-top:12px}.merge-backup-table td{min-width:85px}.merge-backup-table th{white-space:nowrap}
+#matrixTable td.cell.shipped-cell{background:#f1f2f5!important;color:#8c8b96!important}#matrixTable .matrix-shipped-badge{display:inline-block;margin-left:4px;padding:1px 5px;border-radius:5px;border:1px solid #d1d3da;background:#e6e8ed;color:#686c7b;font-size:10px;font-weight:700;white-space:nowrap}
 @media(max-width:600px){.order-merge-dialog{padding:15px}.merge-dialog-footer{flex-wrap:wrap}.merge-dialog-footer button{min-height:40px}}
 </style>
 </head>
@@ -3007,6 +3008,10 @@ body.export-rendering .cart-count{ font-size:28px; }
             cartTargetMode=sheet.cartTargetMode||'auto'; cartTargetNum=sheet.cartTargetNum!==undefined?sheet.cartTargetNum:null;
             cartCountMode=sheet.cartCountMode||'short'; cartColumns=sheet.cartColumns||4; cartExportHidePrice=sheet.cartExportHidePrice!==false; cartQrImg=sharedCartQrImg;
             matrixTitle=resolvedSheetTitle(sheet,'matrixTitle'); matrixColor=sheet.matrixColor||'#d1466a';
+            matrixBoughtCells=sheet.matrixBoughtCells&&typeof sheet.matrixBoughtCells==='object'?deepClone(sheet.matrixBoughtCells):{};
+            matrixIslandCells=sheet.matrixIslandCells&&typeof sheet.matrixIslandCells==='object'?deepClone(sheet.matrixIslandCells):{};
+            matrixChinaCells=sheet.matrixChinaCells&&typeof sheet.matrixChinaCells==='object'?deepClone(sheet.matrixChinaCells):{};
+            matrixBlindSubCells=sheet.matrixBlindSubCells&&typeof sheet.matrixBlindSubCells==='object'?deepClone(sheet.matrixBlindSubCells):{};
             quantityTitle=resolvedSheetTitle(sheet,'quantityTitle');
             paymentTitle=resolvedSheetTitle(sheet,'paymentTitle'); paymentColor=sheet.paymentColor||'#d1466a'; paymentViewMode=sheet.paymentViewMode==='merged'?'merged':'detail';
             paymentStartRow=Math.max(1,parseInt(sheet.paymentStartRow,10)||1); paymentEndRow=Number.isFinite(parseInt(sheet.paymentEndRow,10))?Math.max(paymentStartRow,parseInt(sheet.paymentEndRow,10)):null;
@@ -5720,6 +5725,31 @@ body.export-rendering .cart-count{ font-size:28px; }
       const td=el&&el.closest?el.closest('#matrixTableBody td.cell[data-col][data-row]'):null;
       return td&&td.dataset.editing==='true'?td:null;
     }
+    function ordinaryOrderFulfillmentStates(sheet,project){
+      const view=deepClone(sheet),info=sheetDisplayPriceInfo(view),totals=new Map(),records=new Map(recordsForSheet(view).map(r=>[r.key,r])),states=new Map();
+      const tracking=Object.entries(view.matrixBoughtCells||{}).some(([cell,person])=>{const split=cell.lastIndexOf(':'),col=cell.slice(0,split),row=Number(cell.slice(split+1));return normalizeDispatchKey(person)&&normalizeDispatchKey(view.allocations?.[col]?.[row])===normalizeDispatchKey(person);});
+      for(const c of info.cols)for(const [row,value]of (view.allocations?.[c.id]||[]).entries()){const key=normalizeDispatchKey(value);if(key)totals.set(key,num(totals.get(key))+Math.max(0,info.price(c,row)));}
+      for(const c of info.cols)for(const [row,value]of (view.allocations?.[c.id]||[]).entries()){
+        const person=String(value||'').trim();if(!person)continue;const key=normalizeDispatchKey(person),cell=matrixBoughtKey(c.id,row),item=matrixItemDisplayName(c,row,view.matrixBlindSubCells||{}),china=logisticsCellMark(c,row,person,view.matrixChinaCells||{},view.allocations),island=logisticsCellMark(c,row,person,view.matrixIslandCells||{},view.allocations);
+        const bought=normalizeDispatchKey(view.matrixBoughtCells?.[cell])===key,included=sheetFulfillmentMode(view)!=='accounting'&&(!tracking||bought),shipment=dispatchShipmentFor(view,c,row,person,item),intl=dispatchInternationalState(view,china,key,c,row,person,item,project.extraFees||[],project.extraFeeArchives||[]);
+        const received=paidAmountValue(view.paymentPaid||{},key,totals.get(key)||0),expected=totals.get(key)||0;let goodsPaid=(view.paymentPaid||{})[key]===true||(expected>0&&received>=expected-0.005);
+        if(view.paymentRefundDone?.[key]||view.paymentSupplementDone?.[key]||settlementCredit(view.paymentEdits,key)){const record=records.get(key);goodsPaid=!!record&&!record.historyUnknown&&record.due<=0.005;}
+        states.set(cell,{person:key,item,bought,included,island,china,shipped:!!shipment,shippedAt:shipment?.at||'',international:{generated:!!intl.generated,paid:!!intl.paid,confirmed:!!intl.confirmed,missing:!!intl.missing,pending:!!intl.pending,exempt:!!intl.exempt},ready:included&&!shipment&&!!china&&goodsPaid&&!!intl.paid});
+      }
+      return states;
+    }
+    function verifyOrdinaryMergeFulfillment(project,sources,merged,payload,mapping){
+      const after=ordinaryOrderFulfillmentStates(merged,payload),report={pieces:0,bought:0,china:0,island:0,shipped:0,internationalPaid:0,internationalConfirmed:0,ready:0};
+      for(const source of sources)for(const [key,state]of ordinaryOrderFulfillmentStates(source,project)){
+        const ref=mapping.get(source.id+':'+key),next=ref?after.get(matrixBoughtKey(ref.colId,ref.row)):null;
+        if(!next||JSON.stringify(state)!==JSON.stringify(next)){
+          const changed=next?Object.keys(state).filter(field=>JSON.stringify(state[field])!==JSON.stringify(next[field])).join('、'):'排位缺失';
+          throw new Error('合表前后到货/发货/已交国际识别不一致，已停止：'+source.name+' · '+state.item+' · '+state.person+'（'+changed+'）');
+        }
+        report.pieces++;if(state.bought)report.bought++;if(state.china)report.china++;if(state.island)report.island++;if(state.shipped)report.shipped++;if(state.international.paid&&!state.international.exempt)report.internationalPaid++;if(state.international.confirmed)report.internationalConfirmed++;if(state.ready)report.ready++;
+      }
+      return report;
+    }
     function buildOrdinaryOrderMerge(project,ids,name,at=new Date().toISOString()){
       const selected=new Set(ids.map(String)),sources=[...selected].map(id=>project.sheets.find(s=>String(s.id)===id)).filter(Boolean);
       if(sources.length<2||sources.length!==selected.size)throw new Error('请至少选择两张有效原排单');
@@ -5766,7 +5796,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const expected=new Map();for(const record of oldRecords){const sums=expected.get(record.key)||Array(10).fill(0),values=metrics(record);expected.set(record.key,sums.map((v,i)=>v+values[i]));}
       const current=new Map(recordsForSheet(merged).map(r=>[r.key,metrics(r)]));
       if(JSON.stringify([...expected].sort())!==JSON.stringify([...current].sort()))throw new Error('合表前后逐人账目不一致，已停止，未修改原表');
-      return {payload,merged,mapping,report:{people:expected.size,pieces:Object.keys(merged.mergedCellSources).length,sources:sources.map(s=>({id:s.id,name:s.name,sharedFee:s.cost?.sharedFee})),moneyUnchanged:true}};
+      const fulfillment=verifyOrdinaryMergeFulfillment(project,sources,merged,payload,mapping);
+      return {payload,merged,mapping,report:{people:expected.size,pieces:Object.keys(merged.mergedCellSources).length,sources:sources.map(s=>({id:s.id,name:s.name,sharedFee:s.cost?.sharedFee})),moneyUnchanged:true,fulfillment}};
     }
     let ordinaryMergeReview=null,ordinaryMergeSaving=false;
     function resetOrdinaryMergeReview(){ordinaryMergeReview=null;$('combinedOrderEditFields').hidden=false;$('combinedOrderReview').hidden=true;$('combinedOrderBackBtn').hidden=true;$('combinedOrderDialogTitle').textContent='合并排单';$('combinedOrderSaveBtn').textContent='核对账目';$('combinedOrderMessage').textContent='';}
@@ -5777,7 +5808,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         try{captureActiveSheet();const before=deepClone(localStatePayload()),plan=buildOrdinaryOrderMerge(before,[...combinedOrderDraftIds],name);
           ordinaryMergeReview={before,plan,signature:JSON.stringify(before),code:String(syncCode||'')};
           $('combinedOrderEditFields').hidden=true;$('combinedOrderReview').hidden=false;$('combinedOrderBackBtn').hidden=false;$('combinedOrderDialogTitle').textContent='确认合并';$('combinedOrderSaveBtn').textContent='确认合并';
-          $('combinedOrderReview').textContent=plan.report.sources.map(s=>s.name).join(' ＋ ')+'\n→ '+plan.merged.name+'\n\n'+plan.report.people+' 人 · '+plan.report.pieces+' 件\n✓ 逐人谷款、均摊和已收金额一致\n✓ 到货、发货等状态保留\n\n原两张收进合并表上方的「原单备份」，日常列表只保留一张。';
+          $('combinedOrderReview').textContent=plan.report.sources.map(s=>s.name).join(' ＋ ')+'\n→ '+plan.merged.name+'\n\n'+plan.report.people+' 人 · '+plan.report.pieces+' 件\n✓ 逐人谷款、均摊和已收金额一致\n✓ 国内到货 '+plan.report.fulfillment.china+' 件、已发货 '+plan.report.fulfillment.shipped+' 件状态一致\n✓ 已交/另收国际 '+plan.report.fulfillment.internationalPaid+' 件识别一致\n\n原单收进合并表上方的「原单备份」，日常列表只保留一张。';
         }catch(error){$('combinedOrderMessage').textContent=error.message;}return;
       }
       ordinaryMergeSaving=true;$('combinedOrderSaveBtn').disabled=true;
@@ -5988,6 +6019,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           const arrivalBadge=chinaDate?`<span class="arrival-badge china" title="国内到货 ${escapeAttr(chinaDate)}">国</span>`:(islandDate?`<span class="arrival-badge island" title="岛内到货 ${escapeAttr(islandDate)}">岛</span>`:'');
           const blindSub=nm?(blindSubStore[cellKey]||''):'';
           const blindSubBadge=blindSub?`<span class="matrix-blind-sub">${escapeHtml(blindSub)}</span>`:'';
+          const shipment=!isPreview&&nm?dispatchShipmentFor(sheets.find(s=>s.id===activeSheetId)||{},c,r,nm,matrixItemDisplayName(c,r,blindSubStore)):null;
+          const shippedBadge=shipment?`<span class="matrix-shipped-badge" title="${escapeAttr('已发货'+(shipment.at?' · '+new Date(shipment.at).toLocaleString('zh-CN'):''))}">已发</span>`:'';
           const pendingName=nm&&pendingPreviewRows.get(r)===String(nm)&&!completePreviewRows.has(r);
           const key=`${c.id}:${r}`, isAdded=isPreview&&addedPreviewCells.has(key), transferChange=isPreview?transferPreviewCells.get(key):null;
           const personContent=transferChange?`<span class="preview-transfer-name">${escapeHtml(transferChange.from)}</span><span class="preview-transfer-arrow">→</span><span class="preview-transfer-name">${escapeHtml(transferChange.to)}</span>`:(nm?escapeHtml(nm):'');
@@ -5995,7 +6028,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const actualPrice=secondPrice!==null?secondPrice:nm?matrixRowPrices.price(c,r):unitPrice(c), rowDeduction=nm?Math.max(0,unitPrice(c)-actualPrice):0;
           const rowPriceNote=secondPrice!==null?`<small class="matrix-row-price">二调实价 ${money(actualPrice)}</small>`:rowDeduction>0.005?`<small class="matrix-row-price">${money(unitPrice(c))} − ${money(rowDeduction)} = ${money(actualPrice)}</small>`:'';
           const cellTabIndex=!isPreview?` tabindex="0"`:'';
-          return `<td class="cell${nm?' has-name':''}${bought?' bought-cell':''}${chinaDate?' china-cell':''}${!chinaDate&&islandDate?' island-cell':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" data-bought="${bought?'true':'false'}" data-blind-sub="${blindSub?escapeAttr(blindSub):''}" contenteditable="false"${cellTabIndex} spellcheck="false" draggable="${!isPreview&&!matrixMarkMode&&nm?'true':'false'}">${personContent}${blindSubBadge}${arrivalBadge}${rowPriceNote}</td>`;
+          return `<td class="cell${nm?' has-name':''}${bought?' bought-cell':''}${chinaDate?' china-cell':''}${!chinaDate&&islandDate?' island-cell':''}${shipment?' shipped-cell':''}${pendingName?' promotion-bundle-pending':''}${isAdded?' preview-order-added':''}${transferChange?' preview-transfer-change':''}" data-col="${c.id}" data-row="${r}" data-person="${nm?escapeAttr(nm):''}" data-bought="${bought?'true':'false'}" data-blind-sub="${blindSub?escapeAttr(blindSub):''}" contenteditable="false"${cellTabIndex} spellcheck="false" draggable="${!isPreview&&!matrixMarkMode&&nm?'true':'false'}">${personContent}${blindSubBadge}${arrivalBadge}${shippedBadge}${rowPriceNote}</td>`;
         }).join('')+'</tr>';
       }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(displayColumns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
