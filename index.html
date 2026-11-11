@@ -167,6 +167,14 @@ body.export-rendering .price-mark-tag .price-mark-remove,.price-mark-exporting .
   .settings-cloud-tip{padding:8px 9px!important;}
 }
 </style>
+<style id="combined-order-css">
+#combinedOrderTitle{background:var(--accent,#d1466a);color:#fff;padding:12px;border-radius:9px 9px 0 0;font-weight:800;text-align:center;min-height:40px}
+#combinedOrderView .toolbar{gap:7px;align-items:center;flex-wrap:wrap}
+#combinedOrderView .toolbar label{display:flex;align-items:center;gap:7px;white-space:nowrap}
+#combinedOrderTable{width:100%;border-collapse:collapse}#combinedOrderTable th{white-space:nowrap}#combinedOrderTable small{font-size:11px}
+#matrixPanel.is-combined-order > .toolbar:last-child > button:not(#regenBtn):not(#exportPngBtn){display:none!important}
+#matrixPanel.is-combined-order > .matrix-heading-tools,#matrixPanel.is-combined-order > .matrix-options,#matrixPanel.is-combined-order #currentSheetDispatchHint,#matrixPanel.is-combined-order #matrixTip{display:none!important}
+</style>
 </head>
 <body data-version="v14.11">
 <x-dc>
@@ -601,6 +609,21 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 
   <div class="panel mobile-core" id="matrixPanel">
     <h2>排单表</h2>
+    <div class="toolbar" data-html2canvas-ignore="true"><label>查看排单 <select id="combinedOrderSelect"><option value="">当前单表</option></select></label><button type="button" class="btn-ghost" id="combinedOrderManageBtn">合并排单</button><span class="hint">合并操作与导出；两车原账不变。</span></div>
+    <dialog id="combinedOrderDialog" style="width:min(620px,94vw);max-height:88vh;border:1px solid #e4dbe8;border-radius:14px;padding:18px;">
+      <div class="toolbar"><strong>合并排单</strong><button type="button" class="btn-ghost" id="combinedOrderCloseBtn">关闭</button></div>
+      <p class="hint">只合并排单操作界面。同款放在一列，每个排位保留原表来源；均摊、已收金额和国际账目不动。</p>
+      <label>合并名称<input type="text" id="combinedOrderName" maxlength="80" placeholder="例如：同款一车＋二车"></label>
+      <input type="search" id="combinedOrderSearch" placeholder="搜索原排单名称">
+      <div id="combinedOrderChoices" style="max-height:42vh;overflow:auto;margin:10px 0;"></div>
+      <div class="toolbar"><button type="button" class="btn-primary" id="combinedOrderSaveBtn">保存并查看</button><button type="button" class="btn-danger" id="combinedOrderDeleteBtn">取消此合并</button></div>
+      <p class="hint">合并关系随协作组同步，手机和电脑共用；原表、均摊和已收款不变。保存后请等顶部同步成功。</p>
+    </dialog>
+    <section id="combinedOrderView" hidden>
+      <div class="toolbar" data-html2canvas-ignore="true"><label>到货阶段<select id="combinedOrderStage"><option value="china">国内到货</option><option value="island">岛内到货</option></select></label><input type="date" id="combinedOrderDate"><button type="button" class="btn-ghost" id="combinedOrderAllBtn">全选</button><button type="button" class="btn-ghost" id="combinedOrderNoneBtn">全不选</button><button type="button" class="btn-primary" id="combinedOrderMarkBtn">确认到货</button><button type="button" class="btn-ghost" id="combinedOrderRemoveBtn">撤销选中到货</button><span id="combinedOrderCount" class="hint"></span></div>
+      <div id="combinedOrderExportWrap"><div id="combinedOrderTitle" class="matrix-project-title"></div><p id="combinedOrderSources" class="hint"></p><div class="table-scroll"><table id="combinedOrderTable"><thead></thead><tbody></tbody></table></div></div>
+      <p class="hint">勾选排位后确认到货，日期写回对应原车。这里只改到货，不改买齐、归属、发货或钱账。</p>
+    </section>
     <div class="payment-heading-tools matrix-heading-tools">
       <input id="matrixTitleInput" type="text" placeholder="填写项目名称">
       <label>标题颜色 <input id="matrixColorInput" type="color" value="#d1466a"></label>
@@ -5688,7 +5711,115 @@ body.export-rendering .cart-count{ font-size:28px; }
       const td=el&&el.closest?el.closest('#matrixTableBody td.cell[data-col][data-row]'):null;
       return td&&td.dataset.editing==='true'?td:null;
     }
+    let combinedOrderDraftIds=new Set(),combinedOrderRefs=[],combinedOrderSelected=new Set(),combinedOrderSaving=false;
+    function combinedOrderStorageKey(){return 'ggzCombinedOrderView_v1:'+(syncCode||'local');}
+    function readCombinedOrders(){
+      let local={};try{local=JSON.parse(localStorage.getItem(combinedOrderStorageKey())||'{}')||{};}catch(_){}
+      const byId=new Map(),valid=g=>g&&typeof g.id==='string'&&Array.isArray(g.sheetIds)&&g.sheetIds.length>=2;
+      for(const sheet of sheets||[])for(const group of Object.values(sheet.combinedOrderViews||{}))if(valid(group))byId.set(group.id,{id:group.id,name:String(group.name||'合并排单'),sheetIds:group.sheetIds.map(String)});
+      // Retain legacy local definitions until the user explicitly saves them.
+      // Opening an upgraded page never auto-publishes old local settings.
+      const sharedFound=byId.size>0;
+      for(const group of Array.isArray(local.groups)?local.groups:[])if(valid(group)&&!byId.has(group.id))byId.set(group.id,{id:group.id,name:String(group.name||'合并排单'),sheetIds:group.sheetIds.map(String)});
+      if(sharedFound&&Array.isArray(local.groups)){try{localStorage.setItem(combinedOrderStorageKey(),JSON.stringify({active:local.active||'',preferSingle:local.preferSingle===true}));}catch(_){} }
+      const groups=[...byId.values()],selected=groups.find(g=>g.id===local.active),fallback=groups.find(g=>g.sheetIds.includes(String(activeSheetId)))||groups[0];
+      return {groups,active:selected?.id||(local.preferSingle===true?'':fallback?.id||'')};
+    }
+    function writeCombinedOrders(value,publish=true){
+      if(!publish){localStorage.setItem(combinedOrderStorageKey(),JSON.stringify({active:value.active||'',preferSingle:!value.active}));return;}
+      captureActiveSheet();const before=(sheets||[]).map(sheet=>({sheet,had:Object.hasOwn(sheet,'combinedOrderViews'),views:deepClone(sheet.combinedOrderViews||{})}));
+      const wanted=new Map((value.groups||[]).map(g=>[g.id,{id:g.id,name:String(g.name||'合并排单'),sheetIds:[...new Set(g.sheetIds.map(String))]}]));
+      for(const group of wanted.values())if(group.sheetIds.length<2||group.sheetIds.some(id=>!sheets.some(s=>String(s.id)===id)))throw new Error('合并涉及的原排单已变化，请重新选择。');
+      try{
+        for(const sheet of sheets){const existing=sheet.combinedOrderViews||{},next={};for(const [id,group]of Object.entries(existing))if(wanted.has(id))next[id]=wanted.get(id);if(Object.keys(next).length)sheet.combinedOrderViews=next;else delete sheet.combinedOrderViews;}
+        for(const group of wanted.values())if(!sheets.some(s=>s.combinedOrderViews?.[group.id])){const owner=sheets.find(s=>String(s.id)===group.sheetIds[0]);owner.combinedOrderViews={...(owner.combinedOrderViews||{}),[group.id]:group};}
+        if(!saveState({snapshotReason:'保存合并排单关系',forceSnapshot:true,flushCollabNow:true}))throw new Error('本机保存失败，合并关系未更新。');
+      }catch(error){for(const b of before){if(b.had)b.sheet.combinedOrderViews=b.views;else delete b.sheet.combinedOrderViews;}persistLocalState();throw error;}
+      // Only per-device viewing preference remains local; group definitions are
+      // now in sheets, so realtime, complete backups and snapshots all carry them.
+      try{localStorage.setItem(combinedOrderStorageKey(),JSON.stringify({active:value.active||'',preferSingle:!value.active}));}catch(error){console.warn('合并关系已保存，当前设备查看偏好未能保存',error);}
+    }
+    function combinedOrderActive(){const state=readCombinedOrders();return state.groups.find(g=>g.id===state.active)||null;}
+    function buildCombinedOrderMatrix(sourceSheets,ids){
+      const wanted=new Set(ids.map(String)),map=new Map(),sources=[];
+      for(const sheet of sourceSheets||[]){if(!wanted.has(String(sheet.id)))continue;sources.push({id:sheet.id,name:sheet.name});
+        for(const col of orderDisplayColumns(sheet.columns||[],sheet.pricingGroups||[],sheet.allocations||{})){
+          const key=String(col.name||'未命名').trim();if(!map.has(key))map.set(key,{name:key,refs:[]});
+          (sheet.allocations?.[col.id]||[]).forEach((value,row)=>{const person=String(value||'').trim();if(!person)return;
+            map.get(key).refs.push({sheetId:sheet.id,sheetName:sheet.name,colId:col.id,row,person,item:matrixItemDisplayName(col,row,sheet.matrixBlindSubCells||{}),island:logisticsCellMark(col,row,person,sheet.matrixIslandCells||{},sheet.allocations),china:logisticsCellMark(col,row,person,sheet.matrixChinaCells||{},sheet.allocations)});
+          });
+        }
+      }
+      return {sources,cols:[...map.values()].filter(c=>c.refs.length)};
+    }
+    function syncCombinedOrderSelect(){const input=$('combinedOrderSelect');if(!input)return;const state=readCombinedOrders();input.innerHTML='<option value="">当前单表</option>'+state.groups.map(g=>`<option value="${escapeAttr(g.id)}">${escapeHtml(g.name||'合并排单')}</option>`).join('');input.value=state.active;}
+    function renderCombinedOrderChoices(){const query=normalizeDispatchKey($('combinedOrderSearch').value);$('combinedOrderChoices').innerHTML=sheets.filter(s=>!query||normalizeDispatchKey(s.name).includes(query)).map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:9px;border-bottom:1px solid #eee;"><input type="checkbox" style="width:auto;" data-combined-sheet="${escapeAttr(s.id)}" ${combinedOrderDraftIds.has(String(s.id))?'checked':''}><span>${escapeHtml(s.name)}</span></label>`).join('');}
+    function renderCombinedOrderView(){
+      const root=$('combinedOrderView');if(!root)return;syncCombinedOrderSelect();const group=combinedOrderActive(),on=!!group;
+      $('matrixPanel').classList.toggle('is-combined-order',on);
+      root.hidden=!on;$('matrixWrap').hidden=on;
+      for(const selector of ['.matrix-heading-tools','#matrixPanel .matrix-options','#matrixTip']){const el=document.querySelector(selector);if(el)el.style.display=on?'none':'';}
+      for(const id of ['exportSingleQuantityBtn','exportQuantityJpyBtn','exportBundleQuantityBtn','copyBlindResultBtn','undoLastApplyBtn','clearAllBtn'])if($(id))$(id).style.display=on?'none':'';
+      if(!on){combinedOrderRefs=[];combinedOrderSelected.clear();return;}
+      const model=buildCombinedOrderMatrix(sheets,group.sheetIds);combinedOrderRefs=[];
+      $('combinedOrderTitle').textContent=group.name||'合并排单';$('combinedOrderSources').textContent=model.sources.map(s=>s.name).join(' ＋ ');
+      const head=$('combinedOrderTable').querySelector('thead'),body=$('combinedOrderTable').querySelector('tbody');
+      head.innerHTML='<tr><th>#</th>'+model.cols.map(c=>`<th>${escapeHtml(c.name)}<small style="display:block;">${c.refs.length} 件</small></th>`).join('')+'</tr>';
+      const height=Math.max(0,...model.cols.map(c=>c.refs.length));
+      body.innerHTML=Array.from({length:height},(_,row)=>'<tr><th>'+(row+1)+'</th>'+model.cols.map(c=>{const ref=c.refs[row];if(!ref)return '<td></td>';const index=combinedOrderRefs.push(ref)-1,key=`${ref.sheetId}:${ref.colId}:${ref.row}:${ref.person}`;return `<td style="min-width:120px;padding:8px;vertical-align:top;background:${ref.china?'#e4f4eb':ref.island?'#fff5e5':'#fff'};"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-combined-piece="${index}" ${combinedOrderSelected.has(key)?'checked':''} style="width:auto;" data-html2canvas-ignore="true"><b>${escapeHtml(ref.person)}</b></label><small style="display:block;color:#8d8192;">${escapeHtml(ref.sheetName)} · 第${ref.row+1}行</small>${ref.item!==c.name?`<small style="display:block;">${escapeHtml(ref.item)}</small>`:''}<small style="display:block;">${ref.china?'国内 '+escapeHtml(ref.china):ref.island?'岛内 '+escapeHtml(ref.island):'未到货'}</small></td>`;}).join('')+'</tr>').join('')||'<tr><td>所选原表暂无排位。</td></tr>';
+      const live=new Set(combinedOrderRefs.map(r=>`${r.sheetId}:${r.colId}:${r.row}:${r.person}`));combinedOrderSelected=new Set([...combinedOrderSelected].filter(k=>live.has(k)));syncCombinedOrderCount();
+      if(!$('combinedOrderDate').value)$('combinedOrderDate').value=todayISO();
+    }
+    function syncCombinedOrderCount(){$('combinedOrderCount').textContent='已选 '+combinedOrderSelected.size+' 件';$('combinedOrderMarkBtn').disabled=!combinedOrderSelected.size||combinedOrderSaving;$('combinedOrderRemoveBtn').disabled=!combinedOrderSelected.size||combinedOrderSaving;}
+    function buildCombinedArrivalPlan(sourceSheets,refs,stage,date,operation){
+      const groups=new Map();for(const ref of refs){const key=String(ref.sheetId);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(ref);}
+      const plans=[];for(const [id,items]of groups){const sheet=sourceSheets.find(s=>String(s.id)===id);if(!sheet)throw new Error('原排单已不存在，请重新打开合并排单');
+        const field=stage==='island'?'matrixIslandCells':'matrixChinaCells',store=sheet[field]||{};
+        const relevant=items.filter(ref=>{const col=orderDisplayColumns(sheet.columns||[],sheet.pricingGroups||[],sheet.allocations||{}).find(c=>String(c.id)===String(ref.colId));if(!col)return true;const current=logisticsCellMark(col,ref.row,ref.person,store,sheet.allocations||{});return operation==='remove'?!!current:!current;});
+        if(relevant.length)plans.push({sheetId:sheet.id,...buildLogisticsArrivalChanges(sheet,relevant,stage,date,operation)});
+      }
+      if(!plans.length)throw new Error('没有需要修改的到货标记；已有日期不会覆盖。');return plans;
+    }
+    async function applyCombinedOrderArrival(operation){
+      if(combinedOrderSaving)return;combinedOrderSaving=true;syncCombinedOrderCount();
+      try{
+        captureActiveSheet();const group=combinedOrderActive();if(!group)throw new Error('请先选择合并排单');
+        const refs=combinedOrderRefs.filter(r=>combinedOrderSelected.has(`${r.sheetId}:${r.colId}:${r.row}:${r.person}`)),stage=$('combinedOrderStage').value,date=$('combinedOrderDate').value,code=String(syncCode||''),groupSignature=JSON.stringify(group);
+        let plans=buildCombinedArrivalPlan(sheets,refs,stage,date,operation);const signature=JSON.stringify(plans),count=plans.reduce((n,p)=>n+p.changes.length,0);
+        if(!await appConfirm(`${operation==='remove'?'撤销':'记录'} ${count} 件${stage==='china'?'国内':'岛内'}到货${operation==='remove'?'':'，日期 '+date}？\n会写回各自原排单，仅改到货；不改均摊、已收金额或国际账目。`,'合并排单到货','确认'))return;
+        captureActiveSheet();if(code!==String(syncCode||'')||JSON.stringify(combinedOrderActive())!==groupSignature)throw new Error('合并范围已变化，请重新选择');
+        plans=buildCombinedArrivalPlan(sheets,refs,stage,date,operation);if(signature!==JSON.stringify(plans))throw new Error('确认期间原排单发生变化，请重新核对');
+        if(!recordLocalSnapshot('合并排单到货前',true))throw new Error('到货前快照未保存，请先导出 JSON 备份');
+        const before=plans.map(p=>{const s=sheets.find(s=>s.id===p.sheetId);return {sheet:s,field:p.field,had:Object.hasOwn(s,p.field),store:deepClone(s[p.field]||{}),hadHistory:Object.hasOwn(s,'logisticsArrivalHistory'),history:deepClone(s.logisticsArrivalHistory||[])};});
+        try{
+          for(const p of plans){const s=sheets.find(s=>s.id===p.sheetId);s[p.field]=s[p.field]||{};for(const change of p.changes){if(change.after)s[p.field][change.key]=change.after;else delete s[p.field][change.key];}s.logisticsArrivalHistory=[...(s.logisticsArrivalHistory||[]),{id:'arrival_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),at:Date.now(),stage,date,operation,field:p.field,changes:deepClone(p.changes)}].slice(-5);}
+          const active=sheets.find(s=>s.id===activeSheetId);matrixIslandCells=deepClone(active?.matrixIslandCells||{});matrixChinaCells=deepClone(active?.matrixChinaCells||{});
+          if(!saveState({snapshotReason:'合并排单到货后',forceSnapshot:true}))throw new Error('本机保存失败');
+        }catch(error){for(const b of before){if(b.had)b.sheet[b.field]=b.store;else delete b.sheet[b.field];if(b.hadHistory)b.sheet.logisticsArrivalHistory=b.history;else delete b.sheet.logisticsArrivalHistory;}const active=sheets.find(s=>s.id===activeSheetId);matrixIslandCells=deepClone(active?.matrixIslandCells||{});matrixChinaCells=deepClone(active?.matrixChinaCells||{});persistLocalState();throw error;}
+        combinedOrderSelected.clear();renderMatrix();renderLogistics();renderDispatch();
+      }catch(error){await appAlert(error.message||'到货未保存');}finally{combinedOrderSaving=false;syncCombinedOrderCount();}
+    }
+    async function exportCombinedOrderImage(){
+      try{captureActiveSheet();renderCombinedOrderView();if(!combinedOrderRefs.length)throw new Error('没有可导出的排位');if(typeof html2canvas==='undefined')throw new Error('导出库尚未加载');
+        const wrap=$('combinedOrderExportWrap'),width=Math.max(680,exportContentWidth(wrap)),height=wrap.scrollHeight,scale=Math.min(2,28000/Math.max(1,height),Math.sqrt(20000000/Math.max(1,width*height)));
+        if(scale<1)throw new Error('合并表过大，单张会不清晰，请减少合并表数后导出');
+        const canvas=await renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale,width,height,windowWidth:width+40,windowHeight:height+40,cloneForExport:true});saveCanvasImage(canvas,(combinedOrderActive()?.name||'合并排单')+'.png');
+      }catch(error){await appAlert(error.message||'导出失败');}
+    }
+    $('combinedOrderManageBtn').addEventListener('click',()=>{captureActiveSheet();const group=combinedOrderActive();combinedOrderDraftIds=new Set((group?.sheetIds||[activeSheetId]).map(String));$('combinedOrderName').value=group?.name||'';$('combinedOrderSearch').value='';renderCombinedOrderChoices();$('combinedOrderDeleteBtn').hidden=!group;$('combinedOrderDialog').showModal();});
+    $('combinedOrderCloseBtn').addEventListener('click',()=>$('combinedOrderDialog').close());
+    $('combinedOrderSearch').addEventListener('input',renderCombinedOrderChoices);
+    $('combinedOrderChoices').addEventListener('change',e=>{const id=e.target.dataset.combinedSheet;if(id)e.target.checked?combinedOrderDraftIds.add(id):combinedOrderDraftIds.delete(id);});
+    $('combinedOrderSaveBtn').addEventListener('click',async()=>{const name=$('combinedOrderName').value.trim();if(!name||combinedOrderDraftIds.size<2){await appAlert('填写合并名称，并至少选择两张原排单。');return;}try{const state=readCombinedOrders(),existing=state.groups.find(g=>g.id===state.active),group={id:existing?.id||'view_'+Date.now(),name,sheetIds:[...combinedOrderDraftIds]};state.groups=state.groups.filter(g=>g.id!==group.id).concat(group);state.active=group.id;writeCombinedOrders(state);combinedOrderSelected.clear();$('combinedOrderDialog').close();renderMatrix();}catch(error){await appAlert('合并设置未保存：'+error.message);}});
+    $('combinedOrderDeleteBtn').addEventListener('click',async()=>{if(!await appConfirm('取消当前合并界面？原排单和所有账目都不会删除。','取消合并','确认'))return;const state=readCombinedOrders();state.groups=state.groups.filter(g=>g.id!==state.active);state.active='';writeCombinedOrders(state);$('combinedOrderDialog').close();renderMatrix();});
+    $('combinedOrderSelect').addEventListener('change',e=>{const state=readCombinedOrders();state.active=e.target.value;writeCombinedOrders(state,false);combinedOrderSelected.clear();renderMatrix();});
+    $('combinedOrderTable').addEventListener('change',e=>{const ref=combinedOrderRefs[Number(e.target.dataset.combinedPiece)];if(!ref||e.target.dataset.combinedPiece===undefined)return;const key=`${ref.sheetId}:${ref.colId}:${ref.row}:${ref.person}`;e.target.checked?combinedOrderSelected.add(key):combinedOrderSelected.delete(key);syncCombinedOrderCount();});
+    $('combinedOrderAllBtn').addEventListener('click',()=>{combinedOrderSelected=new Set(combinedOrderRefs.map(r=>`${r.sheetId}:${r.colId}:${r.row}:${r.person}`));renderCombinedOrderView();});
+    $('combinedOrderNoneBtn').addEventListener('click',()=>{combinedOrderSelected.clear();renderCombinedOrderView();});
+    $('combinedOrderMarkBtn').addEventListener('click',()=>applyCombinedOrderArrival('mark'));
+    $('combinedOrderRemoveBtn').addEventListener('click',()=>applyCombinedOrderArrival('remove'));
     function renderMatrix(force=false){
+      if(typeof renderCombinedOrderView==='function')renderCombinedOrderView();
       computeAverage();
       if(!force&&activeMatrixEditingCell()){
         matrixRenderDeferred=true;
@@ -12475,6 +12606,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'上车名单'); XLSX.utils.book_append_sheet(wb,settings,'计数设置'); XLSX.writeFile(wb,quantityExportName('xlsx'));
     });
     $('exportPngBtn').addEventListener('click',async()=>{
+      if(combinedOrderActive()){await exportCombinedOrderImage();return;}
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
       if(document.activeElement&&document.activeElement.blur) document.activeElement.blur();
       const wrap=$('matrixWrap'), table=$('matrixTable'), title=wrap.querySelector('.matrix-project-title');
