@@ -609,15 +609,15 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
 
   <div class="panel mobile-core" id="matrixPanel">
     <h2>排单表</h2>
-    <div class="toolbar" data-html2canvas-ignore="true"><label>查看排单 <select id="combinedOrderSelect"><option value="">当前单表</option></select></label><button type="button" class="btn-ghost" id="combinedOrderManageBtn">合并排单</button><span class="hint">合并操作与导出；两车原账不变。</span></div>
+    <div class="toolbar" data-html2canvas-ignore="true"><label>查看排单 <select id="combinedOrderSelect"><option value="">当前单表</option></select></label><button type="button" class="btn-ghost" id="combinedOrderManageBtn">合并排单</button><button type="button" class="btn-ghost" id="downloadMergedSourcesBtn" hidden>合并前原单备份</button><span class="hint">合成普通排单，原均摊和实收保留。</span></div>
     <dialog id="combinedOrderDialog" style="width:min(620px,94vw);max-height:88vh;border:1px solid #e4dbe8;border-radius:14px;padding:18px;">
       <div class="toolbar"><strong>合并排单</strong><button type="button" class="btn-ghost" id="combinedOrderCloseBtn">关闭</button></div>
-      <p class="hint">只合并排单操作界面。同款放在一列，每个排位保留原表来源；均摊、已收金额和国际账目不动。</p>
+      <p class="hint">真正合成一张普通排单，同款放在一列。原均摊按各车已算金额保留，不重新均分；原两张放入合并前备份。</p>
       <label>合并名称<input type="text" id="combinedOrderName" maxlength="80" placeholder="例如：同款一车＋二车"></label>
       <input type="search" id="combinedOrderSearch" placeholder="搜索原排单名称">
       <div id="combinedOrderChoices" style="max-height:42vh;overflow:auto;margin:10px 0;"></div>
-      <div class="toolbar"><button type="button" class="btn-primary" id="combinedOrderSaveBtn">保存并查看</button><button type="button" class="btn-danger" id="combinedOrderDeleteBtn">取消此合并</button></div>
-      <p class="hint">合并关系随协作组同步，手机和电脑共用；原表、均摊和已收款不变。保存后请等顶部同步成功。</p>
+      <div class="toolbar"><button type="button" class="btn-primary" id="combinedOrderSaveBtn">核对并合成普通排单</button><button type="button" class="btn-danger" id="combinedOrderDeleteBtn" hidden>取消此合并</button></div>
+      <p class="hint">合并前逐人核对钱账并下载备份；合并后沿用正常排单、到货和国际流程，随原协作同步。</p>
     </dialog>
     <section id="combinedOrderView" hidden>
       <div class="toolbar" data-html2canvas-ignore="true"><label>到货阶段<select id="combinedOrderStage"><option value="china">国内到货</option><option value="island">岛内到货</option></select></label><input type="date" id="combinedOrderDate"><button type="button" class="btn-ghost" id="combinedOrderAllBtn">全选</button><button type="button" class="btn-ghost" id="combinedOrderNoneBtn">全不选</button><button type="button" class="btn-primary" id="combinedOrderMarkBtn">确认到货</button><button type="button" class="btn-ghost" id="combinedOrderRemoveBtn">撤销选中到货</button><span id="combinedOrderCount" class="hint"></span></div>
@@ -5711,6 +5711,67 @@ body.export-rendering .cart-count{ font-size:28px; }
       const td=el&&el.closest?el.closest('#matrixTableBody td.cell[data-col][data-row]'):null;
       return td&&td.dataset.editing==='true'?td:null;
     }
+    function buildOrdinaryOrderMerge(project,ids,name,at=new Date().toISOString()){
+      const selected=new Set(ids.map(String)),sources=project.sheets.filter(s=>selected.has(String(s.id)));
+      if(sources.length<2||sources.length!==selected.size)throw new Error('请至少选择两张有效原排单');
+      if(sources.some(s=>(s.pricingGroups||[]).length||s.mergedShareCells))throw new Error('这次先支持普通单列排单；组合列或已合过的表需要另行核对');
+      const flags=['paymentIncludeShare','showBoughtSettlement','paymentBoughtOnly','shareDeductFixed','dispatchEnabled','dispatchInternationalExempt'];
+      for(const field of flags)if(sources.some(s=>!!s[field]!==!!sources[0][field]))throw new Error('两车的收款/排发规则不同，不能未经核对直接合表：'+field);
+      if(sources.some(s=>(num(s.paymentStartRow)||1)!==1||s.paymentEndRow))throw new Error('请先核对收款统计范围；真实合表要求原单统计全部行');
+      const oldRecords=sources.flatMap(s=>recordsForSheet(s).map(r=>({...r,sourceId:s.id})));
+      if(oldRecords.some(r=>r.historyUnknown||r.manual))throw new Error('原账存在历史缺金额或手动退补覆盖，合表前需要先核对');
+      const merged=deepClone(sources[0]);merged.name=String(name||sources.map(s=>s.name).join('＋')).trim();merged.matrixTitle=merged.paymentTitle=merged.quantityTitle=merged.name;merged.matrixTitleCustom=merged.paymentTitleCustom=merged.quantityTitleCustom=true;
+      merged.columns=[];merged.allocations={};merged.pricingGroups=[];merged.secondPriceCellPrices={};merged.mergedShareCells={};merged.mergedCellSources={};
+      const stores=['matrixBoughtCells','matrixIslandCells','matrixChinaCells','matrixBlindSubCells','dispatchShippedCells','dispatchInternationalExemptCells'];for(const field of stores)merged[field]={};
+      const moneyMaps=['paymentPaid','sharePaymentPaid','paymentRefund','paymentSupplement','sharePaymentRefund','sharePaymentSupplement','paymentRefundDone','paymentSupplementDone'];for(const field of moneyMaps)merged[field]={};
+      merged.paymentEdits={};merged.sharePaymentEdits={};merged.paymentCashHistory=[];merged.paymentNotes={};
+      const byName=new Map(),mapping=new Map(),sourceRecords=new Map(sources.map(s=>[s.id,recordsForSheet(s)]));let columnSeed=1;
+      for(const source of sources){const prices=sheetDisplayPriceInfo(source),personCells=new Map();
+        for(const col of prices.cols){const label=String(col.name||'').trim();if(!label)throw new Error('存在未命名谷子列');let target=byName.get(label);
+          if(!target){target={...deepClone(col),id:columnSeed++,mode:'fixed',fixedPrice:Math.max(0,prices.price(col)),priceAdj:0,avgOverride:null};byName.set(label,target);merged.columns.push(target);merged.allocations[target.id]=[];}
+          for(const [row,value]of (source.allocations[col.id]||[]).entries()){const person=String(value||'').trim();if(!person)continue;const nextRow=merged.allocations[target.id].length,key=matrixBoughtKey(target.id,nextRow),oldKey=matrixBoughtKey(col.id,row),personKey=normalizeDispatchKey(person);merged.allocations[target.id].push(person);
+            mapping.set(`${source.id}:${oldKey}`,{sheetId:merged.id,colId:target.id,row:nextRow});merged.mergedCellSources[key]={sheetId:source.id,colId:col.id,row};
+            const amount=Math.max(0,prices.price(col,row));if(Math.abs(amount-num(target.fixedPrice))>0.000001||source.secondPriceCellPrices?.[oldKey])merged.secondPriceCellPrices[key]={person,colId:target.id,amount,calculationId:'ordinary_merge_'+at};
+            for(const field of stores)if(Object.hasOwn(source[field]||{},oldKey))merged[field][key]=deepClone(source[field][oldKey]);
+            if(!personCells.has(personKey))personCells.set(personKey,[]);personCells.get(personKey).push({key,weight:Math.max(0,num(col.promotionPoints)),sourceId:source.id});
+          }
+        }
+        for(const record of sourceRecords.get(source.id)){const cells=personCells.get(record.key)||[],total=Math.round(num(record.sh.expected)*100);if(total&&!cells.length)throw new Error('原均摊有金额但找不到对应排位：'+record.name);
+          const weights=cells.reduce((n,c)=>n+c.weight,0);let allocated=0;cells.forEach((cell,index)=>{const cumulative=cells.slice(0,index+1).reduce((n,c)=>n+c.weight,0),next=index===cells.length-1?total:Math.round(total*(weights?cumulative/weights:(index+1)/cells.length));merged.mergedShareCells[cell.key]={amount:(next-allocated)/100,sourceSheetId:source.id};allocated=next;});
+        }
+        for(const field of moneyMaps)for(const [key,value]of Object.entries(source[field]||{})){if(value===true)throw new Error('原收款含缺少明确金额的标记：'+key);const target=merged[field];if(!Object.hasOwn(target,key))target[key]=deepClone(value);else if(typeof value==='number'&&typeof target[key]==='number')target[key]=Math.round((value+target[key])*100)/100;else{const amount=settlementTransferAmount(target[key])+settlementTransferAmount(value);target[key]={amount,events:[...(target[key]?.events||[]),...(value?.events||[])]};}}
+        for(const field of ['paymentEdits','sharePaymentEdits'])for(const [key,value]of Object.entries(source[field]||{})){const target=merged[field];if(!Object.hasOwn(target,key))target[key]=deepClone(value);else if(typeof value==='number'&&typeof target[key]==='number')target[key]=Math.round((target[key]+value)*100)/100;else if(Array.isArray(value)&&Array.isArray(target[key]))target[key].push(...deepClone(value));else if(value?.items&&target[key]?.items){for(const [item,amount]of Object.entries(value.items))target[key].items[item]=num(target[key].items[item])+num(amount);target[key].total=num(target[key].total)+num(value.total);}else if(JSON.stringify(value)!==JSON.stringify(target[key]))throw new Error('两车存在不能自动合并的金额覆盖：'+key);}
+        merged.paymentCashHistory.push(...deepClone(source.paymentCashHistory||[]).map(e=>({...e,originalSheetId:source.id,originalSheetName:source.name})));
+        for(const [key,note]of Object.entries(source.paymentNotes||{}))merged.paymentNotes[key]=[merged.paymentNotes[key],note].filter(Boolean).join('；');
+      }
+      merged.cost={...merged.cost,sharedFee:String(sources.reduce((n,s)=>n+num(s.cost?.sharedFee),0))};merged.shareDeductFixed=false;
+      // Keep standard overrides for older pages; updated pages use the exact
+      // original per-position shares rather than redistributing the new total.
+      merged.sharePaymentEdits.__merged_share_lock__={};
+      for(const record of oldRecords){const key=record.key;merged.sharePaymentEdits.__merged_share_lock__[key]=Math.round((num(merged.sharePaymentEdits.__merged_share_lock__[key])+num(record.sh.expected))*100)/100;}
+      for(const [key,value]of Object.entries(merged.sharePaymentEdits.__merged_share_lock__))merged.sharePaymentEdits['alipay:'+key]=value;
+      delete merged.combinedOrderViews;delete merged.logisticsArrivalHistory;merged.mergeSourceBackups={at,sheets:deepClone(sources)};
+      const payload=deepClone(project);payload.sheets=payload.sheets.filter(s=>!selected.has(String(s.id)));const insert=project.sheets.findIndex(s=>selected.has(String(s.id)));payload.sheets.splice(insert,0,merged);payload.activeSheetId=merged.id;
+      for(const fee of payload.extraFees||[]){if(selected.has(String(fee.sheetId)))fee.sheetId=merged.id;if(Array.isArray(fee.sheetIds))fee.sheetIds=[...new Set(fee.sheetIds.map(id=>selected.has(String(id))?merged.id:id))];if(Array.isArray(fee.transferPieces))fee.transferPieces=fee.transferPieces.map(ref=>{const next=mapping.get(`${ref.sheetId}:${ref.colId}:${ref.row}`);return next?{...ref,...next}:ref;});}
+      const metrics=r=>[num(r.g.expected),num(r.g.actual),num(r.g.received),num(r.sh.expected),num(r.sh.received),num(r.refunded),num(r.supplemented),num(r.transferCredit),num(r.refund),num(r.due)].map(v=>Math.round(v*100));
+      const expected=new Map();for(const record of oldRecords){const sums=expected.get(record.key)||Array(10).fill(0),values=metrics(record);expected.set(record.key,sums.map((v,i)=>v+values[i]));}
+      const current=new Map(recordsForSheet(merged).map(r=>[r.key,metrics(r)]));
+      if(JSON.stringify([...expected].sort())!==JSON.stringify([...current].sort()))throw new Error('合表前后逐人账目不一致，已停止，未修改原表');
+      return {payload,merged,mapping,report:{people:expected.size,pieces:Object.keys(merged.mergedCellSources).length,sources:sources.map(s=>({id:s.id,name:s.name,sharedFee:s.cost?.sharedFee})),moneyUnchanged:true}};
+    }
+    async function applyOrdinaryOrderMerge(){
+      const name=$('combinedOrderName').value.trim();if(!name||combinedOrderDraftIds.size<2){await appAlert('请填写合并名称，至少勾选两张原表');return;}
+      captureActiveSheet();const before=deepClone(localStatePayload()),signature=JSON.stringify(before),code=String(syncCode||'');let plan;
+      try{plan=buildOrdinaryOrderMerge(before,[...combinedOrderDraftIds],name);}catch(error){await appAlert(error.message);return;}
+      if(!await appConfirm(`将这 ${plan.report.sources.length} 张原单真正合成一张普通排单？\n${plan.report.sources.map(s=>s.name).join('、')}\n${plan.report.pieces} 件，${plan.report.people} 人，逐人账目核对一致。\n原表从日常列表移除，完整保存在合并前备份中；原均摊按原金额保留，不重新均分。`,'真实合并排单','备份并合并'))return;
+      captureActiveSheet();if(code!==String(syncCode||'')||signature!==JSON.stringify(localStatePayload())){await appAlert('确认期间数据变化，请重新核对');return;}
+      downloadBackup(before,'真正合表前-完整备份.json');if(!await appConfirm('请确认完整备份已下载成功，未成功请取消。','合并前备份','已下载，合并'))return;
+      captureActiveSheet();if(code!==String(syncCode||'')||signature!==JSON.stringify(localStatePayload())){await appAlert('确认期间数据变化，未合并');return;}
+      if(!recordLocalSnapshot('真正合并排单前',true)){await appAlert('快照未保存，未合并');return;}
+      sheets=plan.payload.sheets;extraFees=plan.payload.extraFees;activeSheetId=plan.merged.id;applySheet(sheets.find(s=>s.id===activeSheetId));
+      if(!saveState({snapshotReason:'真正合并排单后',forceSnapshot:true,flushCollabNow:true})){sheets=before.sheets;extraFees=before.extraFees;activeSheetId=before.activeSheetId;applySheet(sheets.find(s=>s.id===activeSheetId));persistLocalState();await appAlert('保存失败，已还原原表和原账');return;}
+      $('combinedOrderDialog').close();renderSheetTabs();renderColumnList();renderMatrix();renderPaymentSummary();renderSharePaymentSummary();renderDispatch();await appAlert('已合成普通排单，原均摊及已收款逐人核对不变。请等顶部同步成功。');
+    }
     let combinedOrderDraftIds=new Set(),combinedOrderRefs=[],combinedOrderSelected=new Set(),combinedOrderSaving=false;
     function combinedOrderStorageKey(){return 'ggzCombinedOrderView_v1:'+(syncCode||'local');}
     function readCombinedOrders(){
@@ -5755,7 +5816,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     function syncCombinedOrderSelect(){const input=$('combinedOrderSelect');if(!input)return;const state=readCombinedOrders();input.innerHTML='<option value="">当前单表</option>'+state.groups.map(g=>`<option value="${escapeAttr(g.id)}">${escapeHtml(g.name||'合并排单')}</option>`).join('');input.value=state.active;}
     function renderCombinedOrderChoices(){const query=normalizeDispatchKey($('combinedOrderSearch').value);$('combinedOrderChoices').innerHTML=sheets.filter(s=>!query||normalizeDispatchKey(s.name).includes(query)).map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:9px;border-bottom:1px solid #eee;"><input type="checkbox" style="width:auto;" data-combined-sheet="${escapeAttr(s.id)}" ${combinedOrderDraftIds.has(String(s.id))?'checked':''}><span>${escapeHtml(s.name)}</span></label>`).join('');}
     function renderCombinedOrderView(){
-      const root=$('combinedOrderView');if(!root)return;syncCombinedOrderSelect();const group=combinedOrderActive(),on=!!group;
+      const root=$('combinedOrderView');if(!root)return;syncCombinedOrderSelect();const group=null,on=false;
+      $('combinedOrderSelect').closest('label').hidden=true;
+      $('downloadMergedSourcesBtn').hidden=!sheets.find(s=>s.id===activeSheetId)?.mergeSourceBackups;
       $('matrixPanel').classList.toggle('is-combined-order',on);
       root.hidden=!on;$('matrixWrap').hidden=on;
       for(const selector of ['.matrix-heading-tools','#matrixPanel .matrix-options','#matrixTip']){const el=document.querySelector(selector);if(el)el.style.display=on?'none':'';}
@@ -5806,11 +5869,12 @@ body.export-rendering .cart-count{ font-size:28px; }
         const canvas=await renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale,width,height,windowWidth:width+40,windowHeight:height+40,cloneForExport:true});saveCanvasImage(canvas,(combinedOrderActive()?.name||'合并排单')+'.png');
       }catch(error){await appAlert(error.message||'导出失败');}
     }
-    $('combinedOrderManageBtn').addEventListener('click',()=>{captureActiveSheet();const group=combinedOrderActive();combinedOrderDraftIds=new Set((group?.sheetIds||[activeSheetId]).map(String));$('combinedOrderName').value=group?.name||'';$('combinedOrderSearch').value='';renderCombinedOrderChoices();$('combinedOrderDeleteBtn').hidden=!group;$('combinedOrderDialog').showModal();});
+    $('combinedOrderManageBtn').addEventListener('click',()=>{captureActiveSheet();const group=combinedOrderActive();combinedOrderDraftIds=new Set((group?.sheetIds||[activeSheetId]).map(String));$('combinedOrderName').value=group?.name||'';$('combinedOrderSearch').value='';renderCombinedOrderChoices();$('combinedOrderDeleteBtn').hidden=true;$('combinedOrderDialog').showModal();});
     $('combinedOrderCloseBtn').addEventListener('click',()=>$('combinedOrderDialog').close());
+    $('downloadMergedSourcesBtn').addEventListener('click',()=>{const archive=sheets.find(s=>s.id===activeSheetId)?.mergeSourceBackups;if(archive)downloadBackup({sheets:deepClone(archive.sheets),mergedAt:archive.at},'合并前两车原单备份.json');});
     $('combinedOrderSearch').addEventListener('input',renderCombinedOrderChoices);
     $('combinedOrderChoices').addEventListener('change',e=>{const id=e.target.dataset.combinedSheet;if(id)e.target.checked?combinedOrderDraftIds.add(id):combinedOrderDraftIds.delete(id);});
-    $('combinedOrderSaveBtn').addEventListener('click',async()=>{const name=$('combinedOrderName').value.trim();if(!name||combinedOrderDraftIds.size<2){await appAlert('填写合并名称，并至少选择两张原排单。');return;}try{const state=readCombinedOrders(),existing=state.groups.find(g=>g.id===state.active),group={id:existing?.id||'view_'+Date.now(),name,sheetIds:[...combinedOrderDraftIds]};state.groups=state.groups.filter(g=>g.id!==group.id).concat(group);state.active=group.id;writeCombinedOrders(state);combinedOrderSelected.clear();$('combinedOrderDialog').close();renderMatrix();}catch(error){await appAlert('合并设置未保存：'+error.message);}});
+    $('combinedOrderSaveBtn').addEventListener('click',applyOrdinaryOrderMerge);
     $('combinedOrderDeleteBtn').addEventListener('click',async()=>{if(!await appConfirm('取消当前合并界面？原排单和所有账目都不会删除。','取消合并','确认'))return;const state=readCombinedOrders();state.groups=state.groups.filter(g=>g.id!==state.active);state.active='';writeCombinedOrders(state);$('combinedOrderDialog').close();renderMatrix();});
     $('combinedOrderSelect').addEventListener('change',e=>{const state=readCombinedOrders();state.active=e.target.value;writeCombinedOrders(state,false);combinedOrderSelected.clear();renderMatrix();});
     $('combinedOrderTable').addEventListener('change',e=>{const ref=combinedOrderRefs[Number(e.target.dataset.combinedPiece)];if(!ref||e.target.dataset.combinedPiece===undefined)return;const key=`${ref.sheetId}:${ref.colId}:${ref.row}:${ref.person}`;e.target.checked?combinedOrderSelected.add(key):combinedOrderSelected.delete(key);syncCombinedOrderCount();});
@@ -6061,6 +6125,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     function paymentEditAmount(edits,field,name,key,fallback){
       const source=edits||{}, prefix=field+':', direct=prefix+String(name||''), compact=normalizeDispatchKey;
       const fallbackAmount=Math.max(0,paymentMoneyValue(fallback));
+      if(field==='alipay'&&source.__merged_share_lock__&&Object.hasOwn(source.__merged_share_lock__,key)){
+        const locked=num(source.__merged_share_lock__[key]),stored=source['alipay:'+key];
+        if(stored!==undefined&&Math.abs(num(stored)-locked)<0.005)return fallbackAmount;
+      }
       // 微信金额始终由当前应收自动计算，不允许历史手动值覆盖。
       if(field==='wechat') return fallbackAmount;
       const freshAmount=amountKey=>{
@@ -6211,6 +6279,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       return null;
     }
+    function mergedOrderShareExpected(sheet,key){
+      if(!sheet?.mergedShareCells)return null;
+      let cents=0;for(const [cell,entry]of Object.entries(sheet.mergedShareCells)){const split=cell.lastIndexOf(':'),col=cell.slice(0,split),row=Number(cell.slice(split+1)),owner=normalizeDispatchKey(sheet.allocations?.[col]?.[row]);if(owner===key)cents+=Math.round(num(entry.amount)*100);}
+      return cents/100;
+    }
     function buildShareSettlementRecords(){
       const sharedTotal=Math.max(0,num($('sharedFee').value)), people=new Map(), startIndex=Math.max(0,paymentStartRow-1), endIndex=paymentEndRow===null?Infinity:Math.max(startIndex+1,paymentEndRow), displayColumns=orderDisplayColumns();
       let totalQty=0,fixedDeduction=0;
@@ -6223,7 +6296,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
       const perItem=totalQty?Math.max(0,sharedTotal-fixedDeduction)/totalQty:0;
-      return [...people.values()].map(data=>{ const autoExpected=ceilMoneyValue(data.qty*perItem), expected=paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,autoExpected),received=paidAmountValue(sharePaymentPaid,data.key,expected); return {...data,expected,received,refund:refundAmountValue(sharePaymentRefund,data.key,expected),supplement:refundAmountValue(sharePaymentSupplement,data.key,expected)}; });
+      return [...people.values()].map(data=>{ const frozen=typeof mergedOrderShareExpected==='function'?mergedOrderShareExpected({...sheets.find(s=>s.id===activeSheetId),allocations},data.key):null,autoExpected=frozen===null?ceilMoneyValue(data.qty*perItem):frozen, expected=paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,autoExpected),received=paidAmountValue(sharePaymentPaid,data.key,expected); return {...data,expected,received,refund:refundAmountValue(sharePaymentRefund,data.key,expected),supplement:refundAmountValue(sharePaymentSupplement,data.key,expected)}; });
     }
     function shareRecordMapForAutoPaid(){
       return new Map(buildShareSettlementRecords().map(row=>[row.key,row]));
@@ -6473,7 +6546,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(ctx.settings.shareDeductFixed&&c.mode==='fixed'&&!c.isPricingCombo) fixedDeduction+=Math.max(0,num(c.fixedPrice));
       }));
       const perItem=totalQty?Math.max(0,ctx.settings.sharedTotal-fixedDeduction)/totalQty:0;
-      const shareRecords=[...sharePeople.values()].map(data=>{ const autoExpected=ceilMoneyValue(data.qty*perItem), expected=paymentEditAmount(ctx.settings.sharePaymentEdits,'alipay',data.name,data.key,autoExpected), received=paidAmountValue(ctx.settings.sharePaymentPaid,data.key,expected); return {...data,expected,received}; });
+      const shareRecords=[...sharePeople.values()].map(data=>{ const frozen=typeof mergedOrderShareExpected==='function'?mergedOrderShareExpected(ctx.sheet,data.key):null,autoExpected=frozen===null?ceilMoneyValue(data.qty*perItem):frozen, expected=paymentEditAmount(ctx.settings.sharePaymentEdits,'alipay',data.name,data.key,autoExpected), received=paidAmountValue(ctx.settings.sharePaymentPaid,data.key,expected); return {...data,expected,received}; });
       const shareMap=new Map(shareRecords.map(x=>[x.key,x])), keys=new Set([...goodsPeople.keys(),...shareMap.keys(),...Object.keys(ctx.settings.paymentPaid),...Object.keys(ctx.settings.sharePaymentPaid),...Object.keys(ctx.settings.paymentRefundDone),...Object.keys(ctx.settings.paymentSupplementDone),...Object.keys(ctx.settings.paymentEdits).filter(k=>k.startsWith('__transfer_credit__:')).map(k=>k.slice('__transfer_credit__:'.length)),...(sourceSheet.paymentCashHistory||[]).flatMap(e=>[e.key,e.fromKey,e.toKey].filter(Boolean))]);
       return [...keys].map(key=>{
         const gRaw=goodsPeople.get(key)||{key,name:shareMap.get(key)?.name||key,planned:0,bought:0,items:new Map(),boughtItems:new Map(),itemAmounts:new Map(),boughtItemAmounts:new Map()};
@@ -6976,7 +7049,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const distributable=Math.max(0,sharedTotal-fixedDeduction), perItem=totalQty?distributable/totalQty:0;
       const edited=(key,value)=>escapeHtml(Object.prototype.hasOwnProperty.call(sharePaymentEdits,key)?sharePaymentEdits[key]:value);
       const editAttr=key=>`contenteditable="true" spellcheck="false" data-share-payment-key="${encodeURIComponent(key)}"`;
-      const shareAmountFor=data=>ceilMoneyValue(data.qty*perItem);
+      const shareAmountFor=data=>{const frozen=mergedOrderShareExpected({...sheets.find(s=>s.id===activeSheetId),allocations},data.key);return frozen===null?ceilMoneyValue(data.qty*perItem):frozen;};
       const shareVisibleData=[...people.values()].filter(data=>paymentPassesStatusFilter(data,sharePaymentFilter,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,shareAmountFor(data))));
       let rows='';
       shareVisibleData.forEach(data=>{
@@ -6999,7 +7072,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const color=/^#[0-9a-f]{6}$/i.test(sharePaymentColor)?sharePaymentColor:'#d1466a';
       const qrHtml=paymentQrImg?`<div class="payment-code-export"><img crossorigin="anonymous" src="${escapeAttr(paymentQrImg)}" alt="收款码"></div>`:'';
       const qtyModeText=showBoughtSettlement?'按买到数量':'按排单数量';
-      const note=shareDeductFixed?`${qtyModeText}：均摊 ${money(sharedTotal)}－入均 ${money(fixedDeduction)}＝实际均摊 ${money(distributable)}；共 ${fmtPoint(totalQty)} 点，每点约 ${shareUnitText(perItem)}，个人金额最后进分`:`${qtyModeText}：直接均摊 ${money(sharedTotal)}；共 ${fmtPoint(totalQty)} 点，每点约 ${shareUnitText(perItem)}，个人金额最后进分`;
+      const note=sheets.find(s=>s.id===activeSheetId)?.mergedShareCells?'合表前各车均摊按原金额保留，未按合表后人数或件数重新均分。':shareDeductFixed?`${qtyModeText}：均摊 ${money(sharedTotal)}－入均 ${money(fixedDeduction)}＝实际均摊 ${money(distributable)}；共 ${fmtPoint(totalQty)} 点，每点约 ${shareUnitText(perItem)}，个人金额最后进分`:`${qtyModeText}：直接均摊 ${money(sharedTotal)}；共 ${fmtPoint(totalQty)} 点，每点约 ${shareUnitText(perItem)}，个人金额最后进分`;
       const paidStates=shareVisibleData.map(data=>paidState(sharePaymentPaid,data.key,paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,shareAmountFor(data)))), allPaid=paidStates.length>0&&paidStates.every(state=>state==='full'), partialPaid=!allPaid&&paidStates.some(state=>state!=='unpaid');
       $('sharePaymentUnpaidCount').textContent=paymentProgressText(shareVisibleData,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,data=>paymentEditAmount(sharePaymentEdits,'alipay',data.name,data.key,shareAmountFor(data)));
       const paidAllControl=`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-share-payment-paid-all="1" aria-pressed="${allPaid?'true':(partialPaid?'mixed':'false')}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
@@ -12606,7 +12679,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'上车名单'); XLSX.utils.book_append_sheet(wb,settings,'计数设置'); XLSX.writeFile(wb,quantityExportName('xlsx'));
     });
     $('exportPngBtn').addEventListener('click',async()=>{
-      if(combinedOrderActive()){await exportCombinedOrderImage();return;}
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
       if(document.activeElement&&document.activeElement.blur) document.activeElement.blur();
       const wrap=$('matrixWrap'), table=$('matrixTable'), title=wrap.querySelector('.matrix-project-title');
