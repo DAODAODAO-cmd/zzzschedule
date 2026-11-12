@@ -947,19 +947,22 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     <div class="settings-cloud-tip"><button type="button" class="btn-ghost" id="cleanCacheBtn">清理缓存</button><span>清理占空间的旧撤回记录和旧快照。先备份再确认，不删除排单、钱账、图片或登录信息。</span></div>
     <div class="settings-tool-grid">
     <details class="data-actions settings-data-actions" id="dataActions"><summary>排单数据导入导出</summary><div class="data-actions-pop">
+      <div class="data-action-group"><div class="data-action-title">备份与恢复</div><div class="data-action-buttons">
       <button class="btn-ghost" id="exportJsonBtn">备份全部排单</button>
       <button class="btn-ghost" id="exportCurrentJsonBtn">备份当前排单</button>
       <button class="btn-ghost" id="localSnapshotsBtn">恢复本机快照</button>
       <button class="btn-ghost" id="groupSnapshotsBtn">恢复整个协作组快照</button>
-      <button class="btn-ghost" id="cleanLocalSnapshotsBtn">安全清理旧快照</button>
+      <label class="btn-ghost filelabel" title="导入单张 JSON，保留现有排单">追加排单<input type="file" id="appendSheetInput" accept=".json" style="display:none;"></label>
+      <label class="btn-ghost filelabel" title="用完整 JSON 备份恢复项目，操作前会再次确认">恢复完整备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
+      </div></div>
+      <div class="data-action-group"><div class="data-action-title">表格导入导出</div><div class="data-action-buttons">
       <button class="btn-ghost" id="exportAllExcelBtn">导出全部排单表</button>
       <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单表</button>
-      <label class="btn-ghost filelabel">追加一张排单（不覆盖）<input type="file" id="appendSheetInput" accept=".json" style="display:none;"></label>
-      <label class="btn-ghost filelabel import-backup">恢复整个项目（替换全部）<input type="file" id="importInput" accept=".json" style="display:none;"></label>
-      <p class="hint" style="grid-column:1/-1;">补一张表请用“追加一张排单”。整个项目恢复会替换现有全部排单，需明确确认；单表文件不会再替换整个项目。</p>
       <label class="btn-ghost filelabel">导入排单表<input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;"></label>
       <button class="btn-ghost" id="exportImportTemplateBtn">下载/编辑排单 Excel</button>
       <button class="btn-ghost" id="copyTsvBtn">复制排单表文本</button>
+      </div></div>
+      <div class="data-action-group"><div class="data-action-buttons"><button class="btn-ghost" id="cleanLocalSnapshotsBtn">清理旧快照</button></div></div>
     </div></details>
     <details class="data-actions settings-data-actions" id="archiveMaintenance" hidden><summary>云端维护</summary><div class="data-actions-pop">
       <button type="button" class="btn-ghost" id="restoreWorkspaceByCodeBtn">按代码恢复</button>
@@ -1792,6 +1795,12 @@ body.export-rendering .payment-partial-row .payment-export-due-amount{ display:b
 .data-actions summary::-webkit-details-marker{ display:none; }
 .data-actions-pop{ position:absolute; z-index:30; left:0; bottom:calc(100% + 6px); display:grid; grid-template-columns:1fr 1fr; gap:7px; width:390px; max-width:90vw; padding:9px; border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:0 10px 30px rgba(40,25,48,.16); }
 .data-actions-pop .btn-ghost{ justify-content:center; margin:0; white-space:nowrap; font-weight:850; }
+#dataActions>.data-actions-pop{display:flex;flex-direction:column;gap:0;padding:4px 12px;}
+#dataActions .data-action-group{padding:12px 0;}
+#dataActions .data-action-group+.data-action-group{border-top:1px solid var(--line);}
+#dataActions .data-action-title{margin-bottom:8px;font-size:11px;color:var(--muted,#858093);}
+#dataActions .data-action-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+#dataActions .data-action-buttons>.btn-ghost{display:flex;align-items:center;justify-content:center;min-height:34px;box-sizing:border-box;padding:7px 8px;font-size:11.5px;font-weight:500;white-space:normal;text-align:center;line-height:1.4;}
 .quantity-heading-tools{ grid-template-columns:minmax(180px,1fr); margin-bottom:10px; }
 .quantity-controls{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
 .quantity-controls label{ display:flex; align-items:center; gap:7px; margin:0; }
