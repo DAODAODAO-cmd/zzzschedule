@@ -954,7 +954,9 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button class="btn-ghost" id="cleanLocalSnapshotsBtn">安全清理旧快照</button>
       <button class="btn-ghost" id="exportAllExcelBtn">导出全部排单表</button>
       <button class="btn-ghost" id="exportCurrentExcelBtn">导出当前排单表</button>
-      <label class="btn-ghost filelabel import-backup">导入排单备份<input type="file" id="importInput" accept=".json" style="display:none;"></label>
+      <label class="btn-ghost filelabel">追加一张排单（不覆盖）<input type="file" id="appendSheetInput" accept=".json" style="display:none;"></label>
+      <label class="btn-ghost filelabel import-backup">恢复整个项目（替换全部）<input type="file" id="importInput" accept=".json" style="display:none;"></label>
+      <p class="hint" style="grid-column:1/-1;">补一张表请用“追加一张排单”。整个项目恢复会替换现有全部排单，需明确确认；单表文件不会再替换整个项目。</p>
       <label class="btn-ghost filelabel">导入排单表<input type="file" id="excelImportInput" accept=".xlsx,.xls,.csv" style="display:none;"></label>
       <button class="btn-ghost" id="exportImportTemplateBtn">下载/编辑排单 Excel</button>
       <button class="btn-ghost" id="copyTsvBtn">复制排单表文本</button>
@@ -13178,13 +13180,44 @@ body.export-rendering .cart-count{ font-size:28px; }
       };
       reader.readAsArrayBuffer(file); e.target.value='';
     });
+    function buildSingleSheetAppendPlan(project,incoming){
+      if(!Array.isArray(incoming?.sheets)||incoming.sheets.length!==1)throw new Error('追加入口只接受一张排单的 JSON，不会导入或覆盖整个项目。');
+      const source=incoming.sheets[0];if(!source||!Array.isArray(source.columns)||!source.allocations||typeof source.allocations!=='object')throw new Error('不是有效的单表排单文件。');
+      if((incoming.extraFees||[]).length||(incoming.extraFeeArchives||[]).length)throw new Error('文件含独立国际/追加费用，需要先核对费用归属；本次没有追加。');
+      const signature=s=>JSON.stringify([s.columns,s.allocations,s.cost,s.paymentPaid,s.sharePaymentPaid,s.paymentRefundDone,s.paymentSupplementDone,s.matrixBoughtCells,s.matrixIslandCells,s.matrixChinaCells,s.matrixBlindSubCells,s.dispatchShippedCells]);
+      const sourceSignature=signature(source);let hash=2166136261;for(let i=0;i<sourceSignature.length;i++)hash=Math.imul(hash^sourceSignature.charCodeAt(i),16777619)>>>0;const fingerprint=sourceSignature.length+':'+hash;
+      if((project.sheets||[]).some(s=>s.singleSheetImport?.fingerprint===fingerprint||signature(s)===sourceSignature))throw new Error('相同排单内容已经存在，本次没有重复追加。');
+      const sheet=deepClone(source),id=Math.max(Number(project.sheetIdSeed)||1,...project.sheets.map(s=>(Number(s.id)||0)+1));sheet.id=id;
+      if(project.sheets.some(s=>s.name===sheet.name))sheet.name=String(sheet.name||'排单')+'（追加）';
+      sheet.singleSheetImport={sourceId:source.id,sourceName:source.name,fingerprint,at:new Date().toISOString()};delete sheet.combinedOrderViews;
+      const payload=deepClone(project);payload.sheets.push(sheet);payload.activeSheetId=id;payload.sheetIdSeed=id+1;
+      return {payload,sheet,beforeCount:project.sheets.length,afterCount:payload.sheets.length};
+    }
+    async function appendSingleSheetBackup(incoming){
+      captureActiveSheet();const before=deepClone(localStatePayload()),code=String(syncCode||''),signature=JSON.stringify(before);let plan;
+      try{plan=buildSingleSheetAppendPlan(before,incoming);}catch(error){await appAlert(error.message);return false;}
+      if(!await appConfirm(`只追加「${plan.sheet.name}」这一张？\n当前 ${plan.beforeCount} 张 → 追加后 ${plan.afterCount} 张。\n现有表、均摊、收款、国际和历史存档不替换。\n新表使用新 ID，不覆盖现有同 ID 的表。`,'追加一张，不覆盖','确认追加'))return false;
+      captureActiveSheet();if(code!==String(syncCode||'')||signature!==JSON.stringify(localStatePayload())){await appAlert('确认期间数据变化，请重新追加。');return false;}
+      if(!recordLocalSnapshot('追加单表前',true)){await appAlert('追加前快照未保存，本次没有修改。');return false;}
+      const oldSeed=sheetIdSeed;sheets=plan.payload.sheets;activeSheetId=plan.sheet.id;sheetIdSeed=plan.payload.sheetIdSeed;applySheet(sheets.find(s=>s.id===activeSheetId));
+      if(!saveState({snapshotReason:'追加单表后',skipSnapshot:true,flushCollabNow:true})){sheets=before.sheets;activeSheetId=before.activeSheetId;sheetIdSeed=oldSeed;applySheet(sheets.find(s=>s.id===activeSheetId));persistLocalState();await appAlert('追加保存失败，原表和原账已保留。');return false;}
+      renderSheetTabs();renderColumnList();renderMatrix();renderPaymentSummary();renderSharePaymentSummary();await appAlert(`已追加一张，现在共 ${sheets.length} 张。请确认顶部同步成功。`);return true;
+    }
+    $('appendSheetInput').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{await appendSingleSheetBackup(JSON.parse(await file.text()));}catch(error){await appAlert('追加失败：'+error.message);}finally{e.target.value='';}});
     $('importInput').addEventListener('change',e=>{
       const file=e.target.files[0]; if(!file) return;
       const reader=new FileReader();
-      reader.onload=()=>{
+      reader.onload=async()=>{
         try{
-          recordLocalSnapshot('导入备份前',true);
           const d=JSON.parse(reader.result);
+          if(d.importMode==='append'||(Array.isArray(d.sheets)&&d.sheets.length===1)){await appendSingleSheetBackup(d);return;}
+          if(!Array.isArray(d.sheets)||!d.sheets.length||d.sheets.some(s=>!s||!Array.isArray(s.columns)||!s.allocations))throw new Error('这不是完整项目备份；未修改任何排单。');
+          captureActiveSheet();const importSignature=JSON.stringify(localStatePayload()),importCode=String(syncCode||'');
+          const answer=await appPrompt(`危险操作：当前 ${sheets.length} 张将被文件中的 ${d.sheets.length} 张整体替换。\n若只补一张，请取消并使用“追加一张排单”。\n确实恢复整个项目，请输入：替换全部`,'','恢复整个项目','确认替换');
+          if(answer!=='替换全部')return;
+          captureActiveSheet();if(importCode!==String(syncCode||'')||importSignature!==JSON.stringify(localStatePayload()))throw new Error('确认期间数据变化，未替换。');
+          if(!recordLocalSnapshot('恢复整个项目前',true))throw new Error('恢复前快照未保存，未替换。');
+          downloadBackup(deepClone(localStatePayload()),'恢复整个项目前-完整备份.json');
           if(Array.isArray(d.sheets)&&d.sheets.length){
             sheets=d.sheets; itemCatalog=migrateCatalogItems(d.itemCatalog); catalogIdSeed=Math.max(d.catalogIdSeed||1,...itemCatalog.map(x=>(x.catalogId||0)+1)); sheetIdSeed=Math.max(d.sheetIdSeed||1,...sheets.map(s=>(s.id||0)+1));
             sharedCartQrImg=d.sharedCartQrImg||sheets.find(s=>s.cartQrImg)?.cartQrImg||'';
