@@ -1801,6 +1801,22 @@ body.export-rendering .payment-partial-row .payment-export-due-amount{ display:b
 #dataActions .data-action-title{margin-bottom:8px;font-size:11px;color:var(--muted,#858093);}
 #dataActions .data-action-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
 #dataActions .data-action-buttons>.btn-ghost{display:flex;align-items:center;justify-content:center;min-height:34px;box-sizing:border-box;padding:7px 8px;font-size:11.5px;font-weight:500;white-space:normal;text-align:center;line-height:1.4;}
+.action-goods-picker{border:1px solid var(--line);border-radius:10px;margin:10px 0 14px;background:var(--panel-2);}
+.action-goods-picker>summary{padding:10px 12px;cursor:pointer;font-weight:600;}
+.action-goods-picker-content{padding:0 12px 12px;}
+.action-goods-persons{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.action-goods-persons label{flex:1;min-width:130px;}
+.action-goods-persons input,.action-goods-search{width:100%;box-sizing:border-box;}
+.action-goods-search{border:1px solid var(--line);border-radius:7px;background:#fff;padding:8px 10px;font:inherit;min-height:34px;}
+.action-goods-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0;}
+.action-goods-list{max-height:280px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px;}
+.action-goods-option{display:flex;align-items:center;gap:9px;padding:10px;border-bottom:1px solid var(--line);}
+.action-goods-option:last-child{border-bottom:0;}
+.action-goods-option[hidden]{display:none;}
+.action-goods-option .goods-name{flex:1;min-width:0;overflow-wrap:anywhere;line-height:1.5;}
+.action-goods-option .goods-name small{display:block;color:var(--muted);}
+.action-goods-option input[type=number]{width:62px;min-width:0;box-sizing:border-box;}
+.action-goods-note{margin:8px 0 0;font-size:11px;color:var(--muted);line-height:1.6;}
 .quantity-heading-tools{ grid-template-columns:minmax(180px,1fr); margin-bottom:10px; }
 .quantity-controls{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
 .quantity-controls label{ display:flex; align-items:center; gap:7px; margin:0; }
@@ -10153,6 +10169,65 @@ body.export-rendering .cart-count{ font-size:28px; }
       e.preventDefault(); e.returnValue='';
     });
 
+    function actionRowColumn(row){
+      return row.columnId!==undefined?columns.find(c=>Number(c.id)===Number(row.columnId)):findColumnByText(row.itemText||'');
+    }
+    function actionGoodsOptions(kind,person){
+      const key=normalizeDispatchKey(person),rows=kind==='transfer'?transferPreviewRows:kind==='cancel'?cancelPreviewRows:[];
+      return columns.map(col=>{
+        const owned=(allocations[col.id]||[]).filter(name=>String(name||'').trim()&&(!key||normalizeDispatchKey(name)===key)).length;
+        const reserved=rows.reduce((n,row)=>{const c=actionRowColumn(row),owner=kind==='transfer'?row.source:row.person;return c&&Number(c.id)===Number(col.id)&&normalizeDispatchKey(owner)===key?n+Math.max(1,parseInt(row.qty,10)||1):n;},0);
+        const available=kind==='cancel'&&person?cancelPositionsForColumn(col,String(person).trim(),1).remaining:owned;
+        return {id:col.id,name:String(col.name||''),owned,available:Math.max(0,available-reserved)};
+      }).filter(col=>col.name&&(!key||col.owned>0));
+    }
+    function initActionGoodsPickers(){
+      for(const kind of ['transfer','cancel','blind']){
+        const panel=$(kind==='blind'?'blindResultPreviewPanel':kind+'PreviewPanel'),picker=document.createElement('details');
+        picker.id=kind+'GoodsPicker';picker.className='action-goods-picker';
+        picker.innerHTML=`<summary>从当前排单选择谷子</summary><div class="action-goods-picker-content"><div class="action-goods-persons"><label>${kind==='transfer'?'转出 CN':'CN'}<input type="text" data-goods-person list="${kind}GoodsPeople" placeholder="输入或选择 CN"><datalist id="${kind}GoodsPeople"></datalist></label>${kind==='transfer'?'<label>接单 CN<input type="text" data-goods-target placeholder="填写接单人"></label>':''}</div><input type="search" class="action-goods-search" data-goods-search placeholder="搜索当前排单的谷子"><div class="action-goods-tools"><button type="button" class="btn-ghost" data-goods-all>全选搜索结果</button><button type="button" class="btn-ghost" data-goods-none>全不选</button><span class="hint" data-goods-count>已选 0 款</span></div><div class="action-goods-list" data-goods-list></div><p class="action-goods-note">仅选择当前排单，勾选后逐款填写数量；添加后仍需核对预览。${kind==='cancel'?'已买齐／已发货的排位继续受撤单保护。':kind==='blind'?'抽奖结果内容请在下方填写，此处只选挂载谷子。':''}</p><div class="action-goods-tools"><button type="button" class="btn-ghost" data-goods-add>添加到预览</button><span class="hint" data-goods-message></span></div></div>`;
+        panel.insertBefore(picker,panel.querySelector('.table-scroll'));
+        if(kind==='blind')picker.querySelector('.action-goods-note').textContent='只选择当前排单中的挂载谷子；添加后在下方填写抽奖结果内容，确认前不改正式数据。';
+        const person=picker.querySelector('[data-goods-person]'),search=picker.querySelector('[data-goods-search]'),list=picker.querySelector('[data-goods-list]');
+        const updateCount=()=>{picker.querySelector('[data-goods-count]').textContent='已选 '+list.querySelectorAll('input[type=checkbox]:checked').length+' 款';};
+        const filter=()=>{const query=search.value.normalize('NFKC').toLowerCase().trim();list.querySelectorAll('[data-goods-option]').forEach(row=>row.hidden=!row.dataset.search.includes(query));};
+        const render=()=>{
+          picker.goodsSignature=actionPreviewDataSignature();
+          const people=[...new Set(Object.values(allocations).flat().map(v=>String(v||'').trim()).filter(Boolean))];picker.querySelector('datalist').innerHTML=people.map(name=>`<option value="${escapeAttr(name)}"></option>`).join('');
+          list.innerHTML=actionGoodsOptions(kind,person.value.trim()).map(col=>`<div class="action-goods-option" data-goods-option="${col.id}" data-search="${escapeAttr(col.name.normalize('NFKC').toLowerCase())}"><input type="checkbox" aria-label="选择 ${escapeAttr(col.name)}" ${kind!=='blind'&&col.available===0?'disabled':''}><span class="goods-name">${escapeHtml(col.name)}<small>${person.value.trim()?'当前 CN 持有':'当前排位'} ${col.owned} 件${kind==='cancel'?' · 可撤 '+col.available+' 件':''}</small></span>${kind!=='blind'?`<input type="number" inputmode="numeric" min="1" max="${col.available}" step="1" value="1" aria-label="${escapeAttr(col.name)}的数量">`:'<span class="hint">挂载</span>'}</div>`).join('')||'<p class="hint" style="padding:10px">当前排单没有匹配的谷子，请核对 CN。</p>';
+          filter();updateCount();
+        };
+        picker.refreshGoodsScope=()=>{if(picker.dataset.sheet!==String(activeSheetId)||picker.dataset.workspace!==String(syncCode||'')){person.value='';search.value='';picker.dataset.sheet=String(activeSheetId);picker.dataset.workspace=String(syncCode||'');render();}};
+        picker.addEventListener('toggle',()=>{if(picker.open)picker.refreshGoodsScope();});
+        person.addEventListener('change',render);search.addEventListener('input',filter);list.addEventListener('change',updateCount);
+        picker.querySelector('[data-goods-all]').addEventListener('click',()=>{list.querySelectorAll('[data-goods-option]:not([hidden]) input[type=checkbox]:not(:disabled)').forEach(input=>input.checked=true);updateCount();});
+        picker.querySelector('[data-goods-none]').addEventListener('click',()=>{list.querySelectorAll('input[type=checkbox]').forEach(input=>input.checked=false);updateCount();});
+        picker.querySelector('[data-goods-add]').addEventListener('click',()=>{
+          const message=picker.querySelector('[data-goods-message]'),source=person.value.trim(),target=picker.querySelector('[data-goods-target]')?.value.trim()||'';
+          if(picker.dataset.sheet!==String(activeSheetId)||picker.dataset.workspace!==String(syncCode||'')){message.textContent='排单或协作组已切换，请重新打开选择。';return;}
+          if(picker.goodsSignature!==actionPreviewDataSignature()){render();message.textContent='当前排单有更新，已刷新列表，请重新勾选。';return;}
+          if(!source||(kind==='transfer'&&!target)){message.textContent='请先填写'+(kind==='transfer'?'转出和接单 CN':'CN')+'。';return;}
+          if(kind==='transfer'&&normalizeDispatchKey(source)===normalizeDispatchKey(target)){message.textContent='转出和接单 CN 不能相同。';return;}
+          const selected=[...list.querySelectorAll('[data-goods-option]')].filter(row=>row.querySelector('input[type=checkbox]').checked),options=new Map(actionGoodsOptions(kind,source).map(col=>[String(col.id),col]));
+          if(!selected.length){message.textContent='先勾选谷子。';return;}
+          const entries=[];
+          for(const row of selected){const col=options.get(row.dataset.goodsOption),qty=kind==='blind'?1:Number(row.querySelector('input[type=number]').value);if(!col||!Number.isInteger(qty)||qty<1||(kind!=='blind'&&qty>col.available)){message.textContent='数量超出当前可操作范围，请核对或重新选择。';return;}entries.push({col,qty});}
+          const signature=actionPreviewDataSignature();
+          if(kind==='transfer'&&!transferPreviewRows.length)transferPreviewSignature=signature;
+          if(kind==='cancel'&&!cancelPreviewRows.length)cancelPreviewSignature=signature;
+          if(kind==='blind'&&!blindResultPreviewRows.length)blindResultPreviewSignature=signature;
+          for(const {col,qty}of entries){const id=rowIdSeed++;if(kind==='transfer')transferPreviewRows.push({id,source,target,columnId:col.id,itemText:col.name,qty,sub:'',mode:'transfer',raw:''});else if(kind==='cancel')cancelPreviewRows.push({id,person:source,columnId:col.id,itemText:col.name,qty});else blindResultPreviewRows.push({id,person:source,targetColumnId:col.id,blindColumnName:'',itemsText:'',expectedDraw:0});}
+          if(kind==='transfer'){renderTransferPreview();showTransferMatrixPreview();}else if(kind==='cancel'){renderCancelPreview();showCancelMatrixPreview();}else{renderBlindResultPreview();showBlindResultMatrixPreview();}
+          render();message.textContent='已添加 '+entries.length+' 款，尚未写入正式排单。';
+        });
+      }
+    }
+    function openActionGoodsPicker(kind){
+      const panel=kind==='blind'?'blindResultPreviewPanel':kind+'PreviewPanel';
+      for(const id of ['previewPanel','transferPreviewPanel','cancelPreviewPanel','blindResultPreviewPanel','coldPromotionPreviewPanel'])$(id).style.display=id===panel?'block':'none';
+      $(kind+'GoodsPicker').refreshGoodsScope();$(kind+'GoodsPicker').open=true;$(kind+'GoodsPicker').querySelector('[data-goods-person]').focus();
+    }
+    initActionGoodsPickers();
     function addManualActionRow(kind){
       if(!['order','transfer','cancel','blind'].includes(kind))return;
       const id=rowIdSeed++,signature=actionPreviewDataSignature();let panel,selector;
@@ -10233,7 +10308,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       previewRows=[]; orderPreviewSignature=''; renderPreview(); $('previewPanel').style.display='none'; clearMatrixPreview();
     });
     $('blindResultPreviewBtn').addEventListener('click',()=>{
-      if(!$('commentInput').value.trim()){addManualActionRow('blind');return;}
+      if(!$('commentInput').value.trim()){openActionGoodsPicker('blind');return;}
       clearMatrixPreview();
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先在上面的文字框粘贴抽奖结果。\n\n支持格式：\n小明：A1 B1 D1\n\n也支持一抽一行：\n小明 A\n小明 B\n\n也支持抽奖工具格式：\n小明\n抽了 2 次\nA × 1\nB × 1\n\n如果有多种盲抽制品，打开预览后在“默认挂到”里选一次就行。'); return; }
       if($('blindResultDefaultColumn')) $('blindResultDefaultColumn').dataset.keepValue='0';
@@ -10397,7 +10472,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(row.mode==='swap') return swapRowCheck(row);
       const source=String(row.source||'').trim(), target=String(row.target||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1), sub=String(row.sub||'').trim();
       const blindMatch=sub?findBlindSubTransferPositions(source,sub,row.itemText):null;
-      const col=sub?blindMatch.col:findColumnByText(row.itemText||'');
+      const col=sub?blindMatch.col:actionRowColumn(row);
       if(!source||!target) return {ok:false,text:'名字没识别全'};
       if(!col) return {ok:false,text:'没找到谷子'};
       const positions=sub?blindMatch.positions:(allocations[col.id]||[]).map((value,index)=>{
@@ -10455,7 +10530,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const preview=buildTransferMatrixPreview(); showMatrixPreview(preview.allocations,label,preview.highlights);
     }
     $('transferPreviewBtn').addEventListener('click',()=>{
-      if(!$('commentInput').value.trim()){addManualActionRow('transfer');return;}
+      if(!$('commentInput').value.trim()){openActionGoodsPicker('transfer');return;}
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先在上面的文字框粘贴转单文字。\n\n普通转单格式：\n阿崩 冲击1 转 小明\n阿崩 超梦2 给 小红\n\n抽奖结果转单格式：\n傻白白 轻梦 转 壹\n傻白白 轻梦 给 壹\n\n换赏格式：\n阿崩 冲击 换 小明 超梦'); return; }
       transferPreviewRows=actionContentLines(raw).filter(line=>/(?:转给|出给|转|出|给|到|->|→|➡)/.test(line)).map(parseTransferLine).filter(Boolean);
       transferPreviewSignature=actionPreviewDataSignature();
@@ -10473,6 +10548,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const row=transferPreviewRows.find(item=>item.id===parseInt(input.dataset.transferId,10)); if(!row) return;
       if(input.dataset.transferField==='qty') row.qty=Math.max(1,parseInt(input.value,10)||1);
       else if(input.dataset.transferField==='itemText'){
+        delete row.columnId;
         const parsed=String(input.value||'').trim();
         const swap=parsed.match(/^(.+?)\s*(?:⇄|<->|<>|换)\s*(.+)$/);
         if(swap){ row.mode='swap'; row.sub=swap[1].trim(); row.targetSub=swap[2].trim(); row.itemText='盲抽'; }
@@ -10737,11 +10813,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       return {positions,protectedPositions,removablePositions,remaining,affectedRows};
     }
     function cancelRowCheck(row,index){
-      const col=findColumnByText(row.itemText||''), person=String(row.person||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
+      const col=actionRowColumn(row), person=String(row.person||'').trim(), qty=Math.max(1,parseInt(row.qty,10)||1);
       if(!person) return {ok:false,text:'名字没识别到'};
       if(!col) return {ok:false,text:'没找到谷子'};
       const reserved=cancelPreviewRows.slice(0,index).reduce((sum,previous)=>{
-        const previousCol=findColumnByText(previous.itemText||'');
+        const previousCol=actionRowColumn(previous);
         return previousCol&&previousCol.id===col.id&&String(previous.person||'').trim()===person?sum+Math.max(1,parseInt(previous.qty,10)||1):sum;
       },0);
       const memberCols=cancelMemberColumnsFor(row,col);
@@ -10794,7 +10870,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const preview=buildCancelMatrixPreview(); showMatrixPreview(preview.allocations,label,preview.highlights);
     }
     $('cancelPreviewBtn').addEventListener('click',()=>{
-      if(!$('commentInput').value.trim()){addManualActionRow('cancel');return;}
+      if(!$('commentInput').value.trim()){openActionGoodsPicker('cancel');return;}
       const raw=$('commentInput').value.trim(); if(!raw){ alert('请先在上面的文字框粘贴撤单文字。\n\n格式例子：\n阿崩 撤 冲击1\n小明 取消 超梦2\n小红 不要 秩序1\n\n会从这个人在对应谷子的最后一单开始撤。'); return; }
       cancelPreviewRows=parseCancelRows(raw);
       cancelPreviewSignature=actionPreviewDataSignature();
@@ -10810,6 +10886,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('cancelPreviewTableBody').addEventListener('change',e=>{
       const input=e.target.closest('[data-cancel-id]'); if(!input) return;
       const row=cancelPreviewRows.find(item=>item.id===parseInt(input.dataset.cancelId,10)); if(!row) return;
+      if(input.dataset.cancelField==='itemText')delete row.columnId;
       row[input.dataset.cancelField]=input.dataset.cancelField==='qty'?Math.max(1,parseInt(input.value,10)||1):input.value.trim(); renderCancelPreview(); showCancelMatrixPreview();
     });
     $('cancelPreviewTableBody').addEventListener('click',e=>{
