@@ -362,7 +362,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
   <div id="collabActivityPanel" class="collab-activity" style="display:none;">
     <div><strong>当前协作者</strong><span id="collabOnlinePeople">正在读取…</span></div>
-    <details>
+    <details id="collabRecentDetails">
       <summary>查看最近修改</summary>
       <div id="collabRecentChanges" class="collab-recent-list">暂无修改记录</div>
     </details>
@@ -2217,7 +2217,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     const APP_SECTION_KEY='ggzAppSection_v1';
     const SHEET_STATUS_FILTER_KEY='ggzSheetStatusFilter_v1';
     const COLLAB_POLL_MS=120000, COLLAB_POLL_FAST_MS=8000, COLLAB_PRESENCE_MS=180000, COLLAB_PRESENCE_FAST_MS=30000;
-    const COLLAB_SEND_DELAY_MS=1200, COLLAB_SEND_DELAY_FAST_MS=350, COLLAB_RETRY_DELAY_MS=5000, COLLAB_RETRY_DELAY_FAST_MS=1800, COLLAB_TIMEOUT_RETRY_DELAY_MS=15000;
+    const COLLAB_SEND_DELAY_MS=1200, COLLAB_SEND_DELAY_FAST_MS=700, COLLAB_RETRY_DELAY_MS=5000, COLLAB_RETRY_DELAY_FAST_MS=4000, COLLAB_TIMEOUT_RETRY_DELAY_MS=15000;
     const EDIT_LOCK_TTL_SECONDS=120, EDIT_LOCK_CHECK_MS=30000;
     let cloudClient=null, cloudBusy=false, applyingCloud=false, lastCloudUpdatedAt='', cloudDirty=true, localRevision=0, cloudIdleTimer=null, cloudIdleEnabled=false, cloudConflictPaused=false, restoredSnapshotPendingUpload=false, cloudPublishingCollab=false;
     let lastLocalSnapshotAt=0, lastLocalSnapshotSignature='';
@@ -2719,14 +2719,27 @@ body.export-rendering .cart-count{ font-size:28px; }
       payload.extraPaymentQrImg=slimImage(payload.extraPaymentQrImg);
       return payload;
     }
-    function encodeHistoryStorage(value){
-      const raw=JSON.stringify(value),bytes=new TextEncoder().encode(raw),dict=new Map(),output=[];let next=256,word='';
+    function encodeHistoryStorage(value,serialized){
+      const raw=typeof serialized==='string'?serialized:JSON.stringify(value),bytes=new TextEncoder().encode(raw),dict=new Map(),output=[];let next=256,word='';
       for(const byte of bytes){const char=String.fromCharCode(byte),joined=word+char;if(word===''||dict.has(joined)){word=joined;continue;}output.push(String.fromCharCode(word.length===1?word.charCodeAt(0):dict.get(word)));if(next<65536)dict.set(joined,next++);word=char;}
       if(word)output.push(String.fromCharCode(word.length===1?word.charCodeAt(0):dict.get(word)));
       const packed='GGZLZW1:'+output.join('');return packed.length<raw.length?packed:raw;
     }
+    function encodeLocalProjectCache(payload){
+      const cache=encodeLocalProjectCache.blocks||(encodeLocalProjectCache.blocks=new Map()),used=new Set();
+      const pack=(key,value)=>{used.add(key);const raw=JSON.stringify(value),previous=cache.get(key);if(previous?.raw===raw)return previous.packed;const packed=encodeHistoryStorage(value,raw);cache.set(key,{raw,packed});return packed;};
+      const entries=Object.entries(payload).filter(([,value])=>value!==undefined).map(([key,value])=>key==='sheets'&&Array.isArray(value)?[key,'sheets',value.map((sheet,index)=>pack('sheet:'+index+':'+sheet.id,sheet))]:[key,'value',pack('field:'+key,value)]);
+      for(const key of cache.keys())if(!used.has(key))cache.delete(key);
+      return 'GGZPROJ2:'+JSON.stringify(entries);
+    }
     function decodeHistoryStorage(raw,fallback){
-      if(!raw)return fallback;if(!raw.startsWith('GGZLZW1:'))return JSON.parse(raw);
+      if(!raw)return fallback;
+      if(raw.startsWith('GGZPROJ2:')){
+        const entries=JSON.parse(raw.slice(9)),payload={};if(!Array.isArray(entries))throw new Error('本机项目缓存头损坏');
+        for(const entry of entries){if(!Array.isArray(entry)||entry.length!==3||typeof entry[0]!=='string')throw new Error('本机项目缓存块损坏');const [key,kind,value]=entry;if(kind!=='sheets'&&kind!=='value')throw new Error('本机项目缓存类型损坏');if(kind==='sheets'&&!Array.isArray(value))throw new Error('本机排单缓存损坏');Object.defineProperty(payload,key,{value:kind==='sheets'?value.map(part=>decodeHistoryStorage(part,null)):decodeHistoryStorage(value,null),enumerable:true,writable:true,configurable:true});}
+        if(!Array.isArray(payload.sheets)||!payload.sheets.length)throw new Error('本机项目缓存缺少排单');return payload;
+      }
+      if(!raw.startsWith('GGZLZW1:'))return JSON.parse(raw);
       const packed=raw.slice(8);if(!packed.length)throw new Error('快照压缩内容为空');
       const dict=[],first=packed.charCodeAt(0);if(first>255)throw new Error('快照压缩头损坏');let previous=String.fromCharCode(first),next=256;const output=[previous];
       for(let i=1;i<packed.length;i++){const code=packed.charCodeAt(i),entry=code<256?String.fromCharCode(code):dict[code]||(code===next?previous+previous[0]:null);if(entry===null||entry===undefined)throw new Error('快照压缩内容损坏');output.push(entry);if(next<65536)dict[next++]=previous+entry[0];previous=entry;}
@@ -2756,14 +2769,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function recordLocalSnapshot(reason='自动保存',force=false){
       if(isLoadingSheet) return false;
+      const now=Date.now();
+      if(!force&&now-lastLocalSnapshotAt<30000)return false;
       try{
         captureActiveSheet();
         const payload=lightLocalStatePayload();
         if(isProbablyBlankProject(payload)) return false;
         const signature=JSON.stringify(payload);
-        const now=Date.now();
         if(!force&&signature===lastLocalSnapshotSignature) return false;
-        if(!force&&now-lastLocalSnapshotAt<30000) return false;
         const list=loadLocalSnapshots().filter(item=>item.workspaceCode!==String(syncCode||'')||JSON.stringify(item.payload)!==signature);
         list.unshift({id:`snap_${now}_${Math.random().toString(36).slice(2,7)}`,workspaceCode:String(syncCode||''),workspaceName:currentWorkspace()?.name||'本机数据',createdAt:new Date(now).toISOString(),reason,summary:snapshotSummary(payload),payload});
         const ok=saveLocalSnapshots(list);
@@ -2871,7 +2884,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       persistLocalState.lastError='';
       if(typeof localReadFailed!=='undefined'&&localReadFailed){persistLocalState.lastError='本机数据未正确读出，禁止覆盖原缓存';return 'failed';}
       try{
-        localStorage.setItem(STORAGE_KEY,JSON.stringify(localStatePayload()));
+        const payload=localStatePayload(),raw=JSON.stringify(payload),existing=localStorage.getItem(STORAGE_KEY);
+        if(persistLocalState.lastRaw===raw&&persistLocalState.lastStored===existing)return 'full';
+        if(existing?.startsWith('GGZLZW1:')||existing?.startsWith('GGZPROJ2:')){
+          const packed=typeof encodeLocalProjectCache==='function'?encodeLocalProjectCache(payload):encodeHistoryStorage(payload,raw);
+          if(JSON.stringify(decodeHistoryStorage(packed,null))!==raw)throw new Error('本机压缩校验未通过');
+          localStorage.setItem(STORAGE_KEY,packed);persistLocalState.lastRaw=raw;persistLocalState.lastStored=packed;return 'full';
+        }
+        localStorage.setItem(STORAGE_KEY,raw);persistLocalState.lastRaw=raw;persistLocalState.lastStored=raw;
         return 'full';
       }catch(error){
         // Reclaim only redundant encoding overhead, never delete snapshots,
@@ -2883,10 +2903,11 @@ body.export-rendering .cart-count{ font-size:28px; }
           return 'full';
         }catch(_){}
         try{
-          const payload=localStatePayload(),raw=JSON.stringify(payload),packed=encodeHistoryStorage(payload);
+          const payload=localStatePayload(),raw=JSON.stringify(payload),packed=typeof encodeLocalProjectCache==='function'?encodeLocalProjectCache(payload):encodeHistoryStorage(payload,raw);
           if(packed.length>=raw.length)throw error;
           if(JSON.stringify(decodeHistoryStorage(packed,null))!==raw)throw new Error('本机压缩校验未通过，原缓存未覆盖');
           localStorage.setItem(STORAGE_KEY,packed);
+          persistLocalState.lastRaw=raw;persistLocalState.lastStored=packed;
           return 'full';
         }catch(_){}
         try{
@@ -3232,7 +3253,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           badge.className='sheet-payment-badge is-'+indicator.kind;badge.textContent=indicator.label;badge.title=indicator.title;
         });
         const select=$('mobileSheetSelect');if(select)for(const option of select.options){const sheet=sheets.find(s=>String(s.id)===option.value);if(sheet){const indicator=sheetCollectionIndicator(sheet);option.textContent=(sheet.name||`表${sheet.id}`)+(indicator?' · '+indicator.label:'');}}
-      },180);
+      },450);
     }
     function renderSheetTabs(){
       renderSheetTypeFilters();
@@ -3883,28 +3904,34 @@ body.export-rendering .cart-count{ font-size:28px; }
       return [...labels].slice(0,4).join('、')||'排单内容';
     }
     async function refreshCollabActivity(){
-      if(!collabEnabled||!syncCode) return;
+      if(!collabEnabled||!syncCode||refreshCollabActivity.busy||document.visibilityState==='hidden') return;
+      const code=syncCode,activityKey=code+':'+collabRevision,readChanges=!dataSaverMode&&$('collabRecentDetails').open&&refreshCollabActivity.lastKey!==activityKey;
+      refreshCollabActivity.busy=true;
       try{
-        const client=getCloudClient(syncCode), now=new Date().toISOString(), cutoff=new Date(Date.now()-(dataSaverMode?180000:90000)).toISOString();
-        const {error:touchError}=await lockRequest(client.from('ggz_collab_presence').upsert({sync_code:syncCode,session_id:editSessionId,editor_name:editorName||'未命名',last_seen:now},{onConflict:'sync_code,session_id'}),12000,'在线名单更新');
+        const client=getCloudClient(code), now=new Date().toISOString(), cutoff=new Date(Date.now()-(dataSaverMode?180000:90000)).toISOString();
+        const {error:touchError}=await lockRequest(client.from('ggz_collab_presence').upsert({sync_code:code,session_id:editSessionId,editor_name:editorName||'未命名',last_seen:now},{onConflict:'sync_code,session_id'}),12000,'在线名单更新');
         if(touchError) throw touchError;
+        if(code!==syncCode||!collabEnabled)return;
         const [{data:people,error:peopleError},{data:changes,error:changesError}]=await Promise.all([
-          lockRequest(client.from('ggz_collab_presence').select('editor_name,last_seen').eq('sync_code',syncCode).gte('last_seen',cutoff).order('last_seen',{ascending:false}),12000,'在线名单读取'),
-          dataSaverMode?Promise.resolve({data:[],error:null}):lockRequest(client.rpc('ggz_collab_activity',{p_group_id:syncCode,p_limit:10}),12000,'协作记录读取')
+          lockRequest(client.from('ggz_collab_presence').select('editor_name,last_seen').eq('sync_code',code).gte('last_seen',cutoff).order('last_seen',{ascending:false}),12000,'在线名单读取'),
+          !readChanges?Promise.resolve({data:null,error:null}):lockRequest(client.rpc('ggz_collab_activity',{p_group_id:code,p_limit:10}),12000,'协作记录读取')
         ]);
+        if(code!==syncCode||!collabEnabled)return;
         if(peopleError) throw peopleError;
         const unique=new Map(); (people||[]).forEach(row=>{ const name=row.editor_name||'未命名'; if(!unique.has(name)) unique.set(name,row); });
         $('collabOnlinePeople').textContent=unique.size?[...unique.keys()].map(name=>name===editorName?`${name}（我）`:name).join('、'):'暂无活跃人员';
         if(dataSaverMode){
           $('collabRecentChanges').innerHTML='<div class="collab-recent-item"><span>省流量模式下暂停读取最近修改记录</span><time>省流量</time></div>';
-        }else if(!changesError){
+        }else if(readChanges&&!changesError){
+          refreshCollabActivity.lastKey=activityKey;
           $('collabRecentChanges').innerHTML=(changes||[]).length?(changes||[]).map(row=>`<div class="collab-recent-item"><span><b>${escapeHtml(row.author_name||'未命名')}</b> 修改了${escapeHtml(row.is_detailed?describeCollabPatch(row.patch):'排单内容')} · 版本 ${Number(row.revision)||0}</span><time>${escapeHtml(collabRelativeTime(row.created_at))}</time></div>`).join(''):'暂无修改记录';
         }
       }catch(error){
-        $('collabOnlinePeople').textContent='名单尚未启用，请执行更新后的 SQL';
-      }
+        if(code===syncCode)$('collabOnlinePeople').textContent='在线名单暂未连接；实时排单同步单独运行';
+      }finally{refreshCollabActivity.busy=false;}
     }
     function startCollabPresence(){ stopCollabPresence(); if(!collabEnabled) return; refreshCollabActivity(); collabPresenceTimer=setInterval(refreshCollabActivity,collabPresenceInterval()); }
+    $('collabRecentDetails').addEventListener('toggle',()=>{if($('collabRecentDetails').open)refreshCollabActivity();});
     async function leaveCollabPresence(){
       stopCollabPresence();
       if(!syncCode) return;
@@ -4109,6 +4136,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     async function pollCollabState(){
       if(cloudPublishingCollab||!collabEnabled||collabPolling||collabSending)return;
+      if(typeof document!=='undefined'&&document.visibilityState==='hidden'&&!collabNeedsSend&&!collabSendTimer)return;
       if(collabNeedsSend||collabSendTimer){await flushCollabChanges();return;}
       const code=syncCode,atRevision=localRevision;collabPolling=true;
       const safe=()=>code===syncCode&&collabEnabled&&!cloudPublishingCollab&&!collabSending&&atRevision===localRevision&&!collabNeedsSend&&!collabSendTimer;
@@ -9827,22 +9855,24 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     async function loadPublicArrivalSettings(render=false){
       const code=String(syncCode||'');if(!code||!authCurrentUser)throw new Error('请先登录并选择协作组');
+      if(!render&&publicArrivalConfig&&publicArrivalConfigCode===code&&Date.now()-(loadPublicArrivalSettings.lastAt||0)<60000)return publicArrivalConfig;
       const {data,error}=await lockRequest(getCloudClient(code).rpc('ggz_arrival_share_settings',{p_group_id:code}),20000,'读取到货查询设置');if(error){if(error.code==='PGRST202')publicArrivalMissingCodes.add(code);throw error;}
       if(code!==String(syncCode||''))throw new Error('协作组已切换');
-      publicArrivalMissingCodes.delete(code);publicArrivalConfig=data;publicArrivalConfigCode=code;renderPublicArrivalLink(data);if(render)renderPublicArrivalSettings(data);return data;
+      publicArrivalMissingCodes.delete(code);publicArrivalConfig=data;publicArrivalConfigCode=code;loadPublicArrivalSettings.lastAt=Date.now();renderPublicArrivalLink(data);if(render)renderPublicArrivalSettings(data);return data;
     }
     function publicArrivalError(error){const raw=String(error?.message||error||'');if(/ARRIVAL_SCOPE_SQL_OLD|SELECT_SHEETS_FIRST/.test(raw))return '云端还是旧的逐表勾选接口。请执行本包 supabase_public_arrivals.sql 更新为跟随排发；不需要选排单，原链接不变。';return /PGRST202|could not find|does not exist|ggz_arrival_share_settings/i.test(raw)?'到货查询接口未安装或仍是旧版，请执行本包 supabase_public_arrivals.sql；原有同步不受影响。':raw;}
-    function schedulePublicArrivalSync(){clearTimeout(publicArrivalTimer);publicArrivalTimer=setTimeout(()=>publishPublicArrivals(false),1200);}
+    function schedulePublicArrivalSync(){clearTimeout(publicArrivalTimer);publicArrivalTimer=setTimeout(()=>publishPublicArrivals(false),2500);}
     async function publishPublicArrivals(manual=false){
       if(publicArrivalBusy)return false;
+      if(!manual&&document.visibilityState==='hidden')return false;
       if(!manual&&publicArrivalMissingCodes.has(String(syncCode||'')))return false;
       if(!collabEnabled||collabNeedsSend||collabSending||collabPolling||cloudBusy||cloudPublishingCollab||collabAcknowledgedState){if(manual)publicArrivalMessage('请先等待实时同步成功，未同步的本机修改不会公开。');return false;}
       publicArrivalBusy=true;const code=String(syncCode||'');
       try{
-        const config=await loadPublicArrivalSettings(false);if(!config?.enabled){if(manual)publicArrivalMessage('查询未开启。');return false;}
+        const config=await loadPublicArrivalSettings(manual);if(!config?.enabled){if(manual)publicArrivalMessage('查询未开启。');return false;}
         if(config.scope!=='dispatch')throw new Error('ARRIVAL_SCOPE_SQL_OLD');
         applyPublicArrivalFreeDays(config);
-        const key=JSON.stringify([code,config.source_revision,config.source_updated_at,config.settings_updated_at,logisticsFreeDays()]);if(!manual&&key===publicArrivalPublishedKey)return true;
+        const key=JSON.stringify([code,collabRevision,config.source_updated_at,config.settings_updated_at,logisticsFreeDays()]);if(!manual&&key===publicArrivalPublishedKey)return true;
         const localAt=localRevision,snapshot=await stableRealtimeSnapshot(code);
         if(code!==String(syncCode||'')||!collabEnabled||collabNeedsSend||snapshot.revision!==localRevision||!collabBaseline||!collabStatesEqual(snapshot.cloud,collabBaseline))throw new Error('本机还有未核对的修改，暂不公开，等待同步后再更新。');
         const source=deepClone(collabBaseline),revision=collabRevision,rows=publicArrivalProjection(buildDispatchRecords(),publicArrivalParticipatingIds(source.sheets));
