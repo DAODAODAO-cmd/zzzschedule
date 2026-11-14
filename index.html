@@ -3456,7 +3456,26 @@ body.export-rendering .cart-count{ font-size:28px; }
     function rememberedCloudDirty(code,knownVersion){ const stored=code?localStorage.getItem(CLOUD_DIRTY_KEY_PREFIX+code):null; return stored===null?!knownVersion:stored==='1'; }
     function rememberCloudDirty(code,dirty){ if(code) localStorage.setItem(CLOUD_DIRTY_KEY_PREFIX+code,dirty?'1':'0'); }
     function rememberRealtimePending(code,pending){
+      if(typeof rememberRealtimeBaseline==='function')rememberRealtimeBaseline(code);
       if(!code)return;try{if(pending)localStorage.setItem('ggzPendingRealtimeEdits_v1:'+code,'1');else localStorage.removeItem('ggzPendingRealtimeEdits_v1:'+code);}catch(error){console.warn('未同步修改标记无法持久保存，请导出备份',error);}
+    }
+    function rememberRealtimeBaseline(code){
+      if(!code||code!==syncCode||!collabBaseline||!Array.isArray(collabBaseline.sheets))return false;
+      const userId=authCurrentUser?.id||'',last=rememberRealtimeBaseline.lastSaved;
+      if(last&&last.code===code&&last.userId===userId&&last.revision===collabRevision&&last.state===collabBaseline)return true;
+      try{
+        localStorage.setItem('ggzRealtimeBaseline_v1:'+code,JSON.stringify({code,userId,revision:collabRevision,state:collabBaseline}));
+        rememberRealtimeBaseline.lastSaved={code,userId,revision:collabRevision,state:collabBaseline};
+        return true;
+      }catch(error){try{localStorage.removeItem('ggzRealtimeBaseline_v1:'+code);}catch(_){}rememberRealtimeBaseline.lastSaved=null;console.warn('同步核对基线未能保存；重新打开时仍将保护未上传修改',error);return false;}
+    }
+    function restoreRealtimeBaseline(code){
+      if(!code||code!==syncCode)return false;
+      try{
+        const saved=JSON.parse(localStorage.getItem('ggzRealtimeBaseline_v1:'+code)||'null');
+        if(!saved||saved.code!==code||saved.userId!==(authCurrentUser?.id||'')||!Array.isArray(saved.state?.sheets)||!Number.isSafeInteger(saved.revision)||saved.revision<0)return false;
+        collabBaseline=deepClone(saved.state);collabRevision=saved.revision;return true;
+      }catch(_){return false;}
     }
     function cloudVersionIsNewer(remote,known){ return !!remote&&(!known||new Date(remote)>new Date(known)); }
     function pauseForCloudConflict(){
@@ -3958,6 +3977,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         recordLocalSnapshot('同步冲突选择前（本机完整修改）',true);
         if(isColumnListEditing()||!installCollabState(display))throw new Error('当前正在编辑，请结束输入后重新核对');
         collabBaseline=deepClone(verified.state);collabRevision=Number(verified.revision)||0;collabNeedsSend=collabDiff(collabBaseline,desired).length>0;collabEnabled=true;pendingRealtimeReview=null;realtimeRejectedRetry={key:'',count:0};restoredSnapshotPendingUpload=false;cloudConflictPaused=false;
+        if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,collabNeedsSend);
         try{localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,'1');}catch(_){}
         syncCollabUI();startCollabPolling();startCollabPresence();setCollabStatus(collabNeedsSend?'所选修改已保留，正在重新同步':'已采用核对结果 · 版本 '+collabRevision,collabNeedsSend?'warn':'ok');
       }catch(error){await appAlert('核对未完成：'+(error.message||error)+'。当前本机修改未被清除。');}
@@ -4055,6 +4075,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const display=preserveMatchingLocalImages(latest.state,snapshot.local,snapshot.cloud);
           if(!installCollabState(display))return;
           collabBaseline=deepClone(latest.state);collabRevision=Number(latest.revision);setCollabStatus((latest.updated_by||'其他人')+'刚刚更新 · 版本 '+collabRevision,'ok');
+          if(typeof rememberRealtimeBaseline==='function')rememberRealtimeBaseline(code);
         }
       }catch(error){
         if(code!==syncCode)return;
@@ -4087,6 +4108,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(!autoStart)await manualReadOrDownloadCloud({resumeRealtime:true});return false;
       }
       const code=normalizedSyncCode(); if(!code){ if(!autoStart) alert('请先加入或新建协作组'); return false; }
+      if(!collabBaseline&&typeof restoreRealtimeBaseline==='function')restoreRealtimeBaseline(code);
       if(localStorage.getItem('ggzPendingRealtimeEdits_v1:'+code)==='1')collabNeedsSend=true;
       const name=String($('editorNameInput').value||'').trim(); if(!name){ if(!autoStart){ alert('请先填写编辑者名字'); $('editorNameInput').focus(); } return false; }
       syncCode=code; editorName=name; localStorage.setItem('ggzEditorName',editorName); $('startCollabBtn').disabled=true; setCollabStatus('正在连接实时协作…','warn');
@@ -4095,6 +4117,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         const captured=await stableRealtimeSnapshot(code),localInitialState=captured.local,initialState=captured.cloud,client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_open_collab',{p_sync_code:code,p_initial_state:initialState,p_author_name:editorName}),60000,'实时协作连接');
         if(error) throw error;
         const row=collabResultRow(data); if(!row?.out_state) throw new Error('协作状态为空');
+        if(code!==syncCode)return false;
+        if(collabBaseline&&Number(row.out_revision)<collabRevision)throw new Error('云端响应版本早于上次同步，已拒绝读取旧版本');
         // cloudDirty describes the full backup, not pending realtime edits.
         // A stale full backup must not block an otherwise normal realtime connection.
         if(!collabStatesEqual(row.out_state,initialState)&&collabNeedsSend&&!isProbablyBlankProject(localInitialState)){
@@ -5742,7 +5766,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       for(const c of info.cols)for(const [row,value]of (view.allocations?.[c.id]||[]).entries()){const key=normalizeDispatchKey(value);if(key)totals.set(key,num(totals.get(key))+Math.max(0,info.price(c,row)));}
       for(const c of info.cols)for(const [row,value]of (view.allocations?.[c.id]||[]).entries()){
         const person=String(value||'').trim();if(!person)continue;const key=normalizeDispatchKey(person),cell=matrixBoughtKey(c.id,row),item=matrixItemDisplayName(c,row,view.matrixBlindSubCells||{}),china=logisticsCellMark(c,row,person,view.matrixChinaCells||{},view.allocations),island=logisticsCellMark(c,row,person,view.matrixIslandCells||{},view.allocations);
-        const bought=normalizeDispatchKey(view.matrixBoughtCells?.[cell])===key,included=sheetFulfillmentMode(view)!=='accounting'&&(!tracking||bought),shipment=dispatchShipmentFor(view,c,row,person,item),intl=dispatchInternationalState(view,china,key,c,row,person,item,project.extraFees||[],project.extraFeeArchives||[]);
+        const cellTracking=typeof view.mergedCellSources?.[cell]?.boughtTracked==='boolean'?view.mergedCellSources[cell].boughtTracked:tracking;
+        const bought=normalizeDispatchKey(view.matrixBoughtCells?.[cell])===key,included=sheetFulfillmentMode(view)!=='accounting'&&(!cellTracking||bought),shipment=dispatchShipmentFor(view,c,row,person,item),intl=dispatchInternationalState(view,china,key,c,row,person,item,project.extraFees||[],project.extraFeeArchives||[]);
         const received=paidAmountValue(view.paymentPaid||{},key,totals.get(key)||0),expected=totals.get(key)||0;let goodsPaid=(view.paymentPaid||{})[key]===true||(expected>0&&received>=expected-0.005);
         if(view.paymentRefundDone?.[key]||view.paymentSupplementDone?.[key]||settlementCredit(view.paymentEdits,key)){const record=records.get(key);goodsPaid=!!record&&!record.historyUnknown&&record.due<=0.005;}
         states.set(cell,{person:key,item,bought,included,island,china,shipped:!!shipment,shippedAt:shipment?.at||'',international:{generated:!!intl.generated,paid:!!intl.paid,confirmed:!!intl.confirmed,missing:!!intl.missing,pending:!!intl.pending,exempt:!!intl.exempt},ready:included&&!shipment&&!!china&&goodsPaid&&!!intl.paid});
@@ -5765,8 +5790,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const selected=new Set(ids.map(String)),sources=[...selected].map(id=>project.sheets.find(s=>String(s.id)===id)).filter(Boolean);
       if(sources.length<2||sources.length!==selected.size)throw new Error('请至少选择两张有效原排单');
       if(sources.some(s=>(s.pricingGroups||[]).length||s.mergedShareCells))throw new Error('这次先支持普通单列排单；组合列或已合过的表需要另行核对');
-      const flags=['paymentIncludeShare','showBoughtSettlement','paymentBoughtOnly','shareDeductFixed','dispatchEnabled','dispatchInternationalExempt'];
-      for(const field of flags)if(sources.some(s=>!!s[field]!==!!sources[0][field]))throw new Error('两车的收款/排发规则不同，不能未经核对直接合表：'+field);
+      const flags={showBoughtSettlement:'只收买到',paymentBoughtOnly:'买到统计范围',dispatchEnabled:'是否参与排发',dispatchInternationalExempt:'国际费用模式'};
+      for(const [field,label]of Object.entries(flags))if(sources.some(s=>!!s[field]!==!!sources[0][field]))throw new Error('各车的“'+label+'”规则不同，已保留原表，请先核对；无需改动已收金额');
       if(sources.some(s=>(num(s.paymentStartRow)||1)!==1||s.paymentEndRow))throw new Error('请先核对收款统计范围；真实合表要求原单统计全部行');
       const oldRecords=sources.flatMap(s=>recordsForSheet(s).map(r=>({...r,sourceId:s.id})));
       if(oldRecords.some(r=>r.historyUnknown||r.manual))throw new Error('原账存在历史缺金额或手动退补覆盖，合表前需要先核对');
@@ -5776,11 +5801,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       const moneyMaps=['paymentPaid','sharePaymentPaid','paymentRefund','paymentSupplement','sharePaymentRefund','sharePaymentSupplement','paymentRefundDone','paymentSupplementDone'];for(const field of moneyMaps)merged[field]={};
       merged.paymentEdits={};merged.sharePaymentEdits={};merged.paymentCashHistory=[];merged.paymentNotes={};
       const byName=new Map(),mapping=new Map(),sourceRecords=new Map(sources.map(s=>[s.id,recordsForSheet(s)]));let columnSeed=1;
-      for(const source of sources){const prices=sheetDisplayPriceInfo(source),personCells=new Map();
+      for(const source of sources){const prices=sheetDisplayPriceInfo(source),personCells=new Map(),boughtTracked=Object.entries(source.matrixBoughtCells||{}).some(([cell,person])=>{const split=cell.lastIndexOf(':'),col=cell.slice(0,split),row=Number(cell.slice(split+1));return normalizeDispatchKey(person)&&normalizeDispatchKey(source.allocations?.[col]?.[row])===normalizeDispatchKey(person);});
         for(const col of prices.cols){const label=String(col.name||'').trim();if(!label)throw new Error('存在未命名谷子列');let target=byName.get(label);
           if(!target){target={...deepClone(col),id:columnSeed++,mode:'fixed',fixedPrice:Math.max(0,prices.price(col)),priceAdj:0,avgOverride:null};byName.set(label,target);merged.columns.push(target);merged.allocations[target.id]=[];}
           for(const [row,value]of (source.allocations[col.id]||[]).entries()){const person=String(value||'').trim();if(!person)continue;const nextRow=merged.allocations[target.id].length,key=matrixBoughtKey(target.id,nextRow),oldKey=matrixBoughtKey(col.id,row),personKey=normalizeDispatchKey(person);merged.allocations[target.id].push(person);
-            mapping.set(`${source.id}:${oldKey}`,{sheetId:merged.id,colId:target.id,row:nextRow});merged.mergedCellSources[key]={sheetId:source.id,colId:col.id,row};
+            mapping.set(`${source.id}:${oldKey}`,{sheetId:merged.id,colId:target.id,row:nextRow});merged.mergedCellSources[key]={sheetId:source.id,colId:col.id,row,boughtTracked};
             const amount=Math.max(0,prices.price(col,row));if(Math.abs(amount-num(target.fixedPrice))>0.000001||source.secondPriceCellPrices?.[oldKey])merged.secondPriceCellPrices[key]={person,colId:target.id,amount,calculationId:'ordinary_merge_'+at};
             for(const field of stores)if(Object.hasOwn(source[field]||{},oldKey))merged[field][key]=deepClone(source[field][oldKey]);
             if(!personCells.has(personKey))personCells.set(personKey,[]);personCells.get(personKey).push({key,weight:Math.max(0,num(col.promotionPoints)),sourceId:source.id});
@@ -5795,6 +5820,17 @@ body.export-rendering .cart-count{ font-size:28px; }
         for(const [key,note]of Object.entries(source.paymentNotes||{}))merged.paymentNotes[key]=[merged.paymentNotes[key],note].filter(Boolean).join('；');
       }
       merged.cost={...merged.cost,sharedFee:String(sources.reduce((n,s)=>n+num(s.cost?.sharedFee),0))};merged.shareDeductFixed=false;
+      // Split each source's combined receipt BEFORE summing cars. Splitting a
+      // pooled receipt afterwards could move cash between goods and shares.
+      // Original raw receipts/settings remain intact in mergeSourceBackups.
+      merged.paymentIncludeShare=false;merged.paymentPaid={};merged.sharePaymentPaid={};
+      const goodsExpected=new Map();
+      for(const record of oldRecords){
+        const key=record.key,add=(map,value)=>{map[key]=Math.round((num(map[key])+num(value))*100)/100;};
+        add(merged.paymentPaid,record.g.received);add(merged.sharePaymentPaid,record.sh.received);
+        goodsExpected.set(key,Math.round((num(goodsExpected.get(key))+num(record.g.expected))*100)/100);
+      }
+      for(const [key,amount]of goodsExpected)merged.paymentEdits['alipay:'+key]=amount;
       // Keep standard overrides for older pages; updated pages use the exact
       // original per-position shares rather than redistributing the new total.
       merged.sharePaymentEdits.__merged_share_lock__={};
@@ -9312,7 +9348,8 @@ body.export-rendering .cart-count{ font-size:28px; }
             const name=String(person||'').trim(); if(!name) return;
             const key=normalizeDispatchKey(name), cellKey=`${c.id}:${r}`;
             const cellBought=sheetCellBought(c,r,name,bought,alloc,groups,cols);
-            if(usesBoughtMark&&!cellBought) return;
+            const cellBoughtTracked=typeof sheet.mergedCellSources?.[cellKey]?.boughtTracked==='boolean'?sheet.mergedCellSources[cellKey].boughtTracked:usesBoughtMark;
+            if(cellBoughtTracked&&!cellBought) return;
             if(!people.has(key)) people.set(key,{name:name||key,key,items:[]});
             const chinaDate=String(logisticsCellMark(c,r,name,china,alloc)||'');
             const goodsPaidState=settledGoodsPaymentState(sheet,key,paidState(paidGoods,key,expectedByKey.get(key)||0));
@@ -9322,7 +9359,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             people.get(key).items.push({
               item:itemName,sheetId:sheet.id,colId:c.id,row:r,person:name,shipped:!!shipment,shippedAt:shipment?.at||'',internationalMissing:intl.missing,internationalConfirmed:intl.confirmed,internationalExempt:intl.exempt===true,
               sheet:String(sheet.name||'').trim(),
-              boughtTracked:usesBoughtMark,
+              boughtTracked:cellBoughtTracked,
               chinaDate,
               goodsPaidState,
               internationalGenerated,
