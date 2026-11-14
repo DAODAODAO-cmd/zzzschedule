@@ -2196,6 +2196,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let matrixTitle='', matrixColor='#d1466a', matrixBoughtCells={}, matrixIslandCells={}, matrixChinaCells={}, matrixBlindSubCells={}, matrixMarkMode='', matrixMarkDate='';
     let quantityTitle='';
     let paymentTitle='', paymentColor='#d1466a', paymentViewMode='detail', paymentStartRow=1, paymentEndRow=null, paymentActiveTab='goods', paymentFilter='all', sharePaymentFilter='all', showPaymentTotal=true, showBoughtSettlement=false, paymentBoughtOnly=false, paymentIncludeShare=false;
+    const deferredViewRenders=new Set(['matrix','payment','share','quantity','cart','settlement','dispatch','logistics']);
     let paymentEdits={}, paymentPaid={}, paymentRefund={}, paymentSupplement={}, paymentRefundDone={}, paymentSupplementDone={}, paymentNotes={}, settlementDashboardOpen=false, settlementFilter='pending', sharePaymentTitle='', sharePaymentTitleCustom=false, sharePaymentColor='#d1466a', sharePaymentViewMode='detail', sharePaymentEdits={}, sharePaymentPaid={}, sharePaymentRefund={}, sharePaymentSupplement={}, shareDeductFixed=false;
     let paymentQrImg='', sharedCartQrImg='', sharedPaymentQrImg='', sharedPaymentQrImgs=['',''], sharedPaymentQrLabels=['收款码1','收款码2'], activePaymentQrSlot=0, extraPaymentQrImg='';
     let extraFees=[], extraFeeIdSeed=1, extraFeeFilter='all', extraFeeBatchFilter='all', extraFeeTitle='追加费用收款', extraFeeColor='#d1466a', extraFeeShowTotal=true, extraFeeViewMode='detail', extraFeeArchives=[];
@@ -2927,6 +2928,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!applyingCloud&&!applyingCollab&&options.initializing!==true)cancelPendingCollabInstallForLocalEdit();
       captureActiveSheet();
       const localSaved=persistLocalState();
+      if(typeof invalidateDerivedViews==='function')invalidateDerivedViews();
       if(localSaved!=='failed'&&!options.skipSnapshot) recordLocalSnapshot(options.snapshotReason||'自动保存',options.forceSnapshot===true);
       if($('localStatus')){ $('localStatus').textContent=localSaved==='full'?'本机已保存':(localSaved==='light'?'本机已轻量保存':'本机保存失败'); $('localStatus').style.color=localSaved==='failed'?'var(--bad)':(localSaved==='light'?'var(--warn)':'var(--ok)'); }
       if(localSaved==='failed'){
@@ -3310,6 +3312,29 @@ body.export-rendering .cart-count{ font-size:28px; }
       else setAppSection('logistics',false);
       syncInternationalWorkflowNav();$('internationalWorkflowPanel').scrollIntoView({block:'start',behavior:'smooth'});
     }
+    function invalidateDerivedViews(){for(const view of ['matrix','payment','share','quantity','cart','settlement','dispatch','logistics'])deferredViewRenders.add(view);}
+    function deferHiddenView(view,force=false){
+      const section=typeof activeAppSection==='string'?activeAppSection:'goods';
+      const visible=view==='matrix'?section==='order':view==='payment'||view==='settlement'?section==='payment'&&paymentActiveTab==='goods':view==='share'?section==='payment'&&paymentActiveTab==='share':view==='quantity'||view==='cart'?section==='stats':section===view;
+      if(force!==true&&!visible){deferredViewRenders.add(view);return true;}
+      deferredViewRenders.delete(view);return false;
+    }
+    function refreshVisibleSummaries(){
+      if(activeAppSection==='payment'){
+        if(paymentActiveTab==='share')renderSharePaymentSummary();
+        else{renderPaymentSummary();if(deferredViewRenders.has('settlement'))renderSettlementDashboard();}
+      }else if(activeAppSection==='stats'){renderQuantitySummary();renderCart();}
+    }
+    function refreshViewForExport(id){
+      if(['exportPngBtn','exportCurrentExcelBtn','copyTsvBtn'].includes(id))renderMatrix(true);
+      if(['exportPaymentBtn','exportRefundPaymentBtn','exportUnpaidPaymentBtn','exportPaymentExcelBtn','copyPaymentBtn'].includes(id)){renderPaymentSummary(true);renderSettlementDashboard(true);}
+      if(['exportSharePaymentBtn','exportSharePaymentExcelBtn','copySharePaymentBtn'].includes(id))renderSharePaymentSummary(true);
+      if(['exportQuantityPngBtn','exportQuantityExcelBtn'].includes(id))renderQuantitySummary(true);
+      if(id==='cartExportPngBtn')renderCart(true);
+      if(['dispatchExportPngBtn','dispatchCopyBtn'].includes(id))renderDispatch(true);
+      if(id==='logisticsExportBtn')renderLogistics(true);
+    }
+    document.addEventListener('click',event=>{const button=event.target.closest?.('button[id]');if(button)refreshViewForExport(button.id);},true);
     function setAppSection(section,scrollToTop=true){
       const groups={
         goods:['costPanel','columnPanel'],
@@ -3331,6 +3356,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(section==='dispatch') renderDispatch();
       if(section==='logistics') renderLogistics();
       if(section==='international-bills')renderExtraFees();
+      if(section==='order')renderMatrix(true);
+      if(section==='payment'){syncPaymentControls();refreshVisibleSummaries();}
+      if(section==='stats')refreshVisibleSummaries();
       syncInternationalWorkflowNav();
       if(scrollToTop) window.scrollTo(0,0);
     }
@@ -6077,6 +6105,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('combinedOrderMarkBtn').addEventListener('click',()=>applyCombinedOrderArrival('mark'));
     $('combinedOrderRemoveBtn').addEventListener('click',()=>applyCombinedOrderArrival('remove'));
     function renderMatrix(force=false){
+      if(typeof deferHiddenView==='function'&&deferHiddenView('matrix',force)){refreshVisibleSummaries();return;}
       if(typeof renderCombinedOrderView==='function')renderCombinedOrderView();
       computeAverage();
       if(!force&&activeMatrixEditingCell()){
@@ -6162,10 +6191,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       tbody.innerHTML=bodyHtml||'<tr><td colspan="'+(displayColumns.length+1)+'" style="color:var(--muted);">暂无数据</td></tr>';
       applyPersonHighlight(false);
       updateMatrixSelectionClasses();
-      renderPaymentSummary();
-      renderSharePaymentSummary();
-      renderQuantitySummary();
-      renderCart();
+      refreshVisibleSummaries();
     }
 
     function applyPersonHighlight(shouldScroll){
@@ -6177,7 +6203,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(shouldScroll&&first) first.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
     }
 
-    function renderQuantitySummary(){
+    function renderQuantitySummary(force=false){
+      if(typeof deferHiddenView==='function'&&deferHiddenView('quantity',force))return;
       const el=$('quantitySummary'), displayColumns=orderDisplayColumns();
       if(!displayColumns.length){ el.innerHTML='<div class="hint">有排单数据后会自动统计。</div>'; return; }
       if(!quantitySettingsReady()){ el.innerHTML='<div class="hint quantity-not-set">填写“每盒数量”和“每行计数”后，才会启用上车统计。</div>'; return; }
@@ -6979,7 +7006,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const data=settlementExportRows(type);
       await exportPaymentSettlementTable(data.rows,(paymentTitle||'结算中心')+'｜'+data.label);
     }
-    function renderSettlementDashboard(){
+    function renderSettlementDashboard(force=false){
+      if(typeof deferHiddenView==='function'&&deferHiddenView('settlement',force))return;
       const root=$('settlementDashboard'); if(!root) return;
       const enabled=showBoughtSettlement===true;
       settlementDashboardOpen=enabled;
@@ -7133,7 +7161,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       (records||[]).forEach(r=>{total.actual+=cents(r.g?.actual)+cents(r.sh?.expected);total.refund+=cents(r.refund);total.due+=cents(r.due);});
       return {actual:total.actual/100,refund:total.refund/100,due:total.due/100};
     }
-    function renderPaymentSummary(){
+    function renderPaymentSummary(force=false){
+      if(typeof deferHiddenView==='function'&&deferHiddenView('payment',force))return;
       // Display transferred receipts without rewriting the original cash ledger.
       const paidAmountValue=paymentViewReceivedAmount;
       syncCashLedgerAccess();
@@ -7225,7 +7254,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const paidAllControl=showBoughtSettlement?'':`<button type="button" class="payment-paid-all" data-html2canvas-ignore="true" data-payment-paid-all="1" aria-pressed="${allPaid?'true':(partialPaid?'mixed':'false')}" title="全选或取消当前范围的已收款">${allPaid?'✓':(partialPaid?'−':'')}</button>`;
       el.innerHTML=`<div class="payment-table-wrap"><div class="payment-project-title" style="background:${color}">${escapeHtml(paymentTitle||'未命名项目')}</div><table class="payment-table"><thead><tr><th>${paidAllControl}<span ${editAttr('header:cn')}>${edited('header:cn','CN')}</span></th><th ${editAttr('header:item')}>${edited('header:item','谷类')}</th><th ${editAttr('header:qty')}>${edited('header:qty','数量')}</th><th ${editAttr('header:alipay')}>${edited('header:alipay','支付宝肾额')}</th><th ${editAttr('header:wechat')}>${edited('header:wechat','微信肾额')}</th></tr></thead><tbody>${rows}</tbody>${totalHtml}</table>${qrHtml}</div>`;
     }
-    function renderSharePaymentSummary(){
+    function renderSharePaymentSummary(force=false){
+      if(typeof deferHiddenView==='function'&&deferHiddenView('share',force))return;
       const paidAmountValue=paymentViewReceivedAmount;
       const el=$('sharePaymentSummary'), sharedText=String($('sharedFee').value||'').trim(), sharedTotal=Math.max(0,num(sharedText));
       if(!sharedText||sharedTotal<=0){ el.innerHTML='<div class="empty">没有填写均摊金额，这里暂时不用计算</div>'; $('sharePaymentUnpaidCount').textContent='已收齐：0人 / ¥0.00；未收：0人 / ¥0.00'; return; }
@@ -8265,7 +8295,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       return !!String(c.img||'').trim();
     }
-    function renderCart(){
+    function renderCart(force=false){
+      if(typeof deferHiddenView==='function'&&deferHiddenView('cart',force))return;
       computeAverage();
       const empty=$('cartEmpty'), header=$('cartHeader'), grid=$('cartGrid');
       grid.style.gridTemplateColumns=`repeat(${cartColumns},minmax(0,1fr))`;
@@ -9515,7 +9546,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const intlControl=!g.shipped&&(g.internationalMissing||g.internationalConfirmed)?`<button type="button" class="dispatch-action ${g.internationalConfirmed?'is-undo':''}" title="${g.internationalConfirmed?'撤销这件谷子的国际另收或无需确认':'确认国际已在别处收齐，或无需国际费；不修改收款账单'}" data-dispatch-intl="${escapeAttr(shipmentAction)}" data-intl-confirmed="${g.internationalConfirmed?'1':'0'}">${g.internationalConfirmed?'撤销国际确认':'国际已另收／无需'}</button>`:'';
       return `<span class="dispatch-chip ${g.readyCount?'is-ready':''} ${g.goodsPaidCount<g.n||(g.internationalGeneratedCount&&g.internationalPaidCount<g.internationalGeneratedCount)?'has-unpaid':''}" ${g.shipped?'style="background:#eef3f6;color:#687b88"':''}>${leadingChoice}<span class="dispatch-chip-copy">${escapeHtml(g.item)}${bits.length?` <small>${escapeHtml(bits.join(' · '))}</small>`:''}</span><span class="dispatch-chip-actions" data-html2canvas-ignore="true">${inlineChoices}${leadingChoice?'':intlControl}<button style="${leadingChoice?'display:none':''}" type="button" class="dispatch-action ${g.shipped?'is-undo':'is-ship'}" data-dispatch-ship="${escapeAttr(shipmentAction)}" data-shipped="${g.shipped?'1':'0'}">${g.shipped?'撤销发货':'标记发货'}</button></span></span>`;
     }
-    function renderDispatch(){
+    function renderDispatch(force=false){
+      if(typeof deferHiddenView==='function'&&deferHiddenView('dispatch',force))return;
       const list=$('dispatchList'); if(!list) return;
       syncUndoButton();
       renderDispatchScope();
@@ -10030,7 +10062,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       }catch(error){await appAlert('到货未完成：'+(error.message||error));}
       finally{logisticsCardSaving=false;}
     }
-    function renderLogistics(){
+    function renderLogistics(force=false){
+      if(typeof deferHiddenView==='function'&&deferHiddenView('logistics',force))return;
       const list=$('logisticsList'); if(!list) return;
       if($('publicArrivalScope'))$('publicArrivalScope').textContent='自动范围：'+publicArrivalParticipatingIds().length+' 张参与排发的表。不参与排发的表不展示，无需另外勾选。';
       captureActiveSheet();
@@ -12170,6 +12203,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     document.querySelector('.payment-tabs').addEventListener('click',e=>{
       const button=e.target.closest('[data-payment-tab]'); if(!button) return;
       paymentActiveTab=['goods','share'].includes(button.dataset.paymentTab)?button.dataset.paymentTab:'goods'; closeExtraFeeForm(); $('intlSplitPanel').hidden=true; intlSplitPreviewRows=[]; if($('intlSplitPreview')) $('intlSplitPreview').innerHTML=''; syncPaymentControls();
+      refreshVisibleSummaries();
     });
     document.querySelectorAll('[data-payment-status-filter]').forEach(group=>group.addEventListener('click',e=>{
       const button=e.target.closest('[data-payment-filter]'); if(!button) return;
