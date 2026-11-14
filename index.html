@@ -2852,15 +2852,25 @@ body.export-rendering .cart-count{ font-size:28px; }
       return value;
     }
     function persistLocalState(){
+      persistLocalState.lastError='';
       try{
         localStorage.setItem(STORAGE_KEY,JSON.stringify(localStatePayload()));
         return 'full';
       }catch(error){
+        // Reclaim only redundant encoding overhead, never delete snapshots,
+        // original sheets, receipts or the previous saved project.
+        try{
+          if(typeof compactRealtimeBaselineStorage==='function')compactRealtimeBaselineStorage(syncCode);
+          if(typeof compactStoredHistories==='function')compactStoredHistories();
+          localStorage.setItem(STORAGE_KEY,JSON.stringify(localStatePayload()));
+          return 'full';
+        }catch(_){}
         try{
           localStorage.setItem(STORAGE_KEY,JSON.stringify(lightLocalStatePayload()));
           console.warn('本机空间不足，已改为轻量缓存',error);
           return 'light';
         }catch(lightError){
+          persistLocalState.lastError=String(lightError?.name||'')+': '+String(lightError?.message||lightError||'无法写入浏览器存储');
           console.warn('保存失败',lightError);
           return 'failed';
         }
@@ -2873,6 +2883,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       const localSaved=persistLocalState();
       if(localSaved!=='failed'&&!options.skipSnapshot) recordLocalSnapshot(options.snapshotReason||'自动保存',options.forceSnapshot===true);
       if($('localStatus')){ $('localStatus').textContent=localSaved==='full'?'本机已保存':(localSaved==='light'?'本机已轻量保存':'本机保存失败'); $('localStatus').style.color=localSaved==='failed'?'var(--bad)':(localSaved==='light'?'var(--warn)':'var(--ok)'); }
+      if(localSaved==='failed'){
+        localRevision++;
+        if(!options.transactional&&typeof pauseRealtimeForSafety==='function')pauseRealtimeForSafety('本机保存失败，已暂停同步，请先导出备份并保持此页打开');
+        return false;
+      }
       if(!applyingCloud&&!applyingCollab&&options.initializing!==true){
         if(syncCode){collabNeedsSend=true;if(typeof rememberRealtimePending==='function')rememberRealtimePending(syncCode,true);}
         localRevision++; cloudDirty=true; rememberCloudDirty(syncCode,true);
@@ -3464,7 +3479,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const userId=authCurrentUser?.id||'',last=rememberRealtimeBaseline.lastSaved;
       if(last&&last.code===code&&last.userId===userId&&last.revision===collabRevision&&last.state===collabBaseline)return true;
       try{
-        localStorage.setItem('ggzRealtimeBaseline_v1:'+code,JSON.stringify({code,userId,revision:collabRevision,state:collabBaseline}));
+        localStorage.setItem('ggzRealtimeBaseline_v1:'+code,encodeHistoryStorage({code,userId,revision:collabRevision,state:collabBaseline}));
         rememberRealtimeBaseline.lastSaved={code,userId,revision:collabRevision,state:collabBaseline};
         return true;
       }catch(error){try{localStorage.removeItem('ggzRealtimeBaseline_v1:'+code);}catch(_){}rememberRealtimeBaseline.lastSaved=null;console.warn('同步核对基线未能保存；重新打开时仍将保护未上传修改',error);return false;}
@@ -3472,10 +3487,17 @@ body.export-rendering .cart-count{ font-size:28px; }
     function restoreRealtimeBaseline(code){
       if(!code||code!==syncCode)return false;
       try{
-        const saved=JSON.parse(localStorage.getItem('ggzRealtimeBaseline_v1:'+code)||'null');
+        const saved=decodeHistoryStorage(localStorage.getItem('ggzRealtimeBaseline_v1:'+code),null);
         if(!saved||saved.code!==code||saved.userId!==(authCurrentUser?.id||'')||!Array.isArray(saved.state?.sheets)||!Number.isSafeInteger(saved.revision)||saved.revision<0)return false;
         collabBaseline=deepClone(saved.state);collabRevision=saved.revision;return true;
       }catch(_){return false;}
+    }
+    function compactRealtimeBaselineStorage(code){
+      if(!code)return;
+      const key='ggzRealtimeBaseline_v1:'+code,raw=localStorage.getItem(key);if(!raw)return;
+      const value=decodeHistoryStorage(raw,null);if(!value)return;
+      const packed=encodeHistoryStorage(value);
+      if(packed.length<raw.length&&JSON.stringify(decodeHistoryStorage(packed,null))===JSON.stringify(value))localStorage.setItem(key,packed);
     }
     function cloudVersionIsNewer(remote,known){ return !!remote&&(!known||new Date(remote)>new Date(known)); }
     function pauseForCloudConflict(){
@@ -5790,8 +5812,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       const selected=new Set(ids.map(String)),sources=[...selected].map(id=>project.sheets.find(s=>String(s.id)===id)).filter(Boolean);
       if(sources.length<2||sources.length!==selected.size)throw new Error('请至少选择两张有效原排单');
       if(sources.some(s=>(s.pricingGroups||[]).length||s.mergedShareCells))throw new Error('这次先支持普通单列排单；组合列或已合过的表需要另行核对');
-      const flags={showBoughtSettlement:'只收买到',paymentBoughtOnly:'买到统计范围',dispatchEnabled:'是否参与排发',dispatchInternationalExempt:'国际费用模式'};
+      const flags={showBoughtSettlement:'只收买到',paymentBoughtOnly:'买到统计范围'};
       for(const [field,label]of Object.entries(flags))if(sources.some(s=>!!s[field]!==!!sources[0][field]))throw new Error('各车的“'+label+'”规则不同，已保留原表，请先核对；无需改动已收金额');
+      const fulfillmentMode=sheetFulfillmentMode(sources[0]);
+      if(sources.some(s=>sheetFulfillmentMode(s)!==fulfillmentMode)){
+        const labels={required:'需国际',exempt:'免国际',accounting:'仅算账'};
+        throw new Error('各车的实际排发模式不同：'+sources.map(s=>s.name+'（'+labels[sheetFulfillmentMode(s)]+'）').join('、')+'；已保留原表及已收金额');
+      }
       if(sources.some(s=>(num(s.paymentStartRow)||1)!==1||s.paymentEndRow))throw new Error('请先核对收款统计范围；真实合表要求原单统计全部行');
       const oldRecords=sources.flatMap(s=>recordsForSheet(s).map(r=>({...r,sourceId:s.id})));
       if(oldRecords.some(r=>r.historyUnknown||r.manual))throw new Error('原账存在历史缺金额或手动退补覆盖，合表前需要先核对');
@@ -5863,7 +5890,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         captureActiveSheet();if(code!==String(syncCode||'')||signature!==JSON.stringify(localStatePayload()))throw new Error('核对期间数据发生变化，请返回选择后重新核对。');
         if(!recordLocalSnapshot('真正合并排单前',true))throw new Error('合并前快照未保存，本次未修改。请先处理本机存储空间。');
         sheets=plan.payload.sheets;extraFees=plan.payload.extraFees;activeSheetId=plan.merged.id;applySheet(sheets.find(s=>s.id===activeSheetId));
-        if(!saveState({skipSnapshot:true,flushCollabNow:true})){sheets=before.sheets;extraFees=before.extraFees;activeSheetId=before.activeSheetId;applySheet(sheets.find(s=>s.id===activeSheetId));persistLocalState();throw new Error('保存失败，已还原原表和原账。');}
+        if(!saveState({skipSnapshot:true,flushCollabNow:true,transactional:true})){const detail=persistLocalState.lastError||'浏览器未能写入数据';sheets=before.sheets;extraFees=before.extraFees;activeSheetId=before.activeSheetId;applySheet(sheets.find(s=>s.id===activeSheetId));const rollbackSaved=persistLocalState()!=='failed';throw new Error('浏览器保存未完成，'+(rollbackSaved?'已还原并保存原表原账':'内存中已还原原表原账，请立即导出备份并保持此页打开')+'；未提交本次合并。原因：'+detail.slice(0,140)+'。请勿清除网站数据。');}
         $('combinedOrderDialog').close();resetOrdinaryMergeReview();renderSheetTabs();renderColumnList();renderMatrix();renderPaymentSummary();renderSharePaymentSummary();renderDispatch();
       }catch(error){$('combinedOrderMessage').textContent=error.message;}finally{ordinaryMergeSaving=false;$('combinedOrderSaveBtn').disabled=false;}
     }
