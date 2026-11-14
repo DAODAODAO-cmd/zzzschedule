@@ -2853,6 +2853,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function persistLocalState(){
       persistLocalState.lastError='';
+      if(typeof localReadFailed!=='undefined'&&localReadFailed){persistLocalState.lastError='本机数据未正确读出，禁止覆盖原缓存';return 'failed';}
       try{
         localStorage.setItem(STORAGE_KEY,JSON.stringify(localStatePayload()));
         return 'full';
@@ -2863,6 +2864,13 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(typeof compactRealtimeBaselineStorage==='function')compactRealtimeBaselineStorage(syncCode);
           if(typeof compactStoredHistories==='function')compactStoredHistories();
           localStorage.setItem(STORAGE_KEY,JSON.stringify(localStatePayload()));
+          return 'full';
+        }catch(_){}
+        try{
+          const payload=localStatePayload(),raw=JSON.stringify(payload),packed=encodeHistoryStorage(payload);
+          if(packed.length>=raw.length)throw error;
+          if(JSON.stringify(decodeHistoryStorage(packed,null))!==raw)throw new Error('本机压缩校验未通过，原缓存未覆盖');
+          localStorage.setItem(STORAGE_KEY,packed);
           return 'full';
         }catch(_){}
         try{
@@ -2877,6 +2885,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
     }
     function saveState(options={}){
+      if(typeof localReadFailed!=='undefined'&&localReadFailed)return false;
       if(isLoadingSheet) return true;
       if(!applyingCloud&&!applyingCollab&&options.initializing!==true)cancelPendingCollabInstallForLocalEdit();
       captureActiveSheet();
@@ -3011,11 +3020,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
       return list;
     }
+    let localReadFailed=false;
     function loadState(){
       try{
         const raw=localStorage.getItem(STORAGE_KEY);
         if(raw){
-          const d=JSON.parse(raw);
+          const d=decodeHistoryStorage(raw,null);
           extraFees=Array.isArray(d.extraFees)?d.extraFees.map(normalizeExtraFee).filter(Boolean):[];
           extraFeeIdSeed=Math.max(Number(d.extraFeeIdSeed)||1,...extraFees.map(x=>(Number(x.id)||0)+1)); extraFeeTitle=String(d.extraFeeTitle||extraFeeTitle||'追加费用收款'); extraFeeColor=/^#[0-9a-f]{6}$/i.test(String(d.extraFeeColor||''))?d.extraFeeColor:'#d1466a'; extraFeeShowTotal=d.extraFeeShowTotal!==false; extraFeeViewMode=d.extraFeeViewMode==='merged'?'merged':'detail'; extraFeeArchives=Array.isArray(d.extraFeeArchives)?d.extraFeeArchives.map(normalizeExtraFeeArchive).filter(Boolean):[]; extraFeeBatchFilter=String(d.extraFeeBatchFilter||'all');
           if(Array.isArray(d.sheets)&&d.sheets.length){
@@ -3089,7 +3099,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           }
           return;
         }
-      }catch(e){ console.warn('读取失败',e); }
+      }catch(e){localReadFailed=true;console.warn('读取失败，禁止用空表覆盖缓存',e);return false;}
       const first=blankSheet('表1'); sheets=[first]; activeSheetId=first.id; applySheet(first);
     }
 
@@ -13360,7 +13370,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     setCloudStatus('登录后自动读取协作组');
     compactStoredHistories();
     loadUndoHistory();
-    loadState();
+    if(loadState()===false){setCloudStatus('本机数据读取失败，已停止保存和同步，原缓存未覆盖','warn');appAlert('本机数据未能读取，已停止自动保存和同步。请保持此页打开，不要清除网站数据；不要使用旧版 HTML 打开此浏览器的数据。');return;}
     recordLocalSnapshot('打开页面时',true);
     renderWatermarkArchive();
     migrateLegacyColdPromotionDraft();
