@@ -10561,14 +10561,24 @@ body.export-rendering .cart-count{ font-size:28px; }
       transferPreviewRows=transferPreviewRows.filter(row=>row.id!==parseInt(button.dataset.removeTransfer,10)); renderTransferPreview();
       if(transferPreviewRows.length) showTransferMatrixPreview(); else clearMatrixPreview();
     });
+    function mergedAutomaticGoodsEditKeys(sheet){
+      if(!sheet?.mergedShareCells||!sheet?.mergeSourceBackups)return [];
+      const info=sheetDisplayPriceInfo(sheet),totals=new Map();
+      for(const col of info.cols)for(const [row,value]of (sheet.allocations?.[col.id]||[]).entries()){
+        const key=normalizeDispatchKey(value);if(key)totals.set(key,num(totals.get(key))+Math.max(0,info.price(col,row)));
+      }
+      return Object.entries(sheet.paymentEdits||{}).filter(([key,value])=>key.startsWith('alipay:')&&Number.isFinite(Number(value))&&Math.abs(num(value)-num(totals.get(normalizeDispatchKey(key.slice(7)))))<0.005).map(([key])=>key);
+    }
     function buildTransferAutoCalculationPlan(sourceSheet,entries){
       const sheet=deepClone(sourceSheet),people=new Map(),items=[];
+      const generated=new Set(typeof mergedAutomaticGoodsEditKeys==='function'?mergedAutomaticGoodsEditKeys(sheet):[]);
       for(const {row} of entries||[]){if(row?.mode==='swap')continue;for(const value of [row?.source,row?.target]){const name=String(value||'').trim(),key=normalizeDispatchKey(name);if(key&&!people.has(key))people.set(key,name);}}
       const labels={paymentRefund:'手动待退款',paymentSupplement:'手动待补款',sharePaymentRefund:'手动均摊待退款',sharePaymentSupplement:'手动均摊待补款'};
       for(const [field,label] of Object.entries(labels)){
         for(const key of Object.keys(sheet[field]||{})){const normalized=normalizeDispatchKey(key);if(!people.has(normalized))continue;items.push({person:people.get(normalized),field,key,label,value:deepClone(sheet[field][key])});delete sheet[field][key];}
       }
       for(const key of Object.keys(sheet.paymentEdits||{})){
+        if(generated.has(key))continue;
         const prefix=['alipay:','__settlement_base__:','__settlement_override_at__:','__auto_base__:alipay:'].find(prefix=>key.startsWith(prefix));if(!prefix)continue;
         const normalized=normalizeDispatchKey(key.slice(prefix.length));if(!people.has(normalized))continue;
         if(prefix==='alipay:'||prefix==='__settlement_base__:')items.push({person:people.get(normalized),field:'paymentEdits',key,label:prefix==='alipay:'?'手动谷款应收':'手动退补基准',value:deepClone(sheet.paymentEdits[key])});
@@ -10589,11 +10599,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!await appConfirm('以下手动值正在影响转单：\n'+details+'\n\n恢复后：\n'+after+'\n\n只清除本次转单双方的手动应收、待退补覆盖；已收款、已退款、已补款和历史转账不动。先保存快照，再恢复。恢复后仍需重新核对转单，不会自动转出。','核对手动金额','备份并恢复自动计算'))return false;
       captureActiveSheet();if(code!==String(syncCode||'')||id!==activeSheetId||signature!==JSON.stringify(sheets.find(sheet=>sheet.id===id))){await appAlert('确认期间表格或账目发生变化，本次未恢复，请重新核对。');return false;}
       if(!recordLocalSnapshot('恢复转单自动计算前',true)){await appAlert('恢复前快照未能保存，本次没有修改，请先导出 JSON 备份。');return false;}
+      const draft=deepClone(transferPreviewRows.length?transferPreviewRows:checks.map(entry=>entry.row));
       const before=deepClone(original);plan.sheet.paymentManualResetHistory=[...(original.paymentManualResetHistory||[]),{at:new Date().toISOString(),people:plan.people,removed:deepClone(plan.items)}].slice(-20);
       sheets[sheets.findIndex(sheet=>sheet.id===id)]=plan.sheet;applySheet(plan.sheet);
+      transferPreviewRows=deepClone(draft);
       let saved=false;try{saved=saveState();}catch(_){}
-      if(!saved){sheets[sheets.findIndex(sheet=>sheet.id===id)]=before;applySheet(before);await appAlert('保存失败，已还原本次手动金额，未执行转单。');return false;}
-      transferPreviewSignature=actionPreviewDataSignature();renderTransferPreview();showTransferMatrixPreview('转单模拟（已恢复自动计算，尚未转单）');$('transferPreviewStatus').textContent='已恢复本次双方的自动计算，原收退补记录保留。请重新点“核对款项并转单”。';$('transferPreviewStatus').style.color='var(--ok)';return true;
+      if(!saved){sheets[sheets.findIndex(sheet=>sheet.id===id)]=before;applySheet(before);transferPreviewRows=deepClone(draft);transferPreviewSignature=actionPreviewDataSignature();$('transferPreviewPanel').style.display='block';renderTransferPreview();showTransferMatrixPreview();await appAlert('保存失败，已还原本次手动金额，未执行转单；转单预览仍保留。');return false;}
+      transferPreviewSignature=actionPreviewDataSignature();$('transferPreviewPanel').style.display='block';renderTransferPreview();showTransferMatrixPreview('转单模拟（已恢复自动计算，尚未转单）');$('transferPreviewStatus').textContent='已恢复本次双方的自动计算，原收退补记录保留。请重新点“核对款项并转单”。';$('transferPreviewStatus').style.color='var(--ok)';return true;
     }
     $('restoreTransferAutoBtn').addEventListener('click',()=>restoreTransferAutoCalculation());
     function buildInternationalFeeTransfer(sheet,col,positions,from,to,fees,archives,nextId,allSheets=[]){
@@ -10689,6 +10701,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sheet=deepClone(sourceSheet),operations=[];
       let transferFees=deepClone(extraFees||[]),transferFeeIdSeed=Math.max(typeof extraFeeIdSeed!=='undefined'?extraFeeIdSeed:1,...transferFees.map(r=>(Number(r.id)||0)+1));
       sheet.paymentEdits=sheet.paymentEdits||{};sheet.paymentCashHistory=sheet.paymentCashHistory||[];
+      const involved=new Set(entries.flatMap(({row})=>[normalizeDispatchKey(row.source),normalizeDispatchKey(row.target)]));
+      if(typeof mergedAutomaticGoodsEditKeys==='function')for(const key of mergedAutomaticGoodsEditKeys(sheet))if(involved.has(normalizeDispatchKey(key.slice(7))))delete sheet.paymentEdits[key];
       for(const {row,check,cashAmount} of entries){
         if(!check.ok)throw new Error('转单内容尚未核对清楚');
         if(row.mode==='swap'){
