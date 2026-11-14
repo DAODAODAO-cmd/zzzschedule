@@ -1817,6 +1817,15 @@ body.export-rendering .payment-partial-row .payment-export-due-amount{ display:b
 .action-goods-option .goods-name small{display:block;color:var(--muted);}
 .action-goods-option input[type=number]{width:62px;min-width:0;box-sizing:border-box;}
 .action-goods-note{margin:8px 0 0;font-size:11px;color:var(--muted);line-height:1.6;}
+.action-cn-combobox{position:relative;display:block;width:100%;margin-top:4px;}
+.action-cn-combobox::after{content:'⌄';position:absolute;right:10px;top:50%;transform:translateY(-55%);color:var(--muted);pointer-events:none;}
+.action-cn-combobox>input{padding-right:28px;}
+.action-cn-options{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:220;background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px;max-height:220px;overflow:auto;box-shadow:0 6px 20px #39213c20;box-sizing:border-box;}
+.action-cn-options[hidden]{display:none;}
+.action-cn-options.opens-above{top:auto;bottom:calc(100% + 4px);}
+.action-cn-options>button{display:block;width:100%;min-height:34px;padding:8px 10px;margin:0;border:0;border-radius:5px;text-align:left;white-space:normal;overflow-wrap:anywhere;background:transparent;color:var(--text,#252032);font:inherit;font-size:12px;cursor:pointer;}
+.action-cn-options>button:hover,.action-cn-options>button.is-active{background:#fceaf1;color:#ba315d;}
+.action-cn-empty{padding:10px;color:var(--muted);font-size:11px;}
 .quantity-heading-tools{ grid-template-columns:minmax(180px,1fr); margin-bottom:10px; }
 .quantity-controls{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
 .quantity-controls label{ display:flex; align-items:center; gap:7px; margin:0; }
@@ -10244,6 +10253,34 @@ body.export-rendering .cart-count{ font-size:28px; }
         return {id:col.id,name:String(col.name||''),owned,available:Math.max(0,available-reserved)};
       }).filter(col=>col.name&&(!key||col.owned>0));
     }
+    function attachActionCnPicker(input,listId,menuId){
+      input.removeAttribute('list');input.autocomplete='off';
+      const wrap=document.createElement('span'),menu=document.createElement('span');wrap.className='action-cn-combobox';input.parentNode.insertBefore(wrap,input);wrap.appendChild(input);menu.className='action-cn-options';menu.id=menuId;menu.hidden=true;menu.setAttribute('role','listbox');wrap.appendChild(menu);
+      input.setAttribute('role','combobox');input.setAttribute('aria-autocomplete','list');input.setAttribute('aria-expanded','false');input.setAttribute('aria-controls',menuId);
+      let active=-1;
+      const close=()=>{menu.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');active=-1;};
+      const choose=button=>{input.value=button.dataset.cn;close();input.dispatchEvent(new Event('change',{bubbles:true}));input.blur();};
+      const show=()=>{
+        document.querySelectorAll('.action-cn-options').forEach(other=>{if(other!==menu){other.hidden=true;other.parentNode.querySelector('input')?.setAttribute('aria-expanded','false');}});
+        const query=normalizeDispatchKey(input.value),names=[...($(listId)?.options||[])].map(option=>option.value).filter(name=>!query||normalizeDispatchKey(name).includes(query));
+        menu.innerHTML=names.map((name,index)=>`<button type="button" role="option" tabindex="-1" id="${menuId}-${index}" data-cn="${escapeAttr(name)}">${escapeHtml(name)}</button>`).join('')||'<span class="action-cn-empty">没有匹配的 CN，可继续输入完整名字。</span>';
+        active=-1;menu.hidden=false;input.setAttribute('aria-expanded','true');input.removeAttribute('aria-activedescendant');
+        const rect=input.getBoundingClientRect(),bottom=window.visualViewport?window.visualViewport.offsetTop+window.visualViewport.height:window.innerHeight,below=bottom-rect.bottom,above=rect.top;const up=below<140&&above>below;
+        menu.classList.toggle('opens-above',up);menu.style.maxHeight=Math.max(80,Math.min(220,(up?above:below)-12))+'px';
+      };
+      input.addEventListener('focus',show);input.addEventListener('click',show);input.addEventListener('input',show);
+      input.addEventListener('keydown',event=>{
+        if(event.key==='Escape'){close();return;}
+        if(event.key==='Tab'){close();return;}
+        if(!['ArrowDown','ArrowUp','Enter'].includes(event.key))return;
+        if(event.key==='Enter'){if(!menu.hidden&&active>=0){event.preventDefault();choose(menu.querySelectorAll('button')[active]);}return;}
+        event.preventDefault();if(menu.hidden)show();const buttons=[...menu.querySelectorAll('button')];if(!buttons.length)return;
+        active=active<0?(event.key==='ArrowDown'?0:buttons.length-1):(active+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons.forEach((button,index)=>{button.classList.toggle('is-active',index===active);button.setAttribute('aria-selected',index===active?'true':'false');});input.setAttribute('aria-activedescendant',buttons[active].id);buttons[active].scrollIntoView({block:'nearest'});
+      });
+      menu.addEventListener('pointerdown',event=>event.preventDefault());menu.addEventListener('click',event=>{const button=event.target.closest('[data-cn]');if(button)choose(button);});
+      document.addEventListener('pointerdown',event=>{if(!wrap.contains(event.target))close();});
+      input.addEventListener('blur',()=>setTimeout(()=>{if(document.activeElement!==input)close();},0));
+    }
     function initActionGoodsPickers(){
       for(const kind of ['transfer','cancel','blind']){
         const panel=$(kind==='blind'?'blindResultPreviewPanel':kind+'PreviewPanel'),picker=document.createElement('details');
@@ -10252,6 +10289,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         panel.insertBefore(picker,panel.querySelector('.table-scroll'));
         if(kind==='blind')picker.querySelector('.action-goods-note').textContent='只选择当前排单中的挂载谷子；添加后在下方填写抽奖结果内容，确认前不改正式数据。';
         const person=picker.querySelector('[data-goods-person]'),search=picker.querySelector('[data-goods-search]'),list=picker.querySelector('[data-goods-list]');
+        attachActionCnPicker(person,kind+'GoodsPeople',kind+'GoodsPeopleMenu');
+        const target=picker.querySelector('[data-goods-target]');if(target)attachActionCnPicker(target,kind+'GoodsPeople',kind+'GoodsTargetMenu');
         const updateCount=()=>{picker.querySelector('[data-goods-count]').textContent='已选 '+list.querySelectorAll('input[type=checkbox]:checked').length+' 款';};
         const filter=()=>{const query=search.value.normalize('NFKC').toLowerCase().trim();list.querySelectorAll('[data-goods-option]').forEach(row=>row.hidden=!row.dataset.search.includes(query));};
         const render=()=>{
