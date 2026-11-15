@@ -2735,18 +2735,42 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(word)output.push(String.fromCharCode(word.length===1?word.charCodeAt(0):dict.get(word)));
       const packed='GGZLZW1:'+output.join('');return packed.length<raw.length?packed:raw;
     }
-    function encodeLocalProjectCache(payload){
-      const cache=encodeLocalProjectCache.blocks||(encodeLocalProjectCache.blocks=new Map()),used=new Set();
-      const pack=(key,value)=>{used.add(key);const raw=JSON.stringify(value),previous=cache.get(key);if(previous?.raw===raw)return previous.packed;const packed=encodeHistoryStorage(value,raw);cache.set(key,{raw,packed});return packed;};
-      const entries=Object.entries(payload).filter(([,value])=>value!==undefined).map(([key,value])=>key==='sheets'&&Array.isArray(value)?[key,'sheets',value.map((sheet,index)=>pack('sheet:'+index+':'+sheet.id,sheet))]:[key,'value',pack('field:'+key,value)]);
+    function encodeLocalProjectCache(payload,blockCache,granularSheets=false){
+      const cache=blockCache||encodeLocalProjectCache.blocks||(encodeLocalProjectCache.blocks=new Map()),used=new Set();
+      const pack=(key,value)=>{used.add(key);const raw=JSON.stringify(value),previous=cache.get(key);if(previous?.raw===raw)return previous.packed;const packed=encodeHistoryStorage(value,raw);if(JSON.stringify(decodeHistoryStorage(packed,null))!==raw)throw new Error('缓存分块校验未通过，未替换原缓存');cache.set(key,{raw,packed});return packed;};
+      const entries=Object.entries(payload).filter(([,value])=>value!==undefined).map(([key,value])=>key==='sheets'&&Array.isArray(value)?granularSheets?[key,'sheet-fields',value.map((sheet,index)=>Object.entries(sheet).filter(([,fieldValue])=>fieldValue!==undefined).map(([field,fieldValue])=>[field,pack('sheet:'+index+':'+sheet.id+':field:'+field,fieldValue)]))]:[key,'sheets',value.map((sheet,index)=>pack('sheet:'+index+':'+sheet.id,sheet))]:[key,'value',pack('field:'+key,value)]);
       for(const key of cache.keys())if(!used.has(key))cache.delete(key);
       return 'GGZPROJ2:'+JSON.stringify(entries);
     }
+    function encodeRealtimeBaselineCache(record){
+      if(!record||typeof record.code!=='string'||typeof record.userId!=='string'||!Number.isSafeInteger(record.revision)||record.revision<0||!Array.isArray(record.state?.sheets)||!record.state.sheets.length)throw new Error('同步基线信息不完整，未替换原缓存');
+      let context=encodeRealtimeBaselineCache.context;
+      if(!context||context.code!==record.code||context.userId!==record.userId)context=encodeRealtimeBaselineCache.context={code:record.code,userId:record.userId,blocks:new Map()};
+      const packedState=encodeLocalProjectCache(record.state,context.blocks,true);
+      return 'GGZBASE2:'+JSON.stringify({...record,state:packedState});
+    }
+    function primeRealtimeBaselineCache(raw,record){
+      try{
+        if(!raw?.startsWith('GGZBASE2:'))return false;
+        const outer=JSON.parse(raw.slice(9));if(!outer.state?.startsWith('GGZPROJ2:'))return false;
+        const entries=JSON.parse(outer.state.slice(9)),blocks=new Map();
+        for(const [key,kind,value]of entries){
+          if(kind==='sheet-fields')value.forEach((fields,index)=>{const sheet=record.state.sheets[index];for(const [field,packed]of fields)blocks.set('sheet:'+index+':'+sheet.id+':field:'+field,{raw:JSON.stringify(sheet[field]),packed});});
+          else if(kind==='value')blocks.set('field:'+key,{raw:JSON.stringify(record.state[key]),packed:value});
+          else return false;
+        }
+        encodeRealtimeBaselineCache.context={code:record.code,userId:record.userId,blocks};return true;
+      }catch(_){return false;}
+    }
     function decodeHistoryStorage(raw,fallback){
       if(!raw)return fallback;
+      if(raw.startsWith('GGZBASE2:')){
+        const record=JSON.parse(raw.slice(9));if(!record||typeof record.state!=='string')throw new Error('同步基线缓存损坏');
+        record.state=decodeHistoryStorage(record.state,null);return record;
+      }
       if(raw.startsWith('GGZPROJ2:')){
         const entries=JSON.parse(raw.slice(9)),payload={};if(!Array.isArray(entries))throw new Error('本机项目缓存头损坏');
-        for(const entry of entries){if(!Array.isArray(entry)||entry.length!==3||typeof entry[0]!=='string')throw new Error('本机项目缓存块损坏');const [key,kind,value]=entry;if(kind!=='sheets'&&kind!=='value')throw new Error('本机项目缓存类型损坏');if(kind==='sheets'&&!Array.isArray(value))throw new Error('本机排单缓存损坏');Object.defineProperty(payload,key,{value:kind==='sheets'?value.map(part=>decodeHistoryStorage(part,null)):decodeHistoryStorage(value,null),enumerable:true,writable:true,configurable:true});}
+        for(const entry of entries){if(!Array.isArray(entry)||entry.length!==3||typeof entry[0]!=='string')throw new Error('本机项目缓存块损坏');const [key,kind,value]=entry;if(!['sheets','sheet-fields','value'].includes(kind))throw new Error('本机项目缓存类型损坏');if(kind!=='value'&&!Array.isArray(value))throw new Error('本机排单缓存损坏');const decoded=kind==='sheets'?value.map(part=>decodeHistoryStorage(part,null)):kind==='sheet-fields'?value.map(fields=>{if(!Array.isArray(fields))throw new Error('排单字段缓存损坏');const sheet={};for(const pair of fields){if(!Array.isArray(pair)||pair.length!==2||typeof pair[0]!=='string')throw new Error('排单字段缓存损坏');Object.defineProperty(sheet,pair[0],{value:decodeHistoryStorage(pair[1],null),enumerable:true,writable:true,configurable:true});}return sheet;}):decodeHistoryStorage(value,null);Object.defineProperty(payload,key,{value:decoded,enumerable:true,writable:true,configurable:true});}
         if(!Array.isArray(payload.sheets)||!payload.sheets.length)throw new Error('本机项目缓存缺少排单');return payload;
       }
       if(!raw.startsWith('GGZLZW1:'))return JSON.parse(raw);
@@ -3563,7 +3587,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const userId=authCurrentUser?.id||'',last=rememberRealtimeBaseline.lastSaved;
       if(last&&last.code===code&&last.userId===userId&&last.revision===collabRevision&&last.state===collabBaseline)return true;
       try{
-        localStorage.setItem('ggzRealtimeBaseline_v1:'+code,encodeHistoryStorage({code,userId,revision:collabRevision,state:collabBaseline}));
+        localStorage.setItem('ggzRealtimeBaseline_v1:'+code,encodeRealtimeBaselineCache({code,userId,revision:collabRevision,state:collabBaseline}));
         rememberRealtimeBaseline.lastSaved={code,userId,revision:collabRevision,state:collabBaseline};
         return true;
       }catch(error){try{localStorage.removeItem('ggzRealtimeBaseline_v1:'+code);}catch(_){}rememberRealtimeBaseline.lastSaved=null;console.warn('同步核对基线未能保存；重新打开时仍将保护未上传修改',error);return false;}
@@ -3571,16 +3595,16 @@ body.export-rendering .cart-count{ font-size:28px; }
     function restoreRealtimeBaseline(code){
       if(!code||code!==syncCode)return false;
       try{
-        const saved=decodeHistoryStorage(localStorage.getItem('ggzRealtimeBaseline_v1:'+code),null);
+        const raw=localStorage.getItem('ggzRealtimeBaseline_v1:'+code),saved=decodeHistoryStorage(raw,null);
         if(!saved||saved.code!==code||saved.userId!==(authCurrentUser?.id||'')||!Array.isArray(saved.state?.sheets)||!Number.isSafeInteger(saved.revision)||saved.revision<0)return false;
-        collabBaseline=deepClone(saved.state);collabRevision=saved.revision;return true;
+        collabBaseline=deepClone(saved.state);collabRevision=saved.revision;if(typeof primeRealtimeBaselineCache==='function')primeRealtimeBaselineCache(raw,saved);return true;
       }catch(_){return false;}
     }
     function compactRealtimeBaselineStorage(code){
       if(!code)return;
       const key='ggzRealtimeBaseline_v1:'+code,raw=localStorage.getItem(key);if(!raw)return;
       const value=decodeHistoryStorage(raw,null);if(!value)return;
-      const packed=encodeHistoryStorage(value);
+      const packed=Array.isArray(value.state?.sheets)?encodeRealtimeBaselineCache(value):encodeHistoryStorage(value);
       if(packed.length<raw.length&&JSON.stringify(decodeHistoryStorage(packed,null))===JSON.stringify(value))localStorage.setItem(key,packed);
     }
     function cloudVersionIsNewer(remote,known){ return !!remote&&(!known||new Date(remote)>new Date(known)); }
