@@ -3580,7 +3580,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     function rememberCloudDirty(code,dirty){ if(code) localStorage.setItem(CLOUD_DIRTY_KEY_PREFIX+code,dirty?'1':'0'); }
     function rememberRealtimePending(code,pending){
       if(typeof rememberRealtimeBaseline==='function')rememberRealtimeBaseline(code);
-      if(!code)return;try{if(pending)localStorage.setItem('ggzPendingRealtimeEdits_v1:'+code,'1');else localStorage.removeItem('ggzPendingRealtimeEdits_v1:'+code);}catch(error){console.warn('未同步修改标记无法持久保存，请导出备份',error);}
+      if(!code)return;try{const key='ggzPendingRealtimeEdits_v1:'+code,identityKey='ggzIdentityIntent_v1:'+code,alreadyPending=localStorage.getItem(key)==='1';if(pending){localStorage.setItem(key,'1');if(!alreadyPending)localStorage.setItem(identityKey,JSON.stringify({version:1,code,userId:typeof authCurrentUser==='undefined'?'':authCurrentUser?.id||''}));}else{localStorage.removeItem(key);localStorage.removeItem(identityKey);}}catch(error){console.warn('未同步修改标记无法持久保存，请导出备份',error);}
+    }
+    function realtimeIntentIdentityReady(code){
+      try{const marker=JSON.parse(localStorage.getItem('ggzIdentityIntent_v1:'+code)||'null');return !!marker&&marker.version===1&&marker.code===code&&marker.userId===(authCurrentUser?.id||'');}catch(_){return false;}
     }
     function rememberRealtimeBaseline(code){
       if(!code||code!==syncCode||!collabBaseline||!Array.isArray(collabBaseline.sheets))return false;
@@ -3782,6 +3785,46 @@ body.export-rendering .cart-count{ font-size:28px; }
       return value;
     }
     function collabStatesEqual(a,b){ return JSON.stringify(stableCollabValue(a))===JSON.stringify(stableCollabValue(b)); }
+    function guardCollabPatchByIdentity(ops,base){
+      const roots={sheets:'id',extraFees:'id',extraFeeArchives:'id',itemCatalog:'catalogId'},guards=new Map();
+      const checked=new Set(),unsafe=()=>{const error=new Error('同步目标ID重复或缺失，已保留本机，未提交，请先核对排单');error.code='COLLAB_IDENTITY_UNSAFE';throw error;};
+      const guard=(path,value,sheetName='')=>{const key=JSON.stringify(path);if(!guards.has(key))guards.set(key,{op:'set',path:path.map(String),old:deepClone(value),value:deepClone(value),identity_guard:true,sheet_name:sheetName});};
+      for(const op of ops){const path=op.path||[],root=String(path[0]),field=roots[root];if(!field||path.length<2||!/^\d+$/.test(String(path[1])))continue;const index=Number(path[1]),item=base?.[root]?.[index];if(!item)continue;
+        if(!checked.has(root)){const ids=(base?.[root]||[]).map(value=>value?.[field]??(root==='itemCatalog'?value?.id:undefined));if(ids.some(id=>id===undefined||id===null)||new Set(ids.map(String)).size!==ids.length)unsafe();checked.add(root);}
+        const identityField=Object.hasOwn(item,field)?field:root==='itemCatalog'&&Object.hasOwn(item,'id')?'id':null;if(!identityField)throw new Error('同步目标缺少稳定ID，已保留本机，未提交');guard([root,index,identityField],item[identityField],item.name||'');
+        if(root!=='sheets'||path.length<4)continue;
+        let columnIndex=-1;if(path[2]==='columns'&&/^\d+$/.test(String(path[3])))columnIndex=Number(path[3]);
+        else if(path[2]==='allocations')columnIndex=(item.columns||[]).findIndex(c=>String(c.id)===String(path[3]));
+        else if(['matrixBoughtCells','matrixIslandCells','matrixChinaCells','matrixBlindSubCells','dispatchShippedCells','dispatchInternationalExemptCells','secondPriceCellPrices','mergedShareCells','mergedCellSources'].includes(path[2]))columnIndex=(item.columns||[]).findIndex(c=>String(c.id)===String(path[3]).split(':')[0]);
+        const column=item.columns?.[columnIndex];if(column){if((item.columns||[]).filter(c=>String(c.id)===String(column.id)).length!==1)unsafe();guard([root,index,'columns',columnIndex,'id'],column.id,item.name||'');if(Object.hasOwn(column,'name'))guard([root,index,'columns',columnIndex,'name'],column.name,item.name||'');}
+      }
+      // Legacy SQL validates every old value before applying any operation.
+      // Guards MUST precede real writes so a legitimate rename/reorder wins.
+      return [...guards.values(),...ops];
+    }
+    function rebaseCollabIntentByIdentity(ops,base,local,server){
+      const roots={sheets:'id',extraFees:'id',extraFeeArchives:'id',itemCatalog:'catalogId'};let conflict=false;
+      const id=(item,field)=>item?.[field]??(field==='catalogId'?item?.id:undefined),ids=(state,root,field)=>JSON.stringify((state?.[root]||[]).map(item=>id(item,field)));
+      const rebased=ops.map(op=>{
+        const path=(op.path||[]).map(String),root=path[0],field=roots[root];if(!field)return op;
+        const rootChanged=ids(base,root,field)!==ids(server,root,field);
+        if(ids(base,root,field)!==ids(local,root,field)){if(rootChanged&&ids(local,root,field)!==ids(server,root,field))conflict=true;return op;}
+        if(path.length<3||!/^\d+$/.test(path[1])){if(rootChanged)conflict=true;return op;}
+        const index=Number(path[1]),origin=base?.[root]?.[index],wanted=id(origin,field),targets=(server?.[root]||[]).map((item,i)=>({item,i})).filter(x=>wanted!==undefined&&String(id(x.item,field))===String(wanted));
+        if(targets.length!==1){conflict=true;return op;}const target=targets[0];path[1]=String(target.i);let changed=rootChanged;
+        if(root==='sheets'&&path[2]==='columns'&&path.length>=4&&/^\d+$/.test(path[3])){
+          const oldColumns=origin?.columns||[],localColumns=local?.sheets?.[index]?.columns||[],remoteColumns=target.item.columns||[],order=list=>JSON.stringify(list.map(c=>c.id));
+          if(order(oldColumns)!==order(localColumns)){if(order(oldColumns)!==order(remoteColumns)&&order(localColumns)!==order(remoteColumns))conflict=true;return rootChanged?{...op,path,source_path:op.source_path||op.path,identity_rebased:true}:op;}
+          const column=oldColumns[Number(path[3])],matches=remoteColumns.map((c,i)=>({c,i})).filter(x=>column&&String(x.c.id)===String(column.id));if(matches.length!==1){conflict=true;return op;}path[3]=String(matches[0].i);changed=changed||order(oldColumns)!==order(remoteColumns);
+          if(String(column.name||'')!==String(matches[0].c.name||'')&&String(localColumns[Number(op.path[3])]?.name||'')!==String(matches[0].c.name||'')){conflict=true;return op;}
+        }
+        if(root==='sheets'&&path.length>=4&&(path[2]==='allocations'||['matrixBoughtCells','matrixIslandCells','matrixChinaCells','matrixBlindSubCells','dispatchShippedCells','dispatchInternationalExemptCells','secondPriceCellPrices','mergedShareCells','mergedCellSources'].includes(path[2]))){
+          const columnId=path[2]==='allocations'?path[3]:String(path[3]).split(':')[0],oldColumn=origin?.columns?.find(c=>String(c.id)===columnId),localColumn=local?.sheets?.[index]?.columns?.find(c=>String(c.id)===columnId),matches=(target.item.columns||[]).filter(c=>String(c.id)===columnId);
+          if(matches.length>1||(oldColumn&&!matches.length)||(matches.length&&String((oldColumn||localColumn)?.name||'')!==String(matches[0].name||'')&&String(localColumn?.name||'')!==String(matches[0].name||''))){conflict=true;return op;}
+        }
+        return changed?{...op,path,source_path:op.source_path||op.path,identity_rebased:true}:op;
+      });return {ops:rebased,conflict};
+    }
     function collabDiff(oldRoot,newRoot){
       const ops=[];
       const walk=(oldValue,newValue,path,oldExists,newExists)=>{
@@ -3939,6 +3982,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function describeCollabPatch(patch){
       const labels=new Set();
       (Array.isArray(patch)?patch:[]).forEach(op=>{
+        if(op.identity_guard)return;
         const path=Array.isArray(op?.path)?op.path.map(String):[], root=path[0]||'', field=path[2]||'';
         if(root==='sheets'){
           const index=Number(path[1]), patchSheet=(op?.value&&typeof op.value==='object'?op.value:null)||(op?.old&&typeof op.old==='object'?op.old:null), stateSheet=Number.isInteger(index)?collabBaseline?.sheets?.[index]:null;
@@ -4042,7 +4086,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const acknowledged=collabAcknowledgedState;
           if(acknowledged&&acknowledged.code===code){
             const changes=classifyRealtimeIntent(acknowledged.uiBase,uiCloud,acknowledged.uiBase,acknowledged.display);
-            const layoutChanged=realtimeLayoutConflict(acknowledged.uiBase,acknowledged.display,changes.intent);
+            const layoutChanged=changes.identityConflict||realtimeLayoutConflict(acknowledged.uiBase,acknowledged.display,changes.intent);
             if(collabEnabled&&(changes.real.length||layoutChanged)){if(layoutChanged)collabAcknowledgedState=null;queueRealtimeReview({base:layoutChanged?acknowledged.uiBase:acknowledged.server,server:acknowledged.server,version:acknowledged.version,real:changes.real},code,'编辑期间云端同一位置已有不同值，请核对');throw new Error('本机输入已保留，待核对同步值');}
             cloud=applyCollabOps(deepClone(acknowledged.display),changes.intent);
           }
@@ -4060,7 +4104,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function realtimeLayoutConflict(sent,server,laterOps){
       return ['sheets','extraFees','extraFeeArchives','itemCatalog'].some(key=>{
-        if(!laterOps.some(op=>String(op.path?.[0])===key))return false;
+        const relevant=laterOps.filter(op=>String(op.path?.[0])===key);if(!relevant.length||relevant.every(op=>op.identity_rebased===true))return false;
         const ids=value=>JSON.stringify((value?.[key]||[]).map(item=>String(item?.id??item?.catalogId??'')));
         return ids(sent)!==ids(server);
       });
@@ -4074,16 +4118,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       return missing?!at.exists:at.exists&&collabStatesEqual(at.value,old?op.old:op.value);
     }
     function classifyRealtimeIntent(base,local,sent,server){
-      const intent=collabDiff(base,local),pending=intent.filter(op=>!collabOperationMatches(op,server));
-      const real=pending.filter(op=>{if(collabOperationMatches(op,server,true))return false;const previous=collabPathValue(sent,op.path),current=collabPathValue(server,op.path);return previous.exists!==current.exists||previous.exists&&!collabStatesEqual(previous.value,current.value);});
-      return {intent,pending,real};
+      const rebased=typeof rebaseCollabIntentByIdentity==='function'?rebaseCollabIntentByIdentity(collabDiff(base,local),base,local,server):{ops:collabDiff(base,local),conflict:false},intent=rebased.ops,pending=intent.filter(op=>!collabOperationMatches(op,server));
+      const real=pending.filter(op=>{if(collabOperationMatches(op,server,true))return false;const previous=collabPathValue(sent,op.source_path||op.path),current=collabPathValue(server,op.path);return previous.exists!==current.exists||previous.exists&&!collabStatesEqual(previous.value,current.value);});
+      return {intent,pending,real,identityConflict:rebased.conflict};
     }
     async function prepareRealtimeResponse(row,sentState,code,baseState=sentState){
       if(!row?.out_state)throw new Error('协作云端没有返回状态');
       const after=await stableRealtimeSnapshot(code),version=Number(row.out_revision);
       if(!collabEnabled||code!==syncCode||!Number.isFinite(version)||version<collabRevision)return null;
       const server=deepClone(row.out_state),classified=classifyRealtimeIntent(baseState,after.cloud,sentState,server),laterOps=classified.pending;
-      const layoutConflict=realtimeLayoutConflict(sentState,server,laterOps)&&!collabStatesEqual(baseState?.sheets?.map(s=>s.id),server?.sheets?.map(s=>s.id));
+      const layoutConflict=classified.identityConflict||(realtimeLayoutConflict(sentState,server,laterOps)&&!collabStatesEqual(baseState?.sheets?.map(s=>s.id),server?.sheets?.map(s=>s.id)));
       return {server,version,laterOps,uiCloud:after.uiCloud,revision:after.revision,base:deepClone(baseState),intent:classified.intent,real:classified.real,layoutConflict,display:classified.real.length||layoutConflict?null:preserveMatchingLocalImages(applyCollabOps(deepClone(server),laterOps),after.local,after.cloud)};
     }
     function queueRealtimeReview(prepared,code,message){
@@ -4098,7 +4142,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const current=await stableRealtimeSnapshot(code),client=getCloudClient(code),latest=await readCollabPublication(client,code);
         if(!latest?.state?.sheets?.length)throw new Error('无法读取实时协作数据，请保留本机修改');
         const classified=classifyRealtimeIntent(review.base,current.cloud,review.server,latest.state),intent=classified.intent;
-        if(realtimeLayoutConflict(review.base,latest.state,intent))throw new Error('云端表结构与本机编辑依据不同，不能按位置处理，请先导出本机备份');
+        if(classified.identityConflict||realtimeLayoutConflict(review.base,latest.state,intent))throw new Error('云端表结构与本机编辑依据不同，不能按位置处理，请先导出本机备份');
         const conflicts=new Set([...(review.conflictPaths||[]),...classified.real.map(op=>JSON.stringify(op.path))]);
         const format=value=>value===undefined?'（不存在）':typeof value==='object'?JSON.stringify(value).slice(0,150):String(value);
         const details=classified.pending.slice(0,10).map(op=>{const path=op.path||[],sheet=path[0]==='sheets'?current.local.sheets?.[Number(path[1])]:null,col=path[2]==='columns'?sheet?.columns?.[Number(path[3])]:null;return `${sheet?'「'+sheet.name+'」':''}${col?' '+(col.name||col.id):''} · ${path.slice(2).join('/')}\n本机：${op.op==='delete'?'（删除）':format(op.value)}\n云端：${format(collabPathValue(latest.state,path).value)}`;}).join('\n\n');
@@ -4173,7 +4217,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         }
         ops.forEach(op=>{const path=op.path||[];if(String(path[0])==='sheets'){const index=Number(path[1]);op.sheet_name=String(sentState.sheets?.[index]?.name||collabBaseline?.sheets?.[index]?.name||'');}});
         collabPendingSheetNames=new Set(ops.map(op=>op.sheet_name||'项目设置'));collabNeedsSend=false;
-        const client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_apply_collab_patch',{p_sync_code:code,p_patch:ops,p_author_name:editorName||'未命名'}),45000,'实时协作同步');
+        const guardedOps=typeof guardCollabPatchByIdentity==='function'?guardCollabPatchByIdentity(ops,baseState):ops;
+        const client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_apply_collab_patch',{p_sync_code:code,p_patch:guardedOps,p_author_name:editorName||'未命名'}),45000,'实时协作同步');
         if(error)throw error;
         if(code!==syncCode||!collabEnabled)return false;
         const row=collabResultRow(data),conflicts=Array.isArray(row?.out_conflicts)?row.out_conflicts:[];
@@ -4187,6 +4232,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         return accepted;
       }catch(error){
         syncError=error;if(code!==syncCode||!collabEnabled)return false;
+        if(error?.code==='COLLAB_IDENTITY_UNSAFE'||/GGZ_IDENTITY_GUARDS_REQUIRED/.test(String(error?.message||''))){pauseRealtimeForSafety('已拦截无法确认目标表身份的同步，请更新所有设备后核对；未覆盖云端');return false;}
         if(isCollabPermissionError(error)){disableCollabForPermissionError(error);return false;}
         if(sentState&&isStatementTimeout(error)&&await replaceCollabStateAfterTimeout(sentState,localSentState,code))return true;
         if(collabEnabled){collabNeedsSend=true;setCollabStatus('同步待重试：'+readableSyncError(error)+'；本机修改保留','warn');}return false;
@@ -4246,7 +4292,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       const code=normalizedSyncCode(); if(!code){ if(!autoStart) alert('请先加入或新建协作组'); return false; }
       if(!collabBaseline&&typeof restoreRealtimeBaseline==='function')restoreRealtimeBaseline(code);
-      if(localStorage.getItem('ggzPendingRealtimeEdits_v1:'+code)==='1')collabNeedsSend=true;
+      if(localStorage.getItem('ggzPendingRealtimeEdits_v1:'+code)==='1'){
+        collabNeedsSend=true;
+        if(typeof realtimeIntentIdentityReady==='function'&&!realtimeIntentIdentityReady(code)){pauseRealtimeForSafety('旧版未上传修改缺少表身份校验，已停止自动重放；请保留本机备份后核对，未覆盖你已修正的云端记录');return false;}
+      }
       const name=String($('editorNameInput').value||'').trim(); if(!name){ if(!autoStart){ alert('请先填写编辑者名字'); $('editorNameInput').focus(); } return false; }
       syncCode=code; editorName=name; localStorage.setItem('ggzEditorName',editorName); $('startCollabBtn').disabled=true; setCollabStatus('正在连接实时协作…','warn');
       collabConnecting=true;
@@ -9389,9 +9438,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sub=String((subStore||{})[matrixBoughtKey(c?.id,row)]||'').trim();
       return sub?`${base}-${sub}`:base;
     }
-    function settledGoodsPaymentState(sheet,key,baseState){
+    function settledGoodsPaymentState(sheet,key,baseState,currentSheetRecords=null){
       if(sheet?.paymentRefundDone?.[key]||sheet?.paymentSupplementDone?.[key]||settlementCredit(sheet?.paymentEdits,key)){
-        const record=recordsForSheet(deepClone(sheet)).find(r=>r.key===key);
+        const record=currentSheetRecords?currentSheetRecords().get(key):recordsForSheet(deepClone(sheet)).find(r=>r.key===key);
         if(record){if(record.historyUnknown)return 'unpaid';if(record.due<=0.005)return 'full';return settlementCurrentCash(record)>0.005?'partial':'unpaid';}
       }
       return baseState;
@@ -9473,6 +9522,10 @@ body.export-rendering .cart-count{ font-size:28px; }
         const cols=Array.isArray(sheet.columns)?sheet.columns:[];
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
         const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, paidGoods=sheet.paymentPaid||{}, sub=sheet.matrixBlindSubCells||{};
+        // This memo belongs only to this sheet in this synchronous refresh.
+        // Never reuse it across refreshes, sheets, or incoming cloud updates.
+        let settlementRecords=null;const goodsPaidStates=new Map();
+        const currentSheetRecords=()=>{if(!settlementRecords){settlementRecords=new Map();for(const record of recordsForSheet(deepClone(sheet)))if(!settlementRecords.has(record.key))settlementRecords.set(record.key,record);}return settlementRecords;};
         const displayCols=orderDisplayColumns(cols,groups,alloc);
         const displayPriceInfo=sheetDisplayPriceInfo(sheet), priceColumns=new Map(displayPriceInfo.cols.map(c=>[Number(c.id),c])), expectedByKey=new Map();
         displayCols.forEach(c=>(alloc[c.id]||[]).forEach((person,index)=>{
@@ -9497,7 +9550,8 @@ body.export-rendering .cart-count{ font-size:28px; }
             if(cellBoughtTracked&&!cellBought) return;
             if(!people.has(key)) people.set(key,{name:name||key,key,items:[]});
             const chinaDate=String(logisticsCellMark(c,r,name,china,alloc)||'');
-            const goodsPaidState=settledGoodsPaymentState(sheet,key,paidState(paidGoods,key,expectedByKey.get(key)||0));
+            if(!goodsPaidStates.has(key))goodsPaidStates.set(key,settledGoodsPaymentState(sheet,key,paidState(paidGoods,key,expectedByKey.get(key)||0),currentSheetRecords));
+            const goodsPaidState=goodsPaidStates.get(key);
             const itemName=matrixItemDisplayName(c,r,sub)||'未命名谷子', shipment=dispatchShipmentFor(sheet,c,r,name,itemName);
             const intl=dispatchInternationalState(sheet,chinaDate,key,c,r,name,itemName,extraFees,extraFeeArchives);
             const internationalGenerated=intl.generated||intl.confirmed,internationalPaid=intl.paid;
