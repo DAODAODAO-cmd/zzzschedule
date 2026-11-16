@@ -3785,9 +3785,22 @@ body.export-rendering .cart-count{ font-size:28px; }
       return value;
     }
     function collabStatesEqual(a,b){ return JSON.stringify(stableCollabValue(a))===JSON.stringify(stableCollabValue(b)); }
-    function guardCollabPatchByIdentity(ops,base){
+    function guardCollabPatchByIdentity(ops,base,desired=null){
       const roots={sheets:'id',extraFees:'id',extraFeeArchives:'id',itemCatalog:'catalogId'},guards=new Map();
       const checked=new Set(),unsafe=()=>{const error=new Error('同步目标ID重复或缺失，已保留本机，未提交，请先核对排单');error.code='COLLAB_IDENTITY_UNSAFE';throw error;};
+      // A repaired legacy sheet cannot be sent cell-by-cell against duplicate
+      // column IDs. Use one exact-old-value CAS for that sheet only, never a
+      // blind project replacement. Any intervening remote edit rejects it.
+      const atomicSheets=new Map();
+      if(desired)for(const op of ops){const path=op.path||[];if(path[0]!=='sheets'||path.length<3||!/^\d+$/.test(String(path[1])))continue;
+        const index=Number(path[1]),old=base?.sheets?.[index],next=desired?.sheets?.[index],cols=old?.columns||[];
+        if(new Set(cols.map(c=>String(c.id))).size===cols.length)continue;
+        if(!next||String(next.id)!==String(old.id))unsafe();
+        const newCols=next.columns||[];if(newCols.some(c=>c.id===null||c.id===undefined)||new Set(newCols.map(c=>String(c.id))).size!==newCols.length)unsafe();
+        if(JSON.stringify((base.sheets||[]).map(s=>s.id))!==JSON.stringify((desired.sheets||[]).map(s=>s.id)))unsafe();
+        atomicSheets.set(index,{op:'set',path:['sheets',String(index)],old:deepClone(old),value:deepClone(next),sheet_name:next.name||'',repaired_identity_cas:true});
+      }
+      if(atomicSheets.size)ops=[...ops.filter(op=>!(op.path?.[0]==='sheets'&&atomicSheets.has(Number(op.path?.[1])))),...atomicSheets.values()];
       const guard=(path,value,sheetName='')=>{const key=JSON.stringify(path);if(!guards.has(key))guards.set(key,{op:'set',path:path.map(String),old:deepClone(value),value:deepClone(value),identity_guard:true,sheet_name:sheetName});};
       for(const op of ops){const path=op.path||[],root=String(path[0]),field=roots[root];if(!field||path.length<2||!/^\d+$/.test(String(path[1])))continue;const index=Number(path[1]),item=base?.[root]?.[index];if(!item)continue;
         if(!checked.has(root)){const ids=(base?.[root]||[]).map(value=>value?.[field]??(root==='itemCatalog'?value?.id:undefined));if(ids.some(id=>id===undefined||id===null)||new Set(ids.map(String)).size!==ids.length)unsafe();checked.add(root);}
@@ -4217,7 +4230,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         }
         ops.forEach(op=>{const path=op.path||[];if(String(path[0])==='sheets'){const index=Number(path[1]);op.sheet_name=String(sentState.sheets?.[index]?.name||collabBaseline?.sheets?.[index]?.name||'');}});
         collabPendingSheetNames=new Set(ops.map(op=>op.sheet_name||'项目设置'));collabNeedsSend=false;
-        const guardedOps=typeof guardCollabPatchByIdentity==='function'?guardCollabPatchByIdentity(ops,baseState):ops;
+        const guardedOps=typeof guardCollabPatchByIdentity==='function'?guardCollabPatchByIdentity(ops,baseState,sentState):ops;
         const client=getCloudClient(code),{data,error}=await lockRequest(client.rpc('ggz_apply_collab_patch',{p_sync_code:code,p_patch:guardedOps,p_author_name:editorName||'未命名'}),45000,'实时协作同步');
         if(error)throw error;
         if(code!==syncCode||!collabEnabled)return false;
@@ -4281,6 +4294,19 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(collabEnabled){if(collabNeedsSend||collabSendTimer)await flushCollabChanges();else await pollCollabState();return;}
       if(authCurrentUser&&syncCode&&collabReconnectBlocked!==syncCode&&!restoredSnapshotPendingUpload)await startCollab(true);
     }
+    async function resumeRepairedIdentitySync(){
+      const code=String(syncCode||'');if(!collabBaseline&&typeof restoreRealtimeBaseline==='function')restoreRealtimeBaseline(code);
+      if(!collabBaseline?.sheets)return null;
+      const current=await stableRealtimeSnapshot(code),base=collabBaseline;
+      const repaired=base.sheets.filter(s=>{const cols=s.columns||[],next=current.cloud.sheets?.find(x=>x.id===s.id),newCols=next?.columns||[];return new Set(cols.map(c=>String(c.id))).size!==cols.length&&next&&newCols.every(c=>c.id!==undefined&&c.id!==null)&&new Set(newCols.map(c=>String(c.id))).size===newCols.length;});
+      if(!repaired.length)return null;
+      const ops=collabDiff(base,current.cloud);try{guardCollabPatchByIdentity(ops,base,current.cloud);}catch(_){return null;}
+      const names=[...new Set(ops.filter(op=>op.path?.[0]==='sheets').map(op=>current.cloud.sheets?.[Number(op.path[1])]?.name||'排单'))];
+      if(!await appConfirm('检测到已手动修正重复谷子 ID 的排单。\n待核对修改：'+names.join('、')+'\n按已保存的同步基线核对这些修改，不读取旧备份替换本机、不强制覆盖云端。云端期间有新修改会停止并要求核对。\n是否恢复实时核对？','恢复已修正表的同步','核对并恢复'))return false;
+      const verified=await stableRealtimeSnapshot(code);if(code!==String(syncCode||'')||verified.revision!==current.revision)throw new Error('确认期间本机内容变化，请重新核对。');
+      restoredSnapshotPendingUpload=false;cloudConflictPaused=false;localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);
+      collabNeedsSend=true;rememberRealtimePending(code,false);rememberRealtimePending(code,true);return true;
+    }
     async function startCollab(autoStart=false){
       if(collabConnecting)return false;
       if(autoStart&&collabReconnectBlocked===syncCode)return false;
@@ -4288,7 +4314,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(cloudPublishingCollab)return false;
       if(restoredSnapshotPendingUpload||localStorage.getItem('ggzRestoredPendingPublish_v1:'+syncCode)==='1'){
         setCollabStatus('同步保护已暂停，点“核对并恢复同步”选择如何处理；本机修改保留','warn');
-        if(!autoStart)await manualReadOrDownloadCloud({resumeRealtime:true});return false;
+        if(!autoStart){if(typeof resumeRepairedIdentitySync==='function'){const resumed=await resumeRepairedIdentitySync();if(resumed===true)return startCollab(false);if(resumed===false)return false;}await manualReadOrDownloadCloud({resumeRealtime:true});}return false;
       }
       const code=normalizedSyncCode(); if(!code){ if(!autoStart) alert('请先加入或新建协作组'); return false; }
       if(!collabBaseline&&typeof restoreRealtimeBaseline==='function')restoreRealtimeBaseline(code);
@@ -5948,7 +5974,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function ordinaryOrderFulfillmentStates(sheet,project){
       const view=deepClone(sheet),info=sheetDisplayPriceInfo(view),totals=new Map(),records=new Map(recordsForSheet(view).map(r=>[r.key,r])),states=new Map();
-      const tracking=Object.entries(view.matrixBoughtCells||{}).some(([cell,person])=>{const split=cell.lastIndexOf(':'),col=cell.slice(0,split),row=Number(cell.slice(split+1));return normalizeDispatchKey(person)&&normalizeDispatchKey(view.allocations?.[col]?.[row])===normalizeDispatchKey(person);});
+      const tracking=Object.entries(view.matrixBoughtCells||{}).some(([cell,person])=>{const split=cell.lastIndexOf(':'),col=cell.slice(0,split),row=Number(cell.slice(split+1));return info.cols.some(c=>String(c.id)===col)&&normalizeDispatchKey(person)&&normalizeDispatchKey(view.allocations?.[col]?.[row])===normalizeDispatchKey(person);});
       for(const c of info.cols)for(const [row,value]of (view.allocations?.[c.id]||[]).entries()){const key=normalizeDispatchKey(value);if(key)totals.set(key,num(totals.get(key))+Math.max(0,info.price(c,row)));}
       for(const c of info.cols)for(const [row,value]of (view.allocations?.[c.id]||[]).entries()){
         const person=String(value||'').trim();if(!person)continue;const key=normalizeDispatchKey(person),cell=matrixBoughtKey(c.id,row),item=matrixItemDisplayName(c,row,view.matrixBlindSubCells||{}),china=logisticsCellMark(c,row,person,view.matrixChinaCells||{},view.allocations),island=logisticsCellMark(c,row,person,view.matrixIslandCells||{},view.allocations);
@@ -5992,7 +6018,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const moneyMaps=['paymentPaid','sharePaymentPaid','paymentRefund','paymentSupplement','sharePaymentRefund','sharePaymentSupplement','paymentRefundDone','paymentSupplementDone'];for(const field of moneyMaps)merged[field]={};
       merged.paymentEdits={};merged.sharePaymentEdits={};merged.paymentCashHistory=[];merged.paymentNotes={};
       const byName=new Map(),mapping=new Map(),sourceRecords=new Map(sources.map(s=>[s.id,recordsForSheet(s)]));let columnSeed=1;
-      for(const source of sources){const prices=sheetDisplayPriceInfo(source),personCells=new Map(),boughtTracked=Object.entries(source.matrixBoughtCells||{}).some(([cell,person])=>{const split=cell.lastIndexOf(':'),col=cell.slice(0,split),row=Number(cell.slice(split+1));return normalizeDispatchKey(person)&&normalizeDispatchKey(source.allocations?.[col]?.[row])===normalizeDispatchKey(person);});
+      for(const source of sources){const prices=sheetDisplayPriceInfo(source),personCells=new Map(),boughtTracked=Object.entries(source.matrixBoughtCells||{}).some(([cell,person])=>{const split=cell.lastIndexOf(':'),col=cell.slice(0,split),row=Number(cell.slice(split+1));return prices.cols.some(c=>String(c.id)===col)&&normalizeDispatchKey(person)&&normalizeDispatchKey(source.allocations?.[col]?.[row])===normalizeDispatchKey(person);});
         for(const col of prices.cols){const label=String(col.name||'').trim();if(!label)throw new Error('存在未命名谷子列');let target=byName.get(label);
           if(!target){target={...deepClone(col),id:columnSeed++,mode:'fixed',fixedPrice:Math.max(0,prices.price(col)),priceAdj:0,avgOverride:null};byName.set(label,target);merged.columns.push(target);merged.allocations[target.id]=[];}
           for(const [row,value]of (source.allocations[col.id]||[]).entries()){const person=String(value||'').trim();if(!person)continue;const nextRow=merged.allocations[target.id].length,key=matrixBoughtKey(target.id,nextRow),oldKey=matrixBoughtKey(col.id,row),personKey=normalizeDispatchKey(person);merged.allocations[target.id].push(person);
@@ -7542,7 +7568,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const match=String(cellKey||'').match(/^(.+):(\d+)$/); if(!match) return false;
           const colId=match[1], row=Number(match[2]);
           const current=String((alloc[colId]||[])[row]||'').trim();
-          return !!current&&normalizeDispatchKey(markedName)===normalizeDispatchKey(current);
+          return cols.some(c=>String(c.id)===String(colId))&&!!current&&normalizeDispatchKey(markedName)===normalizeDispatchKey(current);
         });
         cols.forEach(c=>(alloc[c.id]||[]).forEach((person,row)=>{
           const name=String(person||'').trim(), date=logisticsCellMark(c,row,name,china,alloc); if(!name||!date) return;
@@ -9539,7 +9565,7 @@ body.export-rendering .cart-count{ font-size:28px; }
           const match=String(cellKey||'').match(/^(.+):(\d+)$/); if(!match) return false;
           const colId=match[1], row=Number(match[2]);
           const current=String((alloc[colId]||[])[row]||'').trim();
-          return !!current&&normalizeDispatchKey(markedName)===normalizeDispatchKey(current);
+          return displayCols.some(c=>String(c.id)===String(colId))&&!!current&&normalizeDispatchKey(markedName)===normalizeDispatchKey(current);
         });
         displayCols.forEach(c=>{
           (alloc[c.id]||[]).forEach((person,r)=>{
@@ -9927,7 +9953,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,`排发清单_${suffix}.png`)).catch(()=>alert('导出失败，请重试'));
     });
     let logisticsDateFilterVal='';
-    let publicArrivalConfig=null,publicArrivalConfigCode='',publicArrivalRenderedCode='',publicArrivalTimer=null,publicArrivalBusy=false,publicArrivalPublishedKey='',publicArrivalFreeDaysCode='';
+    let publicArrivalConfig=null,publicArrivalConfigCode='',publicArrivalRenderedCode='',publicArrivalTimer=null,publicArrivalBusy=false,publicArrivalPublishedKey='',publicArrivalFreeDaysCode='',publicArrivalRetryCount=0;
     const publicArrivalMissingCodes=new Set();
     function publicArrivalMessage(text){if($('publicArrivalStatus'))$('publicArrivalStatus').textContent=text;}
     function publicArrivalUrl(config){
@@ -9980,12 +10006,16 @@ body.export-rendering .cart-count{ font-size:28px; }
       publicArrivalMissingCodes.delete(code);publicArrivalConfig=data;publicArrivalConfigCode=code;loadPublicArrivalSettings.lastAt=Date.now();renderPublicArrivalLink(data);if(render)renderPublicArrivalSettings(data);return data;
     }
     function publicArrivalError(error){const raw=String(error?.message||error||'');if(/ARRIVAL_SCOPE_SQL_OLD|SELECT_SHEETS_FIRST/.test(raw))return '云端还是旧的逐表勾选接口。请执行本包 supabase_public_arrivals.sql 更新为跟随排发；不需要选排单，原链接不变。';return /PGRST202|could not find|does not exist|ggz_arrival_share_settings/i.test(raw)?'到货查询接口未安装或仍是旧版，请执行本包 supabase_public_arrivals.sql；原有同步不受影响。':raw;}
-    function schedulePublicArrivalSync(){clearTimeout(publicArrivalTimer);publicArrivalTimer=setTimeout(()=>publishPublicArrivals(false),2500);}
+    function schedulePublicArrivalSync(delay=2500){
+      // Coalesce notifications without postponing forever during frequent sync polls.
+      if(publicArrivalTimer!==null)return;
+      publicArrivalTimer=setTimeout(()=>{publicArrivalTimer=null;publishPublicArrivals(false);},delay);
+    }
     async function publishPublicArrivals(manual=false){
-      if(publicArrivalBusy)return false;
+      if(publicArrivalBusy){schedulePublicArrivalSync(4000);return false;}
       if(!manual&&document.visibilityState==='hidden')return false;
       if(!manual&&publicArrivalMissingCodes.has(String(syncCode||'')))return false;
-      if(!collabEnabled||collabNeedsSend||collabSending||collabPolling||cloudBusy||cloudPublishingCollab||collabAcknowledgedState){if(manual)publicArrivalMessage('请先等待实时同步成功，未同步的本机修改不会公开。');return false;}
+      if(!collabEnabled||collabNeedsSend||collabSending||collabPolling||cloudBusy||cloudPublishingCollab||collabAcknowledgedState){if(collabEnabled)schedulePublicArrivalSync(4000);if(manual)publicArrivalMessage('正在等待主表同步，成功后会自动更新查询，无需反复点击。未同步的修改不会公开。');return false;}
       publicArrivalBusy=true;const code=String(syncCode||'');
       try{
         const config=await loadPublicArrivalSettings(manual);if(!config?.enabled){if(manual)publicArrivalMessage('查询未开启。');return false;}
@@ -9996,10 +10026,17 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(code!==String(syncCode||'')||!collabEnabled||collabNeedsSend||snapshot.revision!==localRevision||!collabBaseline||!collabStatesEqual(snapshot.cloud,collabBaseline))throw new Error('本机还有未核对的修改，暂不公开，等待同步后再更新。');
         const source=deepClone(collabBaseline),revision=collabRevision,rows=publicArrivalProjection(buildDispatchRecords(),publicArrivalParticipatingIds(source.sheets));
         if(localAt!==localRevision||code!==String(syncCode||''))throw new Error('到货数据正在变化，稍后自动重试。');
+        publicArrivalMessage('正在自动更新查询清单…');
         const {data,error}=await lockRequest(getCloudClient(code).rpc('ggz_publish_arrival_share',{p_group_id:code,p_revision:revision,p_source_state:source,p_rows:rows}),45000,'更新到货查询');if(error)throw error;
         if(code!==String(syncCode||''))return false;
-        publicArrivalPublishedKey=key;publicArrivalMessage('查询信息已更新 · '+Number(data?.count||0)+' 件符合可排发条件。仅公开到货信息。');return true;
-      }catch(error){if(code===String(syncCode||''))publicArrivalMessage(/ARRIVAL_SOURCE_CHANGED/.test(String(error?.message))?'云端数据已变化，查询暂不展示旧信息，等待下一次同步更新。':publicArrivalError(error));return false;}
+        publicArrivalPublishedKey=key;publicArrivalRetryCount=0;publicArrivalMessage('查询信息已自动更新 · '+Number(data?.count||0)+' 件符合可排发条件。仅公开到货信息。');if(revision!==collabRevision||collabNeedsSend)schedulePublicArrivalSync();return true;
+      }catch(error){if(code===String(syncCode||'')){
+        const raw=String(error?.message||error||''),timeout=/statement timeout|57014|超时/.test(raw);
+        publicArrivalMessage(timeout?'查询清单发布超时，稍后会自动重试；主表、金额及到货发货记录未因此修改。若持续出现，需安装配套“到货查询发布提速.sql”。':/ARRIVAL_SOURCE_CHANGED/.test(raw)?'主表正在更新，稍后会自动重试发布查询清单。':publicArrivalError(error));
+        if(!publicArrivalMissingCodes.has(code)&&!/GROUP_ACCESS_DENIED|ARRIVAL_SCOPE_SQL_OLD|SELECT_SHEETS_FIRST|ARRIVAL_SHARE_DISABLED|PGRST202/.test(raw)){
+          publicArrivalRetryCount=Math.min(publicArrivalRetryCount+1,5);schedulePublicArrivalSync(Math.min(60000,4000*2**publicArrivalRetryCount));
+        }
+      }return false;}
       finally{publicArrivalBusy=false;}
     }
     async function savePublicArrivalSettings(disable=false){
@@ -13535,6 +13572,34 @@ body.export-rendering .cart-count{ font-size:28px; }
       };
       reader.readAsArrayBuffer(file); e.target.value='';
     });
+    function buildTargetedPictureRepair(project,repair){
+      if(repair?.format!=='ggz-picture-cleanup-v1'||repair.sheetId!==134)throw new Error('不是受支持的画报定向修复文件。');
+      const targets=project.sheets.filter(s=>s.id===134);if(targets.length!==1)throw new Error('画报 ID 不唯一或已不存在，未修改。');
+      const sheet=targets[0];
+      if(sheet.name!=='11.6 十二支画报'||sheet.columns.length!==1||sheet.columns[0].id!==1||sheet.columns[0].name!=='宙&华武利')throw new Error('画报身份已变化，未修改。');
+      const expected={allocations:{'2':['傻白白'],'3':['傻白白'],'5':['傻白白'],'6':['傻白白'],'7':['矮矮','cj'],'8':['cj','cj']},paymentPaid:{cj:95.36999999999999,'矮矮':39.269999999999996,'辣条':14.585999999999999},paymentEdits:{'__goods_snapshot__:cj':{items:{'Amazons-小挂件 Omega':39.27,'Amazons-收藏卡盲抽':56.1},total:95.37},'__goods_snapshot__:矮矮':{items:{'Amazons-小挂件 Omega':39.27},total:39.27},'__goods_snapshot__:辣条':{items:{'响鬼 明信片套装':14.59},total:14.59}}};
+      const payload=deepClone(project),target=payload.sheets.find(s=>s.id===134),removed=[];
+      for(const [field,entries] of Object.entries(expected))for(const [key,value] of Object.entries(entries)){
+        if(!Object.prototype.hasOwnProperty.call(sheet[field]||{},key))continue;
+        if(!collabStatesEqual(sheet[field][key],value))throw new Error('画报字段已有新修改，未自动删除：'+field+'/'+key);
+        delete target[field][key];removed.push(field+'/'+key);
+      }
+      return {payload,removed};
+    }
+    async function applyTargetedPictureRepair(repair){
+      captureActiveSheet();const before=deepClone(localStatePayload()),code=String(syncCode||''),signature=JSON.stringify(before),plan=buildTargetedPictureRepair(before,repair);
+      if(!plan.removed.length){await appAlert('画报的指定串入字段已不存在，无需重复修复。');return false;}
+      if(!await appConfirm('仅清理「11.6 十二支画报」中已确认串入的隐藏名单、cj/矮矮/辣条三笔外表收款及对应商品快照。\n画报真实名单、转单、收款历史、金额设置、到货发货不变。\n东京站、10.31 和其他所有表不修改。\n将先保存并下载完整修复前备份。','画报定向清理','确认清理'))return false;
+      captureActiveSheet();if(code!==String(syncCode||'')||signature!==JSON.stringify(localStatePayload()))throw new Error('确认期间数据变化，请重新导入修复文件。');
+      if(!recordLocalSnapshot('画报定向清理前',true))throw new Error('修复前快照保存失败，未修改。');
+      downloadBackup(before,'画报定向清理前-完整备份.json');
+      sheets=plan.payload.sheets;applySheet(sheets.find(s=>s.id===activeSheetId));
+      if(!saveState({snapshotReason:'画报定向清理后',skipSnapshot:true,flushCollabNow:true})){
+        sheets=before.sheets;applySheet(sheets.find(s=>s.id===activeSheetId));persistLocalState();throw new Error('本机保存失败，已还原原表，未提交修复。');
+      }
+      renderSheetTabs();renderColumnList();renderMatrix();renderPaymentSummary();renderSharePaymentSummary();
+      await appAlert('画报指定串入字段已清理；其余表未替换。请确认顶部同步成功，若同步暂停，不要强制覆盖云端。');return true;
+    }
     function buildSingleSheetAppendPlan(project,incoming){
       if(!Array.isArray(incoming?.sheets)||incoming.sheets.length!==1)throw new Error('追加入口只接受一张排单的 JSON，不会导入或覆盖整个项目。');
       const source=incoming.sheets[0];if(!source||!Array.isArray(source.columns)||!source.allocations||typeof source.allocations!=='object')throw new Error('不是有效的单表排单文件。');
@@ -13565,6 +13630,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       reader.onload=async()=>{
         try{
           const d=JSON.parse(reader.result);
+          if(d.format==='ggz-picture-cleanup-v1'){await applyTargetedPictureRepair(d);return;}
           if(d.importMode==='append'||(Array.isArray(d.sheets)&&d.sheets.length===1)){await appendSingleSheetBackup(d);return;}
           if(!Array.isArray(d.sheets)||!d.sheets.length||d.sheets.some(s=>!s||!Array.isArray(s.columns)||!s.allocations))throw new Error('这不是完整项目备份；未修改任何排单。');
           captureActiveSheet();const importSignature=JSON.stringify(localStatePayload()),importCode=String(syncCode||'');
