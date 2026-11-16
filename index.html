@@ -972,7 +972,6 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <footer>数据会自动保存在这个浏览器里。换设备或清理浏览器前，记得先导出备份。</footer>
-  <div id="navigationProgress" role="status" aria-live="polite" hidden style="position:fixed;top:12px;left:50%;transform:translateX(-50%);padding:9px 16px;background:#fff;border:1px solid #edc6d2;border-radius:10px;box-shadow:0 3px 15px #36213018;color:#a52f53;z-index:1500;pointer-events:none;font-size:13px">正在打开…</div>
   <dialog id="cashLedgerDialog" class="cash-ledger-dialog"><div class="cash-ledger-head"><strong>收退补流水</strong><div style="display:flex;gap:6px"><button type="button" class="btn-ghost" id="openLegacyCashFromLedgerBtn">批量补齐旧金额</button><button type="button" class="btn-ghost" id="closeCashLedgerBtn">关闭</button></div></div><input id="cashLedgerSearch" type="search" placeholder="搜索 CN 名字"><div id="cashLedgerContent" class="cash-ledger-content"></div>
     <section id="legacyCashBatchPanel" hidden style="min-height:0;display:flex;flex-direction:column;gap:9px">
       <p id="legacyCashBatchIntro" class="hint" style="margin:0">这些人不是“正在核对”，而是旧记录只存了完成标记，没有金额。只填写缺失的历史累计金额；留空不会保存，填 0 表示你确认实际没有发生。不要填当前应退补差额。</p>
@@ -1406,7 +1405,8 @@ body.sheet-types-open{overflow:hidden;}
 #dispatchSummary{ display:inline!important; color:var(--muted); font-size:12px; font-weight:700; }
 #dispatchWrap{ margin-top:10px; }
 #dispatchList{ display:flex; flex-direction:column; gap:8px; }
-.dispatch-person{ border:1px solid var(--line); border-radius:11px; padding:10px 11px; background:#fff; }
+.dispatch-person{ border:1px solid var(--line); border-radius:11px; padding:10px 11px; background:#fff; content-visibility:auto; contain-intrinsic-size:auto 220px; }
+.dispatch-export-all .dispatch-person{content-visibility:visible;contain-intrinsic-size:none;}
 .dispatch-name{ font-weight:900; font-size:13px; color:var(--text); margin-bottom:8px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
 .dispatch-count{ font-size:10.5px; font-weight:800; color:#fff; background:var(--accent,#d1466a); border-radius:10px; padding:2px 7px; }
 .dispatch-rename-btn{padding:2px 7px!important;min-height:24px;font-size:10.5px!important;line-height:1.4;border:1px solid var(--line);border-radius:6px;background:#faf8fb;color:var(--muted);cursor:pointer;}
@@ -3372,12 +3372,6 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(id==='logisticsExportBtn')renderLogistics(true);
     }
     document.addEventListener('click',event=>{const button=event.target.closest?.('button[id]');if(button)refreshViewForExport(button.id);},true);
-    let navigationWorkToken=0;
-    function runNavigationWithFeedback(action,message='正在打开…'){
-      const token=++navigationWorkToken,notice=$('navigationProgress');notice.textContent=message;notice.hidden=false;
-      const paint=typeof requestAnimationFrame==='function'?requestAnimationFrame:callback=>setTimeout(callback,0);
-      paint(()=>setTimeout(()=>{if(token!==navigationWorkToken)return;try{action();}catch(error){console.error('页面切换未完成',error);appAlert('页面切换未完成：'+error.message+'。本机数据未被清除。');}finally{if(token===navigationWorkToken)notice.hidden=true;}},0));
-    }
     function setAppSection(section,scrollToTop=true){
       const groups={
         goods:['costPanel','columnPanel'],
@@ -9296,7 +9290,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(wasActive) applySheet(sheets[0]); else renderSheetTabs();
         saveState(); return;
       }
-      runNavigationWithFeedback(()=>switchSheet(id),'正在打开排单…');
+      switchSheet(id);
     });
     $('sheetTabs').addEventListener('dblclick',async e=>{
       const tab=e.target.closest('[data-sheet]'); if(!tab||e.target.closest('.sheet-close,.sheet-drag-handle')) return;
@@ -9658,6 +9652,9 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function buildDispatchRecords(project=null){
       if(!project)captureActiveSheet();
+      const cacheFields=['id','name','columns','allocations','pricingGroups','cost','dispatchEnabled','dispatchInternationalExempt','matrixBoughtCells','matrixIslandCells','matrixChinaCells','matrixBlindSubCells','dispatchShippedCells','dispatchInternationalExemptCells','mergedCellSources','mergedShareCells','secondPriceCellPrices','paymentStartRow','paymentEndRow','showBoughtSettlement','paymentBoughtOnly','paymentIncludeShare','paymentPaid','paymentEdits','paymentRefund','paymentSupplement','paymentRefundDone','paymentSupplementDone','sharePaymentPaid','sharePaymentEdits','sharePaymentRefund','sharePaymentSupplement','shareDeductFixed','paymentCashHistory'];
+      const signature=project?null:JSON.stringify([(sheets||[]).map(sheet=>cacheFields.map(field=>sheet[field])),extraFees,extraFeeArchives],(key,value)=>key==='img'?undefined:value);
+      if(signature!==null&&buildDispatchRecords.memo?.signature===signature)return deepClone(buildDispatchRecords.memo.records);
       const people=new Map(),intlBatchMemo=new Map();
       (project?.sheets||sheets||[]).forEach(sheet=>{
         if(!sheetParticipatesInDispatch(sheet))return;
@@ -9709,7 +9706,9 @@ body.export-rendering .cart-count{ font-size:28px; }
           });
         });
       });
-      return [...people.values()].sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN'));
+      const result=[...people.values()].sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN'));
+      if(signature!==null)buildDispatchRecords.memo={signature,records:deepClone(result)};
+      return result;
     }
     function dispatchVisibleItems(person){
       if(dispatchStateFilter==='shipped') return person.items.filter(item=>item.shipped);
@@ -9777,9 +9776,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     function renderDispatch(force=false){
       if(typeof deferHiddenView==='function'&&deferHiddenView('dispatch',force))return;
       const list=$('dispatchList'); if(!list) return;
+      list.classList.toggle('dispatch-export-all',force===true);
       syncUndoButton();
-      renderDispatchScope();
       const all=buildDispatchRecords();
+      const renderKey=JSON.stringify([buildDispatchRecords.memo?.signature,dispatchStateFilter,new Date().toDateString(),dispatchBatchShipDraft,dispatchBatchShipSaving],(key,value)=>value instanceof Set?[...value]:value);
+      if(renderDispatch.lastList===list&&renderDispatch.lastKey===renderKey)return;
+      renderDispatch.lastList=list;renderDispatch.lastKey=renderKey;
+      renderDispatchScope();
       const records=all.map(person=>({...person,visibleItems:dispatchVisibleItems(person)})).filter(person=>person.visibleItems.length);
       const totalItems=records.reduce((sum,p)=>sum+p.visibleItems.length,0);
       const label=dispatchFilterLabel();
@@ -10061,7 +10064,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('dispatchExportPngBtn').addEventListener('click',()=>{
       if(typeof html2canvas==='undefined'){ alert('导出库尚未加载完成，请确认联网后重试'); return; }
-      renderDispatch();
+      renderDispatch(true);
       if(!$('dispatchList').children.length||$('dispatchList').querySelector('.dispatch-empty')){ alert('清单为空，无法导出'); return; }
       const suffix=dispatchFilterLabel();
       const wrap=$('dispatchWrap'), width=Math.max(680,exportContentWidth(wrap));
@@ -10422,14 +10425,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       const overlay=$('mobileMoreOverlay'),button=$('mobileMoreBtn'); if(!overlay||!button) return;
       overlay.hidden=!open; button.setAttribute('aria-expanded',open?'true':'false'); document.body.classList.toggle('mobile-more-open',!!open);
     }
-    document.querySelectorAll('[data-app-section]').forEach(button=>button.addEventListener('click',()=>{ const section=button.dataset.appSection;setMobileMoreOpen(false);runNavigationWithFeedback(()=>setAppSection(section,true),section==='dispatch'?'正在整理排发清单…':'正在切换页面…'); }));
+    document.querySelectorAll('[data-app-section]').forEach(button=>button.addEventListener('click',()=>{setMobileMoreOpen(false);setAppSection(button.dataset.appSection,true);}));
     $('mobileMoreBtn')?.addEventListener('click',()=>setMobileMoreOpen($('mobileMoreOverlay')?.hidden!==false));
     $('mobileMoreCloseBtn')?.addEventListener('click',()=>setMobileMoreOpen(false));
     $('mobileMoreOverlay')?.addEventListener('click',e=>{ if(e.target===$('mobileMoreOverlay')) setMobileMoreOpen(false); });
     document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('mobileMoreOverlay')&&!$('mobileMoreOverlay').hidden) setMobileMoreOpen(false); });
     window.addEventListener('pageshow',()=>{ setMobileMoreOpen(false); setAppSection(storedAppSection(),false); });
     { const overlay=$('pricingGroupOverlay'); if(overlay){ overlay.hidden=true; overlay.style.display='none'; } }
-    $('mobileSheetSelect').addEventListener('change',e=>{const id=parseInt(e.target.value,10);runNavigationWithFeedback(()=>switchSheet(id),'正在打开排单…');});
+    $('mobileSheetSelect').addEventListener('change',e=>switchSheet(parseInt(e.target.value,10)));
     $('mobileAddSheetBtn').addEventListener('click',()=>$('addSheetBtn').click());
     $('mobileCopySheetBtn').addEventListener('click',copyActiveSheet);
     $('mobileRenameSheetBtn').addEventListener('click',async ()=>{
