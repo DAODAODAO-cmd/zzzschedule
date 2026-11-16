@@ -13572,6 +13572,37 @@ body.export-rendering .cart-count{ font-size:28px; }
       };
       reader.readAsArrayBuffer(file); e.target.value='';
     });
+    function buildConfirmedLedgerRepair(project,repair){
+      if(repair?.format!=='ggz-confirmed-ledger-cleanup-v1'||!Array.isArray(repair.targets)||repair.targets.length!==2)throw new Error('不是有效的两表账务清理文件。');
+      const rules={123:{source:118,name:'11.13 东京站扫街',people:['壹','柒柒','狸茨','阿卡','风璟','风铃','鱼头','yolanda','pervenche','肆四kuma','小雨电台','阿若']},144:{source:143,name:'10.31 东京扫街',people:['viking','橘山','游北','煮酒','郝瑄','爱檀tv','郑以年','阳光']}};
+      const payload=deepClone(project),removed=[],seen=new Set();
+      for(const spec of repair.targets){const rule=rules[spec.sheetId];if(!rule||seen.has(spec.sheetId)||spec.sourceId!==rule.source)throw new Error('清理目标不匹配。');seen.add(spec.sheetId);
+        const matches=project.sheets.filter(s=>s.id===spec.sheetId),sources=project.sheets.filter(s=>s.id===spec.sourceId);if(matches.length!==1||sources.length!==1)throw new Error('目标或来源表 ID 不唯一/不存在，未修改。');
+        const sheet=matches[0],source=sources[0],target=payload.sheets.find(s=>s.id===spec.sheetId);if(sheet.name!==rule.name)throw new Error('目标排单名称已变化，请重新核对。');
+        const realPeople=new Set(sheet.columns.flatMap(c=>sheet.allocations?.[c.id]||[]).filter(Boolean).map(normalizeDispatchKey));
+        const keys=new Set();if(!Array.isArray(spec.deletes)||spec.deletes.length>60)throw new Error('清理条目无效。');
+        for(const entry of spec.deletes){const {field,key,old}=entry;if(!['paymentPaid','sharePaymentPaid','paymentEdits'].includes(field)||typeof key!=='string'||keys.has(field+'/'+key))throw new Error('清理字段无效。');keys.add(field+'/'+key);
+          const prefix='__goods_snapshot__:',person=field==='paymentEdits'?(key.startsWith(prefix)?key.slice(prefix.length):key.startsWith('cn:')?key.slice(3):key.startsWith('merged-items:')?key.slice(13):''):key;
+          if(!rule.people.includes(person)||entry.person!==person)throw new Error('清理人员不在已确认名单内。');
+          if(!Object.prototype.hasOwnProperty.call(sheet[field]||{},key))continue;
+          if(realPeople.has(normalizeDispatchKey(person)))throw new Error(sheet.name+'：'+person+'已在当前有效名单中，不能自动清理。');
+          if((sheet.paymentCashHistory||[]).some(h=>[h.key,h.person,h.fromKey,h.toKey,h.from,h.to].some(value=>normalizeDispatchKey(value)===normalizeDispatchKey(person))))throw new Error(sheet.name+'：'+person+'有本表流水记录，请人工核对，未清理。');
+          if(!collabStatesEqual(sheet[field][key],old)||!Object.prototype.hasOwnProperty.call(source[field]||{},key)||!collabStatesEqual(source[field][key],old))throw new Error(sheet.name+'：字段或来源已变化，未清理 '+field+'/'+key);
+          delete target[field][key];removed.push({sheetId:spec.sheetId,field,key,old:deepClone(old)});
+        }
+      }
+      return {payload,removed};
+    }
+    async function applyConfirmedLedgerRepair(repair){
+      captureActiveSheet();const before=deepClone(localStatePayload()),code=String(syncCode||''),signature=JSON.stringify(before),plan=buildConfirmedLedgerRepair(before,repair);
+      if(!plan.removed.length){await appAlert('两表指定串入账务已清理，无需重复操作。');return false;}
+      if(!await appConfirm('只清理「11.13 东京站扫街」与「10.31 东京扫街」中已确认来自 TOS/EA相卡的账务副本。\n当前共 '+plan.removed.length+' 个字段。\n当前名单、谷子列、真实收款及转单历史、金额设置、到货发货、国际账单不修改。其他所有表不替换。\n若相关人员已加入有效名单、已有本表流水、金额或来源变化，会停止清理。\n将先下载完整修复前备份。','东京两表串入账务清理','确认定向清理'))return false;
+      captureActiveSheet();if(code!==String(syncCode||'')||signature!==JSON.stringify(localStatePayload()))throw new Error('确认期间数据变化，未清理。');
+      if(!recordLocalSnapshot('东京两表账务清理前',true))throw new Error('修复前快照保存失败，未修改。');
+      downloadBackup(before,'东京两表账务清理前-完整备份.json');sheets=plan.payload.sheets;applySheet(sheets.find(s=>s.id===activeSheetId));
+      if(!saveState({snapshotReason:'东京两表账务清理后',skipSnapshot:true,flushCollabNow:true})){sheets=before.sheets;applySheet(sheets.find(s=>s.id===activeSheetId));persistLocalState();throw new Error('保存失败，已还原原表，未提交清理。');}
+      renderSheetTabs();renderColumnList();renderMatrix();renderPaymentSummary();renderSharePaymentSummary();await appAlert('两表指定串入账务副本已清理，名单和到货发货未修改。请确认顶部同步成功；暂停时不要强制覆盖云端。');return true;
+    }
     function buildTargetedPictureRepair(project,repair){
       if(repair?.format!=='ggz-picture-cleanup-v1'||repair.sheetId!==134)throw new Error('不是受支持的画报定向修复文件。');
       const targets=project.sheets.filter(s=>s.id===134);if(targets.length!==1)throw new Error('画报 ID 不唯一或已不存在，未修改。');
@@ -13630,6 +13661,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       reader.onload=async()=>{
         try{
           const d=JSON.parse(reader.result);
+          if(d.format==='ggz-confirmed-ledger-cleanup-v1'){await applyConfirmedLedgerRepair(d);return;}
           if(d.format==='ggz-picture-cleanup-v1'){await applyTargetedPictureRepair(d);return;}
           if(d.importMode==='append'||(Array.isArray(d.sheets)&&d.sheets.length===1)){await appendSingleSheetBackup(d);return;}
           if(!Array.isArray(d.sheets)||!d.sheets.length||d.sheets.some(s=>!s||!Array.isArray(s.columns)||!s.allocations))throw new Error('这不是完整项目备份；未修改任何排单。');
