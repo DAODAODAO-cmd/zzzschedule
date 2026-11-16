@@ -974,7 +974,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   <footer>数据会自动保存在这个浏览器里。换设备或清理浏览器前，记得先导出备份。</footer>
   <dialog id="cashLedgerDialog" class="cash-ledger-dialog"><div class="cash-ledger-head"><strong>收退补流水</strong><div style="display:flex;gap:6px"><button type="button" class="btn-ghost" id="openLegacyCashFromLedgerBtn">批量补齐旧金额</button><button type="button" class="btn-ghost" id="closeCashLedgerBtn">关闭</button></div></div><input id="cashLedgerSearch" type="search" placeholder="搜索 CN 名字"><div id="cashLedgerContent" class="cash-ledger-content"></div>
     <section id="legacyCashBatchPanel" hidden style="min-height:0;display:flex;flex-direction:column;gap:9px">
-      <p class="hint" style="margin:0">这些人不是“正在核对”，而是旧记录只存了完成标记，没有金额。只填写缺失的历史累计金额；留空不会保存，填 0 表示你确认实际没有发生。不要填当前应退补差额。</p>
+      <p id="legacyCashBatchIntro" class="hint" style="margin:0">这些人不是“正在核对”，而是旧记录只存了完成标记，没有金额。只填写缺失的历史累计金额；留空不会保存，填 0 表示你确认实际没有发生。不要填当前应退补差额。</p>
       <div class="toolbar"><button type="button" class="btn-ghost" id="useLegacyCashReferencesBtn">带入明确流水参考</button><button type="button" class="btn-ghost" id="closeLegacyCashBatchBtn">返回流水</button></div>
       <div id="legacyCashBatchList" style="overflow:auto;min-height:0;max-height:48dvh"></div>
       <div id="legacyCashBatchStatus" class="hint" role="status"></div><button type="button" class="btn-primary" id="saveLegacyCashBatchBtn">备份并保存已填完整的人</button>
@@ -1490,7 +1490,7 @@ body.sheet-types-open{overflow:hidden;}
 @media(max-width:620px){.extra-bills-visibility{padding:9px;}.extra-bills-visibility>summary{flex-wrap:wrap;gap:5px;}.extra-bills-visibility>summary span{flex-basis:100%;order:3;}}
 body.export-rendering .payment-share-note,body.export-rendering .extra-intl-total-line{display:none!important;}
 .cash-ledger-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:0;flex-shrink:0;}
-#cashLedgerDialog #cashLedgerSearch[hidden],#cashLedgerContent[hidden],#legacyCashBatchPanel[hidden]{display:none!important;}
+#cashLedgerDialog #cashLedgerSearch[hidden],#cashLedgerContent[hidden],#legacyCashBatchPanel[hidden],#saveLegacyCashBatchBtn[hidden],#useLegacyCashReferencesBtn[hidden],#legacyCashBatchIntro[hidden]{display:none!important;}
 .cash-ledger-head strong{font-size:17px;line-height:1.5;}
 #cashLedgerDialog .cash-ledger-head button{height:40px;min-height:40px;margin:0;padding:8px 16px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;}
 #cashLedgerDialog #cashLedgerSearch{display:block;flex-shrink:0;width:100%!important;max-width:none!important;height:42px!important;min-height:42px!important;box-sizing:border-box;margin:0!important;padding:10px 12px!important;border:1px solid #e2dbe6!important;border-radius:9px!important;background:#faf8fb!important;color:var(--text);font-family:inherit;font-size:13px!important;line-height:20px;outline:none;}
@@ -7333,8 +7333,10 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function renderLegacyCashBatch(){
       const draft=legacyCashBatchDraft;if(!draft)return;
+      const hasRows=draft.rows.length>0;$('saveLegacyCashBatchBtn').hidden=!hasRows;$('useLegacyCashReferencesBtn').hidden=!hasRows;$('legacyCashBatchIntro').hidden=!hasRows;
       $('legacyCashBatchList').innerHTML=draft.rows.map(row=>`<section style="padding:12px;margin-bottom:8px;border:1px solid var(--line);border-radius:10px;background:#faf8fb"><strong>${escapeHtml(row.key)}</strong><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px">${row.cells.map(cell=>`<label style="font-size:11px;min-width:0">${escapeHtml(cell.label)}<input type="text" inputmode="decimal" data-legacy-cash-key="${escapeAttr(encodeURIComponent(row.key))}" data-legacy-cash-field="${cell.field}" value="${escapeAttr(draft.values[row.key]?.[cell.field]||'')}" placeholder="填真实累计金额" style="display:block;width:100%;min-width:0;box-sizing:border-box;margin-top:4px;padding:8px;border:1px solid var(--line);border-radius:7px">${cell.suggestion!==null?`<small style="display:block;color:var(--muted)">明确流水参考：${money(cell.suggestion)}，需确认</small>`:''}</label>`).join('')}</div></section>`).join('')||'<p class="hint">当前表没有缺失历史金额的人，不需要再核对。</p>';
-      $('legacyCashBatchStatus').textContent='当前表共 '+draft.rows.length+' 人缺金额。只保存本次已填完整的人，其余保留待补。';$('saveLegacyCashBatchBtn').disabled=!draft.rows.length||legacyCashBatchSaving;
+      if(!hasRows)$('legacyCashBatchList').innerHTML='<p class="hint" style="margin:8px 0;font-weight:600">无需补齐</p>';
+      $('legacyCashBatchStatus').textContent=hasRows?'当前表共 '+draft.rows.length+' 人缺金额。只保存本次已填完整的人，其余保留待补。':'当前表没有缺失历史金额，可关闭窗口继续收款。';$('saveLegacyCashBatchBtn').disabled=!hasRows||legacyCashBatchSaving;
     }
     function openLegacyCashBatch(){
       if(!canViewCashLedger()){appAlert('请由协作组管理员批量补齐历史金额。');return;}
@@ -7345,7 +7347,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function closeLegacyCashBatch(){legacyCashBatchDraft=null;if($('legacyCashBatchPanel')){$('legacyCashBatchPanel').hidden=true;$('cashLedgerSearch').hidden=false;$('cashLedgerContent').hidden=false;}}
     async function saveLegacyCashBatch(){
-      const draft=legacyCashBatchDraft;if(!draft||legacyCashBatchSaving||!canViewCashLedger())return;legacyCashBatchSaving=true;$('saveLegacyCashBatchBtn').disabled=true;
+      const draft=legacyCashBatchDraft;if(!draft||legacyCashBatchSaving||!canViewCashLedger())return;if(!draft.rows.length){renderLegacyCashBatch();return;}legacyCashBatchSaving=true;$('saveLegacyCashBatchBtn').disabled=true;
       try{
         captureActiveSheet();const original=sheets.find(s=>s.id===draft.sheetId);
         const valid=()=>draft===legacyCashBatchDraft&&draft.code===String(syncCode||'')&&draft.sheetId===activeSheetId&&draft.signature===JSON.stringify(sheets.find(s=>s.id===draft.sheetId));
@@ -7356,7 +7358,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(!recordLocalSnapshot('批量补齐历史金额前',true))throw new Error('快照保存失败，未修改记录；请先导出 JSON 备份。');
         const before=deepClone(original);sheets[sheets.findIndex(s=>s.id===draft.sheetId)]=plan.sheet;applySheet(plan.sheet);let saved=false;try{saved=saveState();}catch(_){}
         if(!saved){sheets[sheets.findIndex(s=>s.id===draft.sheetId)]=before;applySheet(before);throw new Error('保存失败，已还原原记录。');}
-        draft.signature=JSON.stringify(sheets.find(s=>s.id===draft.sheetId));draft.rows=legacyCashUnknownRows(plan.sheet);plan.completed.forEach(key=>delete draft.values[key]);renderPaymentSummary();renderLegacyCashBatch();$('legacyCashBatchStatus').textContent='已补齐 '+plan.completed.length+' 人，剩 '+plan.remaining+' 人；已补齐的人不会再因缺历史金额被拦住。';
+        draft.signature=JSON.stringify(sheets.find(s=>s.id===draft.sheetId));draft.rows=legacyCashUnknownRows(plan.sheet);plan.completed.forEach(key=>delete draft.values[key]);renderPaymentSummary();renderLegacyCashBatch();$('legacyCashBatchStatus').textContent=plan.remaining?'已补齐 '+plan.completed.length+' 人，剩 '+plan.remaining+' 人；已补齐的人不会再因缺历史金额被拦住。':'已补齐 '+plan.completed.length+' 人，当前无需补齐。可关闭窗口继续收款。';
       }catch(error){$('legacyCashBatchStatus').textContent=error.message||'未保存。';}
       finally{legacyCashBatchSaving=false;$('saveLegacyCashBatchBtn').disabled=!legacyCashBatchDraft?.rows.length;}
     }
@@ -9648,14 +9650,9 @@ body.export-rendering .cart-count{ font-size:28px; }
         // This memo belongs only to this sheet in this synchronous refresh.
         // Never reuse it across refreshes, sheets, or incoming cloud updates.
         let settlementRecords=null;const goodsPaidStates=new Map();
-        const currentSheetRecords=()=>{if(!settlementRecords){settlementRecords=new Map();for(const record of recordsForSheet(deepClone(sheet)))if(!settlementRecords.has(record.key))settlementRecords.set(record.key,record);}return settlementRecords;};
+        const currentSheetRecords=()=>{if(!settlementRecords){const accounting=deepClone(sheet);accounting.showBoughtSettlement=true;accounting.matrixBoughtCells={...(accounting.matrixBoughtCells||{})};for(const c of displayCols)(alloc[c.id]||[]).forEach((name,row)=>{const cell=c.id+':'+row;if(inDispatchScope(c,row,name))accounting.matrixBoughtCells[cell]=name;else delete accounting.matrixBoughtCells[cell];});settlementRecords=new Map();for(const record of recordsForSheet(accounting))if(!settlementRecords.has(record.key))settlementRecords.set(record.key,record);}return settlementRecords;};
         const displayCols=orderDisplayColumns(cols,groups,alloc);
         const displayPriceInfo=sheetDisplayPriceInfo(sheet), priceColumns=new Map(displayPriceInfo.cols.map(c=>[Number(c.id),c])), expectedByKey=new Map();
-        displayCols.forEach(c=>(alloc[c.id]||[]).forEach((person,index)=>{
-          const name=String(person||'').trim(); if(!name) return;
-          const key=normalizeDispatchKey(name);
-          expectedByKey.set(key,(expectedByKey.get(key)||0)+Math.max(0,num(displayPriceInfo.price(priceColumns.get(Number(c.id))||c,index))));
-        }));
         // 买齐标记按“每张排单”自适应：该表只要存在一个有效买齐标记，就视为已启用买齐；
         // 从未使用买齐标记的表，则所有有 CN 的排单格子都视为已购买。
         const usesBoughtMark=Object.entries(bought).some(([cellKey,markedName])=>{
@@ -9664,6 +9661,10 @@ body.export-rendering .cart-count{ font-size:28px; }
           const current=String((alloc[colId]||[])[row]||'').trim();
           return displayCols.some(c=>String(c.id)===String(colId))&&!!current&&normalizeDispatchKey(markedName)===normalizeDispatchKey(current);
         });
+        const inDispatchScope=(c,row,name)=>{const cell=c.id+':'+row,tracked=typeof sheet.mergedCellSources?.[cell]?.boughtTracked==='boolean'?sheet.mergedCellSources[cell].boughtTracked:usesBoughtMark;return !!String(name||'').trim()&&(!tracked||sheetCellBought(c,row,name,bought,alloc,groups,cols));};
+        // Only purchased/in-scope pieces contribute to dispatch's goods due.
+        // Unbought allocations remain in the order and accounts, not shipping.
+        displayCols.forEach(c=>(alloc[c.id]||[]).forEach((person,index)=>{const name=String(person||'').trim();if(!inDispatchScope(c,index,name))return;const key=normalizeDispatchKey(name);expectedByKey.set(key,(expectedByKey.get(key)||0)+Math.max(0,num(displayPriceInfo.price(priceColumns.get(Number(c.id))||c,index))));}));
         displayCols.forEach(c=>{
           (alloc[c.id]||[]).forEach((person,r)=>{
             const name=String(person||'').trim(); if(!name) return;
@@ -12692,6 +12693,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('useLegacyCashReferencesBtn').addEventListener('click',()=>{
       const draft=legacyCashBatchDraft;if(!draft)return;let count=0;
+      if(!draft.rows.length){renderLegacyCashBatch();return;}
       for(const row of draft.rows)for(const cell of row.cells){const values=draft.values[row.key]||(draft.values[row.key]={});if(cell.suggestion!==null&&!String(values[cell.field]??'').trim()){values[cell.field]=String(cell.suggestion);count++;}}
       renderLegacyCashBatch();$('legacyCashBatchStatus').textContent='已带入 '+count+' 项明确流水参考，请按实际流水确认后再保存；未找到金额的项目仍留空。';
     });
