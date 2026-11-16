@@ -188,9 +188,9 @@ body.export-rendering .price-mark-tag .price-mark-remove,.price-mark-exporting .
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style id="__ggz_auth_css">
 html.auth-pending body,html.auth-locked body{overflow:hidden;}
@@ -972,6 +972,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
   </div>
 
   <footer>数据会自动保存在这个浏览器里。换设备或清理浏览器前，记得先导出备份。</footer>
+  <div id="navigationProgress" role="status" aria-live="polite" hidden style="position:fixed;top:12px;left:50%;transform:translateX(-50%);padding:9px 16px;background:#fff;border:1px solid #edc6d2;border-radius:10px;box-shadow:0 3px 15px #36213018;color:#a52f53;z-index:1500;pointer-events:none;font-size:13px">正在打开…</div>
   <dialog id="cashLedgerDialog" class="cash-ledger-dialog"><div class="cash-ledger-head"><strong>收退补流水</strong><div style="display:flex;gap:6px"><button type="button" class="btn-ghost" id="openLegacyCashFromLedgerBtn">批量补齐旧金额</button><button type="button" class="btn-ghost" id="closeCashLedgerBtn">关闭</button></div></div><input id="cashLedgerSearch" type="search" placeholder="搜索 CN 名字"><div id="cashLedgerContent" class="cash-ledger-content"></div>
     <section id="legacyCashBatchPanel" hidden style="min-height:0;display:flex;flex-direction:column;gap:9px">
       <p id="legacyCashBatchIntro" class="hint" style="margin:0">这些人不是“正在核对”，而是旧记录只存了完成标记，没有金额。只填写缺失的历史累计金额；留空不会保存，填 0 表示你确认实际没有发生。不要填当前应退补差额。</p>
@@ -2200,7 +2201,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     let coldPromotionDraftRows=[], coldPromotionDraftApplied=false, coldPromotionDraftBaseAllocations=null, coldPromotionBatches=[], coldPromotionSeriesBaseAllocations=null, coldPromotionSeriesBaseHighlights=null, coldPromotionSeriesFormalSignature='', coldPromotionPreviewRows=[], coldPromotionPreviewAllocations=null, coldPromotionPlanRevision=-1, coldPromotionPlanSignature='', coldPromotionPendingBundlePreview=false;
     let coldCarryBundleColumnIds=[];
     let colIdSeed=1, rowIdSeed=1;
-    const sheetCollectionBadgeCache=new WeakMap();let sheetCollectionBadgeTimer=null;
+    const sheetCollectionBadgeCache=new Map();let sheetCollectionBadgeTimer=null;
     let cartNote='', cartTargetMode='auto', cartTargetNum=null, cartCountMode='short', cartColumns=4, cartExportHidePrice=true, cartQrImg='', showPricingRow=true, showUnitPriceRow=true, showPromotionPointRow=true, showCompleteRowColor=true, showColdPromotionColor=true;
     let matrixTitle='', matrixColor='#d1466a', matrixBoughtCells={}, matrixIslandCells={}, matrixChinaCells={}, matrixBlindSubCells={}, matrixMarkMode='', matrixMarkDate='';
     let quantityTitle='';
@@ -2669,7 +2670,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       syncCartControls();
       syncMatrixOptions();
       renderColdBundleConfiguration(); syncUndoButton(); renderWatermarkArchive();
-      renderColumnList(); renderPricingGroups(); if($('catalogPanel').style.display!=='none') renderCatalog(); recalc(); renderSheetTabs();
+      renderColumnList(); if($('catalogPanel').style.display!=='none') renderCatalog(); recalc(); renderSheetTabs();
       syncPaymentControls();
       renderSettlementDashboard();
       if(preserveColdPreview&&coldPromotionDraftRows.length){
@@ -2781,7 +2782,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
     }
     function compactStoredHistories(){
-      [UNDO_STORAGE_KEY,LOCAL_SNAPSHOT_KEY].forEach(key=>{try{const raw=localStorage.getItem(key);if(!raw)return;const value=decodeHistoryStorage(raw,null);if(key===LOCAL_SNAPSHOT_KEY&&Array.isArray(value))value.forEach(item=>{if(item?.signature)delete item.signature;});const packed=encodeHistoryStorage(value);if(packed.length<raw.length)localStorage.setItem(key,packed);}catch(error){console.warn('旧快照压缩未完成，保留原记录',error);}});
+      [UNDO_STORAGE_KEY,LOCAL_SNAPSHOT_KEY].forEach(key=>{try{const raw=localStorage.getItem(key);if(!raw||raw.startsWith('GGZLZW1:'))return;const value=decodeHistoryStorage(raw,null);if(key===LOCAL_SNAPSHOT_KEY&&Array.isArray(value))value.forEach(item=>{if(item?.signature)delete item.signature;});const packed=encodeHistoryStorage(value);if(packed.length<raw.length)localStorage.setItem(key,packed);}catch(error){console.warn('旧快照压缩未完成，保留原记录',error);}});
     }
     function loadLocalSnapshots(){
       try{ const list=decodeHistoryStorage(localStorage.getItem(LOCAL_SNAPSHOT_KEY),[]); return Array.isArray(list)?list.filter(x=>x&&x.payload&&Array.isArray(x.payload.sheets)):[]; }catch(_){ return []; }
@@ -2811,7 +2812,9 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(isProbablyBlankProject(payload)) return false;
         const signature=JSON.stringify(payload);
         if(!force&&signature===lastLocalSnapshotSignature) return false;
-        const list=loadLocalSnapshots().filter(item=>item.workspaceCode!==String(syncCode||'')||JSON.stringify(item.payload)!==signature);
+        const savedSnapshots=loadLocalSnapshots(),latestForWorkspace=savedSnapshots.find(item=>item.workspaceCode===String(syncCode||''));
+        if(reason==='打开页面时'&&latestForWorkspace&&JSON.stringify(latestForWorkspace.payload)===signature){lastLocalSnapshotAt=now;lastLocalSnapshotSignature=signature;return true;}
+        const list=savedSnapshots.filter(item=>item.workspaceCode!==String(syncCode||'')||JSON.stringify(item.payload)!==signature);
         list.unshift({id:`snap_${now}_${Math.random().toString(36).slice(2,7)}`,workspaceCode:String(syncCode||''),workspaceName:currentWorkspace()?.name||'本机数据',createdAt:new Date(now).toISOString(),reason,summary:snapshotSummary(payload),payload});
         const ok=saveLocalSnapshots(list);
         if(ok){ lastLocalSnapshotAt=now; lastLocalSnapshotSignature=signature; }
@@ -3266,7 +3269,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function completedSheetsByRecent(){ return sheets.filter(isSheetCompleted); }
     function sheetCollectionIndicator(sheet){
       if(!sheet)return null;
-      const signature=JSON.stringify(sheet,(key,value)=>key==='img'?undefined:value),cached=sheetCollectionBadgeCache.get(sheet);
+      const fields=['columns','allocations','matrixBoughtCells','pricingGroups','cost','paymentEdits','paymentPaid','paymentRefund','paymentSupplement','paymentRefundDone','paymentSupplementDone','sharePaymentEdits','sharePaymentPaid','sharePaymentRefund','sharePaymentSupplement','shareDeductFixed','showBoughtSettlement','paymentIncludeShare','secondPriceCellPrices','mergedShareCells','paymentCashHistory'];
+      const signature=JSON.stringify(fields.map(key=>sheet[key]),(key,value)=>key==='img'?undefined:value),cacheKey=String(typeof syncCode!=='undefined'?syncCode:'')+':'+sheet.id,cached=sheetCollectionBadgeCache.get(cacheKey);
       if(cached?.signature===signature)return cached.result;
       let result=null;
       try{
@@ -3274,7 +3278,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(unpaid.length)result={kind:'unpaid',label:'未收齐',title:'整张排单的谷款／均摊还有 '+unpaid.length+' 人未收齐，不含国际费用'};
         else if(uncertain.length)result={kind:'unknown',label:'待核对',title:'有旧金额需要核对，暂不判断是否收齐'};
       }catch(_){result={kind:'unknown',label:'待核对',title:'这张表的收款状态暂时无法核对，请打开收款页查看'};}
-      sheetCollectionBadgeCache.set(sheet,{signature,result});return result;
+      sheetCollectionBadgeCache.set(cacheKey,{signature,result});if(sheetCollectionBadgeCache.size>256)sheetCollectionBadgeCache.delete(sheetCollectionBadgeCache.keys().next().value);return result;
     }
     function sheetCollectionBadgeHtml(sheet){
       const indicator=sheetCollectionIndicator(sheet);return indicator?`<span class="sheet-payment-badge is-${indicator.kind}" title="${escapeAttr(indicator.title)}">${indicator.label}</span>`:'';
@@ -3368,6 +3372,12 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(id==='logisticsExportBtn')renderLogistics(true);
     }
     document.addEventListener('click',event=>{const button=event.target.closest?.('button[id]');if(button)refreshViewForExport(button.id);},true);
+    let navigationWorkToken=0;
+    function runNavigationWithFeedback(action,message='正在打开…'){
+      const token=++navigationWorkToken,notice=$('navigationProgress');notice.textContent=message;notice.hidden=false;
+      const paint=typeof requestAnimationFrame==='function'?requestAnimationFrame:callback=>setTimeout(callback,0);
+      paint(()=>setTimeout(()=>{if(token!==navigationWorkToken)return;try{action();}catch(error){console.error('页面切换未完成',error);appAlert('页面切换未完成：'+error.message+'。本机数据未被清除。');}finally{if(token===navigationWorkToken)notice.hidden=true;}},0));
+    }
     function setAppSection(section,scrollToTop=true){
       const groups={
         goods:['costPanel','columnPanel'],
@@ -3387,6 +3397,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const mobileMoreBtn=$('mobileMoreBtn');
       if(mobileMoreBtn) mobileMoreBtn.classList.toggle('active',['dispatch','logistics','international-bills','settings'].includes(section));
       if(section==='dispatch') renderDispatch();
+      if(section==='goods'){renderColumnList();renderPricingGroups();}
       if(section==='logistics') renderLogistics();
       if(section==='international-bills')renderExtraFees();
       if(section==='order')renderMatrix(true);
@@ -5204,6 +5215,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function defaultPricingGroupName(memberIds){ return memberIds.map(id=>columns.find(c=>c.id===id)?.name).filter(Boolean).join(' + '); }
     function renderPricingGroups(){
+      if(typeof activeAppSection==='string'&&activeAppSection!=='goods'){deferredViewRenders.add('pricing-editor');return;}deferredViewRenders.delete('pricing-editor');
       computeAverage();
       const el=$('pricingGroupList'), balance=$('pricingGroupBalance'); if(!el||!balance) return;
       pricingGroups=pricingGroups.map(migratePricingGroup).filter(Boolean).map(g=>({...g,memberIds:g.memberIds.filter(id=>columns.some(c=>c.id===id))})).filter(g=>g.memberIds.length>=2);
@@ -5277,6 +5289,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return `<label>均价 <input class="modeval" data-col="${c.id}" data-price-field="avgOverride" type="text" inputmode="decimal" value="${c.avgOverride==null?'':c.avgOverride}" placeholder="自动"></label>`;
     }
     function renderColumnList(){
+      if(typeof activeAppSection==='string'&&activeAppSection!=='goods'){deferredViewRenders.add('columns-editor');return;}deferredViewRenders.delete('columns-editor');
       const el=$('columnList');
       if(columns.length===0){ el.innerHTML='<div class="hint">还没有列，粘贴评论解析后会自动生成，也可以先手动添加。</div>'; return; }
       const visibleColumns=columns.filter(c=>!groupForColumn(c.id));
@@ -5441,7 +5454,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
 
-    function recalc(options={}){ rememberPaidGoodsSnapshotsBeforePriceChange(); readCost(); computeAverage(); renderMatrix(); renderPricingGroups(); renderCart(); saveState(options.initializing===true?{initializing:true}:{}); }
+    function recalc(options={}){ if(!isLoadingSheet)rememberPaidGoodsSnapshotsBeforePriceChange(); readCost(); computeAverage(); renderMatrix(); renderPricingGroups(); renderCart(); saveState(options.initializing===true?{initializing:true}:{}); }
 
     // ---------- window-exposed handlers ----------
     const ggz={};
@@ -9283,7 +9296,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(wasActive) applySheet(sheets[0]); else renderSheetTabs();
         saveState(); return;
       }
-      switchSheet(id);
+      runNavigationWithFeedback(()=>switchSheet(id),'正在打开排单…');
     });
     $('sheetTabs').addEventListener('dblclick',async e=>{
       const tab=e.target.closest('[data-sheet]'); if(!tab||e.target.closest('.sheet-close,.sheet-drag-handle')) return;
@@ -9602,11 +9615,13 @@ body.export-rendering .cart-count{ font-size:28px; }
     function dispatchFilterLabel(){
       return {china:'已到国内',ready:'可排发',unshipped:'未发货',shipped:'已发货'}[dispatchStateFilter]||'全部购买';
     }
-    function dispatchInternationalState(sheet,date,key,c,row,name,item,fees,archives){
+    function dispatchInternationalState(sheet,date,key,c,row,name,item,fees,archives,batchMemo=null){
       const exempt=sheetFulfillmentMode(sheet)==='exempt';
       if(!date)return {generated:false,paid:false,confirmed:false,missing:false,exempt};
       if(exempt)return {generated:false,paid:true,confirmed:false,missing:false,pending:false,exempt:true};
       const batch=normalizeArrivalBatchId('',date);
+      const memoKey=JSON.stringify([key,batch]);let billing=batchMemo?.get(memoKey);
+      if(!billing){
       const matches=f=>['international','international_supplement','international_refund'].includes(f.feeType)&&normalizeDispatchKey(f.person)===key&&extraFeeArrivalBatchId(f)===batch;
       const current=(fees||[]).filter(matches);
       let rows=current;
@@ -9620,7 +9635,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       const generated=rows.some(f=>f.feeType==='international');
       const charges=rows.filter(f=>f.feeType!=='international_refund');
-      const paid=generated&&charges.every(f=>f.paid===true);
+      const paid=generated&&charges.every(f=>f.paid===true);billing={generated,paid};batchMemo?.set(memoKey,billing);
+      }
+      const {generated,paid}=billing;
       const exemption=sheet.dispatchInternationalExemptCells?.[`${c.id}:${row}`];
       const carried=exemption?.transferVerified===true&&['paid','exempt'].includes(exemption.transferStatus);
       const confirmed=(!generated||carried)&&!!exemption&&normalizeDispatchKey(exemption.person)===normalizeDispatchKey(name)&&dispatchMarkedItemMatches(exemption,c,item)&&exemption.date===date;
@@ -9641,7 +9658,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function buildDispatchRecords(project=null){
       if(!project)captureActiveSheet();
-      const people=new Map();
+      const people=new Map(),intlBatchMemo=new Map();
       (project?.sheets||sheets||[]).forEach(sheet=>{
         if(!sheetParticipatesInDispatch(sheet))return;
         const cols=Array.isArray(sheet.columns)?sheet.columns:[];
@@ -9677,7 +9694,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             if(!goodsPaidStates.has(key))goodsPaidStates.set(key,settledGoodsPaymentState(sheet,key,paidState(paidGoods,key,expectedByKey.get(key)||0),currentSheetRecords));
             const goodsPaidState=goodsPaidStates.get(key);
             const itemName=matrixItemDisplayName(c,r,sub)||'未命名谷子', shipment=dispatchShipmentFor(sheet,c,r,name,itemName);
-            const intl=dispatchInternationalState(sheet,chinaDate,key,c,r,name,itemName,project?.extraFees||extraFees,project?.extraFeeArchives||extraFeeArchives);
+            const intl=dispatchInternationalState(sheet,chinaDate,key,c,r,name,itemName,project?.extraFees||extraFees,project?.extraFeeArchives||extraFeeArchives,intlBatchMemo);
             const internationalGenerated=intl.generated||intl.confirmed,internationalPaid=intl.paid;
             people.get(key).items.push({
               item:itemName,sheetId:sheet.id,colId:c.id,row:r,person:name,shipped:!!shipment,shippedAt:shipment?.at||'',internationalMissing:intl.missing,internationalConfirmed:intl.confirmed,internationalExempt:intl.exempt===true,
@@ -10405,14 +10422,14 @@ body.export-rendering .cart-count{ font-size:28px; }
       const overlay=$('mobileMoreOverlay'),button=$('mobileMoreBtn'); if(!overlay||!button) return;
       overlay.hidden=!open; button.setAttribute('aria-expanded',open?'true':'false'); document.body.classList.toggle('mobile-more-open',!!open);
     }
-    document.querySelectorAll('[data-app-section]').forEach(button=>button.addEventListener('click',()=>{ setMobileMoreOpen(false); setAppSection(button.dataset.appSection,true); }));
+    document.querySelectorAll('[data-app-section]').forEach(button=>button.addEventListener('click',()=>{ const section=button.dataset.appSection;setMobileMoreOpen(false);runNavigationWithFeedback(()=>setAppSection(section,true),section==='dispatch'?'正在整理排发清单…':'正在切换页面…'); }));
     $('mobileMoreBtn')?.addEventListener('click',()=>setMobileMoreOpen($('mobileMoreOverlay')?.hidden!==false));
     $('mobileMoreCloseBtn')?.addEventListener('click',()=>setMobileMoreOpen(false));
     $('mobileMoreOverlay')?.addEventListener('click',e=>{ if(e.target===$('mobileMoreOverlay')) setMobileMoreOpen(false); });
     document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('mobileMoreOverlay')&&!$('mobileMoreOverlay').hidden) setMobileMoreOpen(false); });
     window.addEventListener('pageshow',()=>{ setMobileMoreOpen(false); setAppSection(storedAppSection(),false); });
     { const overlay=$('pricingGroupOverlay'); if(overlay){ overlay.hidden=true; overlay.style.display='none'; } }
-    $('mobileSheetSelect').addEventListener('change',e=>switchSheet(parseInt(e.target.value,10)));
+    $('mobileSheetSelect').addEventListener('change',e=>{const id=parseInt(e.target.value,10);runNavigationWithFeedback(()=>switchSheet(id),'正在打开排单…');});
     $('mobileAddSheetBtn').addEventListener('click',()=>$('addSheetBtn').click());
     $('mobileCopySheetBtn').addEventListener('click',copyActiveSheet);
     $('mobileRenameSheetBtn').addEventListener('click',async ()=>{
