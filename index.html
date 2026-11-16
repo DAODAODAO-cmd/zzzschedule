@@ -3901,6 +3901,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function installCollabState(state){
       if(!state||!Array.isArray(state.sheets)||!state.sheets.length) return false;
+      if(typeof realtimeHeldFor==='function'&&realtimeHeldFor().length)state=overlayRealtimeHeld(state,collabProjectSnapshot());
       if(isColumnListEditing()){
         pendingCollabInstallState=deepClone(state);
         pendingCollabInstallGuard={code:syncCode,local:localRevision,remote:collabRevision};
@@ -3950,7 +3951,8 @@ body.export-rendering .cart-count{ font-size:28px; }
     function setCollabStatus(text,tone){
       const el=$('collabStatus'), detail=String(text||'');
       const displayDetail=detail.replace(/\s*·\s*版本\s+\d+/g,'').trim();
-      const label=tone==='bad'?'同步失败 · 本机修改已保留':(/已同步|整包同步 ·/.test(detail)?'已同步':(/新修改|正在同步/.test(detail)?'有修改未同步':displayDetail));
+      const heldCount=typeof realtimeHeldFor==='function'?realtimeHeldFor().length:0;
+      const label=tone==='bad'?'同步失败 · 本机修改已保留':(heldCount&&/已同步/.test(detail)?'部分已同步 · '+heldCount+'项待核对':(/已同步|整包同步 ·/.test(detail)?'已同步':(/新修改|正在同步/.test(detail)?'有修改未同步':displayDetail)));
       const pending=[...collabPendingSheetNames].filter(Boolean);
       el.textContent=label+(label!=='已同步'&&pending.length?` · ${pending.join('、')}`:'');
       el.title=detail; el.style.cursor='pointer';
@@ -3969,7 +3971,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       return raw||'未知错误';
     }
     function syncCollabUI(){
-      const review=$('resolveRealtimeReviewBtn');if(review){review.hidden=!pendingRealtimeReview||pendingRealtimeReview.code!==syncCode;}
+      const review=$('resolveRealtimeReviewBtn');if(review){const held=typeof realtimeHeldFor==='function'?realtimeHeldFor():[];review.hidden=(!pendingRealtimeReview||pendingRealtimeReview.code!==syncCode)&&!held.length;review.textContent=held.length?'查看待核对项（其他修改继续同步）':'核对未同步修改';}
       $('startCollabBtn').disabled=collabEnabled||collabConnecting||!syncCode;
       $('startCollabBtn').hidden=collabEnabled;
       $('startCollabBtn').textContent=restoredSnapshotPendingUpload?'核对并恢复同步':'重试连接';
@@ -4100,9 +4102,14 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(acknowledged&&acknowledged.code===code){
             const changes=classifyRealtimeIntent(acknowledged.uiBase,uiCloud,acknowledged.uiBase,acknowledged.display);
             const layoutChanged=changes.identityConflict||realtimeLayoutConflict(acknowledged.uiBase,acknowledged.display,changes.intent);
-            if(collabEnabled&&(changes.real.length||layoutChanged)){if(layoutChanged)collabAcknowledgedState=null;queueRealtimeReview({base:layoutChanged?acknowledged.uiBase:acknowledged.server,server:acknowledged.server,version:acknowledged.version,real:changes.real},code,'编辑期间云端同一位置已有不同值，请核对');throw new Error('本机输入已保留，待核对同步值');}
+            if(collabEnabled&&(changes.real.length||layoutChanged)){
+              const prepared={base:acknowledged.uiBase,server:acknowledged.server,version:acknowledged.version,real:changes.real,layoutConflict:layoutChanged,uiCloud};collabAcknowledgedState=null;
+              if(typeof holdRealtimeConflicts==='function'){try{holdRealtimeConflicts(prepared,code);}catch(error){queueRealtimeReview(prepared,code,'编辑期间局部隔离未完成：'+error.message);}}
+              else queueRealtimeReview(prepared,code,'编辑期间云端同一位置已有不同值，请核对');throw new Error('本机输入已保留，正在隔离待核对项');
+            }
             cloud=applyCollabOps(deepClone(acknowledged.display),changes.intent);
           }
+          if(typeof maskRealtimeHeld==='function')cloud=maskRealtimeHeld(cloud,collabBaseline);
           return {local,uiCloud,cloud,revision};
         }
       }
@@ -4123,6 +4130,62 @@ body.export-rendering .cart-count{ font-size:28px; }
       });
     }
     let pendingRealtimeReview=null,realtimeRejectedRetry={key:'',count:0},collabAcknowledgedState=null;
+    let realtimeHeldScopes={code:'',userId:'',entries:[]},realtimeHeldStored='';
+    function realtimeHeldFor(code=syncCode){return realtimeHeldScopes.code===String(code)&&realtimeHeldScopes.userId===(typeof authCurrentUser!=='undefined'?authCurrentUser?.id||'':'')?realtimeHeldScopes.entries:[];}
+    function persistRealtimeHeld(){
+      const raw=JSON.stringify(realtimeHeldScopes);if(raw===realtimeHeldStored)return;
+      const key='ggzScopedRealtimeReview_v1:'+realtimeHeldScopes.code;
+      localStorage.setItem(key,typeof encodeHistoryStorage==='function'?encodeHistoryStorage(realtimeHeldScopes):raw);realtimeHeldStored=raw;
+    }
+    function restoreRealtimeHeld(code){
+      const userId=typeof authCurrentUser!=='undefined'?authCurrentUser?.id||'':'';
+      if(realtimeHeldScopes.code===String(code)&&realtimeHeldScopes.userId===userId)return;
+      const raw=localStorage.getItem('ggzScopedRealtimeReview_v1:'+code);let saved=null;
+      if(raw){try{saved=typeof decodeHistoryStorage==='function'?decodeHistoryStorage(raw,null):JSON.parse(raw);}catch(_){}if(!saved||saved.code!==String(code)||saved.userId!==userId||!Array.isArray(saved.entries)||saved.entries.some(x=>!['sheets','extraFees','extraFeeArchives','itemCatalog'].includes(x.root)||typeof x.id!=='string'||(x.fields!==null&&(!Array.isArray(x.fields)||x.fields.some(k=>typeof k!=='string')))))throw new Error('局部待核对记录无法验证，已保留本机，请先备份');}
+      realtimeHeldScopes=saved||{code:String(code),userId,entries:[]};realtimeHeldStored=JSON.stringify(realtimeHeldScopes);
+    }
+    function maskRealtimeHeld(state,base){
+      const entries=realtimeHeldFor();if(!entries.length)return state;const result={...state};
+      for(const root of new Set(entries.map(x=>x.root))){
+        const held=entries.filter(x=>x.root===root),field=root==='itemCatalog'?'catalogId':'id',id=x=>String(x?.[field]??x?.id),map=new Map((result[root]||[]).map(x=>[id(x),x]));
+        for(const entry of held){const remote=(base?.[root]||[]).filter(x=>id(x)===entry.id);if(remote.length>1)throw new Error('云端目标ID重复，无法隔离同步');if(remote.length){if(entry.fields?.length&&map.has(entry.id)){const item=deepClone(map.get(entry.id));for(const field of entry.fields){if(Object.prototype.hasOwnProperty.call(remote[0],field))item[field]=deepClone(remote[0][field]);else delete item[field];}map.set(entry.id,item);}else map.set(entry.id,deepClone(remote[0]));}else map.delete(entry.id);}
+        const ordered=(base?.[root]||[]).map(id).filter(k=>map.has(k));for(const k of map.keys())if(!ordered.includes(k))ordered.push(k);result[root]=ordered.map(k=>map.get(k));
+      }return result;
+    }
+    function overlayRealtimeHeld(state,current){
+      const entries=realtimeHeldFor();if(!entries.length)return state;const result={...state};
+      for(const root of new Set(entries.map(x=>x.root))){
+        const field=root==='itemCatalog'?'catalogId':'id',id=x=>String(x?.[field]??x?.id),map=new Map((result[root]||[]).map(x=>[id(x),x]));
+        for(const entry of entries.filter(x=>x.root===root)){const local=(current?.[root]||[]).filter(x=>id(x)===entry.id);if(local.length>1)throw new Error('本机目标ID重复，无法隔离同步');if(local.length){if(entry.fields?.length&&map.has(entry.id)){const item=deepClone(map.get(entry.id));for(const field of entry.fields){if(Object.prototype.hasOwnProperty.call(local[0],field))item[field]=deepClone(local[0][field]);else delete item[field];}map.set(entry.id,item);}else map.set(entry.id,deepClone(local[0]));}else map.delete(entry.id);}
+        const ordered=(current?.[root]||[]).map(id).filter(k=>map.has(k));for(const k of map.keys())if(!ordered.includes(k))ordered.push(k);result[root]=ordered.map(k=>map.get(k));
+      }return result;
+    }
+    function holdRealtimeConflicts(prepared,code){
+      const roots=['sheets','extraFees','extraFeeArchives','itemCatalog'],local=prepared.uiCloud||collabProjectSnapshot(),entries=[];
+      // Hold by stable entity ID, never by an array position. A structural
+      // conflict holds only locally edited entities; untouched peers stay live.
+      for(const root of roots){
+        const field=root==='itemCatalog'?'catalogId':'id',id=x=>String(x?.[field]??x?.id),before=prepared.base?.[root]||[],now=local?.[root]||[];
+        if(new Set(before.map(id)).size!==before.length||new Set(now.map(id)).size!==now.length)throw new Error('排单ID重复，不能局部隔离');
+        for(const key of new Set([...before.map(id),...now.map(id)])){
+          const a=before.find(x=>id(x)===key),b=now.find(x=>id(x)===key),remote=(prepared.server?.[root]||[]).find(x=>id(x)===key);if(collabStatesEqual(a,b)||collabStatesEqual(b,remote))continue;
+          const index=before.findIndex(x=>id(x)===key),affected=prepared.layoutConflict||prepared.real.some(op=>{const p=op.source_path||op.path;return p?.[0]===root&&(p.length<2||Number(p[1])===index);});
+          if(affected){const fields=!prepared.layoutConflict&&a&&b?[...new Set(prepared.real.filter(op=>{const p=op.source_path||op.path;return p?.[0]===root&&Number(p[1])===index&&p.length>=3;}).map(op=>(op.source_path||op.path)[2]))]:null;entries.push({root,id:key,name:String(b?.name||a?.name||key),fields:fields?.length?fields:null});}
+        }
+      }
+      if(!entries.length)throw new Error('冲突不属于可隔离的排单实体，需保留本机核对');
+      const userId=typeof authCurrentUser!=='undefined'?authCurrentUser?.id||'':'';
+      const combined=realtimeHeldFor(code).map(x=>({...x}));for(const entry of entries){const found=combined.find(x=>x.root===entry.root&&x.id===entry.id);if(found)found.fields=found.fields&&entry.fields?[...new Set([...found.fields,...entry.fields])]:null;else combined.push(entry);}realtimeHeldScopes={code:String(code),userId,entries:combined};persistRealtimeHeld();
+      collabBaseline=deepClone(prepared.server);collabRevision=prepared.version;
+      const heldNow=realtimeHeldFor(code),candidates=prepared.laterOps||prepared.intent||collabDiff(prepared.base,local);
+      const safeOps=candidates.filter(op=>!heldNow.some(entry=>{const p=op.source_path||op.path;if(p?.[0]!==entry.root)return false;if(p.length<2)return true;const field=entry.root==='itemCatalog'?'catalogId':'id',id=x=>String(x?.[field]??x?.id),index=Number(p[1]);const possible=[prepared.base?.[entry.root]?.[index],local?.[entry.root]?.[index],prepared.server?.[entry.root]?.[Number(op.path?.[1])]].filter(Boolean).map(id);return possible.includes(entry.id)&&(!entry.fields?.length||p.length<3||entry.fields.includes(p[2]));}));
+      const display=preserveMatchingLocalImages(overlayRealtimeHeld(applyCollabOps(deepClone(prepared.server),safeOps),local),local,local);
+      if(isColumnListEditing())collabAcknowledgedState={code,server:deepClone(prepared.server),version:prepared.version,uiBase:deepClone(local),display};
+      else if(!installCollabState(display))throw new Error('界面暂不能安装核对结果');
+      collabNeedsSend=safeOps.length>0;pendingRealtimeReview=null;realtimeRejectedRetry={key:'',count:0};
+      if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,collabNeedsSend);
+      setCollabStatus('其他修改继续自动同步 · '+realtimeHeldFor(code).map(x=>x.name).join('、')+'暂存本机待核对','warn');syncCollabUI();return true;
+    }
     function collabPathValue(state,path){
       let value=state;for(const key of path||[]){if(value===null||typeof value!=='object'||!Object.prototype.hasOwnProperty.call(value,String(key)))return {exists:false};value=value[String(key)];}return {exists:true,value};
     }
@@ -4147,7 +4210,29 @@ body.export-rendering .cart-count{ font-size:28px; }
       pendingRealtimeReview={code,base:prepared.base,server:prepared.server,version:prepared.version,message,conflictPaths:prepared.real.map(op=>JSON.stringify(op.path))};
       pauseRealtimeForSafety(message+'；未同步的价格和新谷子保留在当前页面');
     }
+    async function resolveRealtimeHeldReview(){
+      const code=String(syncCode||''),entry=realtimeHeldFor(code)[0];if(!entry)return;
+      if(cloudBusy||collabSending||collabPolling){await appAlert('正常同步正在进行，请稍后查看待核对项。');return;}
+      cloudBusy=true;
+      try{
+        const current=await stableRealtimeSnapshot(code),remote=await readCollabPublication(getCloudClient(code),code);
+        if(!remote||Number(remote.revision)!==Number(collabRevision)||!collabStatesEqual(remote.state,collabBaseline))throw new Error('云端有新更新，请等自动同步接收后再查看；其他修改继续同步。');
+        const field=entry.root==='itemCatalog'?'catalogId':'id',id=x=>String(x?.[field]??x?.id),local=(current.uiCloud[entry.root]||[]).find(x=>id(x)===entry.id),cloud=(remote.state[entry.root]||[]).find(x=>id(x)===entry.id);
+        const diffs=collabDiff(cloud||{},local||{}).filter(op=>!entry.fields?.length||entry.fields.includes(op.path[0])),details=diffs.slice(0,8).map(op=>{const format=v=>v===undefined?'（不存在）':JSON.stringify(v).slice(0,100);return op.path.join('/')+'\n本机：'+(op.op==='delete'?'（删除）':format(op.value))+'\n云端：'+format(collabPathValue(cloud||{},op.path).value);}).join('\n\n');
+        const scope=entry.fields?.length?'字段 '+entry.fields.join('、'):'该表结构及关联数据';
+        const answer=await appPrompt('仅核对「'+entry.name+'」的'+scope+'，其他正常修改继续同步。\n'+details+'\n\n1. 明确保留本机这些待核对内容，按云端原值校验提交\n2. 明确采用云端的这些内容（放弃对应本机差异）\n3. 稍后处理，本机继续保留，其他正常修改继续同步','3','待核对：'+entry.name,'继续');
+        if(answer===null||String(answer).trim()==='3')return;if(!['1','2'].includes(String(answer).trim()))throw new Error('请输入1、2或3');
+        const verified=await readCollabPublication(getCloudClient(code),code);
+        if(code!==String(syncCode||'')||current.revision!==localRevision||Number(verified?.revision)!==Number(remote.revision)||!collabStatesEqual(verified?.state,remote.state))throw new Error('确认期间有新修改，未应用，请重新核对');
+        const desired=deepClone(current.uiCloud);if(String(answer).trim()==='2'){const list=desired[entry.root]||[],index=list.findIndex(x=>id(x)===entry.id);if(cloud){if(index>=0){if(entry.fields?.length){for(const field of entry.fields){if(Object.prototype.hasOwnProperty.call(cloud,field))list[index][field]=deepClone(cloud[field]);else delete list[index][field];}}else list[index]=deepClone(cloud);}else list.push(deepClone(cloud));}else if(index>=0)list.splice(index,1);}
+        if(!recordLocalSnapshot('局部同步核对选择前',true))throw new Error('本机快照保存失败，未应用');
+        const oldEntries=realtimeHeldScopes.entries;realtimeHeldScopes.entries=oldEntries.filter(x=>x!==entry);try{persistRealtimeHeld();if(!installCollabState(desired))throw new Error('本机正在编辑，未应用');}catch(error){realtimeHeldScopes.entries=oldEntries;persistRealtimeHeld();throw error;}
+        collabNeedsSend=collabDiff(collabBaseline,maskRealtimeHeld(desired,collabBaseline)).length>0;rememberRealtimePending(code,collabNeedsSend);syncCollabUI();setCollabStatus(collabNeedsSend?'所选局部修改正在同步':'其他修改已同步','ok');
+      }catch(error){await appAlert('本项尚未处理：'+error.message+'。本机内容保留，其他正常修改继续同步。');}
+      finally{cloudBusy=false;if(collabEnabled&&collabNeedsSend)scheduleCollabSync();}
+    }
     async function resolveRealtimeReview(){
+      if(typeof realtimeHeldFor==='function'&&realtimeHeldFor().length){await resolveRealtimeHeldReview();return;}
       const review=pendingRealtimeReview,code=syncCode;if(!review||review.code!==code){await appAlert('当前协作组没有待核对修改');return;}
       if(cloudBusy||collabSending||collabPolling){await appAlert('正在处理同步，请稍后核对');return;}
       cloudBusy=true;
@@ -4178,13 +4263,17 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function acceptRealtimeResult(prepared,code){
       if(!prepared)return false;
-      if(prepared.real.length||prepared.layoutConflict){queueRealtimeReview(prepared,code,'云端与本机依据不一致，需要选择如何处理');return false;}
+      if(prepared.real.length||prepared.layoutConflict){
+        if(typeof holdRealtimeConflicts==='function'){try{return holdRealtimeConflicts(prepared,code);}catch(error){queueRealtimeReview(prepared,code,'局部隔离未完成：'+error.message);return false;}}
+        queueRealtimeReview(prepared,code,'云端与本机依据不一致，需要选择如何处理');return false;
+      }
+      if(typeof overlayRealtimeHeld==='function')prepared.display=preserveMatchingLocalImages(overlayRealtimeHeld(prepared.display,prepared.uiCloud),prepared.uiCloud,prepared.uiCloud);
       if(!commitRealtimeResponse(prepared,code))return false;
       if(prepared.laterOps.length){
         const key=JSON.stringify(prepared.laterOps.map(op=>({op:op.op,path:op.path,value:op.value})));realtimeRejectedRetry=key===realtimeRejectedRetry.key?{key,count:realtimeRejectedRetry.count+1}:{key,count:1};
-        if(realtimeRejectedRetry.count>2){queueRealtimeReview(prepared,code,'服务器连续未接受同一批修改，已停止重复提交，不代表有人编辑');return false;}
+        if(realtimeRejectedRetry.count>2){if(typeof holdRealtimeConflicts==='function'){try{return holdRealtimeConflicts({...prepared,real:prepared.laterOps},code);}catch(_){}}queueRealtimeReview(prepared,code,'服务器连续未接受同一批修改，已停止重复提交，不代表有人编辑');return false;}
         setCollabStatus('本机修改已保留，正在按最新基准重试同步','warn');
-      }else{realtimeRejectedRetry={key:'',count:0};setCollabStatus('实时协作已同步 · 版本 '+collabRevision,'ok');}
+      }else{realtimeRejectedRetry={key:'',count:0};const held=typeof realtimeHeldFor==='function'?realtimeHeldFor(code):[];setCollabStatus(held.length?'其他修改已同步 · '+held.length+'项待核对，仅留在本机':'实时协作已同步 · 版本 '+collabRevision,held.length?'warn':'ok');}
       return true;
     }
     function commitRealtimeResponse(prepared,code){
@@ -4226,7 +4315,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         baseState=deepClone(collabBaseline||sentState);const ops=collabDiff(baseState,sentState);
         if(!ops.length){
           if(captured.revision!==localRevision){collabNeedsSend=true;return false;}
-          collabNeedsSend=false;collabPendingSheetNames.clear();if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,false);setCollabStatus('实时协作已同步 · 版本 '+collabRevision,'ok');return true;
+          collabNeedsSend=false;collabPendingSheetNames.clear();if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,false);const held=typeof realtimeHeldFor==='function'?realtimeHeldFor(code):[];setCollabStatus(held.length?'其他修改已同步 · '+held.length+'项待核对，仅留在本机':'实时协作已同步 · 版本 '+collabRevision,held.length?'warn':'ok');return true;
         }
         ops.forEach(op=>{const path=op.path||[];if(String(path[0])==='sheets'){const index=Number(path[1]);op.sheet_name=String(sentState.sheets?.[index]?.name||collabBaseline?.sheets?.[index]?.name||'');}});
         collabPendingSheetNames=new Set(ops.map(op=>op.sheet_name||'项目设置'));collabNeedsSend=false;
@@ -4268,7 +4357,8 @@ body.export-rendering .cart-count{ font-size:28px; }
           if(latestError)throw latestError;if(!safe()||!latest?.state||Number(latest.revision)<=collabRevision)return;
           const snapshot=await stableRealtimeSnapshot(code);
           if(!safe()||snapshot.revision!==atRevision||Number(latest.revision)<=collabRevision||isColumnListEditing())return;
-          const display=preserveMatchingLocalImages(latest.state,snapshot.local,snapshot.cloud);
+          const incoming=typeof overlayRealtimeHeld==='function'?overlayRealtimeHeld(latest.state,snapshot.uiCloud):latest.state;
+          const display=preserveMatchingLocalImages(incoming,snapshot.local,snapshot.cloud);
           if(!installCollabState(display))return;
           collabBaseline=deepClone(latest.state);collabRevision=Number(latest.revision);setCollabStatus((latest.updated_by||'其他人')+'刚刚更新 · 版本 '+collabRevision,'ok');
           if(typeof rememberRealtimeBaseline==='function')rememberRealtimeBaseline(code);
@@ -4307,14 +4397,20 @@ body.export-rendering .cart-count{ font-size:28px; }
       restoredSnapshotPendingUpload=false;cloudConflictPaused=false;localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);
       collabNeedsSend=true;rememberRealtimePending(code,false);rememberRealtimePending(code,true);return true;
     }
+    async function resumeScopedSyncFromPause(){
+      const code=String(syncCode||'');if(!collabBaseline&&typeof restoreRealtimeBaseline==='function')restoreRealtimeBaseline(code);if(!collabBaseline?.sheets)return null;
+      if(!await appConfirm('使用已保存的同步基线恢复核对，不用云端替换本机。\n正常修改继续同步；确实有冲突的排单只暂存本机，其他表不受阻。\n不会强制上传整个项目，也不会自动选择冲突值。','恢复正常自动同步','恢复同步'))return false;
+      restoredSnapshotPendingUpload=false;cloudConflictPaused=false;pendingRealtimeReview=null;localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);collabNeedsSend=true;rememberRealtimePending(code,false);rememberRealtimePending(code,true);return true;
+    }
     async function startCollab(autoStart=false){
       if(collabConnecting)return false;
       if(autoStart&&collabReconnectBlocked===syncCode)return false;
       if(!autoStart){collabReconnectBlocked='';collabReconnectAttempts=0;}
       if(cloudPublishingCollab)return false;
+      if(typeof restoreRealtimeHeld==='function'){try{restoreRealtimeHeld(String(syncCode||''));}catch(error){pauseRealtimeForSafety(error.message);return false;}}
       if(restoredSnapshotPendingUpload||localStorage.getItem('ggzRestoredPendingPublish_v1:'+syncCode)==='1'){
         setCollabStatus('同步保护已暂停，点“核对并恢复同步”选择如何处理；本机修改保留','warn');
-        if(!autoStart){if(typeof resumeRepairedIdentitySync==='function'){const resumed=await resumeRepairedIdentitySync();if(resumed===true)return startCollab(false);if(resumed===false)return false;}await manualReadOrDownloadCloud({resumeRealtime:true});}return false;
+        if(!autoStart){if(typeof resumeScopedSyncFromPause==='function'){const resumed=await resumeScopedSyncFromPause();if(resumed===true)return startCollab(false);if(resumed===false)return false;}await appAlert('本机缺少可验证的同步基线，不能自动恢复。请导出当前备份，勿用云端替换本机。');}return false;
       }
       const code=normalizedSyncCode(); if(!code){ if(!autoStart) alert('请先加入或新建协作组'); return false; }
       if(!collabBaseline&&typeof restoreRealtimeBaseline==='function')restoreRealtimeBaseline(code);
@@ -4349,7 +4445,8 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(code!==syncCode)return false;
         if(captured.revision!==localRevision){pauseRealtimeForSafety('连接期间出现本机新编辑，已停止应用旧连接结果');return false;}
         if(isColumnListEditing()){collabEnabled=false;setCollabStatus('输入框正在编辑，连接稍后自动重试；本机内容保留','warn');scheduleCollabReconnect();return false;}
-        const displayState=preserveMatchingLocalImages(row.out_state,localInitialState,initialState);
+        const incoming=typeof overlayRealtimeHeld==='function'?overlayRealtimeHeld(row.out_state,captured.uiCloud):row.out_state;
+        const displayState=preserveMatchingLocalImages(incoming,localInitialState,initialState);
         collabEnabled=true;if(!installCollabState(displayState)){collabEnabled=false;setCollabStatus('本机正在编辑，未应用连接结果，稍后重试','warn');scheduleCollabReconnect();return false;}
         collabRevision=Number(row.out_revision)||0;collabBaseline=deepClone(row.out_state);collabNeedsSend=false;if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,false);
         clearTimeout(collabReconnectTimer);collabReconnectTimer=null;collabReconnectAttempts=0;collabReconnectBlocked='';
@@ -9540,10 +9637,10 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('dispatchScopeSummary').textContent=`管理参与排发的表 · ${included}/${sheets.length} 张参与`;
       list.innerHTML=sheets.map(sheet=>`<div class="dispatch-scope-row"><span>${escapeHtml(sheet.name||'未命名排单')}</span><select aria-label="${escapeAttr(sheet.name||'排单')}模式" data-sheet-fulfillment="${escapeAttr(sheet.id)}">${[['required','需国际'],['exempt','免国际'],['accounting','仅算账']].map(([mode,label])=>`<option value="${mode}"${sheetFulfillmentMode(sheet)===mode?' selected':''}>${label}</option>`).join('')}</select></div>`).join('');
     }
-    function buildDispatchRecords(){
-      captureActiveSheet();
+    function buildDispatchRecords(project=null){
+      if(!project)captureActiveSheet();
       const people=new Map();
-      (sheets||[]).forEach(sheet=>{
+      (project?.sheets||sheets||[]).forEach(sheet=>{
         if(!sheetParticipatesInDispatch(sheet))return;
         const cols=Array.isArray(sheet.columns)?sheet.columns:[];
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
@@ -9579,7 +9676,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             if(!goodsPaidStates.has(key))goodsPaidStates.set(key,settledGoodsPaymentState(sheet,key,paidState(paidGoods,key,expectedByKey.get(key)||0),currentSheetRecords));
             const goodsPaidState=goodsPaidStates.get(key);
             const itemName=matrixItemDisplayName(c,r,sub)||'未命名谷子', shipment=dispatchShipmentFor(sheet,c,r,name,itemName);
-            const intl=dispatchInternationalState(sheet,chinaDate,key,c,r,name,itemName,extraFees,extraFeeArchives);
+            const intl=dispatchInternationalState(sheet,chinaDate,key,c,r,name,itemName,project?.extraFees||extraFees,project?.extraFeeArchives||extraFeeArchives);
             const internationalGenerated=intl.generated||intl.confirmed,internationalPaid=intl.paid;
             people.get(key).items.push({
               item:itemName,sheetId:sheet.id,colId:c.id,row:r,person:name,shipped:!!shipment,shippedAt:shipment?.at||'',internationalMissing:intl.missing,internationalConfirmed:intl.confirmed,internationalExempt:intl.exempt===true,
@@ -10024,7 +10121,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const key=JSON.stringify([code,collabRevision,config.source_updated_at,config.settings_updated_at,logisticsFreeDays()]);if(!manual&&key===publicArrivalPublishedKey)return true;
         const localAt=localRevision,snapshot=await stableRealtimeSnapshot(code);
         if(code!==String(syncCode||'')||!collabEnabled||collabNeedsSend||snapshot.revision!==localRevision||!collabBaseline||!collabStatesEqual(snapshot.cloud,collabBaseline))throw new Error('本机还有未核对的修改，暂不公开，等待同步后再更新。');
-        const source=deepClone(collabBaseline),revision=collabRevision,rows=publicArrivalProjection(buildDispatchRecords(),publicArrivalParticipatingIds(source.sheets));
+        const source=deepClone(collabBaseline),revision=collabRevision,rows=publicArrivalProjection(buildDispatchRecords(source),publicArrivalParticipatingIds(source.sheets));
         if(localAt!==localRevision||code!==String(syncCode||''))throw new Error('到货数据正在变化，稍后自动重试。');
         publicArrivalMessage('正在自动更新查询清单…');
         const {data,error}=await lockRequest(getCloudClient(code).rpc('ggz_publish_arrival_share',{p_group_id:code,p_revision:revision,p_source_state:source,p_rows:rows}),45000,'更新到货查询');if(error)throw error;
