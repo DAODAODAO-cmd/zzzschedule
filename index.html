@@ -2717,7 +2717,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       applyingCloud=false;
     }
     function lightLocalStatePayload(){
-      const payload=deepClone(localStatePayload());
+      const payload=typeof cloneWithMergeArchives==='function'?cloneWithMergeArchives(localStatePayload()):deepClone(localStatePayload());
       const slimImage=value=>String(value||'').startsWith('data:image/')?'':(value||'');
       (payload.sheets||[]).forEach(sheet=>{
         (sheet.columns||[]).forEach(column=>{ column.img=slimImage(column.img); });
@@ -2731,14 +2731,22 @@ body.export-rendering .cart-count{ font-size:28px; }
       return payload;
     }
     function encodeHistoryStorage(value,serialized){
-      const raw=typeof serialized==='string'?serialized:JSON.stringify(value),bytes=new TextEncoder().encode(raw),dict=new Map(),output=[];let next=256,word='';
+      const raw=typeof serialized==='string'?serialized:(typeof serializeWithMergeArchives==='function'?serializeWithMergeArchives(value):JSON.stringify(value));
+      if(raw.length<=12)return raw;
+      const bytes=new TextEncoder().encode(raw),dict=new Map(),output=[];let next=256,word='';
       for(const byte of bytes){const char=String.fromCharCode(byte),joined=word+char;if(word===''||dict.has(joined)){word=joined;continue;}output.push(String.fromCharCode(word.length===1?word.charCodeAt(0):dict.get(word)));if(next<65536)dict.set(joined,next++);word=char;}
       if(word)output.push(String.fromCharCode(word.length===1?word.charCodeAt(0):dict.get(word)));
       const packed='GGZLZW1:'+output.join('');return packed.length<raw.length?packed:raw;
     }
     function encodeLocalProjectCache(payload,blockCache,granularSheets=false){
       const cache=blockCache||encodeLocalProjectCache.blocks||(encodeLocalProjectCache.blocks=new Map()),used=new Set();
-      const pack=(key,value)=>{used.add(key);const raw=JSON.stringify(value),previous=cache.get(key);if(previous?.raw===raw)return previous.packed;const packed=encodeHistoryStorage(value,raw);if(JSON.stringify(decodeHistoryStorage(packed,null))!==raw)throw new Error('缓存分块校验未通过，未替换原缓存');cache.set(key,{raw,packed});return packed;};
+      const pack=(key,value)=>{
+        used.add(key);const raw=typeof serializeWithMergeArchives==='function'?serializeWithMergeArchives(value):JSON.stringify(value),previous=cache.get(key);if(previous?.raw===raw)return previous.packed;
+        const archive=key.endsWith(':field:mergeSourceBackups')&&typeof reusableMergeArchive==='function'?reusableMergeArchive(value):null;
+        if(archive?.packed&&archive.packedRaw===raw){cache.set(key,{raw,packed:archive.packed});return archive.packed;}
+        const packed=encodeHistoryStorage(value,raw);if(JSON.stringify(decodeHistoryStorage(packed,null))!==raw)throw new Error('缓存分块校验未通过，未替换原缓存');cache.set(key,{raw,packed});
+        if(archive&&typeof mergeArchivePackedMemo!=='undefined'){mergeArchivePackedMemo.set(packed,archive.value);archive.packed=packed;archive.packedRaw=raw;}return packed;
+      };
       const entries=Object.entries(payload).filter(([,value])=>value!==undefined).map(([key,value])=>key==='sheets'&&Array.isArray(value)?granularSheets?[key,'sheet-fields',value.map((sheet,index)=>Object.entries(sheet).filter(([,fieldValue])=>fieldValue!==undefined).map(([field,fieldValue])=>[field,pack('sheet:'+index+':'+sheet.id+':field:'+field,fieldValue)]))]:[key,'sheets',value.map((sheet,index)=>pack('sheet:'+index+':'+sheet.id,sheet))]:[key,'value',pack('field:'+key,value)]);
       for(const key of cache.keys())if(!used.has(key))cache.delete(key);
       return 'GGZPROJ2:'+JSON.stringify(entries);
@@ -2771,7 +2779,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       }
       if(raw.startsWith('GGZPROJ2:')){
         const entries=JSON.parse(raw.slice(9)),payload={};if(!Array.isArray(entries))throw new Error('本机项目缓存头损坏');
-        for(const entry of entries){if(!Array.isArray(entry)||entry.length!==3||typeof entry[0]!=='string')throw new Error('本机项目缓存块损坏');const [key,kind,value]=entry;if(!['sheets','sheet-fields','value'].includes(kind))throw new Error('本机项目缓存类型损坏');if(kind!=='value'&&!Array.isArray(value))throw new Error('本机排单缓存损坏');const decoded=kind==='sheets'?value.map(part=>decodeHistoryStorage(part,null)):kind==='sheet-fields'?value.map(fields=>{if(!Array.isArray(fields))throw new Error('排单字段缓存损坏');const sheet={};for(const pair of fields){if(!Array.isArray(pair)||pair.length!==2||typeof pair[0]!=='string')throw new Error('排单字段缓存损坏');Object.defineProperty(sheet,pair[0],{value:decodeHistoryStorage(pair[1],null),enumerable:true,writable:true,configurable:true});}return sheet;}):decodeHistoryStorage(value,null);Object.defineProperty(payload,key,{value:decoded,enumerable:true,writable:true,configurable:true});}
+        for(const entry of entries){if(!Array.isArray(entry)||entry.length!==3||typeof entry[0]!=='string')throw new Error('本机项目缓存块损坏');const [key,kind,value]=entry;if(!['sheets','sheet-fields','value'].includes(kind))throw new Error('本机项目缓存类型损坏');if(kind!=='value'&&!Array.isArray(value))throw new Error('本机排单缓存损坏');const decoded=kind==='sheets'?value.map(part=>decodeHistoryStorage(part,null)):kind==='sheet-fields'?value.map(fields=>{if(!Array.isArray(fields))throw new Error('排单字段缓存损坏');const sheet={};for(const pair of fields){if(!Array.isArray(pair)||pair.length!==2||typeof pair[0]!=='string')throw new Error('排单字段缓存损坏');Object.defineProperty(sheet,pair[0],{value:pair[0]==='mergeSourceBackups'&&typeof decodeMergeArchiveBlock==='function'?decodeMergeArchiveBlock(pair[1]):decodeHistoryStorage(pair[1],null),enumerable:true,writable:true,configurable:true});}return sheet;}):decodeHistoryStorage(value,null);Object.defineProperty(payload,key,{value:decoded,enumerable:true,writable:true,configurable:true});}
         if(!Array.isArray(payload.sheets)||!payload.sheets.length)throw new Error('本机项目缓存缺少排单');return payload;
       }
       if(!raw.startsWith('GGZLZW1:'))return JSON.parse(raw);
@@ -2810,7 +2818,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         captureActiveSheet();
         const payload=lightLocalStatePayload();
         if(isProbablyBlankProject(payload)) return false;
-        const signature=JSON.stringify(payload);
+        const signature=typeof serializeWithMergeArchives==='function'?serializeWithMergeArchives(payload):JSON.stringify(payload);
         if(!force&&signature===lastLocalSnapshotSignature) return false;
         const savedSnapshots=loadLocalSnapshots(),latestForWorkspace=savedSnapshots.find(item=>item.workspaceCode===String(syncCode||''));
         if(reason==='打开页面时'&&latestForWorkspace&&JSON.stringify(latestForWorkspace.payload)===signature){lastLocalSnapshotAt=now;lastLocalSnapshotSignature=signature;return true;}
@@ -2921,11 +2929,11 @@ body.export-rendering .cart-count{ font-size:28px; }
       persistLocalState.lastError='';
       if(typeof localReadFailed!=='undefined'&&localReadFailed){persistLocalState.lastError='本机数据未正确读出，禁止覆盖原缓存';return 'failed';}
       try{
-        const payload=localStatePayload(),raw=JSON.stringify(payload),existing=localStorage.getItem(STORAGE_KEY);
+        const payload=localStatePayload(),raw=typeof serializeWithMergeArchives==='function'?serializeWithMergeArchives(payload):JSON.stringify(payload),existing=localStorage.getItem(STORAGE_KEY);
         if(persistLocalState.lastRaw===raw&&persistLocalState.lastStored===existing)return 'full';
         if(existing?.startsWith('GGZLZW1:')||existing?.startsWith('GGZPROJ2:')){
-          const packed=typeof encodeLocalProjectCache==='function'?encodeLocalProjectCache(payload):encodeHistoryStorage(payload,raw);
-          if(JSON.stringify(decodeHistoryStorage(packed,null))!==raw)throw new Error('本机压缩校验未通过');
+          const packed=typeof encodeLocalProjectCache==='function'?encodeLocalProjectCache(payload,undefined,true):encodeHistoryStorage(payload,raw);
+          if((typeof serializeWithMergeArchives==='function'?serializeWithMergeArchives(decodeHistoryStorage(packed,null)):JSON.stringify(decodeHistoryStorage(packed,null)))!==raw)throw new Error('本机压缩校验未通过');
           localStorage.setItem(STORAGE_KEY,packed);persistLocalState.lastRaw=raw;persistLocalState.lastStored=packed;return 'full';
         }
         localStorage.setItem(STORAGE_KEY,raw);persistLocalState.lastRaw=raw;persistLocalState.lastStored=raw;
@@ -2940,9 +2948,9 @@ body.export-rendering .cart-count{ font-size:28px; }
           return 'full';
         }catch(_){}
         try{
-          const payload=localStatePayload(),raw=JSON.stringify(payload),packed=typeof encodeLocalProjectCache==='function'?encodeLocalProjectCache(payload):encodeHistoryStorage(payload,raw);
+          const payload=localStatePayload(),raw=typeof serializeWithMergeArchives==='function'?serializeWithMergeArchives(payload):JSON.stringify(payload),packed=typeof encodeLocalProjectCache==='function'?encodeLocalProjectCache(payload,undefined,true):encodeHistoryStorage(payload,raw);
           if(packed.length>=raw.length)throw error;
-          if(JSON.stringify(decodeHistoryStorage(packed,null))!==raw)throw new Error('本机压缩校验未通过，原缓存未覆盖');
+          if((typeof serializeWithMergeArchives==='function'?serializeWithMergeArchives(decodeHistoryStorage(packed,null)):JSON.stringify(decodeHistoryStorage(packed,null)))!==raw)throw new Error('本机压缩校验未通过，原缓存未覆盖');
           localStorage.setItem(STORAGE_KEY,packed);
           persistLocalState.lastRaw=raw;persistLocalState.lastStored=packed;
           return 'full';
@@ -2986,6 +2994,41 @@ body.export-rendering .cart-count{ font-size:28px; }
       return localSaved!=='failed';
     }
     const deepClone=value=>JSON.parse(JSON.stringify(value));
+    const mergeArchiveMemo=new WeakMap(),mergeArchiveByRaw=new Map(),mergeArchivePackedMemo=new Map();let archiveTokenSeed=0;
+    function reusableMergeArchive(value){
+      if(!value||typeof value!=='object'||!Array.isArray(value.sheets))return null;
+      const known=mergeArchiveMemo.get(value);if(known)return known;
+      const raw=JSON.stringify(value);let entry=mergeArchiveByRaw.get(raw);
+      if(!entry){const snapshot=JSON.parse(raw),freeze=object=>{if(object&&typeof object==='object'&&!Object.isFrozen(object)){for(const child of Object.values(object))freeze(child);Object.freeze(object);}return object;};entry={raw,value:freeze(snapshot)};mergeArchiveByRaw.set(raw,entry);mergeArchiveMemo.set(entry.value,entry);}
+      const freezeInput=object=>{if(object&&typeof object==='object'&&!Object.isFrozen(object)){for(const child of Object.values(object))freezeInput(child);Object.freeze(object);}};freezeInput(value);
+      mergeArchiveMemo.set(value,entry);return entry;
+    }
+    function serializeWithMergeArchives(value,clone=false){
+      const rootEntry=value&&typeof value==='object'?mergeArchiveMemo.get(value):null;if(rootEntry)return clone?rootEntry.value:rootEntry.raw;
+      const references=[],nonce='__ggz_archive_'+(++archiveTokenSeed)+'_'+Math.random().toString(36).slice(2)+'_';
+      // Only inspect known project/snapshot containers. Do not run a JS
+      // replacer for every field in every live sheet on the hot path.
+      const prepare=(item,path=[])=>{
+        if(!item||typeof item!=='object')return item;
+        if(Array.isArray(item))return item.map((child,index)=>prepare(child,[...path,index]));
+        let result=item;const copy=()=>{if(result===item)result={...item};};
+        if(Array.isArray(item.sheets)){copy();result.sheets=item.sheets.map((sheet,index)=>prepare(sheet,[...path,'sheets',index]));}
+        for(const field of ['payload','state'])if(item[field]&&typeof item[field]==='object'&&Array.isArray(item[field].sheets)){copy();result[field]=prepare(item[field],[...path,field]);}
+        const entry=reusableMergeArchive(item.mergeSourceBackups);if(entry){copy();const token=nonce+references.length;references.push({token,entry,path:[...path,'mergeSourceBackups']});result.mergeSourceBackups=token;}
+        return result;
+      };
+      const raw=JSON.stringify(prepare(value));
+      // Verify placeholder uniqueness; never replace a coincidentally equal
+      // user string. On collision use the original lossless JSON path.
+      if(references.some(ref=>raw.split(JSON.stringify(ref.token)).length!==2))return clone?deepClone(value):JSON.stringify(value);
+      if(clone){const result=JSON.parse(raw);for(const ref of references){let parent=result;for(const key of ref.path.slice(0,-1))parent=parent[key];parent[ref.path.at(-1)]=ref.entry.value;}return result;}
+      const byToken=new Map(references.map(ref=>[JSON.stringify(ref.token),ref.entry.raw]));return raw.replace(/"__ggz_archive_[a-zA-Z0-9_]+"/g,token=>byToken.get(token)??token);
+    }
+    function cloneWithMergeArchives(value){return serializeWithMergeArchives(value,true);}
+    function decodeMergeArchiveBlock(packed){
+      if(mergeArchivePackedMemo.has(packed))return mergeArchivePackedMemo.get(packed);
+      const decoded=decodeHistoryStorage(packed,null),entry=reusableMergeArchive(decoded);if(entry){mergeArchivePackedMemo.set(packed,entry.value);entry.packed=packed;entry.packedRaw=entry.raw;return entry.value;}return decoded;
+    }
     function actionPreviewDataSignature(){
       return JSON.stringify({columns:columns.map(c=>({id:c.id,name:c.name,aliases:c.aliases||[]})),allocations});
     }
@@ -3605,7 +3648,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       try{
         const raw=localStorage.getItem('ggzRealtimeBaseline_v1:'+code),saved=decodeHistoryStorage(raw,null);
         if(!saved||saved.code!==code||saved.userId!==(authCurrentUser?.id||'')||!Array.isArray(saved.state?.sheets)||!Number.isSafeInteger(saved.revision)||saved.revision<0)return false;
-        collabBaseline=deepClone(saved.state);collabRevision=saved.revision;if(typeof primeRealtimeBaselineCache==='function')primeRealtimeBaselineCache(raw,saved);return true;
+        collabBaseline=typeof cloneWithMergeArchives==='function'?cloneWithMergeArchives(saved.state):deepClone(saved.state);collabRevision=saved.revision;if(typeof primeRealtimeBaselineCache==='function')primeRealtimeBaselineCache(raw,saved);return true;
       }catch(_){return false;}
     }
     function compactRealtimeBaselineStorage(code){
@@ -3716,7 +3759,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     function collabProjectSnapshot(){
       captureActiveSheet();
       syncActivePaymentQr();
-      return deepClone({sheets,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,sharedPaymentQrLabels,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives});
+      const payload={sheets,sheetIdSeed,itemCatalog,catalogIdSeed,sharedCartQrImg,sharedPaymentQrImg,sharedPaymentQrImgs,sharedPaymentQrLabels,activePaymentQrSlot,extraPaymentQrImg,extraFees,extraFeeIdSeed,extraFeeTitle,extraFeeColor,extraFeeShowTotal,extraFeeViewMode,extraFeeArchives};return typeof cloneWithMergeArchives==='function'?cloneWithMergeArchives(payload):deepClone(payload);
     }
     const cloudImageCompressionCache=new Map();
     function cloudImageProfile(label){
@@ -3750,7 +3793,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       cloudImageCompressionCache.set(key,result); return result;
     }
     async function collabCloudProjectSnapshot(localState){
-      const cloud=deepClone(localState||collabProjectSnapshot());
+      const cloud=typeof cloneWithMergeArchives==='function'?cloneWithMergeArchives(localState||collabProjectSnapshot()):deepClone(localState||collabProjectSnapshot());
       stripGoodsImagesFromCollabState(cloud);
       cloud.sharedCartQrImg=await compressedCloudDataUrl(cloud.sharedCartQrImg,'shared-qr');
       cloud.sharedPaymentQrImg=await compressedCloudDataUrl(cloud.sharedPaymentQrImg,'shared-payment');
@@ -3763,9 +3806,9 @@ body.export-rendering .cart-count{ font-size:28px; }
       for(const item of state?.itemCatalog||[]) delete item.img;
       return state;
     }
-    function normalizedCollabCloudState(state){ return stripGoodsImagesFromCollabState(deepClone(state||{})); }
+    function normalizedCollabCloudState(state){ return stripGoodsImagesFromCollabState(typeof cloneWithMergeArchives==='function'?cloneWithMergeArchives(state||{}):deepClone(state||{})); }
     function preserveMatchingLocalImages(cloudState,localState,compressedLocalState){
-      const result=deepClone(cloudState),localSheets=new Map((localState?.sheets||[]).map(sheet=>[String(sheet.id),sheet])),compressedSheets=new Map((compressedLocalState?.sheets||[]).map(sheet=>[String(sheet.id),sheet]));
+      const result=typeof cloneWithMergeArchives==='function'?cloneWithMergeArchives(cloudState):deepClone(cloudState),localSheets=new Map((localState?.sheets||[]).map(sheet=>[String(sheet.id),sheet])),compressedSheets=new Map((compressedLocalState?.sheets||[]).map(sheet=>[String(sheet.id),sheet]));
       for(const sheet of result.sheets||[]){
         const local=localSheets.get(String(sheet.id)),compressed=compressedSheets.get(String(sheet.id));
         const localColumns=new Map((local?.columns||[]).map(column=>[String(column.id),column])),compressedColumns=new Map((compressed?.columns||[]).map(column=>[String(column.id),column]));
@@ -3789,7 +3832,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(value&&typeof value==='object') return Object.keys(value).sort().reduce((result,key)=>{ result[key]=stableCollabValue(value[key]); return result; },{});
       return value;
     }
-    function collabStatesEqual(a,b){ return JSON.stringify(stableCollabValue(a))===JSON.stringify(stableCollabValue(b)); }
+    function collabStatesEqual(a,b){
+      if(a===b)return true;
+      if(typeof mergeArchiveMemo!=='undefined'&&a&&b&&typeof a==='object'&&typeof b==='object'){const left=mergeArchiveMemo.get(a),right=mergeArchiveMemo.get(b);if(left&&right){if(left.stable===undefined)left.stable=JSON.stringify(stableCollabValue(left.value));if(right.stable===undefined)right.stable=JSON.stringify(stableCollabValue(right.value));return left.stable===right.stable;}}
+      if(typeof reusableMergeArchive!=='function')return JSON.stringify(stableCollabValue(a))===JSON.stringify(stableCollabValue(b));
+      const compare=value=>{const archives={};const walk=(item,path)=>{if(path.at(-1)==='mergeSourceBackups'){const entry=reusableMergeArchive(item);if(entry){if(entry.stable===undefined)entry.stable=JSON.stringify(stableCollabValue(entry.value));archives[JSON.stringify(path)]=entry.stable;return null;}}if(Array.isArray(item))return item.map((child,index)=>walk(child,[...path,String(index)]));if(item&&typeof item==='object')return Object.keys(item).sort().reduce((out,key)=>{out[key]=walk(item[key],[...path,key]);return out;},{});return item;};return JSON.stringify({state:walk(value,[]),archives});};
+      return compare(a)===compare(b);
+    }
     function guardCollabPatchByIdentity(ops,base,desired=null){
       const roots={sheets:'id',extraFees:'id',extraFeeArchives:'id',itemCatalog:'catalogId'},guards=new Map();
       const checked=new Set(),unsafe=()=>{const error=new Error('同步目标ID重复或缺失，已保留本机，未提交，请先核对排单');error.code='COLLAB_IDENTITY_UNSAFE';throw error;};
@@ -3849,6 +3898,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         if(!newExists){ ops.push({op:'delete',path:path.map(String),old:deepClone(oldValue)}); return; }
         if(!oldExists){ ops.push({op:'set',path:path.map(String),value:deepClone(newValue),old_missing:true}); return; }
         if(oldValue===newValue) return;
+        if(path.at(-1)==='mergeSourceBackups'&&typeof reusableMergeArchive==='function'){const oldArchive=reusableMergeArchive(oldValue),newArchive=reusableMergeArchive(newValue);if(oldArchive&&newArchive&&(oldArchive===newArchive||collabStatesEqual(oldValue,newValue)))return;}
         const oldArray=Array.isArray(oldValue), newArray=Array.isArray(newValue);
         if(oldArray&&newArray){
           const common=Math.min(oldValue.length,newValue.length);
@@ -3908,7 +3958,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!state||!Array.isArray(state.sheets)||!state.sheets.length) return false;
       if(typeof realtimeHeldFor==='function'&&realtimeHeldFor().length)state=overlayRealtimeHeld(state,collabProjectSnapshot());
       if(isColumnListEditing()){
-        pendingCollabInstallState=deepClone(state);
+        pendingCollabInstallState=cloneWithMergeArchives(state);
         pendingCollabInstallGuard={code:syncCode,local:localRevision,remote:collabRevision};
         setCollabStatus('正在输入，云端刷新已延后','warn');
         return false;
@@ -4317,7 +4367,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       try{
         const captured=await stableRealtimeSnapshot(code);sentState=captured.cloud;localSentState=captured.local;
         if(!collabEnabled||code!==syncCode)return false;
-        baseState=deepClone(collabBaseline||sentState);const ops=collabDiff(baseState,sentState);
+        baseState=typeof cloneWithMergeArchives==='function'?cloneWithMergeArchives(collabBaseline||sentState):deepClone(collabBaseline||sentState);const ops=collabDiff(baseState,sentState);
         if(!ops.length){
           if(captured.revision!==localRevision){collabNeedsSend=true;return false;}
           collabNeedsSend=false;collabPendingSheetNames.clear();if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,false);const held=typeof realtimeHeldFor==='function'?realtimeHeldFor(code):[];setCollabStatus(held.length?'其他修改已同步 · '+held.length+'项待核对，仅留在本机':'实时协作已同步 · 版本 '+collabRevision,held.length?'warn':'ok');return true;
@@ -4669,7 +4719,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         collabEnabled=false;stopCollabPolling();stopCollabPresence();pendingCollabInstallState=null;applying=true;
         applyProjectPayload({...payload,activeSheetId:before.activeSheetId},code,'');
         if(persistLocalState()==='failed')throw new Error('本机保存失败，未完成读取');
-          collabBaseline=deepClone(payload);collabRevision=revision;collabNeedsSend=false;collabPendingSheetNames.clear();restoredSnapshotPendingUpload=false;cloudConflictPaused=false;collabReconnectBlocked='';collabReconnectAttempts=0;localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);
+          collabBaseline=cloneWithMergeArchives(payload);collabRevision=revision;collabNeedsSend=false;collabPendingSheetNames.clear();restoredSnapshotPendingUpload=false;cloudConflictPaused=false;collabReconnectBlocked='';collabReconnectAttempts=0;localStorage.removeItem('ggzRestoredPendingPublish_v1:'+code);
           if(typeof rememberRealtimePending==='function')rememberRealtimePending(code,false);
           collabEnabled=wasEnabled;localStorage.setItem(COLLAB_ENABLED_KEY_PREFIX+code,wasEnabled?'1':'0');if(wasEnabled){startCollabPolling();startCollabPresence();}
           setCollabStatus(`手动读取已完成 · 版本 ${revision}${wasEnabled?' · 继续实时同步':' · 实时同步未开启'}`,'ok');
@@ -9664,7 +9714,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         // This memo belongs only to this sheet in this synchronous refresh.
         // Never reuse it across refreshes, sheets, or incoming cloud updates.
         let settlementRecords=null;const goodsPaidStates=new Map();
-        const currentSheetRecords=()=>{if(!settlementRecords){const accounting=deepClone(sheet);accounting.showBoughtSettlement=true;accounting.matrixBoughtCells={...(accounting.matrixBoughtCells||{})};for(const c of displayCols)(alloc[c.id]||[]).forEach((name,row)=>{const cell=c.id+':'+row;if(inDispatchScope(c,row,name))accounting.matrixBoughtCells[cell]=name;else delete accounting.matrixBoughtCells[cell];});settlementRecords=new Map();for(const record of recordsForSheet(accounting))if(!settlementRecords.has(record.key))settlementRecords.set(record.key,record);}return settlementRecords;};
+        const currentSheetRecords=()=>{if(!settlementRecords){const {mergeSourceBackups,...operatingSheet}=sheet;const accounting=deepClone(operatingSheet);accounting.showBoughtSettlement=true;accounting.matrixBoughtCells={...(accounting.matrixBoughtCells||{})};for(const c of displayCols)(alloc[c.id]||[]).forEach((name,row)=>{const cell=c.id+':'+row;if(inDispatchScope(c,row,name))accounting.matrixBoughtCells[cell]=name;else delete accounting.matrixBoughtCells[cell];});settlementRecords=new Map();for(const record of recordsForSheet(accounting))if(!settlementRecords.has(record.key))settlementRecords.set(record.key,record);}return settlementRecords;};
         const displayCols=orderDisplayColumns(cols,groups,alloc);
         const displayPriceInfo=sheetDisplayPriceInfo(sheet), priceColumns=new Map(displayPriceInfo.cols.map(c=>[Number(c.id),c])), expectedByKey=new Map();
         // 买齐标记按“每张排单”自适应：该表只要存在一个有效买齐标记，就视为已启用买齐；
@@ -10142,7 +10192,7 @@ body.export-rendering .cart-count{ font-size:28px; }
         const key=JSON.stringify([code,collabRevision,config.source_updated_at,config.settings_updated_at,logisticsFreeDays()]);if(!manual&&key===publicArrivalPublishedKey)return true;
         const localAt=localRevision,snapshot=await stableRealtimeSnapshot(code);
         if(code!==String(syncCode||'')||!collabEnabled||collabNeedsSend||snapshot.revision!==localRevision||!collabBaseline||!collabStatesEqual(snapshot.cloud,collabBaseline))throw new Error('本机还有未核对的修改，暂不公开，等待同步后再更新。');
-        const source=deepClone(collabBaseline),revision=collabRevision,rows=publicArrivalProjection(buildDispatchRecords(source),publicArrivalParticipatingIds(source.sheets));
+        const source=cloneWithMergeArchives(collabBaseline),revision=collabRevision,rows=publicArrivalProjection(buildDispatchRecords(source),publicArrivalParticipatingIds(source.sheets));
         if(localAt!==localRevision||code!==String(syncCode||''))throw new Error('到货数据正在变化，稍后自动重试。');
         publicArrivalMessage('正在自动更新查询清单…');
         const {data,error}=await lockRequest(getCloudClient(code).rpc('ggz_publish_arrival_share',{p_group_id:code,p_revision:revision,p_source_state:source,p_rows:rows}),45000,'更新到货查询');if(error)throw error;
