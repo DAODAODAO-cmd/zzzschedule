@@ -3323,21 +3323,23 @@ body.export-rendering .cart-count{ font-size:28px; }
       }catch(_){result={kind:'unknown',label:'待核对',title:'这张表的收款状态暂时无法核对，请打开收款页查看'};}
       sheetCollectionBadgeCache.set(cacheKey,{signature,result});if(sheetCollectionBadgeCache.size>256)sheetCollectionBadgeCache.delete(sheetCollectionBadgeCache.keys().next().value);return result;
     }
-    function sheetCollectionBadgeHtml(sheet){
-      const indicator=sheetCollectionIndicator(sheet);return indicator?`<span class="sheet-payment-badge is-${indicator.kind}" title="${escapeAttr(indicator.title)}">${indicator.label}</span>`:'';
+    function sheetCollectionBadgeHtml(sheet,readIndicator=sheetCollectionIndicator){
+      const indicator=readIndicator(sheet);return indicator?`<span class="sheet-payment-badge is-${indicator.kind}" title="${escapeAttr(indicator.title)}">${indicator.label}</span>`:'';
     }
     function scheduleSheetCollectionBadges(){
       clearTimeout(sheetCollectionBadgeTimer);sheetCollectionBadgeTimer=setTimeout(()=>{
+        const indicators=new Map(),readIndicator=sheet=>{if(!indicators.has(sheet))indicators.set(sheet,sheetCollectionIndicator(sheet));return indicators.get(sheet);};
         document.querySelectorAll('.sheet-tab[data-sheet]').forEach(tab=>{
-          const sheet=sheets.find(s=>String(s.id)===tab.dataset.sheet),indicator=sheetCollectionIndicator(sheet);let badge=tab.querySelector('.sheet-payment-badge');
+          const sheet=sheets.find(s=>String(s.id)===tab.dataset.sheet),indicator=readIndicator(sheet);let badge=tab.querySelector('.sheet-payment-badge');
           if(!indicator){badge?.remove();return;}
           if(!badge){badge=document.createElement('span');tab.querySelector('.sheet-tab-name')?.after(badge);}
           badge.className='sheet-payment-badge is-'+indicator.kind;badge.textContent=indicator.label;badge.title=indicator.title;
         });
-        const select=$('mobileSheetSelect');if(select)for(const option of select.options){const sheet=sheets.find(s=>String(s.id)===option.value);if(sheet){const indicator=sheetCollectionIndicator(sheet);option.textContent=(sheet.name||`表${sheet.id}`)+(indicator?' · '+indicator.label:'');}}
+        const select=$('mobileSheetSelect');if(select)for(const option of select.options){const sheet=sheets.find(s=>String(s.id)===option.value);if(sheet){const indicator=readIndicator(sheet);option.textContent=(sheet.name||`表${sheet.id}`)+(indicator?' · '+indicator.label:'');}}
       },450);
     }
     function renderSheetTabs(){
+      const indicators=new Map(),readIndicator=sheet=>{if(!indicators.has(sheet))indicators.set(sheet,sheetCollectionIndicator(sheet));return indicators.get(sheet);};
       renderSheetTypeFilters();
       const query=String($('sheetSearchInput')?.value||'').trim().toLowerCase();
       const ongoing=sheets.filter(sheet=>!isSheetCompleted(sheet)), completed=completedSheetsByRecent();
@@ -3346,18 +3348,18 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(sheetStatusFilter!=='completed') groups.push({label:`进行中 · ${ongoing.length}`,items:ongoing.filter(matches),movable:true});
       if(sheetStatusFilter!=='ongoing') groups.push({label:`已完成 · ${completed.length}`,items:completed.filter(matches),movable:true});
       const tabHtml=(sheet,movable)=>{
-        return `<div class="sheet-tab ${sheet.id===activeSheetId?'active':''}${isSheetCompleted(sheet)?' is-completed':''}" data-sheet="${sheet.id}" title="双击改名"><span class="sheet-tab-name">${escapeHtml(sheet.name)}</span>${sheetCollectionBadgeHtml(sheet)}${movable?'<span class="sheet-drag-handle" draggable="true" title="拖动排序" aria-label="拖动排序"></span>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`;
+        return `<div class="sheet-tab ${sheet.id===activeSheetId?'active':''}${isSheetCompleted(sheet)?' is-completed':''}" data-sheet="${sheet.id}" title="双击改名"><span class="sheet-tab-name">${escapeHtml(sheet.name)}</span>${sheetCollectionBadgeHtml(sheet,readIndicator)}${movable?'<span class="sheet-drag-handle" draggable="true" title="拖动排序" aria-label="拖动排序"></span>':''}${sheets.length>1?'<span class="sheet-close" title="删除这张表">×</span>':''}</div>`;
       };
       $('sheetTabs').innerHTML=groups.map(group=>`<div class="sheet-group-label">${group.label}</div>${group.items.map(sheet=>tabHtml(sheet,group.movable)).join('')}`).join('')||'<div class="sheet-list-empty">没有符合条件的排单</div>';
       document.querySelectorAll('[data-sheet-status-filter]').forEach(button=>button.classList.toggle('active',button.dataset.sheetStatusFilter===sheetStatusFilter));
-      syncMobileSheetSelect();
+      syncMobileSheetSelect(readIndicator);
       if(!$('mobileSheetSortOverlay').hidden) renderMobileSheetSort();
       syncSheetCompletionButtons();
     }
-    function syncMobileSheetSelect(){
+    function syncMobileSheetSelect(readIndicator=sheetCollectionIndicator){
       const select=$('mobileSheetSelect'); if(!select) return;
       const visible=sheets.filter(s=>sheetTypeMatches(s)||s.id===activeSheetId),ongoing=visible.filter(sheet=>!isSheetCompleted(sheet)),completed=visible.filter(isSheetCompleted);
-      const optionHtml=sheet=>{const indicator=sheetCollectionIndicator(sheet);return `<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}${indicator?' · '+indicator.label:''}</option>`;};
+      const optionHtml=sheet=>{const indicator=readIndicator(sheet);return `<option value="${sheet.id}">${escapeHtml(sheet.name||`表${sheet.id}`)}${indicator?' · '+indicator.label:''}</option>`;};
       select.innerHTML=(ongoing.length?`<optgroup label="进行中">${ongoing.map(optionHtml).join('')}</optgroup>`:'')+(completed.length?`<optgroup label="已完成">${completed.map(optionHtml).join('')}</optgroup>`:'');
       select.value=String(activeSheetId);
       $('mobileDeleteSheetBtn').disabled=sheets.length<=1;
@@ -3437,7 +3439,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(section==='goods'){renderColumnList();renderPricingGroups();}
       if(section==='logistics') renderLogistics();
       if(section==='international-bills')renderExtraFees();
-      if(section==='order')renderMatrix(true);
+      if(section==='order')renderMatrix(true,true);
       if(section==='payment'){syncPaymentControls();refreshVisibleSummaries();}
       if(section==='stats')refreshVisibleSummaries();
       syncInternationalWorkflowNav();
@@ -6366,8 +6368,14 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('combinedOrderNoneBtn').addEventListener('click',()=>{combinedOrderSelected.clear();renderCombinedOrderView();});
     $('combinedOrderMarkBtn').addEventListener('click',()=>applyCombinedOrderArrival('mark'));
     $('combinedOrderRemoveBtn').addEventListener('click',()=>applyCombinedOrderArrival('remove'));
-    function renderMatrix(force=false){
+    function matrixNavigationSignature(){
+      const sheet=sheets.find(s=>s.id===activeSheetId)||{};
+      return JSON.stringify([activeSheetId,columns,allocations,pricingGroups,snapshotCost(),totalCost,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,matrixBoughtCells,matrixIslandCells,matrixChinaCells,matrixBlindSubCells,boxSize,groupSize,completeMultiple,quantityConfigured,matrixMarkMode,matrixPreviewAllocations,matrixPreviewColumns,matrixPreviewHighlights,matrixPreviewLabel,sheet.dispatchShippedCells,sheet.secondPriceCellPrices,sheet.mergedShareCells,sheet.mergedCellSources]);
+    }
+    function renderMatrix(force=false,navigationOnly=false){
       if(typeof deferHiddenView==='function'&&deferHiddenView('matrix',force)){refreshVisibleSummaries();return;}
+      if(navigationOnly&&renderMatrix.lastBody===$('matrixTableBody')&&renderMatrix.lastNavigationKey===matrixNavigationSignature()&&!activeMatrixEditingCell()){applyPersonHighlight(false);updateMatrixSelectionClasses();return;}
+      renderMatrix.lastNavigationKey=null;
       if(typeof renderCombinedOrderView==='function')renderCombinedOrderView();
       computeAverage();
       if(!force&&activeMatrixEditingCell()){
@@ -6454,6 +6462,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       applyPersonHighlight(false);
       updateMatrixSelectionClasses();
       refreshVisibleSummaries();
+      renderMatrix.lastBody=tbody;renderMatrix.lastNavigationKey=matrixNavigationSignature();
     }
 
     function applyPersonHighlight(shouldScroll){
@@ -9700,14 +9709,21 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('dispatchScopeSummary').textContent=`管理参与排发的表 · ${included}/${sheets.length} 张参与`;
       list.innerHTML=sheets.map(sheet=>`<div class="dispatch-scope-row"><span>${escapeHtml(sheet.name||'未命名排单')}</span><select aria-label="${escapeAttr(sheet.name||'排单')}模式" data-sheet-fulfillment="${escapeAttr(sheet.id)}">${[['required','需国际'],['exempt','免国际'],['accounting','仅算账']].map(([mode,label])=>`<option value="${mode}"${sheetFulfillmentMode(sheet)===mode?' selected':''}>${label}</option>`).join('')}</select></div>`).join('');
     }
-    function buildDispatchRecords(project=null){
+    function buildDispatchRecords(project=null,readOnly=false){
       if(!project)captureActiveSheet();
       const cacheFields=['id','name','columns','allocations','pricingGroups','cost','dispatchEnabled','dispatchInternationalExempt','matrixBoughtCells','matrixIslandCells','matrixChinaCells','matrixBlindSubCells','dispatchShippedCells','dispatchInternationalExemptCells','mergedCellSources','mergedShareCells','secondPriceCellPrices','paymentStartRow','paymentEndRow','showBoughtSettlement','paymentBoughtOnly','paymentIncludeShare','paymentPaid','paymentEdits','paymentRefund','paymentSupplement','paymentRefundDone','paymentSupplementDone','sharePaymentPaid','sharePaymentEdits','sharePaymentRefund','sharePaymentSupplement','shareDeductFixed','paymentCashHistory'];
-      const signature=project?null:JSON.stringify([(sheets||[]).map(sheet=>cacheFields.map(field=>sheet[field])),extraFees,extraFeeArchives],(key,value)=>key==='img'?undefined:value);
-      if(signature!==null&&buildDispatchRecords.memo?.signature===signature)return deepClone(buildDispatchRecords.memo.records);
+      const sourceSheets=project?.sheets||sheets||[],json=(value)=>JSON.stringify(value,(key,item)=>key==='img'?undefined:item);
+      const sheetSignatures=project?null:sourceSheets.map(sheet=>json(cacheFields.map(field=>sheet[field]))),feesSignature=project?null:json([extraFees,extraFeeArchives]);
+      const signature=project?null:[feesSignature,...sheetSignatures].join('\n');
+      if(signature!==null&&buildDispatchRecords.memo?.signature===signature)return readOnly?buildDispatchRecords.memo.records:deepClone(buildDispatchRecords.memo.records);
       const people=new Map(),intlBatchMemo=new Map();
-      (project?.sheets||sheets||[]).forEach(sheet=>{
+      const priorSheets=buildDispatchRecords.sheetMemo||new Map(),nextSheets=new Map();
+      const appendPeople=rows=>{for(const person of rows){const prior=people.get(person.key);if(prior)prior.items.push(...person.items);else people.set(person.key,{...person,items:[...person.items]});}};
+      sourceSheets.forEach((sheet,sheetIndex)=>{
         if(!sheetParticipatesInDispatch(sheet))return;
+        const memoKey=JSON.stringify([sheetIndex,sheet.id]),sheetSignature=project?null:sheetSignatures[sheetIndex],cached=priorSheets.get(memoKey);
+        if(!project&&cached?.signature===sheetSignature&&cached.feesSignature===feesSignature){nextSheets.set(memoKey,cached);appendPeople(deepClone(cached.records));return;}
+        const sheetPeople=new Map();
         const cols=Array.isArray(sheet.columns)?sheet.columns:[];
         const groups=Array.isArray(sheet.pricingGroups)?sheet.pricingGroups.map(migratePricingGroup).filter(Boolean):[];
         const alloc=sheet.allocations||{}, bought=sheet.matrixBoughtCells||{}, china=sheet.matrixChinaCells||{}, paidGoods=sheet.paymentPaid||{}, sub=sheet.matrixBlindSubCells||{};
@@ -9736,14 +9752,14 @@ body.export-rendering .cart-count{ font-size:28px; }
             const cellBought=sheetCellBought(c,r,name,bought,alloc,groups,cols);
             const cellBoughtTracked=typeof sheet.mergedCellSources?.[cellKey]?.boughtTracked==='boolean'?sheet.mergedCellSources[cellKey].boughtTracked:usesBoughtMark;
             if(cellBoughtTracked&&!cellBought) return;
-            if(!people.has(key)) people.set(key,{name:name||key,key,items:[]});
+            if(!sheetPeople.has(key)) sheetPeople.set(key,{name:name||key,key,items:[]});
             const chinaDate=String(logisticsCellMark(c,r,name,china,alloc)||'');
             if(!goodsPaidStates.has(key))goodsPaidStates.set(key,settledGoodsPaymentState(sheet,key,paidState(paidGoods,key,expectedByKey.get(key)||0),currentSheetRecords));
             const goodsPaidState=goodsPaidStates.get(key);
             const itemName=matrixItemDisplayName(c,r,sub)||'未命名谷子', shipment=dispatchShipmentFor(sheet,c,r,name,itemName);
             const intl=dispatchInternationalState(sheet,chinaDate,key,c,r,name,itemName,project?.extraFees||extraFees,project?.extraFeeArchives||extraFeeArchives,intlBatchMemo);
             const internationalGenerated=intl.generated||intl.confirmed,internationalPaid=intl.paid;
-            people.get(key).items.push({
+            sheetPeople.get(key).items.push({
               item:itemName,sheetId:sheet.id,colId:c.id,row:r,person:name,shipped:!!shipment,shippedAt:shipment?.at||'',internationalMissing:intl.missing,internationalConfirmed:intl.confirmed,internationalExempt:intl.exempt===true,
               sheet:String(sheet.name||'').trim(),
               boughtTracked:cellBoughtTracked,
@@ -9755,9 +9771,11 @@ body.export-rendering .cart-count{ font-size:28px; }
             });
           });
         });
+        const rows=[...sheetPeople.values()];appendPeople(rows);if(!project)nextSheets.set(memoKey,{signature:sheetSignature,feesSignature,records:deepClone(rows)});
       });
+      if(!project)buildDispatchRecords.sheetMemo=nextSheets;
       const result=[...people.values()].sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN'));
-      if(signature!==null)buildDispatchRecords.memo={signature,records:deepClone(result)};
+      if(signature!==null){buildDispatchRecords.generation=(buildDispatchRecords.generation||0)+1;buildDispatchRecords.memo={signature,records:deepClone(result)};}
       return result;
     }
     function dispatchVisibleItems(person){
@@ -9828,8 +9846,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       const list=$('dispatchList'); if(!list) return;
       list.classList.toggle('dispatch-export-all',force===true);
       syncUndoButton();
-      const all=buildDispatchRecords();
-      const renderKey=JSON.stringify([buildDispatchRecords.memo?.signature,dispatchStateFilter,new Date().toDateString(),dispatchBatchShipDraft,dispatchBatchShipSaving],(key,value)=>value instanceof Set?[...value]:value);
+      const all=buildDispatchRecords(null,true);
+      const renderKey=JSON.stringify([buildDispatchRecords.generation,dispatchStateFilter,new Date().toDateString(),dispatchBatchShipDraft,dispatchBatchShipSaving],(key,value)=>value instanceof Set?[...value]:value);
       if(renderDispatch.lastList===list&&renderDispatch.lastKey===renderKey)return;
       renderDispatch.lastList=list;renderDispatch.lastKey=renderKey;
       renderDispatchScope();
@@ -9839,7 +9857,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       $('dispatchSummary').textContent=`${records.length} 人 · ${totalItems} 件${label}`;
       document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.classList.toggle('active',button.dataset.dispatchState===dispatchStateFilter));
       if(!records.length){ list.innerHTML=`<div class="dispatch-empty">当前没有“${label}”记录。${dispatchStateFilter==='ready'?'请切换“未发货”查看原因：未到国内、谷款未结清或国际费未匹配／未收齐。':''}</div>`; return; }
-      list.innerHTML=records.map(person=>{
+      const personHtml=records.map(person=>{
         const chinaCount=person.items.filter(item=>item.chinaDate).length;
         const readyCount=person.items.filter(item=>item.ready).length, shippedCount=person.items.filter(item=>item.shipped).length;
         const items=dispatchSheetGroups(dispatchItemGroups(person.visibleItems)).map(group=>{
@@ -9857,7 +9875,11 @@ body.export-rendering .cart-count{ font-size:28px; }
           return `<div class="dispatch-sheet-group"><div class="dispatch-sheet-head"><b>${escapeHtml(group.sheet)}</b><small>${group.items.length}款 · ${group.qty}件 · <span class="dispatch-pay-main ${payOk?'is-ok':''}">${escapeHtml(status)}</span></small></div><div class="dispatch-chip-list">${shown}</div></div>`;
         }).join('');
         return `<div class="dispatch-person" data-name-key="${escapeAttr(person.key)}"><div class="dispatch-name">${dispatchInlinePersonCheckbox(person)}${escapeHtml(person.name)}<span class="dispatch-count">${person.visibleItems.length}件</span><button type="button" class="dispatch-rename-btn" data-dispatch-rename="${encodeURIComponent(person.name)}" aria-label="修改 CN ${escapeAttr(person.name)}">改名</button>${dispatchInlinePersonActions(person)}<span class="dispatch-person-summary">共买 ${person.items.length} · 国内 ${chinaCount} · 可发 ${readyCount} · 已发 ${shippedCount}</span></div><div class="dispatch-items">${items}</div></div>`;
-      }).join('');
+      });
+      // Keep unchanged CN cards (and their focus/expanded controls) in place.
+      const existing=new Map([...list.children].filter(node=>node.classList.contains('dispatch-person')).map(node=>[node.dataset.nameKey,node])),retained=new Set();let cursor=list.firstElementChild;
+      records.forEach((person,index)=>{let node=existing.get(person.key);if(!node||node.__dispatchHtml!==personHtml[index]){const template=document.createElement('template');template.innerHTML=personHtml[index];const replacement=template.content.firstElementChild;replacement.__dispatchHtml=personHtml[index];if(node){if(cursor===node)cursor=replacement;node.replaceWith(replacement);}node=replacement;}retained.add(node);if(node!==cursor)list.insertBefore(node,cursor);cursor=node.nextElementSibling;});
+      for(const node of [...list.children])if(!retained.has(node))node.remove();
       syncDispatchBatchShipCount();
     }
     function dispatchInlineLeadingCheckbox(group){
