@@ -895,6 +895,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
       <button class="btn-ghost" id="dispatchExportPngBtn" data-mobile-label="导出图片">导出清单图</button>
       <button class="btn-ghost" id="dispatchCopyBtn" data-mobile-label="复制">复制文字清单</button>
     </div>
+    <div id="dispatchSearchNav" class="dispatch-search-nav" hidden data-html2canvas-ignore="true"><span id="dispatchSearchStatus" role="status" aria-live="polite"></span><button type="button" class="btn-ghost" id="dispatchSearchPrev" aria-label="上一个匹配 CN">上一个</button><button type="button" class="btn-ghost" id="dispatchSearchNext" aria-label="下一个匹配 CN">下一个</button><button type="button" class="btn-ghost" id="dispatchSearchClear">显示全部</button></div>
     <div id="dispatchWrap"><div id="dispatchList"></div></div>
     <section id="dispatchBatchShipDialog" class="inline-batch-editor" hidden data-html2canvas-ignore="true" aria-label="发货批量选择">
       <div class="arrival-edit-head"><strong>批量标记已发货</strong><button type="button" class="btn-ghost" id="closeDispatchBatchShipBtn">取消</button></div>
@@ -1407,6 +1408,12 @@ body.sheet-types-open{overflow:hidden;}
 #dispatchList{ display:flex; flex-direction:column; gap:8px; }
 .dispatch-person{ border:1px solid var(--line); border-radius:11px; padding:10px 11px; background:#fff; content-visibility:auto; contain-intrinsic-size:auto 220px; }
 .dispatch-export-all .dispatch-person{content-visibility:visible;contain-intrinsic-size:none;}
+.dispatch-person.dispatch-search-hidden{display:none!important;}
+.dispatch-person.dispatch-search-current{content-visibility:visible;contain-intrinsic-size:none;}
+.dispatch-export-all .dispatch-person.dispatch-search-hidden{display:block!important;}
+.dispatch-search-nav{position:sticky;top:8px;z-index:8;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px;margin-top:8px;border:1px solid var(--line);border-radius:9px;background:#fff;box-shadow:0 2px 8px #30203612;}
+.dispatch-search-nav[hidden]{display:none;}
+#dispatchSearchStatus{flex:1 1 130px;font-size:12px;color:var(--muted);}
 .dispatch-name{ font-weight:900; font-size:13px; color:var(--text); margin-bottom:8px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
 .dispatch-count{ font-size:10.5px; font-weight:800; color:#fff; background:var(--accent,#d1466a); border-radius:10px; padding:2px 7px; }
 .dispatch-rename-btn{padding:2px 7px!important;min-height:24px;font-size:10.5px!important;line-height:1.4;border:1px solid var(--line);border-radius:6px;background:#faf8fb;color:var(--muted);cursor:pointer;}
@@ -3413,7 +3420,8 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(['exportSharePaymentBtn','exportSharePaymentExcelBtn','copySharePaymentBtn'].includes(id))renderSharePaymentSummary(true);
       if(['exportQuantityPngBtn','exportQuantityExcelBtn'].includes(id))renderQuantitySummary(true);
       if(id==='cartExportPngBtn')renderCart(true);
-      if(['dispatchExportPngBtn','dispatchCopyBtn'].includes(id))renderDispatch(true);
+      if(id==='dispatchExportPngBtn')renderDispatch(true);
+      if(id==='dispatchCopyBtn')renderDispatch();
       if(id==='logisticsExportBtn')renderLogistics(true);
     }
     document.addEventListener('click',event=>{const button=event.target.closest?.('button[id]');if(button)refreshViewForExport(button.id);},true);
@@ -9856,7 +9864,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const label=dispatchFilterLabel();
       $('dispatchSummary').textContent=`${records.length} 人 · ${totalItems} 件${label}`;
       document.querySelectorAll('[data-dispatch-state]').forEach(button=>button.classList.toggle('active',button.dataset.dispatchState===dispatchStateFilter));
-      if(!records.length){ list.innerHTML=`<div class="dispatch-empty">当前没有“${label}”记录。${dispatchStateFilter==='ready'?'请切换“未发货”查看原因：未到国内、谷款未结清或国际费未匹配／未收齐。':''}</div>`; return; }
+      if(!records.length){ list.innerHTML=`<div class="dispatch-empty">当前没有“${label}”记录。${dispatchStateFilter==='ready'?'请切换“未发货”查看原因：未到国内、谷款未结清或国际费未匹配／未收齐。':''}</div>`; updateDispatchSearchView();return; }
       const personHtml=records.map(person=>{
         const chinaCount=person.items.filter(item=>item.chinaDate).length;
         const readyCount=person.items.filter(item=>item.ready).length, shippedCount=person.items.filter(item=>item.shipped).length;
@@ -9880,6 +9888,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const existing=new Map([...list.children].filter(node=>node.classList.contains('dispatch-person')).map(node=>[node.dataset.nameKey,node])),retained=new Set();let cursor=list.firstElementChild;
       records.forEach((person,index)=>{let node=existing.get(person.key);if(!node||node.__dispatchHtml!==personHtml[index]){const template=document.createElement('template');template.innerHTML=personHtml[index];const replacement=template.content.firstElementChild;replacement.__dispatchHtml=personHtml[index];if(node){if(cursor===node)cursor=replacement;node.replaceWith(replacement);}node=replacement;}retained.add(node);if(node!==cursor)list.insertBefore(node,cursor);cursor=node.nextElementSibling;});
       for(const node of [...list.children])if(!retained.has(node))node.remove();
+      updateDispatchSearchView();
       syncDispatchBatchShipCount();
     }
     function dispatchInlineLeadingCheckbox(group){
@@ -10021,14 +10030,30 @@ body.export-rendering .cart-count{ font-size:28px; }
         return `${person.name}：${items}`;
       }).filter(Boolean).join('\n');
     }
-    function dispatchSearch(){
-      const q=normalizeDispatchKey($('dispatchSearchInput').value);
-      document.querySelectorAll('#dispatchList .dispatch-person').forEach(el=>el.classList.remove('dispatch-hit'));
-      if(!q){ $('dispatchSearchInput').focus(); return; }
-      const hit=[...document.querySelectorAll('#dispatchList .dispatch-person')].find(el=>(el.dataset.nameKey||'').includes(q));
-      if(hit){ hit.classList.add('dispatch-hit'); hit.scrollIntoView({behavior:'smooth',block:'center'}); }
-      else alert('当前筛选中没有找到这个 CN');
+    const dispatchSearchState={query:'',key:'',index:0,scrollToken:0};
+    function updateDispatchSearchView({step=0,scroll=false,reset=false}={}){
+      const state=dispatchSearchState,q=state.query,list=$('dispatchList'),nav=$('dispatchSearchNav');if(!list||!nav)return;
+      const cards=[...list.querySelectorAll('.dispatch-person')],matches=q?cards.filter(node=>(node.dataset.nameKey||'').includes(q)).sort((a,b)=>Number(b.dataset.nameKey===q)-Number(a.dataset.nameKey===q)):[];
+      let index=reset?0:matches.findIndex(node=>node.dataset.nameKey===state.key);if(index<0)index=Math.min(state.index,Math.max(0,matches.length-1));if(matches.length)index=(index+step+matches.length)%matches.length;
+      const hit=matches[index];state.index=index;state.key=hit?.dataset.nameKey||'';nav.hidden=!q;
+      for(const card of cards){card.classList.toggle('dispatch-search-hidden',!!q&&card!==hit);card.classList.toggle('dispatch-search-current',!!q&&card===hit);card.classList.toggle('dispatch-hit',!!q&&card===hit);}
+      $('dispatchSearchStatus').textContent=!q?'':hit?((hit.dataset.nameKey===q?'完整匹配 · ':'')+(index+1)+' / '+matches.length+' · 仅显示当前 CN'):'当前筛选中没有匹配 CN，可显示全部或切换排发状态';
+      $('dispatchSearchPrev').disabled=matches.length<2;$('dispatchSearchNext').disabled=matches.length<2;
+      const token=++state.scrollToken;
+      if(!scroll||!hit)return;
+      list.classList.remove('dispatch-export-all');
+      if(window.innerWidth<=760)$('dispatchSearchInput').blur();
+      // Only this result is laid out. Never expand all offscreen cards to scroll.
+      const align=()=>{if(token!==state.scrollToken||!hit.isConnected||activeAppSection!=='dispatch')return;const heading=hit.querySelector('.dispatch-name');if(!heading)return;const viewportTop=window.visualViewport?.offsetTop||0,targetTop=Math.max(viewportTop+12,nav.getBoundingClientRect().bottom+10),delta=heading.getBoundingClientRect().top-targetTop;if(Math.abs(delta)>2)window.scrollBy({top:delta,left:0,behavior:'instant'});};
+      state.align=align;state.alignUntil=performance.now()+800;
+      hit.querySelector('.dispatch-name')?.scrollIntoView({behavior:'instant',block:'start'});requestAnimationFrame(()=>{align();requestAnimationFrame(align);});
     }
+    function dispatchSearch(){
+      const q=normalizeDispatchKey($('dispatchSearchInput').value),same=q===dispatchSearchState.query;dispatchSearchState.query=q;
+      updateDispatchSearchView({step:same&&q?1:0,reset:!same,scroll:!!q});
+      if(!q)$('dispatchSearchInput').focus();
+    }
+    function clearDispatchSearch(){dispatchSearchState.query='';dispatchSearchState.key='';dispatchSearchState.index=0;$('dispatchSearchInput').value='';updateDispatchSearchView();}
     let dispatchScopeSaving=false;
     async function setSheetFulfillmentMode(sheetId,mode){
       if(dispatchScopeSaving||!['required','exempt','accounting'].includes(mode))return;
@@ -10115,6 +10140,11 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('undoRenameCnBtn').addEventListener('click',()=>undoCnMerge().catch(error=>{console.error(error);appAlert(error.message||'撤销失败，备份仍保留');}));
     $('dispatchSearchBtn').addEventListener('click',dispatchSearch);
+    $('dispatchSearchPrev').addEventListener('click',()=>updateDispatchSearchView({step:-1,scroll:true}));
+    $('dispatchSearchNext').addEventListener('click',()=>updateDispatchSearchView({step:1,scroll:true}));
+    $('dispatchSearchClear').addEventListener('click',clearDispatchSearch);
+    $('dispatchSearchInput').addEventListener('input',()=>{if(!$('dispatchSearchInput').value.trim())clearDispatchSearch();});
+    window.visualViewport?.addEventListener('resize',()=>{if(dispatchSearchState.query&&performance.now()<dispatchSearchState.alignUntil)requestAnimationFrame(()=>dispatchSearchState.align?.());});
     $('dispatchList').addEventListener('change',async e=>{const input=e.target.closest('[data-dispatch-inline-whole],[data-dispatch-inline-quantity]');if(!input||!dispatchBatchShipDraft||dispatchBatchShipSaving)return;const indices=(input.dataset.dispatchInlineWhole||input.dataset.dispatchInlineQuantity).split(',').map(Number),qty=input.matches('[data-dispatch-inline-whole]')?(input.checked?indices.length:0):Number(input.value);try{setDispatchInlineQuantity(indices,qty);}catch(error){await appAlert(error.message);}syncDispatchBatchShipCount();});
     $('dispatchList').addEventListener('change',e=>{const input=e.target.closest('[data-dispatch-inline-index]');if(!input||!dispatchBatchShipDraft)return;if(dispatchBatchShipSaving){input.checked=dispatchBatchShipDraft.selectedIndices.has(Number(input.dataset.dispatchInlineIndex));return;}const index=Number(input.dataset.dispatchInlineIndex);if(!dispatchBatchShipDraft.items[index])return;if(input.checked)dispatchBatchShipDraft.selectedIndices.add(index);else dispatchBatchShipDraft.selectedIndices.delete(index);syncDispatchBatchShipCount();});
     $('dispatchBatchShipBtn').addEventListener('click',()=>{if(dispatchBatchShipDraft)cancelDispatchInlineSelection();else openDispatchBatchShip();});
@@ -10129,7 +10159,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     $('clearDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=false);syncDispatchBatchShipCount();});
     $('selectReadyDispatchBatchBtn').addEventListener('click',()=>{if(dispatchBatchShipSaving)return;$('dispatchBatchShipChoices').querySelectorAll('input').forEach(input=>input.checked=dispatchBatchShipDraft?.items[Number(input.dataset.dispatchBatchIndex)]?.ready===true);syncDispatchBatchShipCount();});
     $('applyDispatchBatchShipBtn').addEventListener('click',applyDispatchBatchShip);
-    $('dispatchSearchInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); dispatchSearch(); } });
+    $('dispatchSearchInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); dispatchSearch(); }else if(e.key==='Escape'){e.preventDefault();clearDispatchSearch();} });
     $('dispatchCopyBtn').addEventListener('click',async()=>{
       const text=dispatchTextManifest(); if(!text){ alert('清单为空'); return; }
       try{ await navigator.clipboard.writeText(text); alert('已复制文字清单'); }catch(_){ alert('复制失败，请长按手动选择'); }
@@ -10140,7 +10170,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       if(!$('dispatchList').children.length||$('dispatchList').querySelector('.dispatch-empty')){ alert('清单为空，无法导出'); return; }
       const suffix=dispatchFilterLabel();
       const wrap=$('dispatchWrap'), width=Math.max(680,exportContentWidth(wrap));
-      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,`排发清单_${suffix}.png`)).catch(()=>alert('导出失败，请重试'));
+      renderExportCanvas(wrap,{backgroundColor:'#ffffff',scale:2,width,height:wrap.scrollHeight,windowWidth:width+40,windowHeight:wrap.scrollHeight+40,cloneForExport:true}).then(canvas=>saveCanvasImage(canvas,`排发清单_${suffix}.png`)).catch(()=>alert('导出失败，请重试')).finally(()=>renderDispatch());
     });
     let logisticsDateFilterVal='';
     let publicArrivalConfig=null,publicArrivalConfigCode='',publicArrivalRenderedCode='',publicArrivalTimer=null,publicArrivalBusy=false,publicArrivalPublishedKey='',publicArrivalFreeDaysCode='',publicArrivalRetryCount=0;
