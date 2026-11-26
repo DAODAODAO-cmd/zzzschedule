@@ -890,6 +890,7 @@ html.auth-pending body,html.auth-locked body{overflow:hidden;}
     </div>
     <div class="toolbar">
       <button class="btn-ghost" id="dispatchRefreshBtn" data-mobile-label="刷新">刷新清单</button>
+      <label class="dispatch-sort-label">排序 <select id="dispatchSortSelect" aria-label="排发 CN 排序"><option value="name">按 CN 名字</option><option value="ready-desc">可发数量：多到少</option></select></label>
       <button type="button" class="btn-ghost" id="dispatchBatchShipBtn" data-mobile-label="批量发货">批量发货</button>
       <button class="btn-ghost" id="undoRenameCnBtn" data-mobile-label="撤销改名" disabled>撤销上次改名/合并</button>
       <button class="btn-ghost" id="dispatchExportPngBtn" data-mobile-label="导出图片">导出清单图</button>
@@ -1404,6 +1405,8 @@ body.sheet-types-open{overflow:hidden;}
 .dispatch-state-tabs button{ flex:1; min-height:34px; padding:6px 10px; border:0; border-radius:8px; background:transparent; color:var(--muted); font-size:12px; font-weight:900; }
 .dispatch-state-tabs button.active{ background:#fff; color:var(--accent); box-shadow:0 1px 5px rgba(75,45,61,.12); }
 #dispatchSummary{ display:inline!important; color:var(--muted); font-size:12px; font-weight:700; }
+.dispatch-sort-label{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);}
+#dispatchSortSelect{width:auto;max-width:100%;min-height:32px;padding:5px 8px;}
 #dispatchWrap{ margin-top:10px; }
 #dispatchList{ display:flex; flex-direction:column; gap:8px; }
 .dispatch-person{ border:1px solid var(--line); border-radius:11px; padding:10px 11px; background:#fff; content-visibility:auto; contain-intrinsic-size:auto 220px; }
@@ -9387,6 +9390,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('sheetTabs').addEventListener('dragend',()=>{ draggedSheetId=null; document.querySelectorAll('.sheet-tab.dragging,.sheet-tab.drag-over').forEach(item=>item.classList.remove('dragging','drag-over')); });
     let dispatchStateFilter='all';
+    let dispatchSortMode='name';try{if(localStorage.getItem('ggzDispatchSort_v1')==='ready-desc')dispatchSortMode='ready-desc';}catch(_){}
     function normalizeDispatchKey(name){ return String(name||'').normalize('NFKC').replace(/\s+/g,'').toLowerCase(); }
     function cnMergeNames(project){
       const names=new Set();
@@ -9851,17 +9855,22 @@ body.export-rendering .cart-count{ font-size:28px; }
       const intlControl=!g.shipped&&(g.internationalMissing||g.internationalConfirmed)?`<button type="button" class="dispatch-action ${g.internationalConfirmed?'is-undo':''}" title="${g.internationalConfirmed?'撤销这件谷子的国际另收或无需确认':'确认国际已在别处收齐，或无需国际费；不修改收款账单'}" data-dispatch-intl="${escapeAttr(shipmentAction)}" data-intl-confirmed="${g.internationalConfirmed?'1':'0'}">${g.internationalConfirmed?'撤销国际确认':'国际已另收／无需'}</button>`:'';
       return `<span class="dispatch-chip ${g.readyCount?'is-ready':''} ${g.goodsPaidCount<g.n||(g.internationalGeneratedCount&&g.internationalPaidCount<g.internationalGeneratedCount)?'has-unpaid':''}" ${g.shipped?'style="background:#eef3f6;color:#687b88"':''}>${leadingChoice}<span class="dispatch-chip-copy">${escapeHtml(g.item)}${bits.length?` <small>${escapeHtml(bits.join(' · '))}</small>`:''}</span><span class="dispatch-chip-actions" data-html2canvas-ignore="true">${inlineChoices}${leadingChoice?'':intlControl}<button style="${leadingChoice?'display:none':''}" type="button" class="dispatch-action ${g.shipped?'is-undo':'is-ship'}" data-dispatch-ship="${escapeAttr(shipmentAction)}" data-shipped="${g.shipped?'1':'0'}">${g.shipped?'撤销发货':'标记发货'}</button></span></span>`;
     }
+    function sortDispatchPeople(records){
+      if(dispatchSortMode!=='ready-desc')return records;
+      return records.map((person,index)=>({person,index,ready:person.items.reduce((sum,item)=>sum+(item.ready?1:0),0)})).sort((a,b)=>b.ready-a.ready||a.index-b.index).map(entry=>entry.person);
+    }
     function renderDispatch(force=false){
       if(typeof deferHiddenView==='function'&&deferHiddenView('dispatch',force))return;
       const list=$('dispatchList'); if(!list) return;
       list.classList.toggle('dispatch-export-all',force===true);
+      $('dispatchSortSelect').value=dispatchSortMode;
       syncUndoButton();
       const all=buildDispatchRecords(null,true);
-      const renderKey=JSON.stringify([buildDispatchRecords.generation,dispatchStateFilter,new Date().toDateString(),dispatchBatchShipDraft,dispatchBatchShipSaving],(key,value)=>value instanceof Set?[...value]:value);
+      const renderKey=JSON.stringify([buildDispatchRecords.generation,dispatchStateFilter,dispatchSortMode,new Date().toDateString(),dispatchBatchShipDraft,dispatchBatchShipSaving],(key,value)=>value instanceof Set?[...value]:value);
       if(renderDispatch.lastList===list&&renderDispatch.lastKey===renderKey)return;
       renderDispatch.lastList=list;renderDispatch.lastKey=renderKey;
       renderDispatchScope();
-      const records=all.map(person=>({...person,visibleItems:dispatchVisibleItems(person)})).filter(person=>person.visibleItems.length);
+      const records=sortDispatchPeople(all.map(person=>({...person,visibleItems:dispatchVisibleItems(person)})).filter(person=>person.visibleItems.length));
       const totalItems=records.reduce((sum,p)=>sum+p.visibleItems.length,0);
       const label=dispatchFilterLabel();
       $('dispatchSummary').textContent=`${records.length} 人 · ${totalItems} 件${label}`;
@@ -10146,6 +10155,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     });
     $('undoRenameCnBtn').addEventListener('click',()=>undoCnMerge().catch(error=>{console.error(error);appAlert(error.message||'撤销失败，备份仍保留');}));
     $('dispatchSearchBtn').addEventListener('click',dispatchSearch);
+    $('dispatchSortSelect').addEventListener('change',e=>{dispatchSortMode=e.target.value==='ready-desc'?'ready-desc':'name';try{localStorage.setItem('ggzDispatchSort_v1',dispatchSortMode);}catch(_){}renderDispatch();});
     $('dispatchSearchPrev').addEventListener('click',()=>updateDispatchSearchView({step:-1,scroll:true}));
     $('dispatchSearchNext').addEventListener('click',()=>updateDispatchSearchView({step:1,scroll:true}));
     $('dispatchSearchClear').addEventListener('click',clearDispatchSearch);
