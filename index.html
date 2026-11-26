@@ -2530,8 +2530,13 @@ body.export-rendering .cart-count{ font-size:28px; }
       const sheet=sheets.find(s=>s.id===activeSheetId);
       return {id:activeSheetId,name:'',columns,allocations,pricingGroups,pricingGroupIdSeed,watermarkArchive,cost:snapshotCost(),cartNote,cartTargetMode,cartTargetNum,cartCountMode,cartColumns,cartExportHidePrice,showPricingRow,showUnitPriceRow,showPromotionPointRow,showCompleteRowColor,showColdPromotionColor,coldPromotionHighlights,coldPromotionBatches,coldPromotionSeriesBaseAllocations,coldPromotionSeriesBaseHighlights,coldPromotionSeriesFormalSignature,matrixTitle,matrixTitleCustom:sheet?sheetUsesCustomTitle(sheet,'matrixTitle'):false,matrixColor,matrixBoughtCells,matrixIslandCells,matrixChinaCells,matrixBlindSubCells,quantityTitle,quantityTitleCustom:sheet?sheetUsesCustomTitle(sheet,'quantityTitle'):false,paymentTitle,paymentTitleCustom:sheet?sheetUsesCustomTitle(sheet,'paymentTitle'):false,paymentColor,paymentViewMode,paymentStartRow,paymentEndRow,showPaymentTotal,showBoughtSettlement,paymentBoughtOnly,paymentIncludeShare,paymentEdits,paymentPaid,paymentRefund,paymentSupplement,paymentRefundDone,paymentSupplementDone,paymentNotes,settlementDashboardOpen,sharePaymentTitle,sharePaymentTitleCustom,sharePaymentColor,sharePaymentViewMode,sharePaymentEdits,sharePaymentPaid,sharePaymentRefund,sharePaymentSupplement,shareDeductFixed,boxSize,groupSize,completeMultiple,quantityConfigured,coldCarryBundleColumnIds,coldPromotionDraftRows,coldPromotionDraftApplied,coldPromotionDraftBaseAllocations};
     }
+    function newSheetIdentityId(existing=sheets){
+      const used=new Set((existing||[]).map(sheet=>Number(sheet.id)));
+      for(let attempt=0;attempt<64;attempt++){const bytes=new Uint32Array(2);if(typeof crypto!=='undefined'&&crypto.getRandomValues)crypto.getRandomValues(bytes);else{bytes[0]=Math.floor(Math.random()*4294967296);bytes[1]=Math.floor(Math.random()*4294967296);}const id=(bytes[0]&1048575)*4294967296+bytes[1];if(id>0&&Number.isSafeInteger(id)&&!used.has(id))return id;}
+      throw new Error('无法分配不重复的排单编号，未新建或覆盖任何表，请重试。');
+    }
     function blankSheet(name){
-      return {id:sheetIdSeed++,name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},pricingGroups:[],pricingGroupIdSeed:1,watermarkArchive:[],cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartExportHidePrice:true,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:"#d1466a",matrixBoughtCells:{},matrixIslandCells:{},matrixChinaCells:{},matrixBlindSubCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentBoughtOnly:false,paymentIncludeShare:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
+      return {id:newSheetIdentityId(),name:name||`表${sheets.length+1}`,completed:false,completedAt:'',columns:[],allocations:{},pricingGroups:[],pricingGroupIdSeed:1,watermarkArchive:[],cost:{...COST_DEFAULTS},cartNote:'',cartTargetMode:'auto',cartTargetNum:null,cartCountMode:'short',cartColumns:4,cartExportHidePrice:true,showPricingRow:true,showUnitPriceRow:true,showPromotionPointRow:true,showCompleteRowColor:true,showColdPromotionColor:true,coldPromotionHighlights:{completeRows:[],pendingRows:[]},coldPromotionBatches:[],coldPromotionSeriesBaseAllocations:null,coldPromotionSeriesBaseHighlights:null,coldPromotionSeriesFormalSignature:'',matrixTitle:'',matrixTitleCustom:false,matrixColor:"#d1466a",matrixBoughtCells:{},matrixIslandCells:{},matrixChinaCells:{},matrixBlindSubCells:{},quantityTitle:'',quantityTitleCustom:false,paymentTitle:'',paymentTitleCustom:false,paymentColor:'#d1466a',paymentViewMode:'detail',paymentStartRow:1,paymentEndRow:null,showPaymentTotal:true,showBoughtSettlement:false,paymentBoughtOnly:false,paymentIncludeShare:false,paymentEdits:{},paymentPaid:{},paymentRefund:{},paymentSupplement:{},paymentRefundDone:{},paymentSupplementDone:{},paymentNotes:{},settlementDashboardOpen:false,sharePaymentTitle:'',sharePaymentTitleCustom:false,sharePaymentColor:'#d1466a',sharePaymentViewMode:'detail',sharePaymentEdits:{},sharePaymentPaid:{},sharePaymentRefund:{},sharePaymentSupplement:{},shareDeductFixed:false,boxSize:null,groupSize:null,completeMultiple:null,quantityConfigured:false,coldCarryBundleColumnIds:[],coldPromotionDraftRows:[],coldPromotionDraftApplied:false,coldPromotionDraftBaseAllocations:null};
     }
     function blankCollabProjectSnapshot(){
       const savedSeed=sheetIdSeed;
@@ -4179,6 +4184,7 @@ body.export-rendering .cart-count{ font-size:28px; }
             }
             cloud=applyCollabOps(deepClone(acknowledged.display),changes.intent);
           }
+          if(typeof clearEqualRealtimeHeld==='function'&&collabBaseline)clearEqualRealtimeHeld(uiCloud,collabBaseline,code);
           if(typeof maskRealtimeHeld==='function')cloud=maskRealtimeHeld(cloud,collabBaseline);
           return {local,uiCloud,cloud,revision};
         }
@@ -4280,21 +4286,45 @@ body.export-rendering .cart-count{ font-size:28px; }
       pendingRealtimeReview={code,base:prepared.base,server:prepared.server,version:prepared.version,message,conflictPaths:prepared.real.map(op=>JSON.stringify(op.path))};
       pauseRealtimeForSafety(message+'；未同步的价格和新谷子保留在当前页面');
     }
+    function clearEqualRealtimeHeld(local,server,code=syncCode){
+      const before=realtimeHeldFor(code),keep=before.filter(entry=>{const key=entry.root==='itemCatalog'?'catalogId':'id',find=state=>(state?.[entry.root]||[]).filter(x=>String(x?.[key]??x?.id)===entry.id),a=find(local),b=find(server);if(a.length>1||b.length>1)return true;if(entry.fields?.length&&a.length&&b.length)return entry.fields.some(field=>!collabStatesEqual(a[0][field],b[0][field]));return !collabStatesEqual(a[0],b[0]);});
+      if(keep.length===before.length)return 0;const previous=realtimeHeldScopes.entries;realtimeHeldScopes.entries=keep;try{persistRealtimeHeld();}catch(error){realtimeHeldScopes.entries=previous;throw error;}return before.length-keep.length;
+    }
+    function realtimeHeldDifferenceReport(entry,local,cloud){
+      const changes=collabDiff(cloud||{},local||{}).filter(op=>!entry.fields?.length||entry.fields.includes(op.path[0]));
+      if(!local||!cloud)changes.unshift({path:['（整张记录）'],op:local?'set':'delete',value:local,old:cloud,old_missing:!cloud});
+      const summary=value=>!value?'不存在':`${String(value.name||entry.id)} · ${value.columns?.length||0} 款 · ${Object.values(value.allocations||{}).reduce((sum,rows)=>sum+(Array.isArray(rows)?rows.filter(x=>String(x||'').trim()).length:0),0)} 个名单格`;
+      const sameColumnIds=local&&cloud&&Array.isArray(local.columns)&&Array.isArray(cloud.columns),namesDiffer=local&&cloud&&String(local.name||'')!==String(cloud.name||'');
+      const columnNames=value=>new Set((value.columns||[]).map(c=>String(c.name||'').trim()).filter(Boolean));
+      let identityCollision=false;if(entry.root==='sheets'&&sameColumnIds&&namesDiffer){const a=columnNames(local),b=columnNames(cloud),overlap=[...a].filter(x=>b.has(x)).length;identityCollision=a.size>0&&b.size>0&&overlap/Math.min(a.size,b.size)<0.5;}
+      return {changes,localSummary:summary(local),cloudSummary:summary(cloud),identityCollision};
+    }
+    async function showRealtimeHeldDifferences(entry,local,cloud,report){
+      let selected='';const pending=appDialog({title:'同步差异：'+entry.name,message:'本机：'+report.localSummary+'\n云端：'+report.cloudSummary+'\n'+(report.identityCollision?'警告：同一 ID 疑似对应不同排单。禁止直接覆盖，请先下载双方备份，分别保留。':'请先查看差异，再明确选择。默认不覆盖任何内容。其他正常修改继续同步。'),okText:'应用明确选择',cancelText:'暂不处理'});
+      const overlay=$('appConfirmOverlay'),card=overlay.querySelector('.app-confirm-card'),ok=$('appConfirmOk'),body=document.createElement('div');body.className='app-dialog-body';body.style.cssText='display:block;flex:1 1 auto;overflow:auto;';card.classList.add('wide');
+      const labels={columns:'谷子列／价格设置',allocations:'CN 名单',paymentPaid:'谷款已收',sharePaymentPaid:'均摊已收',matrixBoughtCells:'买齐标记',matrixChinaCells:'国内到货',matrixIslandCells:'岛内到货',dispatchShippedCells:'已发货',paymentEdits:'收款及金额快照',paymentCashHistory:'真实收退补流水',mergedShareCells:'合并前均摊金额',mergedCellSources:'合并来源',mergeSourceBackups:'原单存档'};
+      const tools=document.createElement('div');tools.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;';const download=document.createElement('button');download.type='button';download.className='btn-ghost';download.textContent='下载双方完整核对备份';download.onclick=()=>downloadBackup({kind:'ggz-sync-review-evidence',entry,local:local||null,cloud:cloud||null},'同步差异-'+entry.name+'.json');tools.append(download);body.append(tools);
+      const entries=realtimeHeldFor();if(entries.length>1){const label=document.createElement('label'),select=document.createElement('select');label.textContent='查看其他待核对项（'+entries.length+'） ';select.style.cssText='width:100%;margin:6px 0;';for(const item of entries){const option=document.createElement('option');option.value=JSON.stringify([item.root,item.id]);option.textContent=item.name+' · '+item.root+' #'+item.id;select.append(option);}select.value=JSON.stringify([entry.root,entry.id]);select.onchange=()=>{selected={view:select.value};ok.disabled=false;ok.click();};label.append(select);body.prepend(label);}
+      const controls=document.createElement('div');controls.style.cssText='display:grid;gap:8px;margin:10px 0;';if(!report.identityCollision)for(const [value,label]of [['local','明确保留本机所列差异（按云端原值校验提交）'],['cloud','明确采用云端所列内容（放弃本机对应差异）']]){const row=document.createElement('label'),radio=document.createElement('input');radio.type='radio';radio.name='sync-review-choice';radio.value=value;radio.style.width='auto';radio.onchange=()=>{selected=value;ok.disabled=false;};row.append(radio,document.createTextNode(' '+label));controls.append(row);}body.append(controls);ok.disabled=true;
+      const rows=document.createElement('div');body.append(rows);let shown=0;const more=document.createElement('button');more.type='button';more.className='btn-ghost';body.append(more);
+      const format=at=>!at.exists?'（不存在）':JSON.stringify(at.value,null,2);
+      const draw=()=>{for(const op of report.changes.slice(shown,shown+30)){const details=document.createElement('details'),title=document.createElement('summary');title.textContent=(labels[op.path[0]]||op.path[0]||'整张记录')+' · '+op.path.slice(1).join('/')+' · '+(op.op==='delete'?'本机删除':op.old_missing?'本机新增':'值不同');details.append(title);for(const [label,value]of [['本机',op.path[0]==='（整张记录）'?{exists:!!local,value:local}:collabPathValue(local||{},op.path)],['云端',op.path[0]==='（整张记录）'?{exists:!!cloud,value:cloud}:collabPathValue(cloud||{},op.path)]]){const heading=document.createElement('b'),pre=document.createElement('pre');heading.textContent=label;pre.textContent=format(value);pre.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;background:#f7f5fa;padding:8px;font-size:12px;';details.append(heading,pre);}details.style.cssText='border-top:1px solid #e9e0eb;padding:9px 0;';rows.append(details);}shown=Math.min(shown+30,report.changes.length);more.hidden=shown>=report.changes.length;more.textContent='继续显示差异（'+shown+'/'+report.changes.length+'）';};more.onclick=draw;draw();$('appConfirmMessage').after(body);
+      try{return await pending?selected:null;}finally{ok.disabled=false;}
+    }
     async function resolveRealtimeHeldReview(){
-      const code=String(syncCode||''),entry=realtimeHeldFor(code)[0];if(!entry)return;
+      const code=String(syncCode||'');let entry=realtimeHeldFor(code)[0];if(!entry)return;
       if(cloudBusy||collabSending||collabPolling){await appAlert('正常同步正在进行，请稍后查看待核对项。');return;}
       cloudBusy=true;
       try{
         const current=await stableRealtimeSnapshot(code),remote=await readCollabPublication(getCloudClient(code),code);
         if(!remote||Number(remote.revision)!==Number(collabRevision)||!collabStatesEqual(remote.state,collabBaseline))throw new Error('云端有新更新，请等自动同步接收后再查看；其他修改继续同步。');
-        const field=entry.root==='itemCatalog'?'catalogId':'id',id=x=>String(x?.[field]??x?.id),local=(current.uiCloud[entry.root]||[]).find(x=>id(x)===entry.id),cloud=(remote.state[entry.root]||[]).find(x=>id(x)===entry.id);
-        const diffs=collabDiff(cloud||{},local||{}).filter(op=>!entry.fields?.length||entry.fields.includes(op.path[0])),details=diffs.slice(0,8).map(op=>{const format=v=>v===undefined?'（不存在）':JSON.stringify(v).slice(0,100);return op.path.join('/')+'\n本机：'+(op.op==='delete'?'（删除）':format(op.value))+'\n云端：'+format(collabPathValue(cloud||{},op.path).value);}).join('\n\n');
-        const scope=entry.fields?.length?'字段 '+entry.fields.join('、'):'该表结构及关联数据';
-        const answer=await appPrompt('仅核对「'+entry.name+'」的'+scope+'，其他正常修改继续同步。\n'+details+'\n\n1. 明确保留本机这些待核对内容，按云端原值校验提交\n2. 明确采用云端的这些内容（放弃对应本机差异）\n3. 稍后处理，本机继续保留，其他正常修改继续同步','3','待核对：'+entry.name,'继续');
-        if(answer===null||String(answer).trim()==='3')return;if(!['1','2'].includes(String(answer).trim()))throw new Error('请输入1、2或3');
+        clearEqualRealtimeHeld(current.uiCloud,remote.state,code);entry=realtimeHeldFor(code)[0];if(!entry){syncCollabUI();setCollabStatus('本机与云端待核对内容已一致，已清除过期待核对标记','ok');return;}
+        let local,cloud,report,answer;const id=x=>String(x?.[entry.root==='itemCatalog'?'catalogId':'id']??x?.id);
+        while(true){const entityId=x=>String(x?.[entry.root==='itemCatalog'?'catalogId':'id']??x?.id);local=(current.uiCloud[entry.root]||[]).find(x=>entityId(x)===entry.id);cloud=(remote.state[entry.root]||[]).find(x=>entityId(x)===entry.id);report=realtimeHeldDifferenceReport(entry,local,cloud);answer=await showRealtimeHeldDifferences(entry,local,cloud,report);if(answer?.view){const key=JSON.parse(answer.view);entry=realtimeHeldFor(code).find(x=>x.root===key[0]&&x.id===key[1]);if(!entry)throw new Error('待核对列表已变化，请重新打开');continue;}break;}
+        if(!answer)return;if(report.identityCollision)throw new Error('同一编号疑似属于不同排单，禁止覆盖，双方数据均保留');
         const verified=await readCollabPublication(getCloudClient(code),code);
         if(code!==String(syncCode||'')||current.revision!==localRevision||Number(verified?.revision)!==Number(remote.revision)||!collabStatesEqual(verified?.state,remote.state))throw new Error('确认期间有新修改，未应用，请重新核对');
-        const desired=deepClone(current.uiCloud);if(String(answer).trim()==='2'){const list=desired[entry.root]||[],index=list.findIndex(x=>id(x)===entry.id);if(cloud){if(index>=0){if(entry.fields?.length){for(const field of entry.fields){if(Object.prototype.hasOwnProperty.call(cloud,field))list[index][field]=deepClone(cloud[field]);else delete list[index][field];}}else list[index]=deepClone(cloud);}else list.push(deepClone(cloud));}else if(index>=0)list.splice(index,1);}
+        const desired=deepClone(current.uiCloud);if(answer==='cloud'){const list=desired[entry.root]||[],index=list.findIndex(x=>id(x)===entry.id);if(cloud){if(index>=0){if(entry.fields?.length){for(const field of entry.fields){if(Object.prototype.hasOwnProperty.call(cloud,field))list[index][field]=deepClone(cloud[field]);else delete list[index][field];}}else list[index]=deepClone(cloud);}else list.push(deepClone(cloud));}else if(index>=0)list.splice(index,1);}
         if(!recordLocalSnapshot('局部同步核对选择前',true))throw new Error('本机快照保存失败，未应用');
         const oldEntries=realtimeHeldScopes.entries;realtimeHeldScopes.entries=oldEntries.filter(x=>x!==entry);try{persistRealtimeHeld();if(!installCollabState(desired))throw new Error('本机正在编辑，未应用');}catch(error){realtimeHeldScopes.entries=oldEntries;persistRealtimeHeld();throw error;}
         collabNeedsSend=collabDiff(collabBaseline,maskRealtimeHeld(desired,collabBaseline)).length>0;rememberRealtimePending(code,collabNeedsSend);syncCollabUI();setCollabStatus(collabNeedsSend?'所选局部修改正在同步':'其他修改已同步','ok');
@@ -9233,7 +9263,7 @@ body.export-rendering .cart-count{ font-size:28px; }
     }
     function clearCopiedSheetProgress(sheet,sourceName){
       const newName=nextCopiedSheetName(sourceName);
-      sheet.id=sheetIdSeed++;
+      sheet.id=newSheetIdentityId();
       sheet.name=newName;
       sheet.completed=false;
       sheet.completedAt='';
@@ -13875,7 +13905,7 @@ body.export-rendering .cart-count{ font-size:28px; }
       const signature=s=>JSON.stringify([s.columns,s.allocations,s.cost,s.paymentPaid,s.sharePaymentPaid,s.paymentRefundDone,s.paymentSupplementDone,s.matrixBoughtCells,s.matrixIslandCells,s.matrixChinaCells,s.matrixBlindSubCells,s.dispatchShippedCells]);
       const sourceSignature=signature(source);let hash=2166136261;for(let i=0;i<sourceSignature.length;i++)hash=Math.imul(hash^sourceSignature.charCodeAt(i),16777619)>>>0;const fingerprint=sourceSignature.length+':'+hash;
       if((project.sheets||[]).some(s=>s.singleSheetImport?.fingerprint===fingerprint||signature(s)===sourceSignature))throw new Error('相同排单内容已经存在，本次没有重复追加。');
-      const sheet=deepClone(source),id=Math.max(Number(project.sheetIdSeed)||1,...project.sheets.map(s=>(Number(s.id)||0)+1));sheet.id=id;
+      const sheet=deepClone(source),id=newSheetIdentityId(project.sheets);sheet.id=id;
       if(project.sheets.some(s=>s.name===sheet.name))sheet.name=String(sheet.name||'排单')+'（追加）';
       sheet.singleSheetImport={sourceId:source.id,sourceName:source.name,fingerprint,at:new Date().toISOString()};delete sheet.combinedOrderViews;
       const payload=deepClone(project);payload.sheets.push(sheet);payload.activeSheetId=id;payload.sheetIdSeed=id+1;
